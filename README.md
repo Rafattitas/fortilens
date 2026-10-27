@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Rafattitas/fortilens/releases/tag/v0.1.0">Download v0.1.0</a> ·
   <a href="#get-started">Get started</a> ·
   <a href="docs/INSTALLATION.md">Installation guide</a> ·
   <a href="docs/ARCHITECTURE.md">Architecture</a> ·
@@ -57,6 +58,8 @@ python3 setup.py init
 python3 setup.py start
 python3 setup.py doctor
 ```
+
+Prefer a standalone package? Download [fortilens-v0.1.0.zip](https://github.com/Rafattitas/fortilens/releases/download/v0.1.0/fortilens-v0.1.0.zip) and [SHA256SUMS.txt](https://github.com/Rafattitas/fortilens/releases/download/v0.1.0/SHA256SUMS.txt), verify the checksum, extract the archive, and run the same three Python commands from its `forti-monitor/` directory. The release workflow tests and builds this allowlisted package from the version tag.
 
 During setup, enter your FortiGate address, HTTPS API port, read-only API token, optional private CA, and syslog settings. Review discovered interfaces and explicitly confirm your Internet interfaces. Keep Grafana on localhost, or enter the monitoring server's LAN address for access from your network.
 
