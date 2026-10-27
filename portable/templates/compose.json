@@ -1,0 +1,151 @@
+{
+  "services": {
+    "fortigate-exporter": {
+      "command": [
+        "-auth-file",
+        "/config/fortigate-key.yaml"
+      ],
+      "volumes": [
+        "./secrets/fortigate-key.yaml:/config/fortigate-key.yaml:ro"
+      ],
+      "image": "quay.io/prometheuscommunity/fortigate-exporter@sha256:0880186a3dd69e66dc28be8a4cd37569637170e90c2aa657d2b3172a58551725",
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "50m",
+          "max-file": "3"
+        }
+      }
+    },
+    "prometheus": {
+      "command": [
+        "--config.file=/etc/prometheus/prometheus.yml",
+        "--storage.tsdb.path=/prometheus",
+        "--storage.tsdb.retention.time=90d",
+        "--storage.tsdb.retention.size=5GB"
+      ],
+      "volumes": [
+        "./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro",
+        "prometheus-data:/prometheus"
+      ],
+      "image": "prom/prometheus@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0",
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "50m",
+          "max-file": "3"
+        }
+      }
+    },
+    "grafana": {
+      "ports": [
+        "127.0.0.1:3001:3000"
+      ],
+      "environment": {
+        "GF_SECURITY_ADMIN_PASSWORD__FILE": "/run/secrets/grafana_admin_password",
+        "GF_USERS_ALLOW_SIGN_UP": "false"
+      },
+      "secrets": [
+        "grafana_admin_password"
+      ],
+      "volumes": [
+        "grafana-data:/var/lib/grafana",
+        "./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro"
+      ],
+      "image": "grafana/grafana@sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0",
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "50m",
+          "max-file": "3"
+        }
+      }
+    },
+    "loki": {
+      "command": [
+        "-config.file=/etc/loki/local-config.yaml"
+      ],
+      "volumes": [
+        "./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro",
+        "loki-data:/loki"
+      ],
+      "image": "grafana/loki@sha256:c316b7c7589a5eeca843b6926c7446149d18300b79ac8538dc4ae063bc478da2",
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "50m",
+          "max-file": "3"
+        }
+      }
+    },
+    "alloy": {
+      "command": [
+        "run",
+        "--server.http.listen-addr=0.0.0.0:12345",
+        "--storage.path=/var/lib/alloy/data",
+        "/etc/alloy/config.alloy"
+      ],
+      "ports": [
+        "0.0.0.0:1514:1514/tcp"
+      ],
+      "volumes": [
+        "./alloy/config.alloy:/etc/alloy/config.alloy:ro",
+        "alloy-data:/var/lib/alloy/data"
+      ],
+      "depends_on": [
+        "loki"
+      ],
+      "image": "grafana/alloy@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839",
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "50m",
+          "max-file": "3"
+        }
+      }
+    },
+    "node-exporter": {
+      "command": [
+        "--path.procfs=/host/proc",
+        "--path.sysfs=/host/sys",
+        "--path.rootfs=/rootfs"
+      ],
+      "volumes": [
+        "/proc:/host/proc:ro",
+        "/sys:/host/sys:ro",
+        "/:/rootfs:ro,rslave"
+      ],
+      "image": "quay.io/prometheus/node-exporter@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0",
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "50m",
+          "max-file": "3"
+        }
+      }
+    }
+  },
+  "volumes": {
+    "prometheus-data": {},
+    "grafana-data": {},
+    "loki-data": {},
+    "alloy-data": {}
+  },
+  "secrets": {
+    "grafana_admin_password": {
+      "file": "./secrets/grafana_admin_password"
+    }
+  }
+}

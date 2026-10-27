@@ -1,0 +1,6 @@
+/local/
+/local-*/
+/site.json
+/secrets/
+*.zip
+__pycache__/

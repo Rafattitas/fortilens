@@ -1,0 +1,19 @@
+loki.source.syslog "fortigate" {
+  listener {
+    address                = "0.0.0.0:1514"
+    protocol               = "__PROTOCOL__"
+    syslog_format          = "__FORMAT__"
+    use_incoming_timestamp = true
+    labels = {
+      job    = "fortigate-syslog",
+      vendor = "fortinet",
+    }
+  }
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

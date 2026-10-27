@@ -1,0 +1,20 @@
+# Generated installations and credentials
+portable/local/
+portable/local-*/
+portable/site.json
+**/secrets/
+**/fortigate-key.yaml
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Runtime and build output
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+*.zip
+*.log
+.DS_Store
+Thumbs.db

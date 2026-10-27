@@ -1,0 +1,44 @@
+{
+  "global": {
+    "scrape_interval": "60s",
+    "scrape_timeout": "40s",
+    "evaluation_interval": "60s"
+  },
+  "scrape_configs": [
+    {
+      "job_name": "fortigate",
+      "metrics_path": "/probe",
+      "static_configs": [
+        {
+          "targets": []
+        }
+      ],
+      "relabel_configs": [
+        {
+          "source_labels": [
+            "__address__"
+          ],
+          "target_label": "__param_target"
+        },
+        {
+          "target_label": "instance",
+          "replacement": ""
+        },
+        {
+          "target_label": "__address__",
+          "replacement": "fortigate-exporter:9710"
+        }
+      ]
+    },
+    {
+      "job_name": "node-exporter",
+      "static_configs": [
+        {
+          "targets": [
+            "node-exporter:9100"
+          ]
+        }
+      ]
+    }
+  ]
+}
