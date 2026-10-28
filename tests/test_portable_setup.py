@@ -83,7 +83,7 @@ class PortableSetupTests(unittest.TestCase):
         for old in ["legacy-site.example.test", "legacy-sla", "legacy-datasource-uid"]:
             self.assertNotIn(old, text)
         self.assertEqual(d["metadata"], {"name": "forti-monitor"})
-        self.assertEqual(len(d["spec"]["elements"]), 30)
+        self.assertEqual(len(d["spec"]["elements"]), 31)
         self.assertEqual(len(d["spec"]["variables"]), 4)
         wan = d["spec"]["variables"][3]["spec"]
         self.assertNotIn("allValue", wan)
@@ -105,14 +105,18 @@ class PortableSetupTests(unittest.TestCase):
             before = element["spec"]["data"]["spec"]["queries"]
             after = portable["spec"]["elements"][name]["spec"]["data"]["spec"]["queries"]
             self.assertEqual([q["spec"]["query"]["spec"] for q in before], [q["spec"]["query"]["spec"] for q in after])
-            self.assertEqual(element["spec"]["vizConfig"], portable["spec"]["elements"][name]["spec"]["vizConfig"])
+            self.assertEqual(element["spec"]["data"], portable["spec"]["elements"][name]["spec"]["data"])
+            if portable["spec"]["elements"][name]["spec"]["vizConfig"]["group"] == "stat":
+                self.assertEqual(portable["spec"]["elements"][name]["spec"]["vizConfig"]["spec"]["fieldConfig"]["defaults"]["noValue"], "NO DATA")
+        self.assertEqual(source["spec"]["elements"]["panel-18"]["spec"]["vizConfig"]["spec"]["fieldConfig"]["defaults"]["mappings"],
+            portable["spec"]["elements"]["panel-18"]["spec"]["vizConfig"]["spec"]["fieldConfig"]["defaults"]["mappings"])
 
     def test_bundle_only_contains_reviewed_public_inputs(self):
         with tempfile.TemporaryDirectory() as parent, contextlib.redirect_stdout(io.StringIO()):
             p = Path(parent) / "bundle.zip"
             setup.bundle(p)
             with zipfile.ZipFile(p) as archive:
-                self.assertEqual(len(archive.namelist()), 14)
+                self.assertEqual(len(archive.namelist()), 20)
                 for name in archive.namelist():
                     self.assertTrue(name.startswith("forti-monitor/"))
                     self.assertNotIn("local/", name)
