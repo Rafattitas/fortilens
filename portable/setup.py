@@ -501,7 +501,7 @@ def bundle(destination):
     # Deliberate allowlist: never zip the workspace, local installations, exports,
     # handover documents, screenshots or credentials.
     import zipfile
-    allowed = [ROOT / name for name in ("setup.py","doctor.py","interfaces.py","usage_quality.py","dashboard_style.py","accounting.py","wan_health.py","usage_service.py","upgrade.py","reporting.html","site.example.json","README.md",".gitignore","LICENSE")]
+    allowed = [ROOT / name for name in ("setup.py","doctor.py","interfaces.py","usage_quality.py","dashboard_style.py","accounting.py","wan_health.py","usage_service.py","upgrade.py","alerts.py","reporting.html","site.example.json","README.md",".gitignore","LICENSE")]
     allowed.extend(ROOT / "templates" / name for name in [
         "dashboard.json", "compose.json", "prometheus.json", "loki.json", "datasources.json", "config.alloy", "Dockerfile.usage"])
     destination = Path(destination).resolve()
@@ -561,6 +561,10 @@ def main(argv=None):
     upgrade_parser.add_argument('--enable-accounting',action='store_true')
     upgrade_parser.add_argument('--accounting-timezone')
     upgrade_parser.add_argument('--expected-devid')
+    alert_parser=sub.add_parser('prepare-alerts',help='Write paused optional candidates outside provisioning; no notifications')
+    alert_parser.add_argument('--output',type=Path,default=ROOT/'local')
+    alert_parser.add_argument('--notification',choices=['email','telegram'])
+    alert_parser.add_argument('--expected-log-interval-seconds',type=int)
     for command in ('apply-upgrade','rollback-upgrade'):
         up=sub.add_parser(command,help='Apply/restore reviewed configuration files only; never start services')
         up.add_argument('--output',type=Path,default=ROOT/'local')
@@ -629,6 +633,13 @@ def main(argv=None):
                 write_file(p,path,dumps(candidate))
                 print("Review/import visual candidate: "+str(p/path))
                 print("Measurements, selectors and running Grafana are unchanged.")
+            elif args.command=='prepare-alerts':
+                import alerts
+                folder=p/'alert-candidates'/str(time.time_ns())
+                for name,value in alerts.candidates(c,expected_log_interval=args.expected_log_interval_seconds,notification=args.notification).items():
+                    write_file(folder,name+'.json',dumps(value),mode=0o600)
+                print('Paused candidates prepared outside active provisioning: '+str(folder))
+                print('Review, test and enable explicitly in your environment. No rule, policy or notification was changed.')
             elif args.command in ('prepare-upgrade','apply-upgrade','rollback-upgrade'):
                 import upgrade
                 module=sys.modules[__name__]

@@ -25,6 +25,7 @@ sys.path.insert(0,str(ROOT/'portable'))
 spec=importlib.util.spec_from_file_location('lab_setup',ROOT/'portable/setup.py')
 s=importlib.util.module_from_spec(spec);spec.loader.exec_module(s)
 import upgrade
+import alerts
 
 
 def free_port():
@@ -55,6 +56,7 @@ def request(base,path,password=None):
 def main():
     if sys.platform!='linux':raise SystemExit('This isolated Docker check requires Linux')
     temporary=Path(tempfile.mkdtemp(prefix='fortilens-integration-')).resolve()
+    temporary.chmod(0o755) # Only synthetic fixture files are exposed to lab users.
     p=temporary/'installation'
     command=None
     try:
@@ -78,6 +80,10 @@ def main():
         assert before_dashboard==(p/'grafana/dashboard.json').read_bytes()
         assert before_secret==(p/'secrets/grafana_admin_password').read_bytes()
         compose=s.load(p/'compose.yaml')
+        paused=alerts.candidates(c)['rules']
+        (p/'grafana/provisioning/alerting').mkdir()
+        (p/'grafana/provisioning/alerting/rules.json').write_text(s.dumps(paused))
+        compose['services']['grafana']['volumes'].append('./grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro')
         compose['services']['fixture-api']={'image':'fortilens-usage:local','entrypoint':['python','/fixture/fixture_api.py'],
             'volumes':[str(temporary)+':/fixture:ro'],'platform':'linux/amd64'}
         shutil.copyfile(ROOT/'tests/fixture_api.py',temporary/'fixture_api.py')
@@ -103,6 +109,8 @@ def main():
         s.import_dashboard(p,c)
         saved=s.grafana_request(p,c,'/apis/dashboard.grafana.app/v2/namespaces/default/dashboards/forti-monitor')
         assert len(saved['spec']['variables'])==4
+        provisioned=s.grafana_request(p,c,'/api/v1/provisioning/alert-rules')
+        assert len(provisioned)==5 and all(rule['isPaused'] for rule in provisioned)
         # No SLA samples were fabricated: fixture API exposes metadata only.
         wan=wait_for(lambda:request(usage,'/api/wan?seconds=300',password))
         assert wan['interfaces'][0]['internet_state']=='NO DATA'
@@ -147,6 +155,10 @@ def main():
         prom_port=int(compose['services']['prometheus']['ports'][0].split(':')[1])
         query='/api/v1/query?'+urllib.parse.urlencode({'query':'up{job="fortilens-accounting"}'})
         wait_for(lambda:any(row['value'][1]=='1' for row in request('http://127.0.0.1:'+str(prom_port),query)['data']['result']),100)
+        for rule in provisioned:
+            expr=rule['data'][0]['model']['expr']
+            result=request('http://127.0.0.1:'+str(prom_port),'/api/v1/query?'+urllib.parse.urlencode({'query':expr}))
+            assert result['status']=='success'
         # Validate candidates in the real Grafana parser, paused and without a
         # contact point. No external notification is possible in this lab.
         print(json.dumps({'synthetic_only':True,'services':len(compose['services']),'upload_bytes':1300000000,

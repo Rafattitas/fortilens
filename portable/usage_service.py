@@ -174,6 +174,7 @@ class Engine:
             details.update(last_poll_ok=self.last_poll_ok,last_error=self.last_error,last_attempt=self.last_attempt,
                 processing_lag_seconds=max(0,time.time()-checkpoint/accounting.NS) if checkpoint else None,
                 inventory_error=self.store.state('inventory_error'),
+                last_failure_seconds=self.store.state('last_failure_seconds'),
                 loki_timestamps_at_receipt=self.config.get('loki_receive_timestamps',False))
             return details
 
@@ -259,6 +260,7 @@ class Engine:
                     last_prune=now
             except Exception as exc:
                 self.last_poll_ok=False;self.last_error=safe_error(exc);self.last_attempt=now
+                with self.lock,self.store.db:self.store.set_state('last_failure_seconds',now)
             self.stop.wait(self.config.get('accounting_poll_seconds',30) if caught_up or not self.last_poll_ok else 0.05)
 
 
@@ -275,6 +277,7 @@ def metrics(engine):
     output+=metric_line('fortilens_accounting_traffic_coverage_known',0)
     output+=metric_line('fortilens_accounting_last_poll_seconds',details.get('last_attempt'))
     output+=metric_line('fortilens_accounting_last_record_seconds',details['last_received_event_ns']/accounting.NS if details.get('last_received_event_ns') else None)
+    output+=metric_line('fortilens_accounting_last_delivery_seconds',details['last_delivery_ns']/accounting.NS if details.get('last_delivery_ns') else None)
     output+=metric_line('fortilens_accounting_processing_lag_seconds',details.get('processing_lag_seconds'))
     output+=metric_line('fortilens_accounting_parser_rejections',details.get('parser_rejections',0))
     output+=metric_line('fortilens_accounting_late_rejections',details.get('late_rejections',0))
