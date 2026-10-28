@@ -59,6 +59,15 @@ def summarize(samples, start, end, *, max_hold=120, latency_ms=150, packet_loss_
         latency, loss = finite(sample.get("latency_ms")), finite(sample.get("packet_loss_pct"))
         reasons = (["HIGH_LATENCY"] if latency is not None and latency >= latency_ms else []) + (["HIGH_PACKET_LOSS"] if loss is not None and loss >= packet_loss_pct else [])
         segments.append({"start": a, "end": b, "state": state, "degraded": state == "UP" and bool(reasons), "reasons": reasons})
+    # Return continuous runs instead of thousands of per-scrape rectangles.
+    # Unknown gaps remain separate; no interval is extended through a gap.
+    compact=[]
+    for segment in segments:
+        if compact and compact[-1]['end']==segment['start'] and all(compact[-1][key]==segment[key] for key in ('state','degraded','reasons')):
+            compact[-1]['end']=segment['end']
+        else:
+            compact.append(dict(segment))
+    segments=compact
     def runs(predicate):
         result = []
         for s in segments:
