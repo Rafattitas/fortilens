@@ -189,7 +189,7 @@ def direction(fields, inventory, config):
 def derive_session(events, inventory, config):
     zone = tz(config["accounting_timezone"])
     previous, ended, generation, previous_time, previous_duration = {}, False, None, None, None
-    previous_start = None
+    previous_start, previous_mac = None, None
     results = []
     for event in sorted(events, key=lambda e: (e["event_ns"], e["uid"])):
         f, flags = event["fields"], []
@@ -197,7 +197,9 @@ def derive_session(events, inventory, config):
         cumulative = {k: number(f.get(k)) for k in ("sentbyte", "rcvdbyte")}
         duration = number(f.get("duration"))
         inferred_start = stamp//NS-duration if duration is not None else None
-        reset = ended or (duration is not None and previous_duration is not None and duration < previous_duration)
+        current_mac = identity(event, event['uid'])['mac']
+        mac_changed = bool(previous_mac and current_mac and previous_mac != current_mac)
+        reset = ended or mac_changed or (duration is not None and previous_duration is not None and duration < previous_duration)
         # Missing-MAC endpoint identities cannot be carried across inconsistent
         # session-start evidence just because an IP/session number was reused.
         if not f.get("mastersrcmac") and not f.get("srcmac") and previous_start is not None and inferred_start != previous_start:
@@ -207,6 +209,8 @@ def derive_session(events, inventory, config):
             generation, previous, previous_time = event.get("generation_seed", event["uid"]) if not reset else event["uid"], {}, None
         if reset:
             flags.append("session_restart_or_counter_reset")
+        if mac_changed:
+            flags.append('session_endpoint_changed')
         endpoint = identity(event, generation)
         evidence = event.get("network_evidence")
         cls, vlan = (evidence["classification"], evidence["vlan"]) if evidence else direction(f, inventory, config)
@@ -256,7 +260,7 @@ def derive_session(events, inventory, config):
                 if prior is not None:
                     value = total-prior
                     flags.append(label + "_baseline_fallback")
-                elif previous_time is None and duration is not None and interval_start is not None and datetime.fromtimestamp(max(0, interval_start)//NS, zone).date() == datetime.fromtimestamp(stamp//NS, zone).date():
+                elif not mac_changed and previous_time is None and duration is not None and interval_start is not None and datetime.fromtimestamp(max(0, interval_start)//NS, zone).date() == datetime.fromtimestamp(stamp//NS, zone).date():
                     value = total
                     flags.append(label + "_end_only_session")
                 else:
@@ -277,7 +281,7 @@ def derive_session(events, inventory, config):
                 "pending_upload_bytes": pending["upload"], "pending_download_bytes": pending["download"],
                 "flags": sorted(set(flags))}
         results.append(fact)
-        previous_time, previous_duration, previous_start, ended = stamp, duration, inferred_start, f.get("logid") == "0000000013"
+        previous_time, previous_duration, previous_start, previous_mac, ended = stamp, duration, inferred_start, current_mac, f.get("logid") == "0000000013"
     return results
 
 
@@ -364,9 +368,14 @@ class Store:
                 cls, vlan = direction(event["fields"], self.inventory, self.config)
                 evidence_flags = []
                 collected = self.inventory.get("collected_at")
-                if collected and event["event_ns"] < timestamp_ns(collected) and vlan["status"] == "MAPPED":
+                if collected and event["event_ns"] < timestamp_ns(collected):
                     evidence_flags.append("historical_vlan_mapping_not_verified")
                     vlan = {**vlan, "status": "UNKNOWN", "vlan_id": None, "key": "unknown:"+vlan["interface"]}
+                    # A current inventory cannot establish historical direction.
+                    # Contemporaneous roles in the record may still establish it.
+                    cls, _ = direction(event['fields'], {'interfaces': []}, {**self.config, 'confirmed_wan_interfaces': []})
+                    if cls == 'UNRESOLVED_DIRECTION':
+                        evidence_flags.append('historical_direction_not_verified')
                 event["network_evidence"] = {"classification": cls, "vlan": vlan, "flags": evidence_flags}
                 new_event = self.db.execute("INSERT OR IGNORE INTO events VALUES(?,?,?,?)", (event["uid"], event["session"], event["event_ns"], json.dumps(event))).rowcount
                 inserted += new_event
@@ -523,7 +532,9 @@ class Store:
 
     def diagnostics(self):
         row = self.db.execute("SELECT MIN(stamp),MAX(stamp) FROM facts WHERE stamp>=?", (self.state("ledger_floor_ns", 0),)).fetchone()
+        delivery = self.db.execute("SELECT MAX(stamp) FROM deliveries").fetchone()[0]
         return {"checkpoint_ns": self.state("checkpoint_ns"), "last_received_event_ns": row[1], "first_retained_event_ns": row[0],
+                "last_delivery_ns": delivery,
                 "replay_candidates": self.state("replay_candidates", 0), "late_rejections": self.state("late_rejections", 0),
                 "parser_rejections": self.state("parser_rejections", 0),
                 "ledger_floor_ns": self.state("ledger_floor_ns"), "summary_floor_day": self.state("summary_floor_day"),

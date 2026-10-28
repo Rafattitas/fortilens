@@ -48,7 +48,7 @@ class LokiReader:
     def first(self, start, end):
         while start<end:
             stop=min(end,start+30*86400*accounting.NS)
-            result=self.fetch(self.base,'/loki/api/v1/query_range',{'query':'{job="fortigate-syslog"}','start':str(start),'end':str(stop),'direction':'forward','limit':'1'})
+            result=self.fetch(self.base,'/loki/api/v1/query_range',{'query':'{job="fortigate-syslog"}','start':str(start),'end':str(stop-1),'direction':'forward','limit':'1'})
             if result['data']['resultType']!='streams':raise ServiceError('unexpected_loki_response')
             stamps=[int(v[0]) for row in result['data']['result'] for v in row.get('values',[])]
             if stamps:return min(stamps)
@@ -60,7 +60,8 @@ class LokiReader:
         def page(a,b):
             budget['requests']+=1
             if budget['requests']>self.max_requests:raise ServiceError('loki_paging_budget_exhausted')
-            response=self.fetch(self.base,'/loki/api/v1/query_range',{'query':'{job="fortigate-syslog"}','start':str(a),'end':str(b),'direction':'forward','limit':str(self.limit)})
+            # Loki's endpoint includes both boundaries; the engine uses [a,b).
+            response=self.fetch(self.base,'/loki/api/v1/query_range',{'query':'{job="fortigate-syslog"}','start':str(a),'end':str(b-1),'direction':'forward','limit':str(self.limit)})
             data=response['data']
             if data['resultType']!='streams':raise ServiceError('unexpected_loki_response')
             rows=[{'timestamp_ns':int(v[0]),'line':v[1]} for stream in data['result'] for v in stream.get('values',[])]
@@ -110,11 +111,15 @@ class Engine:
         if not self.token_file:return
         try:
             token=Path(self.token_file).read_text().strip()
-            report=interfaces.collect(self.config,token,installation=self.config_root,use_api=True)
+            def exporter_request(_p,_c,path,**options):
+                params=urllib.parse.parse_qs(urllib.parse.urlsplit(path).query)
+                return self.fetch(self.prometheus,'/api/v1/query',{'query':params['query'][0]},timeout=15)
+            report=interfaces.collect(self.config,token,installation=self.config_root,use_api=True,request=exporter_request)
             with self.lock,self.store.db:
                 self.store.inventory=report
                 self.store.set_state('inventory',report)
-                self.store.set_state('inventory_error',None if report['interfaces'] else 'inventory_unavailable')
+                reason=next((note.split(':',1)[0] for note in report.get('notes',[]) if note.startswith('api_http_')),'inventory_unavailable')
+                self.store.set_state('inventory_error',None if report['interfaces'] else reason)
         except Exception as exc:
             with self.lock,self.store.db:self.store.set_state('inventory_error',safe_error(exc))
 

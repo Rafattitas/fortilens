@@ -33,6 +33,21 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(self.report()["totals"]["upload_bytes"], 1000000000)
         self.assertEqual(self.report()["totals"]["download_bytes"], 2000000000)
 
+    def test_changed_mac_cannot_inherit_another_endpoints_cumulative_baseline(self):
+        self.store.ingest([record(sentbyte='100',rcvdbyte='200'),record('2026-10-20T12:01:00Z',
+            mastersrcmac='02:00:00:00:00:02',duration='120',logid='0000000013',sentdelta='',rcvddelta='',sentbyte='500',rcvdbyte='900')])
+        result=self.report()
+        self.assertEqual(result['totals']['upload_bytes'],100)
+        self.assertEqual(result['totals']['pending_upload_bytes'],500)
+        self.assertIn('session_endpoint_changed',result['flags'])
+
+    def test_future_metadata_cannot_certify_historical_direction_or_vlan(self):
+        self.store.inventory={**INVENTORY,'collected_at':'2026-10-21T00:00:00Z'}
+        self.store.ingest([record(srcintfrole='',dstintfrole='')])
+        result=self.report()
+        self.assertIsNone(result['totals']['upload_bytes'])
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM events').fetchone()[0],1)
+
     def test_explicit_zero_does_not_fall_back(self):
         self.store.ingest([record(logid="0000000013", sentdelta="0", rcvddelta="0", sentbyte="9000", rcvdbyte="8000")])
         self.assertEqual(self.report()["totals"]["upload_bytes"], 0)

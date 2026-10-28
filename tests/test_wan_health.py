@@ -19,6 +19,10 @@ class WanHealthTests(unittest.TestCase):
         rows=[{'state':'down','value':0,'timestamp':99},{'state':'up','value':1,'timestamp':99}]
         self.assertEqual(w.current_state(rows,100,60,True),'UP')
 
+    def test_current_state_uses_latest_observation_after_a_transition(self):
+        rows=[{'state':'down','value':1,'timestamp':80},{'state':'up','value':1,'timestamp':99}]
+        self.assertEqual(w.current_state(rows,100,60,True),'UP')
+
     def test_conflicting_or_stale_states_remain_unknown_or_no_data(self):
         rows=[{'state':'down','value':1,'timestamp':99},{'state':'up','value':1,'timestamp':99}]
         self.assertEqual(w.current_state(rows,100,60,True),'UNKNOWN')

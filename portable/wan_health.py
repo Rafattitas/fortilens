@@ -14,8 +14,10 @@ def finite(value):
 def current_state(rows, now, freshness, collection_ok):
     if not collection_ok:
         return "NO DATA"
-    active = {r["state"].upper() for r in rows if r.get("state", "").upper() in KNOWN
-              and r.get("value") == 1 and 0 <= now-r.get("timestamp", -math.inf) <= freshness}
+    recent = [r for r in rows if r.get('state', '').upper() in KNOWN and r.get('value') == 1
+              and 0 <= now-r.get('timestamp', -math.inf) <= freshness]
+    latest = max((r['timestamp'] for r in recent), default=None)
+    active = {r['state'].upper() for r in recent if r['timestamp'] == latest}
     return next(iter(active)) if len(active) == 1 else "UNKNOWN" if active else "NO DATA"
 
 

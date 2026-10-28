@@ -18,7 +18,8 @@ from test_accounting import record,CONFIG,INVENTORY
 def raw_api(entries):
     def fetch(base,route,params,**options):
         first,last,limit=int(params['start']),int(params['end']),int(params['limit'])
-        values=[[str(t),line] for t,line in entries if first<=t<last][:limit]
+        # Match the real inclusive Loki API, not the engine's half-open contract.
+        values=[[str(t),line] for t,line in entries if first<=t<=last][:limit]
         return {'status':'success','data':{'resultType':'streams','result':[{'stream':{'job':'fortigate-syslog'},'values':values}] if values else []}}
     return fetch
 

@@ -64,6 +64,27 @@ def docker_result():
 
 
 class DoctorTests(unittest.TestCase):
+    def test_accounting_checks_report_processing_without_certifying_traffic_coverage(self):
+        details={'last_attempt':NOW-10,'last_poll_ok':True,'processing_lag_seconds':5,
+            'inventory_available':True,'source_identity_bound':True,'loki_timestamps_at_receipt':True}
+        checks=doctor.accounting_checks(details,NOW,300)
+        self.assertTrue(all(x['status']=='PASS' for x in checks))
+        details.update(inventory_available=False,inventory_error='api_http_403',parser_rejections=2,processing_lag_seconds=900)
+        checks=doctor.accounting_checks(details,NOW,300)
+        self.assertEqual(next(x for x in checks if x['id']=='accounting_inventory_permissions')['status'],'FAIL')
+        self.assertEqual(next(x for x in checks if x['id']=='accounting_lag')['status'],'WARN')
+        self.assertNotIn('SECRET',json.dumps(checks))
+
+    def test_reporting_auth_failure_is_not_fortigate_auth_failure(self):
+        config={**CONFIG,'accounting_enabled':True}
+        def reject(*args):raise urllib.error.HTTPError('http://local/',401,'SECRET',{},None)
+        with patch.object(doctor.subprocess,'run',return_value=docker_result()):
+            result=doctor.run(Path('/test'),config,FakeRequest(),lambda p,*a:['docker',*a],
+                'fm-prometheus','fm-loki',now=NOW,usage_request=reject)
+        self.assertEqual(self.item(result,'accounting_api')['code'],'accounting_auth_rejected')
+        self.assertEqual(self.item(result,'fortigate_api')['status'],'PASS')
+        self.assertNotIn('SECRET',json.dumps(result))
+
     def run_report(self, request=None, **kwargs):
         with patch.object(doctor.subprocess, "run", return_value=docker_result()) as run, \
              patch.object(doctor, "api_check") as api:

@@ -501,7 +501,7 @@ def bundle(destination):
     # Deliberate allowlist: never zip the workspace, local installations, exports,
     # handover documents, screenshots or credentials.
     import zipfile
-    allowed = [ROOT / name for name in ("setup.py","doctor.py","interfaces.py","usage_quality.py","dashboard_style.py","accounting.py","wan_health.py","usage_service.py","reporting.html","site.example.json","README.md",".gitignore","LICENSE")]
+    allowed = [ROOT / name for name in ("setup.py","doctor.py","interfaces.py","usage_quality.py","dashboard_style.py","accounting.py","wan_health.py","usage_service.py","upgrade.py","reporting.html","site.example.json","README.md",".gitignore","LICENSE")]
     allowed.extend(ROOT / "templates" / name for name in [
         "dashboard.json", "compose.json", "prometheus.json", "loki.json", "datasources.json", "config.alloy", "Dockerfile.usage"])
     destination = Path(destination).resolve()
@@ -556,6 +556,16 @@ def main(argv=None):
     style_parser=sub.add_parser("prepare-dashboard-style",help="Create a reviewed visual candidate without overwriting Grafana")
     style_parser.add_argument("--output",type=Path,default=ROOT/"local")
     style_parser.add_argument("--input",type=Path,help="Latest exported dashboard; otherwise use the saved generated source")
+    upgrade_parser=sub.add_parser('prepare-upgrade',help='Prepare a private reviewed v0.1.0 migration; no runtime changes')
+    upgrade_parser.add_argument('--output',type=Path,default=ROOT/'local')
+    upgrade_parser.add_argument('--enable-accounting',action='store_true')
+    upgrade_parser.add_argument('--accounting-timezone')
+    upgrade_parser.add_argument('--expected-devid')
+    for command in ('apply-upgrade','rollback-upgrade'):
+        up=sub.add_parser(command,help='Apply/restore reviewed configuration files only; never start services')
+        up.add_argument('--output',type=Path,default=ROOT/'local')
+        up.add_argument('--plan',required=True,help='Generated upgrade ID')
+        up.add_argument('--accept-config-changes',action='store_true',help='Acknowledge reviewed file changes; services are a separate action')
     b = sub.add_parser("bundle")
     b.add_argument("--destination", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -619,6 +629,24 @@ def main(argv=None):
                 write_file(p,path,dumps(candidate))
                 print("Review/import visual candidate: "+str(p/path))
                 print("Measurements, selectors and running Grafana are unchanged.")
+            elif args.command in ('prepare-upgrade','apply-upgrade','rollback-upgrade'):
+                import upgrade
+                module=sys.modules[__name__]
+                if args.command=='prepare-upgrade':
+                    plan=upgrade.prepare(module,p,c,enable_accounting=args.enable_accounting,
+                        zone=args.accounting_timezone,expected_devid=args.expected_devid)
+                    print('Review private plan: '+str(p/'.upgrades'/plan['id']/'plan.json'))
+                    print('Upgrade ID: '+plan['id'])
+                else:
+                    if not args.accept_config_changes:
+                        raise SetupError('Review the plan/backup and add --accept-config-changes. No runtime actions are automatic')
+                    operation=upgrade.apply if args.command=='apply-upgrade' else upgrade.rollback
+                    plan=operation(module,p,args.plan)
+                    print('Configuration '+plan['status']+'. Runtime services have not been changed.')
+                    if args.command=='rollback-upgrade':
+                        print('Stop the optional worker before rollback; restart the original services explicitly. Keep usage-data for recovery.')
+                    else:
+                        print('Review Compose config and the dashboard candidate, then explicitly run start when migration is approved.')
             else:
                 import_dashboard(p, c)
         return 0
