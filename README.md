@@ -42,6 +42,7 @@ Designed for **one FortiGate per independent installation**: your server, your c
 | **WAN SLA visibility** | State, latency, jitter, packet loss, observed availability, and sample coverage. |
 | **A dashboard that adapts** | Chained FortiGate → VDOM → SLA → WAN selectors, with repeating interface cards. |
 | **Recorded device usage** | Today, rolling 7-day, and calendar-month reports grouped by MAC/IP/name. |
+| **Usage quality diagnostics** | Received-record classification, explicit period guidance, and an offline sample audit for repeat/identity review. |
 | **Interface and VLAN review** | Reuses exporter labels, fills metadata gaps through read-only API requests, and asks you to confirm Internet interfaces. |
 | **Useful readiness checks** | Distinguishes failed collection, old samples, missing logs, and authentication boundaries. |
 | **Repeatable deployment** | Six digest-pinned Docker services, datasource provisioning, and automatic first dashboard import. |
@@ -118,7 +119,7 @@ Only Grafana and syslog publish host ports by default. [Read the architecture no
 
 ## Built to be inspectable
 
-The initial release includes **35 automated tests**, a Python-version CI matrix, scoped read-only inventory, explicit interface confirmation, safe bundle allowlists, and documented evidence limits. Service images are pinned by digest; updates need compatibility review.
+The current source includes **56 automated tests**, a Python-version CI matrix, scoped read-only inventory, explicit interface confirmation, safe bundle allowlists, and documented evidence limits. Service images are pinned by digest; updates need compatibility review. The published v0.1.0 download predates the usage-quality extension; see the [usage-quality guide](docs/USAGE_QUALITY.md) for current-source behavior and existing-installation candidates.
 
 ```bash
 python3 -m unittest discover -s tests -v

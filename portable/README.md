@@ -143,6 +143,18 @@ The supported window is 60–3600 seconds. Exit code 0 means all checks passed; 
 
 ## Usage accounting limits
 
+Current-source installations include a **Reporting Periods & Evidence** guide and a collapsed **Usage Data Quality** row with Today / Last 7 Days / This Month received-record tables. These are diagnostics, not completeness percentages or duplicate repair. Expanding the row performs additional scans, so keep it collapsed during normal monitoring.
+
+For a pre-extension installation, `python3 setup.py prepare-usage-quality` creates a uniquely named local dashboard candidate without overwriting the saved source or running Grafana. Export and review live edits before importing it. Repeating `start` still preserves an existing dashboard.
+
+An offline normalized sample can be audited without an installation or network access:
+
+```bash
+python3 setup.py usage-audit --input /private/sample.json --period month --timezone UTC --vdom root --at 2026-10-28T12:00:00Z --json
+```
+
+The JSON input has a `records` array of objects containing an offset-aware ISO `timestamp` and a `fields` object with string FortiGate field values. For example, `{"records":[{"timestamp":"2026-10-28T11:00:00Z","fields":{"type":"traffic","subtype":"forward","logid":"0000000020","vd":"root","dstintfrole":"wan","mastersrcmac":"02:00:00:00:00:01","sentdelta":"100","rcvddelta":"200"}}]}`. Input is normalized data, not a raw Loki export. The audit flags replay candidates and MACs with multiple IP/name combinations, preserves record-time boundaries, and never certifies whole-period coverage. Exit2 means needs review/unavailable; invalid input exits1. No identities or raw fields are emitted. UTC works on configuration-only Windows hosts; other IANA zones require installed timezone data. Full source documentation: [usage quality](https://github.com/Rafattitas/fortilens/blob/main/docs/USAGE_QUALITY.md).
+
 - One FortiGate is assumed for the dedicated syslog receiver. This is a scope assumption, not a network filter or verified sender identity. Do not send another device's logs to it.
 - Reports group by MAC/IP/name, not authenticated user accounts. VDOM filters usage; WAN selection affects SLA/interface panels, not device usage totals.
 - Delta fields take priority, including zero. Cumulative fallback is allowed only on session-end records 13 when a delta is absent. Missing/duplicate logs, missing MACs, and period boundaries remain limitations.
@@ -157,6 +169,6 @@ The supported window is 60–3600 seconds. Exit code 0 means all checks passed; 
 python3 setup.py bundle --destination ../forti-monitor-single-device.zip
 ```
 
-The ZIP allowlist contains 13 files: setup, readiness checks, interface inventory, the MIT license, this guide, the example, gitignore, and six templates. It excludes installation directories, inventory responses, tokens, original site exports, handover documents, and client screenshots. The command does not publish anything to GitHub.
+The current-source ZIP allowlist contains 14 files: setup, readiness checks, interface inventory, usage quality/audit, the MIT license, this guide, the site example, gitignore, and six templates. It excludes installation directories, inventory responses, tokens, original site exports, handover documents, and client screenshots. The v0.1.0 release ZIP has13 files and predates this extension. The command does not publish anything to GitHub.
 
 References: [Grafana provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), [Loki datasource timeout](https://grafana.com/docs/grafana/latest/datasources/loki/configure/), and [Alloy syslog](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.syslog/). Dashboard import uses APIv2 rather than relying on file provisioning compatibility with the v2 schema.

@@ -5,12 +5,14 @@ import importlib.util
 import io
 import json
 import re
+import sys
 from pathlib import Path
 import tempfile
 import unittest
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "portable"))
 spec = importlib.util.spec_from_file_location("portable_setup", ROOT / "portable/setup.py")
 setup = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(setup)
@@ -67,7 +69,7 @@ class PortableSetupTests(unittest.TestCase):
         for old in ["legacy-site.example.test", "legacy-sla", "legacy-datasource-uid"]:
             self.assertNotIn(old, text)
         self.assertEqual(d["metadata"], {"name": "forti-monitor"})
-        self.assertEqual(len(d["spec"]["elements"]), 26)
+        self.assertEqual(len(d["spec"]["elements"]), 30)
         self.assertEqual(len(d["spec"]["variables"]), 4)
         wan = d["spec"]["variables"][3]["spec"]
         self.assertNotIn("allValue", wan)
@@ -96,7 +98,7 @@ class PortableSetupTests(unittest.TestCase):
             p = Path(parent) / "bundle.zip"
             setup.bundle(p)
             with zipfile.ZipFile(p) as archive:
-                self.assertEqual(len(archive.namelist()), 13)
+                self.assertEqual(len(archive.namelist()), 14)
                 for name in archive.namelist():
                     self.assertTrue(name.startswith("forti-monitor/"))
                     self.assertNotIn("local/", name)

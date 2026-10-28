@@ -9,7 +9,7 @@ python3 -m unittest discover -s tests -v
 python3 portable/setup.py bundle --destination dist/fortilens-single-device.zip
 ```
 
-The suite has 35 tests covering configuration validation, query scoping, packaging, readiness classifications/freshness, read-only inventory, pagination, field sanitization, explicit interface choices, and candidate preservation. CI runs Python 3.10, 3.12, and 3.13 on Linux, plus Python 3.12 on Windows for configuration/test portability. CI does not connect to a FortiGate or start Docker.
+The current-source suite has56 tests covering configuration validation, query scoping, packaging, readiness classifications/freshness, read-only inventory, pagination, field sanitization, explicit interface choices, usage sample periods/replay candidates/identity changes, and candidate preservation. The v0.1.0 release included35 tests. CI runs Python3.10,3.12, and3.13 on Linux, plus Python3.12 on Windows for configuration/test portability. The IANA timezone case skips on a configuration-only host without a timezone database; UTC remains supported. CI does not connect to a FortiGate or start Docker.
 
 ## Controlled integration evidence
 

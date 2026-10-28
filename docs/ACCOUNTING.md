@@ -2,6 +2,8 @@
 
 These reports summarize bytes present in received FortiGate traffic logs. They are useful operational evidence, but they are not an authenticated-user ledger or a billing system.
 
+Current-source dashboards add a reporting-period guide and collapsed received-record diagnostic tables. An offline audit flags repeat candidates and IP/name splits while keeping coverage unknown. See [usage-quality diagnostics](USAGE_QUALITY.md). Existing byte formulas and identity grouping remain unchanged.
+
 ## Record selection and byte accounting
 
 The dashboard groups records by available MAC/IP/name fields and filters the selected VDOM. Its WAN condition is `dstintfrole="wan"`. Choosing Internet interfaces in setup affects monitoring selectors; it does not rewrite FortiGate roles or replace this accounting condition. If the device omits that role or reports another role, relevant traffic may be excluded.

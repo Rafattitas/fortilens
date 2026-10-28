@@ -131,6 +131,7 @@ def discovery(label, selector, values, selection, scope, restrict_scope=False):
 
 
 def make_dashboard(c):
+    from usage_quality import enhance_dashboard
     result = load(ROOT / "templates/dashboard.json")
     spec = result["spec"]
     spec["title"] = "FortiLens — " + c["site_name"]
@@ -170,7 +171,7 @@ def make_dashboard(c):
                 "Names may be available without SLA samples; choices never fabricate measurements. "
                 "Other VDOMs require separate review. This does not change FortiGate roles or usage-accounting filters."
             )
-    return result
+    return enhance_dashboard(result)
 
 
 def write_file(root, relative, value, mode=0o644):
@@ -426,7 +427,7 @@ def bundle(destination):
     # Deliberate allowlist: never zip the workspace, local installations, exports,
     # handover documents, screenshots or credentials.
     import zipfile
-    allowed = [ROOT / "setup.py", ROOT / "doctor.py", ROOT / "interfaces.py", ROOT / "site.example.json", ROOT / "README.md", ROOT / ".gitignore", ROOT / "LICENSE"]
+    allowed = [ROOT / "setup.py", ROOT / "doctor.py", ROOT / "interfaces.py", ROOT / "usage_quality.py", ROOT / "site.example.json", ROOT / "README.md", ROOT / ".gitignore", ROOT / "LICENSE"]
     allowed.extend(ROOT / "templates" / name for name in [
         "dashboard.json", "compose.json", "prometheus.json", "loki.json", "datasources.json", "config.alloy"])
     destination = Path(destination).resolve()
@@ -468,6 +469,15 @@ def main(argv=None):
     interfaces_parser.add_argument("--json", action="store_true")
     interfaces_parser.add_argument("--select-wan")
     interfaces_parser.add_argument("--confirm-wan", action="store_true")
+    audit_parser = sub.add_parser("usage-audit", help="Offline normalized-record sample audit; no collection or device requests")
+    audit_parser.add_argument("--input", type=Path, required=True)
+    audit_parser.add_argument("--period", choices=["today", "week", "month"], required=True)
+    audit_parser.add_argument("--timezone", required=True, help="Explicit UTC or installed IANA timezone, never browser")
+    audit_parser.add_argument("--vdom", required=True)
+    audit_parser.add_argument("--at", help="ISO8601 window end with an explicit offset; defaults to now")
+    audit_parser.add_argument("--json", action="store_true")
+    candidate_parser = sub.add_parser("prepare-usage-quality", help="Create a local candidate from the saved dashboard; never overwrite Grafana")
+    candidate_parser.add_argument("--output", type=Path, default=ROOT / "local")
     b = sub.add_parser("bundle")
     b.add_argument("--destination", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -491,6 +501,12 @@ def main(argv=None):
             render(c, args.output, token, inventory_report=report)
         elif args.command == "bundle":
             bundle(args.destination)
+        elif args.command == "usage-audit":
+            import usage_quality
+            from datetime import datetime, timezone
+            report = usage_quality.audit_file(args.input, period=args.period, zone=args.timezone,
+                at=args.at or datetime.now(timezone.utc).isoformat(), vdom=args.vdom)
+            return usage_quality.print_report(report, args.json)
         else:
             p, c = installation(args.output)
             if args.command == "start":
@@ -504,6 +520,17 @@ def main(argv=None):
                 return doctor.print_report(report, args.json)
             elif args.command == "interfaces":
                 interface_command(p, c, args)
+            elif args.command == "prepare-usage-quality":
+                import usage_quality
+                source = load(p / "grafana/dashboard.json")
+                candidate = usage_quality.enhance_dashboard(source)
+                if candidate == source:
+                    print("The saved dashboard already includes usage-quality panels; nothing changed.")
+                else:
+                    path = "grafana/dashboard.usage-quality-" + str(time.time_ns()) + ".json"
+                    write_file(p, path, dumps(candidate))
+                    print("Review/import the local candidate: " + str(p / path))
+                    print("The running Grafana dashboard and saved source were not changed. Export live edits before importing.")
             else:
                 import_dashboard(p, c)
         return 0
