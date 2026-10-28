@@ -19,6 +19,20 @@ spec.loader.exec_module(setup)
 
 
 class PortableSetupTests(unittest.TestCase):
+    def test_loki_timeout_layers_leave_time_to_deliver_a_long_query(self):
+        # A write deadline shorter than the execution budget can discard a
+        # successful query response; the datasource must also outlive both.
+        loki = setup.load(ROOT / "portable/templates/loki.json")
+        sources = setup.load(ROOT / "portable/templates/datasources.json")
+        def seconds(value):
+            return int(value[:-1]) * {"s": 1, "m": 60}[value[-1]]
+        execution = seconds(loki["limits_config"]["query_timeout"])
+        response = seconds(loki["server"]["http_server_write_timeout"])
+        client = next(x["jsonData"]["timeout"] for x in sources["datasources"] if x["type"] == "loki")
+        self.assertGreater(execution, 0)
+        self.assertLess(execution, response)
+        self.assertLess(response, client)
+
     def config(self, **changes):
         return setup.validate_config({"fortigate_host": "fw.example.test", "api_port": 8443,
             "vdom": "Employees", "sla": "ISP_Health", "wan_interfaces": ["port3", "uplink.100"], **changes})

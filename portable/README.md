@@ -40,7 +40,7 @@ A relative `api_ca_file` is resolved relative to the configuration file. Generat
 python3 setup.py start
 ```
 
-The tool validates Compose, starts the services, waits for Grafana and both datasources, and imports the dashboard through APIv2. Datasources use stable generic UIDs, and the Loki datasource timeout is 90 seconds. Repeating `start` preserves an existing dashboard rather than overwriting edits.
+The tool validates Compose, starts the services, waits for Grafana and both datasources, and imports the dashboard through APIv2. Datasources use stable generic UIDs, and the Loki datasource timeout is 240 seconds. Repeating `start` preserves an existing dashboard rather than overwriting edits.
 
 Grafana login is `admin`. A random initial password is stored in `local/secrets/grafana_admin_password`. Open the configured server address and port, then `/d/forti-monitor`. If the password changes in Grafana, or basic authentication is later disabled, the tool's authenticated API operations may require a credential review. Existing dashboard data is preserved.
 
@@ -160,7 +160,7 @@ The JSON input has a `records` array of objects containing an offset-aware ISO `
 - Delta fields take priority, including zero. Cumulative fallback is allowed only on session-end records 13 when a delta is absent. Missing/duplicate logs, missing MACs, and period boundaries remain limitations.
 - Confirmed interface choices scope monitoring dropdowns; they do not replace the existing usage query's `dstintfrole="wan"` condition. Selecting an interface whose device role is undefined does not automatically include its traffic in usage totals.
 - The weekly report covers the last 7 days. The monthly report starts at the calendar month boundary in the selected timezone. An absolute Grafana time range overrides relative panel periods.
-- Loki retention is 60 days, maximum query range 32 days, query timeout 1 minute, and response write timeout 90 seconds. Large scans remain expensive; a successful 31-day range does not prove continuous 31-day coverage.
+- Loki retention is 60 days, maximum query range 32 days, query timeout 3 minutes, and response write timeout 210 seconds. Grafana's Loki timeout is 240 seconds, allowing the backend to finish before the client deadline. Large scans remain expensive; a successful 31-day range does not prove continuous 31-day coverage. These generated defaults do not migrate an existing installation's configuration.
 - Prometheus scrapes every 60 seconds with a 40-second timeout, allowing the exporter's 30-second probe budget. These are new-package defaults and do not change the existing deployment.
 
 ## Build a distribution bundle

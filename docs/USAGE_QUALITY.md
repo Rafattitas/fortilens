@@ -4,6 +4,10 @@ The dashboard now explains report periods and adds three received-record diagnos
 
 The diagnostic row is **collapsed by default**. Expand it when investigating a report; monthly scans can be expensive. It is not an alert or a background collector.
 
+Classification uses literal log-ID checks, ASCII digit checks and local template variables to avoid repeated regular-expression compilation and intermediate label formatting per record. Full strict parsing and the existing byte formulas are preserved. A read-only Loki-engine comparison checked 25 synthetic cases, including explicit zero, fallback, invalid numbers, unquoted IDs and a trailing parser error, against the previous classification query.
+
+New installations allow three minutes for a Loki query, 210 seconds for its HTTP response and 240 seconds in the Grafana Loki datasource. A historical weekly diagnostic reached the previous one-minute deadline, so query success alone on a short sample is insufficient. These are bounded timeouts, not precomputed summaries or a speed guarantee; several simultaneous large scans still compete for resources. Existing installations need a separately reviewed configuration update; importing a dashboard does not update datasource or Loki deadlines.
+
 ## What the tables tell you
 
 Each table counts received records by classification: both delta fields, end-record cumulative fallback, missing master MAC, invalid/missing byte contributions, non-WAN role, unsupported event/format, non-forward traffic, missing VDOM, and parsing errors.

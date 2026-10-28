@@ -91,12 +91,19 @@ def quality_query():
     # quoted logid gate. Diagnostics deliberately use stricter parsing.
     # Classification happens before clearing parser errors;
     # otherwise malformed input would disappear from the diagnostics.
-    category = r'''{{if .__error__}}unscoped_parse_error{{else if not .vd}}unscoped_missing_vdom{{else if not (and (eq .type "traffic") (eq .subtype "forward"))}}excluded_type{{else if or (not (or (eq .logid "0000000013") (eq .logid "0000000020"))) (eq (count "logid=\"00000000(13|20)\"" (__line__)) 0)}}excluded_event{{else if ne .dstintfrole "wan"}}excluded_role{{else if not .mastersrcmac}}excluded_missing_mac{{else if or (ne (count "^[0-9]+$" .tx) 1) (ne (count "^[0-9]+$" .rx) 1)}}excluded_invalid_bytes{{else if or (not .sentdelta) (not .rcvddelta)}}included_cumulative_fallback{{else}}included_delta{{end}}'''
+    # Literal containment replaces the two-log-ID regexp. Nonempty strings
+    # trimmed by the ASCII digit set are empty iff they contain only digits.
+    # Local template variables avoid two intermediate label-format stages and
+    # defer directional fallback until the record passes the cheap scope gates.
+    category = (r'''{{if .__error__}}unscoped_parse_error{{else if not .vd}}unscoped_missing_vdom{{else if not (and (eq .type "traffic") (eq .subtype "forward"))}}excluded_type'''
+        r'''{{else if or (not (or (eq .logid "0000000013") (eq .logid "0000000020"))) (not (or (contains "logid=\"0000000013\"" (__line__)) (contains "logid=\"0000000020\"" (__line__))))}}excluded_event'''
+        r'''{{else if ne .dstintfrole "wan"}}excluded_role{{else if not .mastersrcmac}}excluded_missing_mac{{else}}'''
+        r'''{{$tx := .sentdelta}}{{$rx := .rcvddelta}}{{if eq .logid "0000000013"}}{{if not $tx}}{{$tx = .sentbyte}}{{end}}{{if not $rx}}{{$rx = .rcvdbyte}}{{end}}{{end}}'''
+        r'''{{if or (not $tx) (not $rx) (ne (trimAll "0123456789" $tx) "") (ne (trimAll "0123456789" $rx) "")}}excluded_invalid_bytes'''
+        r'''{{else if or (not .sentdelta) (not .rcvddelta)}}included_cumulative_fallback{{else}}included_delta{{end}}{{end}}''')
     return ("sum by (usage_quality) (count_over_time(\n"
         '  {job="fortigate-syslog"}\n  | logfmt --strict\n'
         '  | vd="${vdom}" or vd="" or __error__!=""\n'
-        '  | label_format tx=`{{if .sentdelta}}{{.sentdelta}}{{else if eq .logid "0000000013"}}{{.sentbyte}}{{end}}`, '
-        'rx=`{{if .rcvddelta}}{{.rcvddelta}}{{else if eq .logid "0000000013"}}{{.rcvdbyte}}{{end}}`\n'
         '  | label_format usage_quality=`' + category + '`\n'
         '  | drop __error__, __error_details__\n'
         '  | keep usage_quality\n  [$__range]\n))')
