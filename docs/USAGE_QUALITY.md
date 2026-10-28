@@ -1,4 +1,6 @@
-# Usage quality and offline sample auditing
+# Legacy Loki diagnostics and offline sample auditing
+
+For persistent device/VLAN totals, use the [optional stateful engine](ACCOUNTING_ENGINE.md) and protected reports. This page documents the retained legacy Grafana/Loki path; its formulas and absolute-time-range behavior are not the new engine’s accounting contract.
 
 The dashboard now explains report periods and adds three received-record diagnostic tables: Today, Last 7 Days, and This Month. The diagnostics use the same relative panel periods as the matching usage tables. An absolute Grafana time range overrides relative periods. The dashboard timezone defines calendar boundaries.
 

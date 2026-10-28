@@ -1,36 +1,25 @@
 # Architecture
 
-FortiLens is a setup and observability layer around six upstream services. It uses existing FortiGate Exporter metrics for Performance SLA rather than adding a second collector.
+One FortiGate per independent Linux installation. Six monitoring services remain; an explicitly enabled seventh service adds persistent accounting. The existing exporter remains the WAN SLA source.
 
-| Service | Input | Purpose |
-|---|---|---|
-| FortiGate Exporter | Read-only FortiGate HTTPS API | Device, interface, and available Virtual WAN / SLA metrics. |
-| Prometheus | FortiGate Exporter and Node Exporter | Time-series storage and PromQL. |
-| Node Exporter | Linux host | Monitoring server health. |
-| Alloy | Dedicated syslog receiver | Parse/forward logs to Loki. |
-| Loki | Alloy log stream | Recorded device usage and log queries. |
-| Grafana | Prometheus and Loki | Dashboards and query API. |
+| Service | Purpose |
+|---|---|
+| FortiGate Exporter | Read-only HTTPS API metrics for device, interface and Virtual WAN/SLA. |
+| Prometheus | Monitoring time series plus authenticated accounting snapshots. |
+| Node Exporter | Linux monitoring-host health. |
+| Alloy | Dedicated syslog receiver; accounting-enabled installs use receipt timestamps in Loki and retain source eventtime in the line. |
+| Loki | Raw received logs and legacy diagnostics. |
+| Grafana | Monitoring dashboards and separately reviewed optional alerts. |
+| Optional Python/SQLite worker | Bounded incremental reads, event/session identity, transactional daily summaries and protected device/VLAN/history/quality reports. |
 
-## Configuration and lifecycle
+SQLite uses one writer, WAL and full synchronous transactions. Idempotent ingestion/checkpoint commits and retained baselines prevent ordinary retry/restart duplication. Daily summaries avoid reparsing a month of raw logs on every request. PostgreSQL is unnecessary for this single-host design; multiple writers/HA need a separate architecture review.
 
-`portable/setup.py` validates settings and renders allowlisted templates. It generates Compose, datasource configuration, an exporter auth file, and an APIv2 dashboard. Stable generic UIDs avoid site-specific datasource references. Digest pins target the reviewed Linux/amd64 images; see `portable/templates/compose.json` for exact references.
+The worker reuses normalized interface discovery and exporter labels before scoped read-only API metadata. Exact VDOM/interface/parent/VLAN evidence is frozen per event. Later inventory cannot rewrite old mappings. A successful IPv4 route lookup applies to its stated destination, not every policy or per-flow SD-WAN decision.
 
-Generated local files contain secrets and are never part of the source distribution. A new deployment has its own Compose project, volumes, and private directory. Only Grafana and syslog publish host ports by default. Exporters and databases use the internal Compose network.
+Bounds include query windows, adaptive paging, response/record/session budgets, ledger/summary retention, a database-size check and a constrained worker (192 MiB, 0.5 CPU, read-only root, dropped capabilities, separate data volume). These are initial small-installation defaults, not a capacity guarantee. Measure actual load and size accordingly.
 
-## Dashboard scope
+Grafana and reports default to loopback; syslog uses its configured address. Other services stay on the internal Compose network. FortiGate TLS verification is enabled with custom CA support. Secrets stay in local mounted files. The expected device-ID filter scopes records but does not authenticate a syslog sender.
 
-Four chained selectors scope FortiGate, VDOM, SLA, and WAN views. WAN supports multiple selections and repeating rows. All expands the listed options. Explicitly confirmed names constrain the initial device/VDOM choices; manual fallback options do not synthesize samples.
+Four Grafana selectors scope FortiGate/VDOM/SLA/WAN. Host panels are shared; legacy Loki tables have separate scope. Fixed-period device/VLAN answers come from the portal. Prometheus gauges are snapshots: a Grafana absolute historical endpoint can select older snapshots, so they are not independent fixed-period reports.
 
-Host panels are shared across the installation. Device usage is a separate Loki path: VDOM filtering applies, but SLA and WAN selections do not filter its totals. The syslog receiver is dedicated to one FortiGate by operational convention, not a verified sender-identity mechanism.
-
-Observed availability is based on received measurements. Sample coverage is shown separately because missing collection cannot establish an interface outage or full-period availability.
-
-## Inventory and readiness
-
-`interfaces.py` first uses fresh exporter labels. Read-only scoped API metadata fills gaps where available. Missing, conflicting, or limited evidence remains Needs review. Role and interface type are separate; VLAN ID zero alone does not imply a physical interface. The tool never changes device topology or roles.
-
-`doctor.py` checks service/data readiness using original Prometheus sample timestamps. Its default mode does not issue a new direct FortiGate request. `--api-check` explicitly adds one HTTPS GET to `system/status`. Errors are categorized without logging tokens or response bodies.
-
-## Boundaries
-
-Single firewall per installation; no automatic complete topology discovery, authenticated-user accounting, billing guarantees, notification provisioning, or background Python usage collector. Real FortiOS compatibility and long-period accounting coverage need validation in each environment.
+Repeated starts preserve saved dashboards. Upgrade preparation writes private candidates; file application and service activation are separate explicit actions. No volumes are deleted and no FortiGate settings are written. Optional alerts are paused candidates outside active provisioning and preserve existing routing.

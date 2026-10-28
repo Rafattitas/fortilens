@@ -72,6 +72,7 @@ def main():
             'usage_bind':'127.0.0.1','usage_port':free_port(),'accounting_poll_seconds':5,'accounting_settle_seconds':1})
         with contextlib.redirect_stdout(io.StringIO()):
             s.render(c,p,'synthetic-integration-token','synthetic-grafana-password')
+            c=s.load(p/'site.json')
             plan=upgrade.prepare(s,p,c,enable_accounting=True,zone='UTC',expected_devid='FG-FIXTURE')
         before_dashboard=(p/'grafana/dashboard.json').read_bytes()
         before_secret=(p/'secrets/grafana_admin_password').read_bytes()
@@ -166,8 +167,12 @@ def main():
             'real_fortigate_numeric_verification':'PENDING'},sort_keys=True))
     finally:
         if command:
+            # Only sanitized service diagnostics and fixture-only logs; no
+            # production configuration or credentials enter CI output.
+            try:print(json.dumps(request(usage,'/api/diagnostics',password),sort_keys=True))
+            except (OSError,ValueError,UnboundLocalError):pass
             # Own unique project only. Never use system prune or another folder.
-            subprocess.run([*command,'logs','--tail','12','fortilens-usage'],cwd=p,check=False)
+            subprocess.run([*command,'logs','--tail','12','fortilens-usage','fixture-api'],cwd=p,check=False)
             subprocess.run([*command,'down','--volumes','--remove-orphans'],cwd=p,check=False)
         if temporary.parent==Path(tempfile.gettempdir()).resolve() and temporary.name.startswith('fortilens-integration-'):
             shutil.rmtree(temporary)

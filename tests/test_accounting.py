@@ -46,7 +46,15 @@ class AccountingTests(unittest.TestCase):
         self.store.ingest([record(srcintfrole='',dstintfrole='')])
         result=self.report()
         self.assertIsNone(result['totals']['upload_bytes'])
+        self.assertEqual(result['source_record_classifications'],{'UNRESOLVED_DIRECTION':1})
         self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM events').fetchone()[0],1)
+
+    def test_excluded_classifications_are_visible_and_retries_do_not_inflate_counts(self):
+        records=[record(),record(sessionid='11',dstintf='guests',dstintfrole='lan')]
+        self.store.ingest(records);self.store.ingest(records)
+        result=self.report()
+        self.assertEqual(result['source_record_classifications'],{'INTERNET':1,'INTERNAL':1})
+        self.assertEqual(self.report(search='no matching device')['source_record_classifications'],result['source_record_classifications'])
 
     def test_explicit_zero_does_not_fall_back(self):
         self.store.ingest([record(logid="0000000013", sentdelta="0", rcvddelta="0", sentbyte="9000", rcvdbyte="8000")])
@@ -69,6 +77,13 @@ class AccountingTests(unittest.TestCase):
     def test_srcmac_is_a_supported_fallback(self):
         self.store.ingest([record(mastersrcmac="", srcmac="02:00:00:00:00:02")])
         self.assertEqual(self.report()["rows"][0]["identity_kind"], "MAC")
+
+    def test_invalid_mac_does_not_bypass_session_identity_reuse_checks(self):
+        self.store.ingest([record(mastersrcmac='invalid'),record('2026-10-20T13:00:00Z',mastersrcmac='invalid')])
+        self.assertEqual(self.report()['observed_endpoint_identities'],2)
+        other=record(mastersrcmac='01:00:00:00:00:01',sessionid='other')
+        self.store.ingest([other])
+        self.assertTrue(all(x['identity_kind']=='IP_SESSION' for x in self.report()['rows']))
 
     def test_mac_does_not_split_when_name_ip_or_wan_changes(self):
         self.store.ingest([record(), record("2026-10-20T13:00:00Z", srcip="192.0.2.20", srcname="renamed", dstintf="uplink-b", sessionid="11")])

@@ -156,7 +156,7 @@ def normalize(record, source_id):
 
 def identity(event, generation):
     f = event["fields"]
-    mac = next((f[k].lower() for k in ("mastersrcmac", "srcmac") if re.fullmatch(r"(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", f.get(k, "")) and f[k].lower() not in {"00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"}), "")
+    mac = next((f[k].lower() for k in ("mastersrcmac", "srcmac") if re.fullmatch(r"(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", f.get(k, "")) and f[k].lower() not in {"00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"} and not int(f[k][:2],16)&1), "")
     try:
         ip = str(ipaddress.ip_address(f.get("srcip", "")))
     except ValueError:
@@ -202,7 +202,7 @@ def derive_session(events, inventory, config):
         reset = ended or mac_changed or (duration is not None and previous_duration is not None and duration < previous_duration)
         # Missing-MAC endpoint identities cannot be carried across inconsistent
         # session-start evidence just because an IP/session number was reused.
-        if not f.get("mastersrcmac") and not f.get("srcmac") and previous_start is not None and inferred_start != previous_start:
+        if not current_mac and previous_start is not None and inferred_start != previous_start:
             reset = True
         reset = reset or any(cumulative[k] is not None and previous.get(k) is not None and cumulative[k] < previous[k] for k in cumulative)
         if generation is None or reset:
@@ -301,6 +301,7 @@ class Store:
         CREATE INDEX IF NOT EXISTS facts_session ON facts(session);
         CREATE INDEX IF NOT EXISTS facts_stamp ON facts(stamp);
         CREATE TABLE IF NOT EXISTS daily(day TEXT NOT NULL,device TEXT NOT NULL,vlan TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(day,device,vlan));
+        CREATE TABLE IF NOT EXISTS quality(day TEXT NOT NULL,classification TEXT NOT NULL,records INTEGER NOT NULL,first_stamp INTEGER NOT NULL,last_stamp INTEGER NOT NULL,PRIMARY KEY(day,classification));
         CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY,value TEXT NOT NULL);
         """)
         contract = {k: config.get(k) for k in ("accounting_timezone", "source_id", "vdom", "expected_devid")}
@@ -322,6 +323,12 @@ class Store:
         self.db.execute("INSERT INTO state VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, json.dumps(value)))
 
     def _rollup(self, fact, sign):
+        if fact['classification']=='BASELINE_ANCHOR':
+            return
+        self.db.execute('''INSERT INTO quality VALUES(?,?,?,?,?) ON CONFLICT(day,classification)
+            DO UPDATE SET records=records+excluded.records,first_stamp=MIN(first_stamp,excluded.first_stamp),last_stamp=MAX(last_stamp,excluded.last_stamp)''',
+            (fact['day'],fact['classification'],sign,fact['event_ns'],fact['event_ns']))
+        self.db.execute('DELETE FROM quality WHERE day=? AND classification=? AND records<=0',(fact['day'],fact['classification']))
         if fact["classification"] != "INTERNET":
             return
         key = (fact["day"], fact["device_id"], fact["vlan"]["key"])
@@ -418,6 +425,7 @@ class Store:
             self.db.execute("DELETE FROM deliveries WHERE stamp<?", (floor,))
             cutoff = datetime.fromtimestamp((timestamp_ns(now)-summary_days*86400*NS)//NS, tz(self.config["accounting_timezone"])).date().isoformat()
             self.db.execute("DELETE FROM daily WHERE day<?", (cutoff,))
+            self.db.execute('DELETE FROM quality WHERE day<?',(cutoff,))
             self.set_state("ledger_floor_ns", max(floor, self.state("ledger_floor_ns", 0)))
             self.set_state("summary_floor_day", cutoff)
 
@@ -500,12 +508,32 @@ class Store:
                 entry["vlans"] = list(entry["vlans"].values())
                 entry["total_bytes"] = entry["upload_bytes"]+entry["download_bytes"]
         return {"start_utc": iso(start), "end_utc": iso(end), "boundary": "[start,end)", "timezone": self.config["accounting_timezone"],
+            'source_record_classifications': self.classifications(start,end),
             "rows": rows, "devices": sorted(devices.values(), key=lambda x: x["total_bytes"], reverse=True),
             "vlans": sorted(vlans.values(), key=lambda x: x["total_bytes"], reverse=True),
             "totals": totals, "observed_endpoint_identities": len({x["device_id"] for x in rows}),
             "unverified_endpoint_identities": len({x["device_id"] for x in rows if x["identity_kind"] != "MAC"}),
             "flags": dict(flags), "traffic_coverage": "UNKNOWN", "status": "RECORDED_ONLY" if rows else "UNAVAILABLE",
             "note": "Received-log accounting, not certified billing. Bytes follow event timestamps; cross-boundary intervals and missing source traffic remain uncertain."}
+
+    def classifications(self,start,end):
+        """Source-wide received counts, explicitly independent of device filters."""
+        zone=tz(self.config['accounting_timezone'])
+        first=datetime.fromtimestamp(start//NS,zone).date().isoformat()
+        last=datetime.fromtimestamp((end-1)//NS,zone).date().isoformat()
+        counts=defaultdict(int)
+        for row in self.db.execute('SELECT day,classification,records,first_stamp,last_stamp FROM quality WHERE day>=? AND day<=?',(first,last)):
+            if start<=row[3] and row[4]<end:
+                counts[row[1]]+=row[2]
+            else:
+                boundary=timestamp_ns(datetime.fromisoformat(row[0]).replace(tzinfo=zone).isoformat())
+                stop=timestamp_ns((datetime.fromisoformat(row[0])+timedelta(days=1)).replace(tzinfo=zone).isoformat())
+                # Expired partial-day selections were already refused by the
+                # main report path. Count retained facts at the exact edges.
+                count=self.db.execute("SELECT COUNT(*) FROM facts WHERE stamp>=? AND stamp<? AND json_extract(payload,'$.classification')=?",
+                    (max(start,boundary),min(end,stop),row[1])).fetchone()[0]
+                counts[row[1]]+=count
+        return dict(counts)
 
     def history(self, device, *, months=False, vlan=None, limit=400):
         if not re.fullmatch(r"[a-f0-9]{64}", device) or not 1 <= limit <= 3650:

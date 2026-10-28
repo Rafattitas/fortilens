@@ -1,58 +1,48 @@
-# FortiLens: installation guide
+# FortiLens installation and operations
 
-An independent monitoring installation for one FortiGate per company. Requires **Linux x86-64, Docker Compose v2, and Python 3.10 or later**. Configuration generation also works on Windows; service deployment and host monitoring target Linux. No additional Python packages are required.
+For one FortiGate per independent company installation. Requires **Linux x86-64, Docker Compose v2 and Python 3.10+**. Windows supports configuration and tests; deployment and host monitoring target Linux. No third-party Python packages are required. All product text is English.
 
-The package includes FortiGate Exporter, Prometheus, Grafana, Loki, Alloy, and Node Exporter. Its dashboard preserves the reviewed generation72 panel queries. Alerts, notifications, and a separate usage collector are outside this release. All supplied tool messages and documentation are in English.
+Six monitoring services provide exporter, Prometheus, Grafana, Loki, Alloy and Node Exporter. Explicitly enabling accounting adds a constrained Python/SQLite service and protected reports. Existing installations must use the upgrade procedure below; never rerun init over their directory.
 
-Use a new installation directory. The tool refuses to overwrite an existing directory and does not migrate or replace an existing deployment's configuration or volumes.
+## New installation
 
-## 1. Configure your installation
-
-From the extracted package directory:
+From this package directory:
 
 ```bash
 python3 setup.py init
-```
-
-Enter the company name, FortiGate IP or hostname, HTTPS API port, optional custom CA certificate, and syslog port and protocol. Token input is hidden. Credentials stay in the installation's `local/secrets/` directory and are excluded from the distribution bundle and Git.
-
-After token entry, interactive setup offers a read-only interface inventory. It displays **VDOM, Interface, Type, Role, Parent, VLAN ID, and Review**. It does not select anything automatically. Enter the Internet interfaces for the configured VDOM and explicitly confirm them for this project's monitoring. Unreported roles/types, limited permissions, conflicting sources, or incomplete VLAN topology remain `Needs review`. Confirming a choice does not change its reported role on FortiGate.
-
-Before services are running, inventory uses the interface API. After startup, it reads existing exporter labels first and requests missing metadata from the API. API reads are limited to the configured VDOM and selected metadata fields. Offline/failed discovery does not prevent manual preparation. Use `--skip-interface-discovery` to skip the interactive prompt.
-
-Leave the SLA name and WAN interfaces blank to discover them from received metrics. Alternatively, enter your actual names, such as `ISP_Check` and `port3,port4.100`, as fallback dropdown choices. These choices do not fabricate measurements or imply that a WAN is UP. The default VDOM is `root`; change it to match your environment.
-
-Grafana binds to `127.0.0.1` by default, making it accessible from the server itself. For access from company devices, enter the monitoring server's LAN IPv4 address at the Grafana listen address prompt. Default host ports are 3001 for Grafana and 1514 for syslog. Prometheus, Loki, and the exporters remain on the internal Compose network.
-
-HTTPS certificate verification is enabled by default. For a private CA, provide its PEM certificate bundle. Disabling verification requires an explicit `no` at setup and affects only this installation. The API token is stored in the exporter's auth file, not in URL parameters or Prometheus labels. See the [exporter configuration reference](https://github.com/prometheus-community/fortigate_exporter).
-
-For configuration from a file, copy `site.example.json` to a private `site.json` and edit it. The example contains a documentation address and no token. Put the token alone in a private file, then run:
-
-```bash
-python3 setup.py init --config site.json --token-file /private/fortigate-token --output local
-```
-
-A relative `api_ca_file` is resolved relative to the configuration file. Generated JSON configuration is also valid YAML. On Linux, the installation directory uses mode 0700; files inside it are readable by container users through their bind mounts. On Windows, normal account permissions apply; chmod does not establish private NTFS ACLs.
-
-## 2. Start on Linux
-
-```bash
 python3 setup.py start
+python3 setup.py doctor
 ```
 
-The tool validates Compose, starts the services, waits for Grafana and both datasources, and imports the dashboard through APIv2. Datasources use stable generic UIDs, and the Loki datasource timeout is 240 seconds. Repeating `start` preserves an existing dashboard rather than overwriting edits.
+`init` asks for site name, FortiGate IP/hostname, HTTPS API port, TLS/custom CA, hidden API token, syslog settings, VDOM and optional SLA/WAN fallback names. It offers read-only interface discovery and asks you to confirm Internet interfaces. Missing type/role/parent/VLAN evidence stays Needs review. No FortiGate settings are changed.
 
-Grafana login is `admin`. A random initial password is stored in `local/secrets/grafana_admin_password`. Open the configured server address and port, then `/d/forti-monitor`. If the password changes in Grafana, or basic authentication is later disabled, the tool's authenticated API operations may require a credential review. Existing dashboard data is preserved.
+The accounting prompt is explicit. Choose its timezone (UTC or an installed IANA name), expected FortiGate serial/device ID and reporting address. Leave a missing serial unbound only with the displayed evidence limitation. A device-ID filter is not sender authentication. File-based configuration can enable it with `--enable-accounting`:
 
-Images are pinned by digest to the Linux/amd64 images inspected on October 27, 2026, including Grafana 13.2.2 and Loki 3.7.0. ARM and all FortiOS versions have not been verified. Node Exporter measures the Linux Docker host; running it through Docker Desktop does not establish accurate monitoring of a Windows host.
+```bash
+python3 setup.py init --config site.example.json --token-file /private/token --enable-accounting --output local
+```
 
-The new installation stores Loki data at `/loki`, which is writable by the pinned image's user. This does not change an existing deployment's data path.
+Copy/edit the non-secret example privately first. Relative CA paths resolve against the input config file. TLS verification stays enabled by default; an explicit opt-out is available but not recommended. API credentials are headers/auth files, never URL parameters or metric labels.
 
-## 3. Connect your FortiGate
+The installation directory must be new. Linux uses a 0700 parent; mounted files remain readable by nonroot container users. Windows generation does not create private NTFS ACLs. Protect installation/backup folders and never publish them. Generated configuration is JSON, also valid YAML.
 
-The setup tool does not change FortiGate configuration or create API users or tokens. Configure an API token with the exporter's required read permissions and permit access from the monitoring server. Consult the [exporter permission reference](https://github.com/prometheus-community/fortigate_exporter#fortigate-configuration).
+`start` validates Compose, builds the optional worker, starts services, waits for Grafana/datasources and imports the initial dashboard. It preserves an existing dashboard and its edits. It may recreate services whose reviewed configuration changed. Node Exporter measures the Linux Docker host, not a separate firewall or a Docker Desktop laptop.
 
-Send syslog from the single FortiGate to the **monitoring server's reachable LAN address**, using the configured port and protocol. The default is TCP with RFC5424. This FortiOS 7.2 example is for review and manual application to the intended destination; review any existing destination before replacing it:
+## Open dashboards and reports
+
+Grafana: configured address/port, default `http://127.0.0.1:3001/d/forti-monitor`, username `admin`, password in `local/secrets/grafana_admin_password`.
+
+Protected reports: configured reporting address/port, default `http://127.0.0.1:3002/`, username `admin`, separate password in `local/secrets/usage_admin_password`. Credentials stay in page memory; sign-out clears them. Use an SSH tunnel for loopback access or a reviewed HTTPS reverse proxy. Plain HTTP Basic authentication is not encrypted; do not expose it across an untrusted network.
+
+The portal provides Today, rolling Last 7 days, This month, Recent 5 minutes and explicit custom ranges; IP/MAC/name search; top/all devices; VLAN filtering; device drilldown; retained daily/monthly history; WAN health/history; and data-quality evidence. GB is decimal. Recent per-device averages are received bytes over 5 minutes, not instantaneous packet counters. Fixed periods use the engine's current time independently of Grafana global selection.
+
+The native Grafana dashboard has four chained selectors and repeating WAN rows, with clearer compact cards and tables. Legacy Loki device tables remain diagnostics; their absolute-time and identity/cumulative limitations differ from the new engine. Host panels are shared. Use `public_usage_url` to add a reviewed report link to the generated dashboard.
+
+## FortiGate logging and metadata
+
+Configure a suitable read-only API user, permissions, VDOM scope and trusted hosts on FortiGate. Review the official exporter permission reference. The tool never creates users, writes roles/policies or rotates tokens.
+
+Send forward traffic syslog to the monitoring server's reachable LAN address. Defaults are TCP1514/RFC5424. Review the existing destination before changing it manually:
 
 ```text
 config log syslogd setting
@@ -64,111 +54,94 @@ config log syslogd setting
 end
 ```
 
-Change 1514 if necessary. For UDP, select `mode udp` on FortiGate and `udp` during setup. `reliable` selects TCP/RFC6587; `rfc5424` selects the message format, as documented in the [Fortinet CLI reference](https://docs.fortinet.com/document/fortigate/7.2.7/cli-reference/401620). CEF and CSV are not supported by this receiver configuration. Forward traffic logging and correct clocks are needed for usage reports. Receiving some syslog does not prove complete traffic coverage.
-
-## Discover and select interfaces
-
-The dashboard retains **FortiGate → VDOM → SLA Check → WAN Interfaces**. It discovers received labels and repeats interface cards according to the selected interfaces. All expands listed choices; it does not select every LAN port. Manual fallback choices are restricted to their configured device, VDOM, and SLA.
-
-When Internet interfaces are explicitly confirmed, the WAN dropdown is restricted to those names for the configured device/VDOM. Confirmed choices can appear before SLA data arrives, but measurement panels still show missing data when no samples exist. Other VDOMs require separate review. Legacy setups without a confirmed selection retain their previous SLA-based discovery behavior.
-
-To list received SLA and interface labels without changing configuration:
+For UDP choose matching UDP settings on both ends. CEF/CSV are not supported. Restrict receiver ingress to the intended device; the default TCP input is not encrypted or sender-authenticated. Correct clocks and complete forward-traffic logging are operational prerequisites, not settings FortiLens silently fixes.
 
 ```bash
 python3 setup.py discover
-```
-
-`discover` lists received SLA labels only. For the interface/type/role/VLAN inventory, use:
-
-```bash
 python3 setup.py interfaces
-python3 setup.py interfaces --json
 python3 setup.py interfaces --metrics-only
-```
-
-`interfaces` uses fresh exporter `name/vdom/parent/vlanid` labels first, then read-only API metadata where needed. The current exporter does not report interface roles, and VLAN ID zero alone does not prove that an interface is physical. `--metrics-only` skips direct API requests and leaves missing fields unresolved. API access can be restricted or partial; the report states the scope and evidence limits. It does not classify interfaces based on names, default routes, SLA membership, or traffic volume.
-
-To select from the reviewed inventory after startup:
-
-```bash
 python3 setup.py interfaces --select-wan "port1,uplink.100" --confirm-wan
 ```
 
-This requires every selected name to exist in the configured VDOM. It backs up `site.json`, saves `confirmed_wan_interfaces` and a sanitized `interface-inventory.json`, and creates `grafana/dashboard.interfaces-candidate.json`. **The running Grafana dashboard is not overwritten**: review/import the candidate in Grafana to apply a selection made after startup. Selection during initial `init` is included in the first dashboard import automatically.
+Discovery lists received SLA labels; inventory reuses fresh exporter metadata then scoped read-only API fields. VLAN ID zero does not prove a physical interface. Exact VDOM/interface keys map VLANs; no subnet guessing. A post-start confirmed selection backs up configuration and writes a dashboard candidate, preserving live edits. Offline API JSON can be supplied with `--inventory-file`; it is sanitized and marked offline.
 
-For offline preparation, supply a saved interface API JSON response. Extra fields such as passwords and IP configuration are discarded; only normalized inventory metadata is saved:
-
-```bash
-python3 setup.py init --config site.json --token-file /private/fortigate-token --inventory-file interfaces-response.json --select-wan "port1,uplink.100" --confirm-wan
-python3 setup.py interfaces --inventory-file interfaces-response.json
-```
-
-Offline evidence is explicitly marked as not verified live. For file-based initialization with a live API read, use `--discover-interfaces`. No method changes FortiGate interface roles, VLAN definitions, or policy configuration.
-
-If no metrics are available, SLA discovery returns an empty list with an explanation. It does not infer a WAN outage. The interface inventory covers accessible returned data rather than guaranteeing a complete device topology. VLAN and role are separate fields: a VLAN may have a LAN, WAN, DMZ, or undefined role.
-
-## Check readiness
-
-```bash
-python3 setup.py doctor
-```
-
-The English report checks the six services, Grafana, both datasources, exporter scraping and probe results, SLA/interface metrics, and recent logs. It uses actual Prometheus sample timestamps and a default freshness window of 300 seconds.
-
-| Status | Meaning |
-|---|---|
-| Ready | The specific check passed. A received interface metric with value 0 still proves data reception, not that the link is UP. |
-| Problem | Evidence of a failed check, such as a stopped container or failed probe. A failed probe alone does not identify a bad token. |
-| Unavailable | Data is absent or cannot be verified. Quiet traffic can produce no logs; missing SLA metrics do not establish WAN DOWN. |
-| Needs review | Partial data, missing configured choices, initialization, or timestamps that need investigation. |
-
-The command is read-only. It does not restart services, modify FortiGate, change tokens, or configure alerts. By default, it uses collected metrics and does not send a new direct request to FortiGate.
-
-To explicitly add one read-only HTTPS request to `system/status`:
-
-```bash
-python3 setup.py doctor --api-check
-```
-
-This distinguishes HTTP 401, HTTP 403, DNS, timeouts, TLS, and connection failures. It uses the local token without printing it or response bodies, does not follow redirects, and preserves the configured TLS policy. Success on this endpoint does not verify every SLA or VDOM permission. A Grafana login rejection is reported separately from FortiGate token authentication.
-
-For JSON output or a different freshness window:
+## Readiness and evidence
 
 ```bash
 python3 setup.py doctor --json
 python3 setup.py doctor --freshness-seconds 600
+python3 setup.py doctor --api-check
 ```
 
-The supported window is 60–3600 seconds. Exit code 0 means all checks passed; 1 means at least one failed check; 2 means warnings or unavailable evidence without a failed check. JSON excludes raw log lines, response bodies, and credentials.
+Doctor checks configured services, Grafana/datasources, original metric timestamps, scrape/API probe, SLA/interfaces and recent logs. With accounting enabled it also checks engine authentication, polling/lag, inventory/source binding, rejected inputs and receipt-time configuration. It never restarts services or prints secrets/raw records. The optional `--api-check` adds one read-only GET to system/status; a successful endpoint does not verify all permissions.
 
-## Usage accounting limits
+Ready means that particular check passed. Problem means a demonstrated failure. Needs review/Unavailable preserve ambiguous or missing evidence. A failed probe alone does not identify a bad token; missing metrics are not WAN DOWN; quiet logs are not a proven delivery failure. Exit codes:0 all pass,1 any failure,2 warning/unknown without failure.
 
-Current-source installations include a **Reporting Periods & Evidence** guide and a collapsed **Usage Data Quality** row with Today / Last 7 Days / This Month received-record tables. These are diagnostics, not completeness percentages or duplicate repair. Expanding the row performs additional scans, so keep it collapsed during normal monitoring.
+Accounting counts eligible outbound internal-origin sessions, sent=upload and received=download. Valid deltas include zero. Closing cumulative counters require a safe baseline; uncertain candidates stay pending. MAC is preferred; missing-MAC identities stay session/observation scoped. Replay IDs/checkpoints prevent ordinary duplicate counting; weak source identity/time is flagged. Late records inside the ledger recompute affected sessions transactionally.
 
-For a pre-extension installation, `python3 setup.py prepare-usage-quality` creates a uniquely named local dashboard candidate without overwriting the saved source or running Grafana. Export and review live edits before importing it. Repeating `start` still preserves an existing dashboard.
+Current inventory cannot establish historical VLAN/direction where contemporaneous evidence is absent. Cross-midnight deltas do not reveal exact packet-time allocation. No records means unavailable, not zero. Traffic completeness remains UNKNOWN. WAN availability uses valid observed UP/DOWN intervals and shows coverage/gaps separately. Route lookup is destination-specific, not a universal SD-WAN active-link claim.
 
-An offline normalized sample can be audited without an installation or network access:
+## Storage and capacity
+
+Defaults: Loki raw retention60 days; Prometheus90 days/5 GB; accounting ledger8 days, daily summaries400 days, database soft limit4 GiB. Poll windows120 seconds, overlap30 seconds, settle5 seconds and bounded paging prevent unbounded raw scans. Initial backfill31 days is incremental and can take time; processing lag stays visible. Historical whole-day/month summaries outlive raw detail; expired partial-day slices are rejected.
+
+Configure `accounting_ledger_days`, `accounting_summary_days`, `accounting_max_bytes`, backfill/poll/window settings in site.json before deployment. Increase actual filesystem capacity too. The worker defaults to192 MiB/0.5 CPU; review its Compose limits for your measured load. The database limit stops ingestion visibly; it is not automatic disk expansion or a reason to delete a volume. Never change timezone/source/VDOM/device identity in an existing database without a separately reviewed rebuild.
+
+Back up Loki, Prometheus, Grafana and SQLite using application-consistent volume snapshots or by stopping the relevant writer. Retain private config/secrets too. A retention setting is not proof that cleanup has happened or that the entire interval was received.
+
+## Upgrade from v0.1.0
+
+Use the new code with the existing installation at its original absolute path. Back up config and take application-consistent volume snapshots first. Never run init over the existing folder.
 
 ```bash
-python3 setup.py usage-audit --input /private/sample.json --period month --timezone UTC --vdom root --at 2026-10-28T12:00:00Z --json
+python3 setup.py prepare-upgrade --output /absolute/path/to/existing/local --enable-accounting --accounting-timezone UTC --expected-devid YOUR_FORTIGATE_SERIAL
 ```
 
-The JSON input has a `records` array of objects containing an offset-aware ISO `timestamp` and a `fields` object with string FortiGate field values. For example, `{"records":[{"timestamp":"2026-10-28T11:00:00Z","fields":{"type":"traffic","subtype":"forward","logid":"0000000020","vd":"root","dstintfrole":"wan","mastersrcmac":"02:00:00:00:00:01","sentdelta":"100","rcvddelta":"200"}}]}`. Input is normalized data, not a raw Loki export. The audit flags replay candidates and MACs with multiple IP/name combinations, preserves record-time boundaries, and never certifies whole-period coverage. Exit2 means needs review/unavailable; invalid input exits1. No identities or raw fields are emitted. UTC works on configuration-only Windows hosts; other IANA zones require installed timezone data. Full source documentation: [usage quality](https://github.com/Rafattitas/fortilens/blob/main/docs/USAGE_QUALITY.md).
+Review `.upgrades/usage-<ID>/plan.json`, private `candidate/` files and the visual dashboard candidate. Preparation changes no running service. It preserves custom settings, existing secrets, volumes, retention, alerts and live dashboards. It adds a separate worker/volume, authenticated scrape and receipt timestamps for new Loki entries. The known unavailable original exporter digest is repaired; custom image references are preserved. Custom YAML/multiple listeners need a manual merge. Keep this private plan out of Git.
 
-- One FortiGate is assumed for the dedicated syslog receiver. This is a scope assumption, not a network filter or verified sender identity. Do not send another device's logs to it.
-- Reports group by MAC/IP/name, not authenticated user accounts. VDOM filters usage; WAN selection affects SLA/interface panels, not device usage totals.
-- Delta fields take priority, including zero. Cumulative fallback is allowed only on session-end records 13 when a delta is absent. Missing/duplicate logs, missing MACs, and period boundaries remain limitations.
-- Confirmed interface choices scope monitoring dropdowns; they do not replace the existing usage query's `dstintfrole="wan"` condition. Selecting an interface whose device role is undefined does not automatically include its traffic in usage totals.
-- The weekly report covers the last 7 days. The monthly report starts at the calendar month boundary in the selected timezone. An absolute Grafana time range overrides relative panel periods.
-- Loki retention is 60 days, maximum query range 32 days, query timeout 3 minutes, and response write timeout 210 seconds. Grafana's Loki timeout is 240 seconds, allowing the backend to finish before the client deadline. Large scans remain expensive; a successful 31-day range does not prove continuous 31-day coverage. These generated defaults do not migrate an existing installation's configuration.
-- Prometheus scrapes every 60 seconds with a 40-second timeout, allowing the exporter's 30-second probe budget. These are new-package defaults and do not change the existing deployment.
-
-## Build a distribution bundle
+After explicit approval in your environment:
 
 ```bash
-python3 setup.py bundle --destination ../forti-monitor-single-device.zip
+python3 setup.py apply-upgrade --output /absolute/path/to/existing/local --plan usage-<ID> --accept-config-changes
+python3 setup.py start --output /absolute/path/to/existing/local
+python3 setup.py doctor --output /absolute/path/to/existing/local
 ```
 
-The current-source ZIP allowlist contains 14 files: setup, readiness checks, interface inventory, usage quality/audit, the MIT license, this guide, the site example, gitignore, and six templates. It excludes installation directories, inventory responses, tokens, original site exports, handover documents, and client screenshots. The v0.1.0 release ZIP has13 files and predates this extension. The command does not publish anything to GitHub.
+File/candidate hashes are checked before application; originals are saved. Applying files does not start services. Starting is the separate runtime action. Existing Grafana edits stay intact; manually review/import the visual candidate if wanted. Old Loki timestamps/history are not rewritten and missing data is not restored.
 
-References: [Grafana provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), [Loki datasource timeout](https://grafana.com/docs/grafana/latest/datasources/loki/configure/), and [Alloy syslog](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.syslog/). Dashboard import uses APIv2 rather than relying on file provisioning compatibility with the v2 schema.
+To roll back, stop the new writer first:
+
+```bash
+python3 setup.py stop-accounting --output /absolute/path/to/existing/local
+python3 setup.py rollback-upgrade --output /absolute/path/to/existing/local --plan usage-<ID> --accept-config-changes
+python3 setup.py start --output /absolute/path/to/existing/local
+```
+
+Rollback refuses to overwrite later operator edits. Added private worker files/passwords and the usage-data volume remain for recovery; no data is deleted. An old unavailable exporter digest may require the previously cached image or a manual merge retaining its reviewed repair. Do not move the installation: its absolute path determines the Compose project/volume namespace.
+
+## Optional alert candidates and visual updates
+
+```bash
+python3 setup.py prepare-alerts
+python3 setup.py prepare-alerts --notification telegram
+python3 setup.py prepare-alerts --notification email
+python3 setup.py prepare-dashboard-style --input /private/latest-dashboard.json
+```
+
+Alert files are paused candidates outside active provisioning. No notification policy or destination is changed. Supply environment secrets privately only when explicitly provisioning/testing your chosen contact point. Quiet syslog has no alert by default; `--expected-log-interval-seconds` is an explicit expectation, not an inference of lost traffic. Review candidates in an isolated Grafana before enabling.
+
+The style command creates a unique local candidate preserving query groups/selectors; it never overwrites live Grafana. Legacy usage diagnostics/audit remain available via `prepare-usage-quality` and `usage-audit`. Full limits and procedures are in the linked source documentation.
+
+## Troubleshooting and packaging
+
+If reports are empty, check received evidence, scope, direction, clocks and metadata. NO DATA is not outage/zero traffic. If processing lags, check initial backfill, query budgets, storage and the sanitized engine error. If a range expired, request retained whole calendar days. Reporting and Grafana passwords are separate. Never delete history to clear an error.
+
+```bash
+python3 setup.py bundle --destination ../fortilens-single-device.zip
+```
+
+The 22-file source allowlist includes setup/doctor/inventory/quality/style/accounting/WAN/service/upgrade/alerts/UI, example config, guide/license/gitignore and 7 templates. It excludes local installs, private plans, original site exports, client logs, handover files and screenshots. The command does not publish to GitHub. Container images are pinned separately; ARM and every FortiOS version are not certified.
+
+Source guides: [accounting](https://github.com/Rafattitas/fortilens/blob/main/docs/ACCOUNTING_ENGINE.md), [upgrade](https://github.com/Rafattitas/fortilens/blob/main/docs/UPGRADE.md), [troubleshooting](https://github.com/Rafattitas/fortilens/blob/main/docs/TROUBLESHOOTING.md), [optional alerts](https://github.com/Rafattitas/fortilens/blob/main/docs/OPTIONAL_ALERTS.md), [verification](https://github.com/Rafattitas/fortilens/blob/main/docs/VERIFICATION.md).
+
+Primary references: [FortiGate Exporter](https://github.com/prometheus-community/fortigate_exporter), [Fortinet syslog CLI](https://docs.fortinet.com/document/fortigate/7.2.7/cli-reference/401620), [Grafana provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), [Alloy syslog](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.syslog/).

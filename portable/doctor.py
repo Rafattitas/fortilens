@@ -256,6 +256,7 @@ def accounting_request(p,c):
 
 
 def accounting_checks(report,now,freshness):
+    if not isinstance(report,dict):raise ValueError('Invalid accounting diagnostics')
     result=[]
     attempt=report.get('last_attempt')
     fresh=isinstance(attempt,(int,float)) and math.isfinite(attempt) and -30<=now-attempt<=freshness

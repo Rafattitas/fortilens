@@ -12,7 +12,7 @@ The release answers device upload/download and ranking, VLAN Internet usage, WAN
 
 ## P1: usable reporting and monitoring
 
-1. Improve the native Grafana layout and add fixed-period accounting panels. Provide searchable device/VLAN reports, device drilldown and retained daily/monthly history from summaries.
+1. Improve the native Grafana layout while preserving query groups. Provide fixed-period accounting in the protected reporting portal, independent of Grafana global time, with searchable device/VLAN views, drilldown and retained history from summaries.
 2. Preserve existing exporter/SLA metrics; distinguish physical link, observed traffic, route-selection evidence, Internet SLA state and missing telemetry.
 3. Calculate availability from valid observed intervals; show gaps and coverage, and never bridge missing intervals into an outage.
 4. Extend read-only doctor checks, metadata freshness, aggregation lag and service readiness with sanitized causes.

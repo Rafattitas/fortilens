@@ -246,7 +246,8 @@ class Engine:
         while not self.stop.is_set():
             now=time.time();caught_up=True
             try:
-                if now-last_metadata>=3600:
+                metadata_interval=3600 if self.store.inventory.get('interfaces') and not self.store.state('inventory_error') else 60
+                if now-last_metadata>=metadata_interval:
                     self.refresh_inventory();last_metadata=now
                 caught_up=self.poll(now)
                 if now-last_wan>=60:
@@ -374,7 +375,7 @@ def main(argv=None):
     config.setdefault('accounting_timezone','UTC')
     args.database.parent.mkdir(parents=True,exist_ok=True)
     password=args.password_file.read_text().strip()
-    if len(password)<16:raise ValueError('Usage reporting password must have at least16characters')
+    if len(password)<16:raise ValueError('Usage reporting password must have at least 16 characters')
     store=accounting.Store(args.database,config)
     store.inventory=store.state('inventory',{'interfaces':[]})
     engine=Engine(store,loki=args.loki_url,prometheus=args.prometheus_url,token_file=args.token_file,config_root=args.config.parent)
