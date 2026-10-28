@@ -260,6 +260,21 @@ def selected_names(report, names, vdom):
     return selected
 
 
+def map_source_interface(report, vdom, name):
+    """Map an exact VDOM/interface key; subnets and interface names imply no VLAN."""
+    matches = [x for x in report.get("interfaces", []) if x.get("vdom") == vdom and x.get("name") == name]
+    if len(matches) != 1:
+        return {"status": "AMBIGUOUS" if matches else "UNKNOWN", "vlan_id": None,
+                "interface": name, "parent": None, "role": None, "key": "unknown:" + name}
+    item = matches[0]
+    conflicts = any("disagree" in issue.lower() for issue in item.get("issues", []))
+    valid = item.get("type") == "vlan" and vlan_id(item.get("vlan_id")) is not None and item.get("parent")
+    status = "AMBIGUOUS" if conflicts else "MAPPED" if valid else "NOT_VLAN" if item.get("type") in {"physical", "aggregate", "redundant", "switch", "hard-switch", "soft-switch"} else "UNKNOWN"
+    return {"status": status, "vlan_id": item["vlan_id"] if status == "MAPPED" else None,
+            "interface": name, "parent": item.get("parent"), "role": item.get("role"),
+            "key": ("vlan:" + str(item["vlan_id"]) + ":" + name if status == "MAPPED" else "interface:" + name if status == "NOT_VLAN" else "unknown:" + name)}
+
+
 def print_table(report):
     headers = ("VDOM", "Interface", "Type", "Role", "Parent", "VLAN ID", "Review")
     values = [headers]

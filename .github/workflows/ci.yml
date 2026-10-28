@@ -39,3 +39,19 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Build allowlisted distribution
         run: python portable/setup.py bundle --destination dist/fortilens-single-device.zip
+
+  integration:
+    name: Isolated Docker pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Validate pinned applications and synthetic end-to-end accounting
+        run: python tests/integration_stack.py

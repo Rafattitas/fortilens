@@ -182,7 +182,7 @@ class InterfaceInventoryTests(unittest.TestCase):
             self.assertIn('interface=~', wan["definition"])
             self.assertNotIn("\n", wan["definition"])
             self.assertNotIn("allValue", wan)
-            self.assertEqual(len(setup.load(output / "grafana/dashboard.json")["spec"]["elements"]), 26)
+            self.assertEqual(len(setup.load(output / "grafana/dashboard.json")["spec"]["elements"]), 31)
 
     def test_existing_installation_selection_is_explicit_backed_up_and_local(self):
         with tempfile.TemporaryDirectory() as parent, contextlib.redirect_stdout(io.StringIO()):

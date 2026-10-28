@@ -20,7 +20,9 @@ python3 setup.py start
 python3 setup.py doctor
 ```
 
-`init` asks for your settings and hidden token, creates a private local installation, and refuses to overwrite an existing directory. `start` validates Compose, starts six services, waits for Grafana and both datasources, and imports the first dashboard. Repeating it preserves an existing dashboard UID.
+`init` asks for settings and a hidden token, creates a private installation, and refuses to overwrite an existing directory. It explicitly offers persistent accounting, timezone/source scope and protected reporting. `start` validates Compose, starts six monitoring services plus the optional worker, waits for Grafana/datasources and imports the first dashboard. Repeating it preserves existing dashboard edits.
+
+Use the protected portal for fixed-period device/VLAN totals and history, independently of Grafana's global range. Its default address is loopback port3002, with a separate password in `secrets/usage_admin_password`. Use an SSH tunnel or reviewed HTTPS reverse proxy. See [accounting](ACCOUNTING_ENGINE.md), [upgrade from v0.1.0](UPGRADE.md), [troubleshooting](TROUBLESHOOTING.md) and [optional paused alerts](OPTIONAL_ALERTS.md).
 
 Grafana defaults to `127.0.0.1:3001`. To browse from a company workstation, choose the server's LAN address during setup and permit access according to your network policy. The initial admin password is in `portable/local/secrets/grafana_admin_password`.
 

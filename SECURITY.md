@@ -18,4 +18,8 @@ Include the affected revision, prerequisites, impact, and a minimal synthetic re
 - The Node Exporter mounts host paths for host monitoring. Review Compose mounts and service privileges before deployment.
 - Bundles use a source allowlist. Generated local directories and secrets must never be added to source control.
 
+The optional reports service has a separate generated password and transient browser authorization. Use loopback/SSH tunnelling or a reviewed HTTPS reverse proxy; plain HTTP Basic authentication is not encrypted. SQLite stores endpoint identity/usage metadata and allowlisted fields: protect its volume and backups. An expected device-ID filter is not sender authentication.
+
+Upgrade plans are private and may contain draft credentials. Mounted files must be readable by nonroot containers; protect the 0700 installation parent. Optional notification candidates contain environment references only; never publish real tokens or recipients.
+
 Container image digests pin a reviewed version; they do not guarantee freedom from vulnerabilities. Review upstream advisories and revalidate compatibility when updating pins.

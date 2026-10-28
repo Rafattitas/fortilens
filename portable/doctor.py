@@ -10,6 +10,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import base64
 
 SERVICES = ("fortigate-exporter", "prometheus", "grafana", "loki", "alloy", "node-exporter")
 LABELS = {"PASS": "Ready", "WARN": "Needs review", "FAIL": "Problem", "UNKNOWN": "Unavailable"}
@@ -20,7 +21,7 @@ def check(name, status, message, code, action="", **evidence):
             "action": action, "evidence": evidence}
 
 
-def service_checks(p, compose_command):
+def service_checks(p, compose_command, services=SERVICES):
     try:
         r = subprocess.run(compose_command(p, "ps", "--all", "--format", "json"),
                            capture_output=True, text=True, timeout=10)
@@ -32,9 +33,9 @@ def service_checks(p, compose_command):
             raise ValueError("docker_response_invalid")
     except (OSError, ValueError, subprocess.TimeoutExpired):
         return [check("service:" + name, "UNKNOWN", name + ": Docker status could not be read.",
-                      "docker_unavailable", "Check Docker availability and your account permissions. This does not prove the service is stopped.") for name in SERVICES]
+                      "docker_unavailable", "Check Docker availability and your account permissions. This does not prove the service is stopped.") for name in services]
     result = []
-    for name in SERVICES:
+    for name in services:
         matches = [x for x in rows if x.get("Service") == name and "-run-" not in x.get("Name", "")]
         running = [x for x in matches if x.get("State") == "running"]
         if not matches:
@@ -240,11 +241,62 @@ def api_check(p, c):
                      "api_data_invalid", "Review configuration and compatibility. Contents are hidden to protect credentials.")
 
 
-def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, direct_api=False, now=None):
+def accounting_request(p,c):
+    host=c['usage_bind'] if c['usage_bind']!='0.0.0.0' else '127.0.0.1'
+    password=(p/'secrets/usage_admin_password').read_text().strip()
+    auth=base64.b64encode(('admin:'+password).encode()).decode()
+    req=urllib.request.Request(f"http://{host}:{c['usage_port']}/api/diagnostics",headers={'Authorization':'Basic '+auth},method='GET')
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self,*args,**kwargs):return None
+    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
+    with opener.open(req,timeout=10) as response:
+        body=response.read(1024*1024+1)
+    if len(body)>1024*1024:raise ValueError('Invalid accounting diagnostics')
+    return json.loads(body)
+
+
+def accounting_checks(report,now,freshness):
+    if not isinstance(report,dict):raise ValueError('Invalid accounting diagnostics')
+    result=[]
+    attempt=report.get('last_attempt')
+    fresh=isinstance(attempt,(int,float)) and math.isfinite(attempt) and -30<=now-attempt<=freshness
+    ready=report.get('last_poll_ok') is True and fresh
+    result.append(check('accounting_poll','PASS' if ready else 'WARN',
+        'The usage engine recently processed a Loki poll.' if ready else 'A recent successful usage-engine poll was not established.',
+        'accounting_poll_ok' if ready else 'accounting_poll_unavailable',
+        '' if ready else 'Review engine reachability and its bounded-query/storage status; processing success does not certify traffic completeness.'))
+    lag=report.get('processing_lag_seconds')
+    caught_up=isinstance(lag,(int,float)) and math.isfinite(lag) and 0<=lag<=freshness
+    result.append(check('accounting_lag','PASS' if caught_up else 'WARN',
+        'Usage processing is near the present.' if caught_up else 'Usage processing is catching up or its checkpoint is unavailable.',
+        'accounting_caught_up' if caught_up else 'accounting_backfill_or_stale',
+        '' if caught_up else 'Allow bounded backfill to finish and review storage limits. Older summaries are not current-period proof.'))
+    for name,key,label in [('accounting_metadata','inventory_available','Interface metadata'),('accounting_source','source_identity_bound','Expected source-device filter')]:
+        ok=report.get(key) is True
+        result.append(check(name,'PASS' if ok else 'WARN',label+(' is configured/available.' if ok else ' is not established.'),
+            name+'_available' if ok else name+'_unavailable',
+            '' if ok else 'Review read permissions, exact interface/VDOM metadata and source binding; do not infer VLANs from IP subnets.'))
+    if report.get('inventory_error') in {'api_http_401','api_http_403'}:
+        result.append(check('accounting_inventory_permissions','FAIL','The interface inventory API rejected authentication or read permissions.',
+            report['inventory_error'],'Review the existing API account and VDOM scope; response bodies and tokens are hidden.'))
+    rejected=sum(report.get(key,0) for key in ('parser_rejections','late_rejections') if isinstance(report.get(key,0),int))
+    result.append(check('accounting_rejections','WARN' if rejected else 'PASS',
+        f'The engine has recorded {rejected} malformed/too-late input rejection(s).' if rejected else 'No input rejection has been recorded by this engine.',
+        'accounting_rejections_seen' if rejected else 'accounting_no_rejections',
+        'Review source formatting, timestamp synchronization and ledger retention; these counts are historical, not proof of a current outage.' if rejected else ''))
+    receipt=report.get('loki_timestamps_at_receipt') is True
+    result.append(check('accounting_delivery_timestamps','PASS' if receipt else 'WARN',
+        'Receipt-time Loki timestamps are configured for late-delivery discovery.' if receipt else 'Receipt-time discovery is not confirmed; late source timestamps may fall outside a short poll overlap.',
+        'receipt_timestamps_configured' if receipt else 'late_delivery_coverage_unverified',
+        '' if receipt else 'Review the upgrade plan; source eventtime must remain in the raw log line.'))
+    return result
+
+
+def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, direct_api=False, now=None, usage_request=None):
     if type(freshness) is not int or not 60 <= freshness <= 3600:
         raise ValueError("freshness must be between 60 and 3600 seconds")
     now = time.time() if now is None else now
-    checks = service_checks(p, compose_command)
+    checks = service_checks(p, compose_command, SERVICES+('fortilens-usage',) if c.get('accounting_enabled') else SERVICES)
     available = {}
     try:
         health = request(p, c, "/api/health", timeout=5)
@@ -287,6 +339,16 @@ def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, di
         checks.append(check("recent_logs", "UNKNOWN", "Logs cannot be checked until Loki is readable.", "loki_prerequisite_unavailable"))
     if direct_api:
         checks.append(api_check(p, c))
+    if c.get('accounting_enabled'):
+        try:
+            checks.extend(accounting_checks((usage_request or accounting_request)(p,c),now,freshness))
+        except urllib.error.HTTPError as exc:
+            checks.append(check('accounting_api','FAIL','The local reporting service rejected or failed its read-only diagnostic request.',
+                'accounting_auth_rejected' if exc.code in (401,403) else 'accounting_http_failed',
+                'Review the local reporting password and engine service. This is not a FortiGate token result.',http_status=exc.code))
+        except (OSError,ValueError,TypeError,KeyError,urllib.error.URLError):
+            checks.append(check('accounting_api','UNKNOWN','Usage-engine diagnostics are unavailable.',
+                'accounting_diagnostics_unavailable','Review the optional service and its local reporting address. No source traffic or WAN state is inferred.'))
     status = next((s for s in ["FAIL", "WARN", "UNKNOWN"] if any(x["status"] == s for x in checks)), "PASS")
     return {"schema_version": 1, "checked_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
             "status": status, "read_only": True, "direct_api_requested": direct_api,

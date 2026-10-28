@@ -8,7 +8,7 @@
       "volumes": [
         "./secrets/fortigate-key.yaml:/config/fortigate-key.yaml:ro"
       ],
-      "image": "quay.io/prometheuscommunity/fortigate-exporter@sha256:0880186a3dd69e66dc28be8a4cd37569637170e90c2aa657d2b3172a58551725",
+      "image": "quay.io/prometheuscommunity/fortigate-exporter@sha256:2e09b33e9b7975fb011e87c80ca1a07ae4bd9335f82004736c1a7c89d8760749",
       "platform": "linux/amd64",
       "restart": "unless-stopped",
       "logging": {

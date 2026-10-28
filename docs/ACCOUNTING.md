@@ -1,36 +1,19 @@
-# Recorded device usage: model and limits
+# Device usage: choose the accounting path
 
-These reports summarize bytes present in received FortiGate traffic logs. They are useful operational evidence, but they are not an authenticated-user ledger or a billing system.
+FortiLens 0.2 provides an optional persistent received-log engine and protected reporting portal. Use it for directional device usage, fixed day/week/month periods, VLAN totals and retained history. Read the [accounting contract](ACCOUNTING_ENGINE.md), [installation guide](../portable/README.md), and [safe upgrade procedure](UPGRADE.md).
 
-## Record selection and byte accounting
+| Path | Purpose | Limits |
+|---|---|---|
+| Protected reports / SQLite | Stateful byte accounting, identity handling, replay idempotency, classifications and history. | Received evidence only; pending counters, weak identities, old metadata, missing traffic and cross-boundary intervals remain explicit. |
+| Existing Grafana / Loki tables | Legacy raw-log diagnostics and comparisons. | Original MAC/IP/name grouping and closing cumulative fallback; no stateful deduplication. Absolute Grafana ranges override relative periods. |
+| Offline usage-audit | Sanitized sample comparison and repeat/identity review. | A sample is not a complete ledger. No live collection or deployment. |
 
-The dashboard groups records by available MAC/IP/name fields and filters the selected VDOM. Its WAN condition is `dstintfrole="wan"`. Choosing Internet interfaces in setup affects monitoring selectors; it does not rewrite FortiGate roles or replace this accounting condition. If the device omits that role or reports another role, relevant traffic may be excluded.
+Portal periods use an explicit accounting timezone, **[start,end)** boundaries, rolling 168 hours for the week and calendar boundaries for day/month. Fixed selections use the server's current time independently of Grafana. GB means decimal 1,000,000,000 bytes; API totals retain integer bytes and the UI rounds display units.
 
-Delta byte fields take priority, including an explicit zero. When a delta is absent, the cumulative byte fallback is limited to session-end records with log ID suffix 13. This avoids adding a full cumulative counter repeatedly to interim records. It does not deduplicate replayed log messages or recover missing records.
+MAC identifies an observed endpoint, not an authenticated person. Without usable MAC evidence, session/observation identities stay unverified; an IP or hostname alone never merges devices permanently. Router/proxy MACs and forged source fields require site-specific review.
 
-## Time periods
+Source-wide classifications distinguish Internet, internal, unresolved, unsupported and unscoped records. They cover the source/period independently of device/search/VLAN filters. Malformed input and too-late rejections are separate diagnostic counters. Unknown traffic coverage never becomes a green 100% badge.
 
-- Today uses the day's boundary.
-- Weekly means the rolling last 7 days, not a named calendar week.
-- Monthly starts at the calendar-month boundary in the selected timezone.
-- An absolute Grafana time selection overrides relative panel periods.
+Legacy Loki defaults retain 60 days, allow 32-day queries and budget 3 minutes for execution, 210 seconds for delivery and 240 seconds in the datasource. These controls do not restore missing logs or guarantee scan speed. Persistent summaries have separate configurable retention.
 
-The timestamp at which a record is logged can differ from the time its session transferred every byte. A session crossing a reporting boundary can therefore attribute bytes differently from a per-packet ledger. Validate clocks, timezone, and session logging policy before comparing totals with another system.
-
-## What can distort totals
-
-Missing or duplicated messages, ingestion interruptions, truncated retention, missing MACs, changing IPs, device naming, incomplete forward traffic logging, role filters, and session-boundary effects all matter. Two devices sharing identity fields may be grouped, and one device changing fields may appear in more than one group.
-
-The receiver assumes one FortiGate per installation. It does not authenticate a sender or safely separate arbitrary additional firewalls. Do not route another device into the same stream.
-
-## Query range and evidence
-
-The default Loki configuration retains 60 days, permits a maximum 32-day query range, has a 1-minute query timeout, and a 90-second HTTP write timeout. Grafana's Loki datasource timeout is 90 seconds. Retention is a configured policy; verify actual disk cleanup and stored coverage operationally.
-
-A successful 31-day query establishes that the request completed. It does not prove a continuous month of logs or correct device identification. Large scans can still time out as volume grows; this release does not pre-aggregate usage into a separate database.
-
-Controlled validation has matched a 300-byte synthetic record to 100 TX +200 RX and checked delta-versus-session-end fallback logic. Historical sampled raw-log comparisons also supported the calculation change. Continuous full-month reconciliation on a new live FortiGate remains pending.
-
-## Validate in your company
-
-Start with a small, known traffic window. Check raw fields, expected WAN role, VDOM, duplicates, and logging coverage. Compare independently summed samples with dashboard totals, then expand to 7 days and the current month. Keep redacted evidence of gaps rather than treating missing data as zero.
+Validate a controlled traffic window against independent byte totals, then review source identity, VLAN metadata, logging/clocks, duplicate/late delivery and missing periods. Compare Internet-only logs to a compatible reference: physical WAN counters may include unrelated traffic. Full-month or per-packet accuracy cannot be claimed from synthetic tests or an empty successful query.

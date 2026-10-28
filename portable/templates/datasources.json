@@ -22,7 +22,7 @@
       "url": "http://loki:3100",
       "editable": false,
       "jsonData": {
-        "timeout": 90
+        "timeout": 240
       }
     }
   ]

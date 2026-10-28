@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Rafattitas/fortilens/releases/tag/v0.1.0">Download v0.1.0</a> ·
+  <a href="https://github.com/Rafattitas/fortilens/releases/tag/v0.2.0">Download v0.2.0</a> ·
   <a href="#get-started">Get started</a> ·
   <a href="docs/INSTALLATION.md">Installation guide</a> ·
   <a href="docs/ARCHITECTURE.md">Architecture</a> ·
@@ -41,10 +41,14 @@ Designed for **one FortiGate per independent installation**: your server, your c
 |---|---|
 | **WAN SLA visibility** | State, latency, jitter, packet loss, observed availability, and sample coverage. |
 | **A dashboard that adapts** | Chained FortiGate → VDOM → SLA → WAN selectors, with repeating interface cards. |
-| **Recorded device usage** | Today, rolling 7-day, and calendar-month reports grouped by MAC/IP/name. |
+| **Persistent device accounting** | Directional upload/download, stable MAC endpoints and explicit unverified fallbacks; replay-safe received-log ledger. |
+| **Fixed-period reports** | Today, rolling 7 days, this calendar month, custom ranges, device search, top consumers and daily/monthly history. |
+| **VLAN Internet usage** | Exact VDOM/interface/parent/VLAN mapping, segment totals and drilldown; unknown mappings remain unknown. |
+| **Trust evidence** | Pending counters, source-wide classifications, processing lag, missing telemetry and observed WAN coverage. |
 | **Interface and VLAN review** | Reuses exporter labels, fills metadata gaps through read-only API requests, and asks you to confirm Internet interfaces. |
 | **Useful readiness checks** | Distinguishes failed collection, old samples, missing logs, and authentication boundaries. |
-| **Repeatable deployment** | Six digest-pinned Docker services, datasource provisioning, and automatic first dashboard import. |
+| **Safe deployment** | Six monitoring services plus optional constrained Python/SQLite worker, reviewed upgrade/rollback and preserved dashboards. |
+| **Optional alert candidates** | Paused WAN/performance/collection rules; email/Telegram environment references without changing existing notifications. |
 
 ### Get started
 
@@ -59,13 +63,15 @@ python3 setup.py start
 python3 setup.py doctor
 ```
 
-Prefer a standalone package? Download [fortilens-v0.1.0.zip](https://github.com/Rafattitas/fortilens/releases/download/v0.1.0/fortilens-v0.1.0.zip) and [SHA256SUMS.txt](https://github.com/Rafattitas/fortilens/releases/download/v0.1.0/SHA256SUMS.txt), verify the checksum, extract the archive, and run the same three Python commands from its `forti-monitor/` directory. The release workflow tests and builds this allowlisted package from the version tag.
+Prefer a standalone package? Download [fortilens-v0.2.0.zip](https://github.com/Rafattitas/fortilens/releases/download/v0.2.0/fortilens-v0.2.0.zip) and [SHA256SUMS.txt](https://github.com/Rafattitas/fortilens/releases/download/v0.2.0/SHA256SUMS.txt), verify the checksum, extract the archive, and run the same three Python commands from its `forti-monitor/` directory. The release workflow tests and builds this allowlisted package from the version tag.
 
-During setup, enter your FortiGate address, HTTPS API port, read-only API token, optional private CA, and syslog settings. Review discovered interfaces and explicitly confirm your Internet interfaces. Keep Grafana on localhost, or enter the monitoring server's LAN address for access from your network.
+During setup, enter your FortiGate address, HTTPS API port, read-only API token, optional private CA, and syslog settings. Review discovered interfaces and explicitly confirm your Internet interfaces. Keep browser services on localhost for an SSH tunnel, or use a reviewed HTTPS reverse proxy for network access. Reporting credentials must not cross an untrusted plain-HTTP network.
 
 Then configure the intended FortiGate syslog destination to send forward traffic logs to your monitoring server. The default receiver is **TCP1514 / RFC5424**. API users, permissions, and syslog settings are configured on FortiGate by your administrator; the setup utility does not change them.
 
-Open `http://YOUR_SERVER:3001/d/forti-monitor`. Login is `admin`; the generated password is stored privately in `local/secrets/grafana_admin_password`.
+Open `http://YOUR_SERVER:3001/d/forti-monitor`. Grafana login is `admin`; its password is in `local/secrets/grafana_admin_password`. When accounting is enabled, protected reports are at the configured reporting address (default `http://127.0.0.1:3002/`), with a separate password in `local/secrets/usage_admin_password`. Use the portal for fixed-period device/VLAN answers independently of Grafana’s global time range.
+
+Interactive setup offers accounting explicitly; file-based setup can add `--enable-accounting`. Choose an explicit accounting timezone and expected FortiGate device ID. Review [installation](docs/INSTALLATION.md), [upgrades](docs/UPGRADE.md), [troubleshooting](docs/TROUBLESHOOTING.md), and [optional alerts](docs/OPTIONAL_ALERTS.md).
 
 **Start with the [installation guide](docs/INSTALLATION.md)** for certificates, network access, interface review, and troubleshooting. No shared password or token is shipped.
 
@@ -103,23 +109,27 @@ flowchart LR
   NE[Node Exporter] --> PR
   PR --> GR[Grafana]
   LO --> GR
+  LO -->|Bounded incremental reads| US[Optional Python + SQLite accounting]
+  FG -. Read-only metadata / route lookup .-> US
+  PR --> US
+  US --> RP[Protected device and VLAN reports]
+  US -->|Authenticated scrape| PR
   CLI[FortiLens setup and checks] -. configure or inspect .-> GR
 ```
 
-Only Grafana and syslog publish host ports by default. [Read the architecture notes](docs/ARCHITECTURE.md).
+Grafana and the protected reports bind to loopback by default; syslog uses its configured receiver address. [Read the architecture notes](docs/ARCHITECTURE.md).
 
 ## Honest signals, clear limits
 
 - **Missing data stays missing.** Dropdown fallback choices are configuration, not measurements. No SLA series does not establish a WAN outage.
-- **Usage means recorded device bytes.** It is not authenticated-user billing. Missing/duplicate logs, missing MAC fields, and session boundaries affect totals. Read [the accounting model](docs/ACCOUNTING.md) before using reports for decisions.
-- **Interface role is evidence, not a guess.** VLAN is an interface type; WAN/LAN/DMZ is a reported role. Confirming a monitoring choice does not reconfigure FortiGate or change the usage query's WAN-role filter.
+- **Usage means received-log evidence.** Valid zero deltas stay zero; unsafe cumulative candidates stay pending. Stable event identities prevent replay double counting. Missing MACs remain explicitly unverified. [Read the accounting contract](docs/ACCOUNTING_ENGINE.md).
+- **Interface metadata has a scope and time.** VLAN mapping uses exact VDOM/interface keys, never subnets. Current inventory cannot establish an old VLAN assignment. FortiGate settings are never changed automatically.
 - **Early access.** Clean Docker installations and controlled HTTPS/syslog fixtures have been tested. Every FortiOS release, ARM, and new real-device onboarding are not yet validated.
-- **Current scope.** Single device per installation. Notifications, alert-rule provisioning, a graphical setup wizard, and complete topology discovery are not included.
+- **Current scope.** One FortiGate per installation. Optional alerts are paused candidates; production activation and recipient testing are explicit operator actions. Complete topology discovery and per-flow SD-WAN route attribution are not inferred.
 
 ## Built to be inspectable
 
-The initial release includes **35 automated tests**, a Python-version CI matrix, scoped read-only inventory, explicit interface confirmation, safe bundle allowlists, and documented evidence limits. Service images are pinned by digest; updates need compatibility review.
-
+The source includes automated accounting/identity/period/VLAN/WAN tests, a Linux/Windows Python matrix, and an isolated Docker acceptance pipeline. Synthetic traffic checks the full Alloy → Loki → accounting → authenticated Prometheus path, including replay and restart behavior. See [verification](docs/VERIFICATION.md) for evidence and real-device limits. Existing v0.1.0 installations use the [reviewed upgrade guide](docs/UPGRADE.md).
 ```bash
 python3 -m unittest discover -s tests -v
 python3 portable/setup.py bundle --destination dist/fortilens-single-device.zip

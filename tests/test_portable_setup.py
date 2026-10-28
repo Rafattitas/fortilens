@@ -5,18 +5,34 @@ import importlib.util
 import io
 import json
 import re
+import sys
 from pathlib import Path
 import tempfile
 import unittest
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "portable"))
 spec = importlib.util.spec_from_file_location("portable_setup", ROOT / "portable/setup.py")
 setup = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(setup)
 
 
 class PortableSetupTests(unittest.TestCase):
+    def test_loki_timeout_layers_leave_time_to_deliver_a_long_query(self):
+        # A write deadline shorter than the execution budget can discard a
+        # successful query response; the datasource must also outlive both.
+        loki = setup.load(ROOT / "portable/templates/loki.json")
+        sources = setup.load(ROOT / "portable/templates/datasources.json")
+        def seconds(value):
+            return int(value[:-1]) * {"s": 1, "m": 60}[value[-1]]
+        execution = seconds(loki["limits_config"]["query_timeout"])
+        response = seconds(loki["server"]["http_server_write_timeout"])
+        client = next(x["jsonData"]["timeout"] for x in sources["datasources"] if x["type"] == "loki")
+        self.assertGreater(execution, 0)
+        self.assertLess(execution, response)
+        self.assertLess(response, client)
+
     def config(self, **changes):
         return setup.validate_config({"fortigate_host": "fw.example.test", "api_port": 8443,
             "vdom": "Employees", "sla": "ISP_Health", "wan_interfaces": ["port3", "uplink.100"], **changes})
@@ -67,7 +83,7 @@ class PortableSetupTests(unittest.TestCase):
         for old in ["legacy-site.example.test", "legacy-sla", "legacy-datasource-uid"]:
             self.assertNotIn(old, text)
         self.assertEqual(d["metadata"], {"name": "forti-monitor"})
-        self.assertEqual(len(d["spec"]["elements"]), 26)
+        self.assertEqual(len(d["spec"]["elements"]), 31)
         self.assertEqual(len(d["spec"]["variables"]), 4)
         wan = d["spec"]["variables"][3]["spec"]
         self.assertNotIn("allValue", wan)
@@ -89,14 +105,18 @@ class PortableSetupTests(unittest.TestCase):
             before = element["spec"]["data"]["spec"]["queries"]
             after = portable["spec"]["elements"][name]["spec"]["data"]["spec"]["queries"]
             self.assertEqual([q["spec"]["query"]["spec"] for q in before], [q["spec"]["query"]["spec"] for q in after])
-            self.assertEqual(element["spec"]["vizConfig"], portable["spec"]["elements"][name]["spec"]["vizConfig"])
+            self.assertEqual(element["spec"]["data"], portable["spec"]["elements"][name]["spec"]["data"])
+            if portable["spec"]["elements"][name]["spec"]["vizConfig"]["group"] == "stat":
+                self.assertEqual(portable["spec"]["elements"][name]["spec"]["vizConfig"]["spec"]["fieldConfig"]["defaults"]["noValue"], "NO DATA")
+        self.assertEqual(source["spec"]["elements"]["panel-18"]["spec"]["vizConfig"]["spec"]["fieldConfig"]["defaults"]["mappings"],
+            portable["spec"]["elements"]["panel-18"]["spec"]["vizConfig"]["spec"]["fieldConfig"]["defaults"]["mappings"])
 
     def test_bundle_only_contains_reviewed_public_inputs(self):
         with tempfile.TemporaryDirectory() as parent, contextlib.redirect_stdout(io.StringIO()):
             p = Path(parent) / "bundle.zip"
             setup.bundle(p)
             with zipfile.ZipFile(p) as archive:
-                self.assertEqual(len(archive.namelist()), 13)
+                self.assertEqual(len(archive.namelist()), 22)
                 for name in archive.namelist():
                     self.assertTrue(name.startswith("forti-monitor/"))
                     self.assertNotIn("local/", name)
