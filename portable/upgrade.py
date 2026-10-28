@@ -78,6 +78,10 @@ def prepare(module, installation, config, *, enable_accounting=False, zone=None,
     draft = module.render(draft_config, plan_root / 'draft', token)
     generated = module.load(draft / 'compose.yaml')
     compose = deepcopy(compose)
+    old_image='quay.io/prometheuscommunity/fortigate-exporter@sha256:0880186a3dd69e66dc28be8a4cd37569637170e90c2aa657d2b3172a58551725'
+    repair_image=compose['services'].get('fortigate-exporter',{}).get('image')==old_image
+    if repair_image:
+        compose['services']['fortigate-exporter']['image']=generated['services']['fortigate-exporter']['image']
     compose['services']['fortilens-usage'] = generated['services']['fortilens-usage']
     compose.setdefault('volumes', {})['usage-data'] = {}
     compose.setdefault('secrets', {}).update({k: generated['secrets'][k] for k in ('usage_admin_password', 'fortigate_api_token')})
@@ -107,6 +111,8 @@ def prepare(module, installation, config, *, enable_accounting=False, zone=None,
             'Timestamp newly received Loki entries at receipt; retain FortiGate eventtime inside the line.',
             'Preserve existing secrets, retention, datasource provisioning, alerts and saved dashboards.'],
         'runtime_action': 'After reviewing and applying files, explicitly run setup.py start. This plan never starts/restarts services.'}
+    if repair_image:
+        manifest['changes'].append('Repair the v0.1.0 default exporter reference: its old digest is unavailable from that registry. Pin the published v1.25.0 linux/amd64 manifest; custom image references are preserved.')
     put(plan_root / 'plan.json', module.dumps(manifest).encode())
     return manifest
 
