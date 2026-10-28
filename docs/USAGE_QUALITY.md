@@ -12,6 +12,8 @@ New installations allow three minutes for a Loki query, 210 seconds for its HTTP
 
 Each table counts received records by classification: both delta fields, end-record cumulative fallback, missing master MAC, invalid/missing byte contributions, non-WAN role, unsupported event/format, non-forward traffic, missing VDOM, and parsing errors.
 
+Counts display as whole integers without K/M abbreviations, so the visible value can be compared directly with an audit reference.
+
 The selected VDOM applies to well-formed scoped records. Missing-VDOM and parser-error records are explicitly **unscoped** and can include other devices/VDOMs whose identity cannot be established. Other known VDOMs are excluded. FortiGate/SLA/WAN dropdown selections do not filter accounting.
 
 Diagnostics use strict logfmt parsing to flag malformed input. The existing byte formula remains unchanged and uses selective permissive parsing, so a malformed record might be accepted by the byte query while flagged by the diagnostic. These counts are not an independent certification of byte totals. Count categories that are absent are not filled with invented zeros; no results means unavailable evidence.

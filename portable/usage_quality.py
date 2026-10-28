@@ -76,7 +76,7 @@ def enhance_dashboard(source):
             "renameByName": {"usage_quality": "Record classification", "Value #A": "Received records"}}}}]
         p["vizConfig"]["spec"]["options"] = {"cellHeight": "md", "showHeader": True,
             "sortBy": [{"desc": True, "displayName": "Received records"}]}
-        p["vizConfig"]["spec"]["fieldConfig"] = {"defaults": {"unit": "short", "decimals": 0, "mappings": [
+        p["vizConfig"]["spec"]["fieldConfig"] = {"defaults": {"unit": "none", "decimals": 0, "mappings": [
             {"type": "value", "options": {k: {"text": text} for k, text in CATEGORIES.items()}}]}, "overrides": []}
         elements["panel-" + str(pid)] = panel
         quality_items.append(item(pid, 0, (pid - 43) * 9, 24, 9))
