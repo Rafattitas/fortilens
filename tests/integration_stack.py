@@ -82,6 +82,17 @@ def main():
         assert before_secret==(p/'secrets/grafana_admin_password').read_bytes()
         compose=s.load(p/'compose.yaml')
         paused=alerts.candidates(c)['rules']
+        outage=paused['groups'][0]['rules'][0]['data'][0]['model']['expr']
+        tests=[]
+        for down,up,probe,expected in [(1,1,1,1),(0,1,1,0),(1,0,1,None),(1,1,0,None),(None,1,1,None)]:
+            series=[{'series':'up{job="fortigate",instance="fixture-api"}','values':str(up)+'+0x5'},
+                    {'series':'probe_success{job="fortigate",instance="fixture-api"}','values':str(probe)+'+0x5'}]
+            if down is not None:
+                series.append({'series':'fortigate_virtual_wan_status{job="fortigate",instance="fixture-api",vdom="root",sla="fixture-check",interface="uplink-a",state="down"}','values':str(down)+'+0x5'})
+            tests.append({'interval':'1m','input_series':series,'promql_expr_test':[{'expr':'sum('+outage+')','eval_time':'1m',
+                'exp_samples':[] if expected is None else [{'labels':'{}','value':expected}]}]})
+        (temporary/'alert-test.json').write_text(s.dumps({'evaluation_interval':'1m','tests':tests}))
+        compose['services']['prometheus']['volumes'].append(str(temporary)+':/fixture:ro')
         (p/'grafana/provisioning/alerting').mkdir()
         (p/'grafana/provisioning/alerting/rules.json').write_text(s.dumps(paused))
         compose['services']['grafana']['volumes'].append('./grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro')
@@ -99,6 +110,7 @@ def main():
         docker('build','fortilens-usage')
         # Validate the actual pinned applications, not only JSON parsing.
         docker('run','--rm','--no-deps','--entrypoint','promtool','prometheus','check','config','/etc/prometheus/prometheus.yml')
+        docker('run','--rm','--no-deps','--entrypoint','promtool','prometheus','test','rules','/fixture/alert-test.json')
         docker('run','--rm','--no-deps','loki','-config.file=/etc/loki/local-config.yaml','-verify-config=true')
         docker('run','--rm','--no-deps','alloy','validate','/etc/alloy/config.alloy')
         docker('up','-d','--no-build')

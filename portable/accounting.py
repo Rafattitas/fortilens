@@ -186,12 +186,18 @@ def direction(fields, inventory, config):
     return ("INTERNET" if internal and external else "UNRESOLVED_DIRECTION"), source
 
 
+def event_order(event):
+    f=event['fields']
+    return (event['event_ns'],f.get('logid')=='0000000013',number(f.get('duration')) or 0,
+            (number(f.get('sentbyte')) or 0)+(number(f.get('rcvdbyte')) or 0),event['uid'])
+
+
 def derive_session(events, inventory, config):
     zone = tz(config["accounting_timezone"])
     previous, ended, generation, previous_time, previous_duration = {}, False, None, None, None
     previous_start, previous_mac = None, None
     results = []
-    for event in sorted(events, key=lambda e: (e["event_ns"], e["uid"])):
+    for event in sorted(events, key=event_order):
         f, flags = event["fields"], []
         stamp = event["event_ns"]
         cumulative = {k: number(f.get(k)) for k in ("sentbyte", "rcvdbyte")}
@@ -199,7 +205,8 @@ def derive_session(events, inventory, config):
         inferred_start = stamp//NS-duration if duration is not None else None
         current_mac = identity(event, event['uid'])['mac']
         mac_changed = bool(previous_mac and current_mac and previous_mac != current_mac)
-        reset = ended or mac_changed or (duration is not None and previous_duration is not None and duration < previous_duration)
+        repeated_close=ended and f.get('logid')=='0000000013' and inferred_start is not None and inferred_start==previous_start
+        reset = (ended and not repeated_close) or mac_changed or (duration is not None and previous_duration is not None and duration < previous_duration)
         # Missing-MAC endpoint identities cannot be carried across inconsistent
         # session-start evidence just because an IP/session number was reused.
         if not current_mac and previous_start is not None and inferred_start != previous_start:
@@ -211,6 +218,8 @@ def derive_session(events, inventory, config):
             flags.append("session_restart_or_counter_reset")
         if mac_changed:
             flags.append('session_endpoint_changed')
+        if repeated_close:
+            flags.append('repeated_close_observation')
         endpoint = identity(event, generation)
         evidence = event.get("network_evidence")
         cls, vlan = (evidence["classification"], evidence["vlan"]) if evidence else direction(f, inventory, config)
@@ -256,6 +265,9 @@ def derive_session(events, inventory, config):
                         flags.append(label + "_delta_exceeds_counter_change")
                     elif value < difference:
                         flags.append(label + "_unobserved_counter_bytes")
+                elif repeated_close and not reset:
+                    waiting,value=value,0
+                    flags.append(label+'_post_close_delta_unverified')
             elif f.get("logid") == "0000000013" and total is not None:
                 if prior is not None:
                     value = total-prior
@@ -411,7 +423,8 @@ class Store:
         with self.db:
             sessions = self.db.execute("SELECT DISTINCT session FROM events WHERE stamp<?", (floor,)).fetchall()
             for session in sessions:
-                last = self.db.execute("SELECT uid,payload FROM events WHERE session=? AND stamp<? ORDER BY stamp DESC,uid DESC LIMIT 1", (session[0], floor)).fetchone()
+                same_stamp = self.db.execute('SELECT uid,payload FROM events WHERE session=? AND stamp=(SELECT MAX(stamp) FROM events WHERE session=? AND stamp<?)', (session[0],session[0],floor)).fetchall()
+                last = max(same_stamp,key=lambda row:event_order(json.loads(row[1])))
                 event = json.loads(last[1])
                 # Keep one baseline for an open session, without contributing its
                 # bytes to a retained daily summary a second time.

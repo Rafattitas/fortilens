@@ -96,6 +96,20 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(self.report()["totals"]["upload_bytes"], 150)
         self.assertEqual(self.report()["totals"]["download_bytes"], 300)
 
+    def test_equal_timestamp_stats_precede_closing_cumulative_record(self):
+        self.store.ingest([record(sentbyte='100',rcvdbyte='200'),record(logid='0000000013',sentdelta='',rcvddelta='',sentbyte='150',rcvdbyte='300')])
+        self.assertEqual(self.report()['totals']['upload_bytes'],150)
+        self.assertEqual(self.report()['totals']['download_bytes'],300)
+        self.store.prune('2026-10-29T12:00:00Z')
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM events').fetchone()[0],0)
+
+    def test_second_closing_observation_does_not_recount_the_same_session(self):
+        self.store.ingest([record(logid='0000000013',sentdelta='',rcvddelta='',sentbyte='500',rcvdbyte='900'),
+            record('2026-10-20T12:01:00Z',duration='120',logid='0000000013',sentdelta='',rcvddelta='',sentbyte='500',rcvdbyte='900',idseq='second')])
+        self.assertEqual(self.report()['totals']['upload_bytes'],500)
+        self.assertEqual(self.report()['totals']['download_bytes'],900)
+        self.assertIn('repeated_close_observation',self.report()['flags'])
+
     def test_end_only_without_safe_duration_baseline_is_pending(self):
         self.store.ingest([record(logid="0000000013", duration="", sentdelta="", rcvddelta="", sentbyte="500", rcvdbyte="600")])
         self.assertEqual(self.report()["totals"]["upload_bytes"], 0)
