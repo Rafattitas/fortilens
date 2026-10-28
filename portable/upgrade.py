@@ -37,7 +37,9 @@ def put(path, data):
     if temporary.exists():
         raise UpgradeError('An unfinished file replacement needs review')
     temporary.write_bytes(data)
-    temporary.chmod(0o600 if 'secrets' in path.parts else 0o644)
+    # Compose file-backed secrets retain host permissions. Nonroot container
+    # users must read the bind-mounted file; the installation parent is 0700.
+    temporary.chmod(0o644)
     os.replace(temporary, path)
 
 

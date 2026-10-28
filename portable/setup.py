@@ -529,7 +529,7 @@ def main(argv=None):
     init.add_argument("--inventory-file", type=Path, help="Offline FortiGate interface API JSON response; no network requests")
     init.add_argument("--select-wan", help="Comma-separated names from the inventory in the configured VDOM")
     init.add_argument("--confirm-wan", action="store_true", help="Explicitly confirm selected Internet interfaces for this project")
-    for name in ["start", "import-dashboard", "discover"]:
+    for name in ["start", "import-dashboard", "discover", "stop-accounting"]:
         p = sub.add_parser(name)
         p.add_argument("--output", type=Path, default=ROOT / "local")
     doctor_parser = sub.add_parser("doctor", help="Read-only service, collection and recent-log readiness report")
@@ -604,6 +604,10 @@ def main(argv=None):
             p, c = installation(args.output)
             if args.command == "start":
                 start(p, c)
+            elif args.command=='stop-accounting':
+                if not c['accounting_enabled']:raise SetupError('No optional accounting service is configured')
+                subprocess.run(compose_command(p,'stop','fortilens-usage'),check=True)
+                print('Optional accounting worker stopped; its data volume is preserved.')
             elif args.command == "discover":
                 discover(p, c)
             elif args.command == "doctor":
