@@ -39,6 +39,7 @@ Designed for **one FortiGate per independent installation**: your server, your c
 
 | Capability | What it does |
 |---|---|
+| **Unified console (current source)** | One FortiLens sign-in and navigation for native Grafana monitoring and persistent reports; opt in with `init --enable-portal`. See the [console guide](docs/UNIFIED_CONSOLE.md). |
 | **WAN SLA visibility** | State, latency, jitter, packet loss, observed availability, and sample coverage. |
 | **A dashboard that adapts** | Chained FortiGate → VDOM → SLA → WAN selectors, with repeating interface cards. |
 | **Persistent device accounting** | Directional upload/download, stable MAC endpoints and explicit unverified fallbacks; replay-safe received-log ledger. |
