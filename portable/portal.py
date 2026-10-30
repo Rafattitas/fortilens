@@ -356,6 +356,8 @@ def configure(compose, config):
         'GF_SERVER_ROOT_URL': f"http://{native_host}:{config['grafana_port']}/grafana/",
         'GF_SERVER_SERVE_FROM_SUB_PATH': 'true',
         'GF_SECURITY_ALLOW_EMBEDDING': 'true',
+        'GF_SECURITY_CONTENT_SECURITY_POLICY': 'true',
+        'GF_SECURITY_CONTENT_SECURITY_POLICY_TEMPLATE': "frame-ancestors 'self';",
         'GF_AUTH_PROXY_ENABLED': 'true', 'GF_AUTH_PROXY_HEADER_NAME': 'X-FortiLens-Viewer',
         'GF_AUTH_PROXY_HEADER_PROPERTY': 'username', 'GF_AUTH_PROXY_AUTO_SIGN_UP': 'true',
         'GF_AUTH_PROXY_WHITELIST': '127.0.0.1', 'GF_AUTH_PROXY_SYNC_TTL': '0',
