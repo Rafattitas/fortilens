@@ -207,6 +207,7 @@ class PortalTests(unittest.TestCase):
             services = compose['services']
             self.assertEqual(services['fortilens-portal']['network_mode'], 'service:grafana')
             self.assertEqual(services['grafana']['environment']['GF_AUTH_PROXY_WHITELIST'], '127.0.0.1')
+            self.assertEqual(services['grafana']['environment']['GF_SECURITY_CONTENT_SECURITY_POLICY_TEMPLATE'], "frame-ancestors 'self';")
             self.assertEqual(services['grafana']['environment']['GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN'], 'true')
             self.assertNotIn('ports', services['fortilens-usage'])
             self.assertEqual(services['fortilens-usage']['volumes'][0], 'usage-data:/data')
