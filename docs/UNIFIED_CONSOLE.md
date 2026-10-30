@@ -55,7 +55,10 @@ and 0.25 CPU. The accounting worker retains its original volume and limits.
 
 The gateway shares Grafana's network namespace. Grafana trusts auth-proxy headers
 only from `127.0.0.1`. The browser's Cookie, Authorization, forwarding and identity
-headers are discarded before constructing upstream requests. The gateway supplies
+headers are discarded before constructing upstream requests. Both native Grafana
+and gateway responses restrict framing to their own origin using `frame-ancestors
+'self'`; enabling the integration does not allow arbitrary sites to frame the
+native administrator interface. The gateway supplies
 a fixed `fortilens-portal` identity with the **Viewer** role; an Editor or Grafana
 administrator identity fails verification. Grafana's upstream session cookies
 remain in server memory, scoped to each FortiLens session, and never reach the
