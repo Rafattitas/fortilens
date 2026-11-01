@@ -14,8 +14,13 @@ python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r management/requirements-test.txt
 python -m unittest discover -s tests -v
+python tests/check_frontend.py
 python portable/setup.py bundle --destination dist/fortilens-single-device.zip
 ```
+
+The standalone frontend syntax check uses a development Node.js executable to
+compile the console, reporting and managed-status scripts. It does not execute
+the application or add a Node.js dependency to the production installation.
 
 On a disposable Linux Docker-enabled test account:
 

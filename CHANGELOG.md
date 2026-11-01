@@ -2,6 +2,14 @@
 
 ## Unreleased — unified console and Web Setup & Settings
 
+- Restore one dark operations workspace with flat summary strips, wider borderless
+  monitoring/reports, clearer pending configuration and scoped report styling.
+- Add keyboard-accessible mobile navigation, compact settings selection, loading
+  feedback and direct access to the existing data-quality evidence page.
+- Make monitoring the configured entry, prevent a duplicate report sign-in flash,
+  validate shipped JavaScript in CI and privately cache only fingerprinted native
+  code assets while keeping authentication, HTML and API responses uncached.
+
 - Primary FortiLens navigation with protected native Grafana monitoring, fixed-period
   device/VLAN reports, WAN evidence and data quality behind the existing Viewer boundary.
 - Independent nonroot FastAPI management, one-time administrator bootstrap, secure

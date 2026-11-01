@@ -135,6 +135,26 @@ class ManagementTests(unittest.TestCase):
             self.assertEqual(response.headers['location'],'/grafana/d/fixture/?kiosk')
         self.assertEqual(self.ops.status()['links']['dashboard'],'/grafana/d/forti-monitor/?kiosk&theme=dark')
 
+    def test_hosted_reports_preserve_protected_routes_and_reject_style_input(self):
+        self.administrator()
+        html=(ROOT/'portable/reporting.html').read_text(encoding='utf-8')
+        result={'status':200,'body':base64.b64encode(html.encode()).decode(),'content_type':'text/html'}
+        with patch.object(self.app.state.helper,'call',return_value=result):
+            response=self.client.get('/console/',params={'section':'devices'})
+            self.assertEqual(response.status_code,200)
+            self.assertIn("'/console/api/report?",response.text)
+            self.assertIn("startsWith('/grafana/d/')",response.text)
+            self.assertIn('#vlan-section{display:none!important}',response.text)
+            from management.app import hosted_report
+            self.assertEqual(response.text.count('id="managed-report-status"'),1)
+            self.assertEqual(hosted_report(response.text),response.text)
+            attack='</style><script>injected-style-input</script>'
+            response=self.client.get('/console/',params={'section':attack})
+            self.assertEqual(response.status_code,200)
+            self.assertNotIn(attack,response.text)
+            self.assertNotIn('#vlan-section{display:none!important}',response.text)
+            self.assertEqual(response.headers['x-frame-options'],'SAMEORIGIN')
+
     def test_native_grafana_mount_keeps_auth_origin_and_write_boundaries(self):
         self.assertEqual(self.client.get('/grafana/api/user').status_code,401)
         self.administrator()
@@ -144,6 +164,22 @@ class ManagementTests(unittest.TestCase):
             self.assertEqual(self.client.post('/grafana/api/ds/query',json={},headers={'Origin':'http://testserver'}).status_code,200)
             self.assertEqual(self.client.post('/grafana/api/ds/query',json={}).status_code,403)
             self.assertEqual(self.client.post('/grafana/api/ds/query',json={},headers={'Origin':'https://outside.invalid'}).status_code,403)
+
+    def test_only_authenticated_fingerprinted_code_is_privately_cacheable(self):
+        self.administrator()
+        path='/grafana/public/build/runtime.1234abcdef56.js'
+        result={'status':200,'body':base64.b64encode(b'/* static library fixture */').decode(),'content_type':'application/javascript'}
+        with patch.object(self.app.state.helper,'call',return_value=result):
+            self.assertEqual(self.client.get(path).headers['cache-control'],'private, max-age=86400, immutable')
+            self.assertEqual(self.client.get('/grafana/api/user').headers['cache-control'],'no-store')
+            result['content_type']='text/html'
+            self.assertEqual(self.client.get(path).headers['cache-control'],'no-store')
+            result.update(status=503,content_type='application/javascript')
+            self.assertEqual(self.client.get(path).headers['cache-control'],'no-store')
+            self.client.cookies.clear()
+            response=self.client.get(path)
+            self.assertEqual(response.status_code,401)
+            self.assertEqual(response.headers['cache-control'],'no-store')
 
     def test_one_time_bootstrap_password_hash_and_no_default_credentials(self):
         r=self.client.post('/api/bootstrap',json={'username':'operator','password':PASSWORD,'confirmation':PASSWORD,'bootstrap_token':'wrong'},headers=self.headers)
