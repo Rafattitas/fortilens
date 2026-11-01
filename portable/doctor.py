@@ -292,12 +292,12 @@ def accounting_checks(report,now,freshness):
     return result
 
 
-def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, direct_api=False, now=None, usage_request=None):
+def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, direct_api=False, now=None, usage_request=None, service_reader=None):
     if type(freshness) is not int or not 60 <= freshness <= 3600:
         raise ValueError("freshness must be between 60 and 3600 seconds")
     now = time.time() if now is None else now
     services = SERVICES + (('fortilens-usage',) if c.get('accounting_enabled') else ()) + (('fortilens-portal',) if c.get('portal_enabled') else ())
-    checks = service_checks(p, compose_command, services)
+    checks = (service_reader or service_checks)(p, compose_command, services)
     available = {}
     try:
         health = request(p, c, "/api/health", timeout=5)

@@ -1,5 +1,10 @@
 # Installation
 
+For the current Ubuntu web management source, start with [Web Setup & Settings](WEB_SETUP.md).
+It covers `sudo ./install.sh`, first-run administration, HTTPS, existing-site
+adoption and recovery. The portable workflow below remains supported and the
+published v0.2.0 ZIP is unchanged.
+
 The complete, versioned procedure is in the [portable installation guide](../portable/README.md). The same guide is included in the standalone ZIP.
 
 ## Before you start

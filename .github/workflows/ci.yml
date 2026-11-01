@@ -55,3 +55,53 @@ jobs:
           python-version: '3.12'
       - name: Validate pinned applications and synthetic end-to-end accounting
         run: python tests/integration_stack.py
+
+  management:
+    name: Web management / Python 3.12
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Install management test dependencies
+        run: python -m pip install -r management/requirements-test.txt
+      - name: Run all tests with the management dependencies
+        run: python -m unittest discover -s tests -v
+      - name: Run actual nonroot web / helper / Docker integration
+        run: python tests/integration_management.py
+
+  ubuntu-installer:
+    name: Real Ubuntu systemd installer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install explicit VM-only Python prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv
+      - name: Bootstrap independent management twice without starting monitoring
+        run: |
+          sudo ./install.sh > "$RUNNER_TEMP/fortilens-install.log"
+          sudo ./install.sh > "$RUNNER_TEMP/fortilens-install-repeat.log"
+          sudo systemctl is-active --quiet fortilens-helper fortilens-web
+          test "$(id -nG fortilens | tr ' ' '\n' | grep -c '^docker$')" = 0
+      - name: Accept actual host services and disposable monitoring deployment
+        run: sudo env GITHUB_ACTIONS=true /opt/fortilens/venv/bin/python tests/integration_management.py --installed
+      - name: Show sanitized service logs on failure
+        if: failure()
+        run: |
+          sudo systemctl status fortilens-web fortilens-helper --no-pager || true
+          sudo journalctl -u fortilens-web -u fortilens-helper --no-pager -n 80
+      - name: Stop test-only host management services
+        if: always()
+        run: sudo systemctl stop fortilens-web fortilens-helper || true
