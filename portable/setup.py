@@ -5,6 +5,7 @@ import base64
 from copy import deepcopy
 import getpass
 import hashlib
+import http.cookies
 import ipaddress
 import json
 import os
@@ -33,6 +34,7 @@ DEFAULTS = {
     "grafana_bind": "127.0.0.1", "timezone": "browser",
     "accounting_enabled": False, "accounting_timezone": "UTC", "source_id": "dedicated-listener", "expected_devid": "",
     "usage_bind": "127.0.0.1", "usage_port": 3002, "public_usage_url": "",
+    "portal_enabled": False, "portal_secure_cookie": False,
     "accounting_poll_seconds": 30, "accounting_backfill_days": 31, "accounting_step_seconds": 120,
     "accounting_overlap_seconds": 30, "accounting_settle_seconds": 5, "accounting_ledger_days": 8,
     "accounting_summary_days": 400, "accounting_max_bytes": 4294967296, "accounting_metrics_rows": 5000,
@@ -107,9 +109,11 @@ def validate_config(raw):
         raise SetupError("Set the SLA name when supplying fallback WAN interfaces")
     if c["api_ca_file"] and not c["api_tls_verify"]:
         raise SetupError("A custom CA requires api_tls_verify=true")
-    for key in ("accounting_enabled", "route_lookup_enabled", "loki_receive_timestamps"):
+    for key in ("accounting_enabled", "route_lookup_enabled", "loki_receive_timestamps", "portal_enabled", "portal_secure_cookie"):
         if type(c[key]) is not bool:
             raise SetupError(key + " must be true or false")
+    if c["portal_enabled"] and not c["accounting_enabled"]:
+        raise SetupError("The unified portal requires accounting_enabled=true")
     limits={"accounting_poll_seconds":(5,3600),"accounting_backfill_days":(1,90),"accounting_step_seconds":(10,3600),
         "accounting_overlap_seconds":(0,3600),"accounting_settle_seconds":(1,300),"accounting_ledger_days":(8,365),
         "accounting_summary_days":(31,3650),"accounting_max_bytes":(67108864,1099511627776),"accounting_metrics_rows":(100,50000),
@@ -268,6 +272,9 @@ def render(c, output, token, admin_password=None, inventory_report=None):
         compose["secrets"]["fortigate_api_token"]={"file":"./secrets/fortigate_api_token"}
         compose["services"]["prometheus"].setdefault("secrets",[]).append("usage_admin_password")
         prom["scrape_configs"].append({"job_name":"fortilens-accounting","static_configs":[{"targets":["fortilens-usage:8080"]}],"basic_auth":{"username":"admin","password_file":"/run/secrets/usage_admin_password"},"scrape_timeout":"30s"})
+    if c["portal_enabled"]:
+        import portal
+        portal.configure(compose, c)
     dashboard = make_dashboard(c)
     public_c = {**c, "api_ca_file": "secrets/fortigate-ca.pem" if ca else ""}
     files = {
@@ -285,7 +292,7 @@ def render(c, output, token, admin_password=None, inventory_report=None):
     if c["accounting_enabled"]:
         files["secrets/usage_admin_password"]=secrets.token_urlsafe(24)+"\n"
         files["secrets/fortigate_api_token"]=token+"\n"
-        for name in ("accounting.py","interfaces.py","wan_health.py","usage_service.py","reporting.html"):
+        for name in ("accounting.py","interfaces.py","wan_health.py","usage_service.py","portal.py","reporting.html"):
             files["usage/"+name]=(ROOT/name).read_text(encoding="utf-8")
         files["usage/Dockerfile"]=(ROOT/"templates/Dockerfile.usage").read_text(encoding="utf-8")
     if inventory_report is not None:
@@ -325,6 +332,7 @@ def wizard():
     c["grafana_port"] = int(ask("Grafana port", "3001"))
     c["accounting_enabled"]=ask("Enable persistent device/VLAN accounting and protected reports? yes/no","yes").lower()=="yes"
     if c["accounting_enabled"]:
+        c["portal_enabled"]=ask("Use FortiLens as the main console with embedded Grafana? yes/no","yes").lower()=="yes"
         c["accounting_timezone"]=ask("Accounting timezone (explicit IANA name or UTC)","UTC")
         c["usage_bind"]=ask("Reports listen IPv4 (loopback by default)","127.0.0.1")
         c["usage_port"]=int(ask("Reports port","3002"))
@@ -350,7 +358,8 @@ def grafana_request(p, c, path, method="GET", body=None, timeout=100):
     host = c["grafana_bind"] if c["grafana_bind"] != "0.0.0.0" else "127.0.0.1"
     password = (p / "secrets/grafana_admin_password").read_text(encoding="utf-8").strip()
     auth = base64.b64encode(("admin:" + password).encode()).decode()
-    req = urllib.request.Request(f"http://{host}:{c['grafana_port']}" + path,
+    prefix = '/grafana' if c.get('portal_enabled') else ''
+    req = urllib.request.Request(f"http://{host}:{c['grafana_port']}" + prefix + path,
         data=dumps(body).encode() if body is not None else None,
         headers={"Authorization": "Basic " + auth, "Content-Type": "application/json"}, method=method)
     # Never send initial admin credentials through an environment HTTP proxy.
@@ -404,10 +413,60 @@ def start(p, c):
         else:
             raise SetupError(f"Datasource {uid} is not ready; inspect this installation's container logs")
     import_dashboard(p, c)
+    if c.get('portal_enabled'):
+        connect_portal(p, c)
     print("Login: admin; password is in secrets/grafana_admin_password inside the output directory.")
     print("FortiGate syslog destination: this server's reachable LAN IP and configured syslog port/protocol.")
     if c["accounting_enabled"]:
-        print("Usage reports: configured reporting address/port; admin password is in secrets/usage_admin_password.")
+        print(("FortiLens console" if c.get('portal_enabled') else "Usage reports") + ": configured reporting address/port; admin password is in secrets/usage_admin_password.")
+
+
+def connect_portal(p, c):
+    """Bootstrap the fixed Viewer and grant only this dashboard's read permission."""
+    if not c.get('portal_enabled'):
+        raise SetupError('Enable the unified portal before connecting it')
+    from portal import VIEWER
+    host = c['usage_bind'] if c['usage_bind'] != '0.0.0.0' else '127.0.0.1'
+    base = f"http://{host}:{c['usage_port']}"
+    password = (p / 'secrets/usage_admin_password').read_text().strip()
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+    session_cookie = ''
+    def request(path, body=None):
+        nonlocal session_cookie
+        req = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(),
+            headers={'Content-Type': 'application/json', 'X-FortiLens-Request': '1', 'Cookie': session_cookie})
+        with opener.open(req, timeout=15) as response:
+            # Administrative client for the private listener, including when
+            # HTTPS terminates at a separate trusted reverse proxy.
+            for value in response.headers.get_all('Set-Cookie', []):
+                jar = http.cookies.SimpleCookie(value)
+                if 'fortilens_session' in jar:
+                    session_cookie = 'fortilens_session=' + jar['fortilens_session'].value
+            return json.load(response)
+    try:
+        request('/api/session', {'username': 'admin', 'password': password})
+        if not request('/api/monitoring-status').get('available'):
+            raise SetupError('The portal Viewer identity could not be verified')
+        user = next((u for u in grafana_request(p, c, '/api/org/users') if u.get('login') == VIEWER), None)
+        if not user or user.get('role') != 'Viewer':
+            raise SetupError('The portal identity must have the Viewer role')
+        route = '/api/dashboards/uid/' + UID + '/permissions'
+        existing = grafana_request(p, c, route)
+        if any(row.get('userId') == user['userId'] and row.get('permission') == 1 and not row.get('isInherited') for row in existing):
+            return
+        items = [{key: row[key] for key in ('userId', 'teamId', 'role', 'permission') if row.get(key)}
+                 for row in existing if not row.get('isInherited') and row.get('userId') != user['userId']]
+        items.append({'userId': user['userId'], 'permission': 1})
+        write_file(p, 'grafana/portal-permissions-before-' + str(time.time_ns()) + '.json', dumps(existing), mode=0o600)
+        grafana_request(p, c, route, 'POST', {'items': items})
+    finally:
+        try:
+            request('/api/session/logout', {})
+        except (OSError, ValueError):
+            pass
 
 
 def discover(p, c):
@@ -501,7 +560,7 @@ def bundle(destination):
     # Deliberate allowlist: never zip the workspace, local installations, exports,
     # handover documents, screenshots or credentials.
     import zipfile
-    allowed = [ROOT / name for name in ("setup.py","doctor.py","interfaces.py","usage_quality.py","dashboard_style.py","accounting.py","wan_health.py","usage_service.py","upgrade.py","alerts.py","reporting.html","site.example.json","README.md",".gitignore","LICENSE")]
+    allowed = [ROOT / name for name in ("setup.py","doctor.py","interfaces.py","usage_quality.py","dashboard_style.py","accounting.py","wan_health.py","usage_service.py","portal.py","upgrade.py","alerts.py","reporting.html","site.example.json","README.md",".gitignore","LICENSE")]
     allowed.extend(ROOT / "templates" / name for name in [
         "dashboard.json", "compose.json", "prometheus.json", "loki.json", "datasources.json", "config.alloy", "Dockerfile.usage"])
     destination = Path(destination).resolve()
@@ -524,12 +583,13 @@ def main(argv=None):
     init.add_argument("--token-file", type=Path, help="Private file containing only the API token (otherwise hidden prompt)")
     init.add_argument("--output", type=Path, default=ROOT / "local")
     init.add_argument("--enable-accounting", action="store_true", help="Include the optional persistent usage engine and protected reporting UI")
+    init.add_argument("--enable-portal", action="store_true", help="Enable the unified FortiLens console and accounting with read-only embedded Grafana")
     init.add_argument("--discover-interfaces", action="store_true", help="Read interface metadata during setup")
     init.add_argument("--skip-interface-discovery", action="store_true", help="Skip the interactive API inventory prompt")
     init.add_argument("--inventory-file", type=Path, help="Offline FortiGate interface API JSON response; no network requests")
     init.add_argument("--select-wan", help="Comma-separated names from the inventory in the configured VDOM")
     init.add_argument("--confirm-wan", action="store_true", help="Explicitly confirm selected Internet interfaces for this project")
-    for name in ["start", "import-dashboard", "discover", "stop-accounting"]:
+    for name in ["start", "import-dashboard", "discover", "stop-accounting", "connect-portal"]:
         p = sub.add_parser(name)
         p.add_argument("--output", type=Path, default=ROOT / "local")
     doctor_parser = sub.add_parser("doctor", help="Read-only service, collection and recent-log readiness report")
@@ -577,6 +637,7 @@ def main(argv=None):
         if args.command == "init":
             c = validate_config(load(args.config)) if args.config else wizard()
             if args.enable_accounting:c=validate_config({**c,"accounting_enabled":True})
+            if args.enable_portal:c=validate_config({**c,"accounting_enabled":True,"portal_enabled":True})
             if args.config and c["api_ca_file"] and not Path(c["api_ca_file"]).is_absolute():
                 c["api_ca_file"] = str((args.config.parent / c["api_ca_file"]).resolve())
             if args.token_file:
@@ -604,6 +665,9 @@ def main(argv=None):
             p, c = installation(args.output)
             if args.command == "start":
                 start(p, c)
+            elif args.command == 'connect-portal':
+                connect_portal(p, c)
+                print('Portal Viewer connected to this dashboard; existing permissions preserved.')
             elif args.command=='stop-accounting':
                 if not c['accounting_enabled']:raise SetupError('No optional accounting service is configured')
                 subprocess.run(compose_command(p,'stop','fortilens-usage'),check=True)

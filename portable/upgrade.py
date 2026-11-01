@@ -128,8 +128,9 @@ def read_plan(root, identity):
         raise UpgradeError('This plan belongs to a different installation')
     allowed={'compose.yaml','site.json','prometheus/prometheus.yml','alloy/config.alloy',
         'secrets/usage_admin_password','secrets/fortigate_api_token',
-        *('usage/'+name for name in ('accounting.py','interfaces.py','wan_health.py','usage_service.py','reporting.html','Dockerfile'))}
-    if {x['path'] for x in manifest['files']}!=allowed or len(manifest['files'])!=len(allowed):
+        *('usage/'+name for name in ('accounting.py','interfaces.py','wan_health.py','usage_service.py','portal.py','reporting.html','Dockerfile'))}
+    paths = {x['path'] for x in manifest['files']}
+    if paths not in (allowed, allowed-{'usage/portal.py'}) or len(manifest['files'])!=len(paths):
         raise UpgradeError('Unexpected migration file list')
     return plan_root, manifest
 
