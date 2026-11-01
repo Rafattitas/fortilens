@@ -12,7 +12,7 @@ python -m pip install -r management/requirements-test.txt
 python -m unittest discover -s tests -v
 ```
 
-On November1,2026, **153 tests passed on Windows/Python3.12** with the management
+On November1,2026, **153 tests passed on Windows and Ubuntu/Python3.12** with the management
 dependencies installed: the existing131 tests plus22 management tests. They cover
 first-run bootstrapping, password hashes, one-time closure, sessions, login rate
 limits, CSRF/origin/role checks, private error responses, explicit secret changes,
@@ -52,8 +52,10 @@ Unix-socket helper and Docker Engine. It verified:
 - Management health/auth/settings/diagnostics remain usable with Grafana and Loki
   deliberately stopped in the test project.
 
-The strengthened test additionally checks an actual accounting-volume marker and
-read-only SQLite integrity after Apply and rollback. CI runs this current test.
+The final Linux run also passed actual accounting-volume marker preservation,
+unchanged volume source paths and read-only SQLite integrity after Apply and
+rollback. All production project container IDs, start times and image IDs matched
+before/after this separate lab run. CI runs the same test.
 
 These are **synthetic metadata and isolated service checks**, not a real FortiGate,
 complete traffic logging, real WAN health or a company capacity benchmark. Missing

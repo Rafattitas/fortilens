@@ -30,6 +30,10 @@ accepts only fixed operation names and validated data on a local Unix socket;
 Linux peer credentials and a private random key are both required. Its root-owned
 registry fixes the installation, Compose file, project name and paths. Neither
 browser nor web service can submit command lines, images, root paths or projects.
+Docker/Buildx client state uses the helper's private control directory so the
+service does not need write access to `/root`. Only the local Docker engine is
+supported; private image-registry authentication requires a reviewed host-side
+setup of that separate client state.
 
 ## Transaction and restart boundary
 

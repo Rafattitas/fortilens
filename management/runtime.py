@@ -72,11 +72,19 @@ class Docker:
         self.c = configuration
 
     def run(self, args, timeout=180):
+        # Compose/buildx need writable client state even though systemd makes
+        # /root read-only. Keep it inside the helper's private registered root;
+        # never broaden the web process or helper's filesystem permissions.
+        client=self.c.control/'docker-client';client.mkdir(exist_ok=True,mode=0o700)
+        env=os.environ.copy();env.update(DOCKER_CONFIG=str(client),BUILDX_CONFIG=str(client/'buildx'))
+        env.pop('DOCKER_HOST',None);env.pop('DOCKER_CONTEXT',None)
         try:
-            result = subprocess.run(args, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL, shell=False)
+            result = subprocess.run(args, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL, shell=False,env=env)
         except (OSError, subprocess.TimeoutExpired):
             raise Problem('docker_unavailable', 'Docker is unavailable or the approved operation timed out.') from None
         if result.returncode:
+            if 'read-only file system' in result.stderr.lower():
+                raise Problem('docker_state_read_only','Docker could not write its client/build state. Review the helper private state directory and systemd permissions.')
             raise Problem('docker_operation_failed', 'Docker rejected the operation. Review service readiness, host permissions, storage and port availability.')
         return result.stdout
 
