@@ -2,6 +2,8 @@
 from copy import deepcopy
 import json
 import argparse
+import contextlib
+import io
 from pathlib import Path
 import sys
 import tempfile
@@ -192,6 +194,16 @@ class ManagementTests(unittest.TestCase):
             job=self.wait_job(self.ops.dispatch('apply',{'revision':view['revision'],'plan_id':plan['plan_id'],'confirm':True}))
         self.assertEqual(job['status'],'complete',job)
 
+        import integration_live_fortigate as live
+        arguments=['live','--config',str(self.c.root/'site.json'),'--token-file',str(self.c.root/'secrets/fortigate_api_token')]
+        with patch('sys.argv',arguments),patch.object(live,'fortigate',fake_device),contextlib.redirect_stdout(io.StringIO()) as capture:
+            self.assertEqual(live.main(),0)
+        self.assertEqual(json.loads(capture.getvalue())['interface_count'],2)
+        self.assertNotIn(TOKEN,capture.getvalue())
+        with patch('sys.argv',arguments),patch.object(live,'fortigate',side_effect=Problem('api_permission_denied','Review read permissions.')),contextlib.redirect_stdout(io.StringIO()) as capture:
+            self.assertEqual(live.main(),1)
+        self.assertNotIn(TOKEN,capture.getvalue())
+
     def test_fresh_configuration_and_service_start_are_real_operations_not_ui_placeholders(self):
         view=self.save();plan=self.ops.dispatch('prepare',{'revision':view['revision']})
         folder,_=self.c.plan(plan['plan_id'])
@@ -320,11 +332,17 @@ class ManagementTests(unittest.TestCase):
             self.assertEqual(self.client.get('/').status_code,200)
 
     def test_installer_rejects_paths_injection_and_non_linux_hosts(self):
-        from management.install import path_value,main
+        from management.install import path_value,main,source_files
         for path in ('relative','/tmp/../etc','/tmp/a;id','/tmp/a\nExecStart=id'):
             with self.assertRaises(argparse.ArgumentTypeError):path_value(path)
         with patch('sys.argv',['install']),patch('sys.platform','win32'),self.assertRaises(SystemExit) as error:main()
         self.assertIn('Ubuntu',str(error.exception))
+        manifest=source_files(ROOT);staged=self.base/'checkout'
+        for name in manifest:
+            file=staged/name;file.parent.mkdir(parents=True,exist_ok=True);file.write_bytes((ROOT/name).read_bytes())
+        for name in ('portable/local-company/secrets/password','portable/.fortilens/site.json','management/private.txt'):
+            file=staged/name;file.parent.mkdir(parents=True,exist_ok=True);file.write_text('synthetic private value')
+        self.assertEqual(source_files(staged),manifest)
 
     def test_short_monitoring_interval_produces_valid_accounting_timeout(self):
         view=self.save(monitoring_interval=15)

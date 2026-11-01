@@ -43,12 +43,25 @@ def put(path,data,mode=0o600,uid=0,gid=0):
 
 
 def source_files(source):
-    result={}
-    for folder in ('management','portable'):
-        for file in (source/folder).rglob('*'):
-            if file.is_file() and not any(p in ('__pycache__','local','.git') for p in file.relative_to(source).parts) and file.suffix!='.pyc':
-                if file.is_symlink():raise SystemExit('Installation source must not contain symlinks')
-                result[str(file.relative_to(source))]=hashlib.sha256(file.read_bytes()).hexdigest()
+    # Existing checkouts may also contain generated installations, exports and
+    # secrets. Never recursively copy them into world-readable application code.
+    names=['management/'+name for name in (
+        '__init__.py','app.py','auth.py','common.py','configuration.py','helper.py',
+        'install.py','models.py','recovery.py','runtime.py','requirements.txt',
+        'requirements-test.txt','Dockerfile','static/app.css','static/app.js','static/index.html')]
+    names+=['portable/'+name for name in (
+        'setup.py','doctor.py','interfaces.py','accounting.py','usage_service.py','portal.py',
+        'wan_health.py','upgrade.py','usage_quality.py','dashboard_style.py','alerts.py',
+        'reporting.html','site.example.json','README.md','LICENSE',
+        'templates/compose.json','templates/prometheus.json','templates/loki.json',
+        'templates/config.alloy','templates/datasources.json','templates/dashboard.json','templates/Dockerfile.usage')]
+    result={};source=Path(source).resolve()
+    for name in names:
+        file=source/name
+        if any(p.is_symlink() for p in (file,*file.parents) if p.is_relative_to(source)):
+            raise SystemExit('Installation source must not contain symlinks')
+        if not file.is_file():raise SystemExit('The reviewed installation source is incomplete.')
+        result[name]=hashlib.sha256(file.read_bytes()).hexdigest()
     return result
 
 

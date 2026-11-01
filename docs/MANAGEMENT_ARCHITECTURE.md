@@ -34,6 +34,9 @@ Docker/Buildx client state uses the helper's private control directory so the
 service does not need write access to `/root`. Only the local Docker engine is
 supported; private image-registry authentication requires a reviewed host-side
 setup of that separate client state.
+Installer and container builds use a fixed source allowlist. Generated site files,
+untracked local installs, exports and secrets are never copied into application
+code or build contexts.
 
 ## Transaction and restart boundary
 

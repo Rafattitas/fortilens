@@ -88,6 +88,21 @@ actual service-start evidence.
 
 ## Optional real FortiGate validation
 
+With management dependencies installed, an explicitly invoked read-only API check
+is available. It requires a trusted TLS connection and reads token/CA contents only
+from private local files; it never writes FortiGate or monitoring configuration:
+
+```bash
+python tests/integration_live_fortigate.py --config /private/install/site.json \
+  --token-file /private/install/secrets/fortigate_api_token
+```
+
+Use `--root /private/install` if relative CA paths refer to an installation root
+different from the site file's directory. The output contains aggregate status and
+interface count, without tokens, serial numbers, interface addresses or raw payloads.
+This optional real-device check was not run against the unavailable production
+FortiGate. It is separate from the always-synthetic automated suite.
+
 On a separately authorized installation, create a narrowly scoped read-only API
 user and valid trusted certificate/CA; Test Connection and Discover Interfaces.
 Check serial/VDOM/roles/VLAN parent metadata against the firewall console. Have its
