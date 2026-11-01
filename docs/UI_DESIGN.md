@@ -72,8 +72,9 @@ Tables may scroll horizontally inside their own region; the page must fit the
 viewport. Inputs remain 16px on small screens to avoid unwanted mobile focus zoom.
 
 Startup has explicit loading feedback rather than briefly showing unapplied
-defaults. Switching embedded pages hides stale content until the next document
-loads; loading retains layout so the frame can navigate normally. Leaving an
+defaults. Switching embedded pages creates a fresh browsing context so the old
+page cannot remain visible under a new heading. The document can show its own
+loader; bounded readiness checks do not wait for every Grafana subresource. Leaving an
 embedded page unloads it to stop hidden refresh work. Preserve error recovery,
 write-only secrets, edited-review invalidation and server-side authorization.
 Hosted reports preserve the application's hidden state during their existing

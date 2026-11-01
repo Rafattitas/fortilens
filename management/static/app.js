@@ -12,7 +12,19 @@ $('workspace-nav').addEventListener('click',e=>{if(state.navOpen&&e.target.close
 $('skip-content').addEventListener('click',e=>{e.preventDefault();$('main-content').focus()});
 window.addEventListener('keydown',e=>{if(!state.navOpen)return;if(e.key==='Escape'){e.preventDefault();setNavigation(false);return}if(e.key==='Tab'){const items=[...$('workspace-nav').querySelectorAll('button,a[href]')].filter(x=>!x.disabled&&!x.hidden&&x.getClientRects().length);const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
 setNavigation(false,false);
-$('console-frame').addEventListener('load',()=>{if(!$('console-frame').getAttribute('src'))return;try{if($('console-frame').contentWindow.location.href==='about:blank')return}catch(e){/* The view can show its own navigation error. */}$('console-loading').hidden=true;$('console-frame').style.visibility='visible';$('console-frame').removeAttribute('aria-busy')});
+function clearConsoleCheck(){clearInterval(state.consoleCheck);state.consoleCheck=null}
+function consoleDocumentReady(frame){
+ if(frame!==$('console-frame'))return false;
+ try{
+  const doc=frame.contentDocument;
+  if(!doc||doc.URL==='about:blank'||doc.readyState==='loading')return false;
+  clearConsoleCheck();$('console-loading').hidden=true;frame.removeAttribute('aria-busy');
+  if(doc.contentType==='application/json'){
+   frame.hidden=true;$('console-error').textContent='This view is unavailable. Reload it or open Diagnostics.';$('console-error').hidden=false;
+  }
+  return true;
+ }catch(e){return false}
+}
 const titles={overview:['System overview','Monitoring services, storage and configuration readiness.'],wan:['WAN monitoring','Observed health, physical link and route evidence remain separate.'],devices:['Device usage','Recorded upload and download, with identity and coverage limits.'],vlans:['VLAN analytics','Internet usage grouped by exact interface metadata.'],reports:['Usage reports','Daily, weekly and monthly reports from the existing accounting engine.'],monitoring:['Network monitoring','Firewall health, Internet links and interface traffic.'],quality:['Data quality','Collection gaps, accounting evidence and identity limits.'],settings:['Settings','Manage your installation without editing configuration files.'],diagnostics:['System diagnostics','Read-only evidence, service readiness and actionable next steps.']};
 const names={'fortigate-exporter':'FortiGate Exporter',prometheus:'Prometheus',grafana:'Grafana',loki:'Loki',alloy:'Grafana Alloy','node-exporter':'Node Exporter','fortilens-usage':'Accounting Service','fortilens-portal':'Monitoring Gateway'};
 const E=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e};
@@ -24,7 +36,7 @@ async function action(button,run){button.disabled=true;const label=button.textCo
 function dirty(){state.plan=null;$('plan-review').hidden=true;$('approve-plan').checked=false;$('save-status').textContent='Unsaved changes'}
 function pathGet(obj,path){return path.split('.').reduce((v,k)=>v?.[k],obj)}
 function pathSet(obj,path,value){const parts=path.split('.');let target=obj;for(const k of parts.slice(0,-1))target=target[k];target[parts.at(-1)]=value}
-function signedOut(){setNavigation(false,false);$('workspace-loading').hidden=true;document.title='FortiLens · Management';state.csrf='';state.view=null;state.plan=null;$('console-frame').removeAttribute('src');$('workspace').hidden=true;$('auth').hidden=false;$('auth-form').reset();$('password-form').reset();for(const id of ['api-token','custom-ca','bootstrap-token'])$(id).value=''}
+function signedOut(){setNavigation(false,false);clearConsoleCheck();$('workspace-loading').hidden=true;document.title='FortiLens · Management';state.csrf='';state.view=null;state.plan=null;$('console-frame').removeAttribute('src');$('workspace').hidden=true;$('auth').hidden=false;$('auth-form').reset();$('password-form').reset();for(const id of ['api-token','custom-ca','bootstrap-token'])$(id).value=''}
 async function enter(){const session=await api('/api/session');state.csrf=session.csrf;$('session-user').textContent=session.username;$('auth').hidden=true;$('workspace').hidden=true;$('workspace-loading').hidden=false;let failure=null;try{await reloadSettings();await loadSystem()}catch(e){failure=e}finally{$('workspace-loading').hidden=true}if(!state.csrf)return;$('workspace').hidden=false;if(failure){navigate('diagnostics');notice(failure.message,true);return}navigate(state.view.configured?(location.hash.slice(1)||defaultPage()):'settings');if(state.system?.latest_job&&!state.job)watchJob(state.system.latest_job.job_id).catch(e=>notice(e.message,true))}
 async function reloadSettings(){state.view=await api('/api/settings');state.selected=new Set(state.view.settings.wan_interfaces);fillSettings();state.plan=null;$('plan-review').hidden=true}
 function fillSettings(){$('workspace').classList.toggle('configured',state.view.configured);for(const input of document.querySelectorAll('[data-setting]')){const value=pathGet(state.view.settings,input.dataset.setting);if(input.type==='checkbox')input.checked=!!value;else input.value=value??''}if(!state.view.configured&&state.view.revision===0)$('fortigate-host').value='';$('token-status').textContent=state.view.secret_status.api_token_present?'Stored token configured. It is never returned to the browser.':'No stored API token.';$('replace-token').checked=!state.view.secret_status.api_token_present;$('wizard-intro').hidden=state.view.configured;$('site-label').textContent=state.view.settings.site_name;for(const id of ['vdom','accounting-timezone','expected-devid'])$(id).readOnly=state.view.scope_locked;$('revision').textContent=state.view.pending_changes?'Draft revision '+state.view.revision:state.view.configured?'Applied revision '+state.view.applied_revision:'Not configured';$('revision').className='pill '+(state.view.pending_changes?'warn':state.view.configured?'good':'');$('insecure-row').hidden=$('verify-tls').checked;for(const link of document.querySelectorAll('[data-page]'))link.hidden=state.view.configured&&!pageEnabled(link.dataset.page);updateSelection();renderReview()}
@@ -40,29 +52,30 @@ function renderInterfaces(){const query=$('interface-search').value.toLowerCase(
 function renderReview(){if(!state.view)return;const s=readSettings();$('review-summary').replaceChildren();for(const [name,value]of [['Company / Installation',s.site_name+' / '+s.installation_name],['Timezone / Date format',s.timezone+' / '+s.date_format],['FortiGate',s.fortigate_host+':'+s.api_port+' · VDOM '+s.vdom],['TLS verification',s.api_tls_verify?'Enabled':'Explicitly disabled'],['Confirmed Internet interfaces',s.wan_confirmed?[...state.selected].join(', ')||'None':'Not confirmed'],['Enabled monitoring',Object.entries(s.monitoring).filter(([,v])=>v).map(([k])=>k).join(', ')||'No collectors'],['Syslog',s.syslog_protocol.toUpperCase()+' / '+s.syslog_port+' / '+s.syslog_format],['Retention',s.retention.loki_days+'d logs · '+s.retention.prometheus_days+'d metrics · '+s.retention.ledger_days+'d ledger · '+s.retention.summary_days+'d summaries'],['Accounting database ceiling',size(s.retention.database_bytes)],['Native service ports','Grafana '+s.grafana_port+' · Protected reporting '+s.usage_port],['Network access',location.protocol==='https:'?'HTTPS management origin':'Loopback management / SSH tunnel'],['Credentials','Stored privately; raw tokens and passwords are never included in this review.']]){const row=E('div');row.append(E('dt',name),E('dd',value));$('review-summary').append(row)}}
 function defaultPage(){return pageEnabled('monitoring')?'monitoring':'overview'}
 function pageEnabled(page){const f=state.view?.active_monitoring;if(!f)return true;return page==='wan'?f.wan:['devices','reports','quality'].includes(page)?f.accounting:page==='vlans'?f.vlans:page==='monitoring'?(f.wan||f.sla||f.interfaces||f.server):true}
-function navigate(page){if(!titles[page])page=defaultPage();if(!state.view)page='diagnostics';else if(!pageEnabled(page))page='overview';if(state.view&&!state.view.configured&&!['settings','diagnostics'].includes(page))page='settings';const embedded=!['overview','settings','diagnostics'].includes(page);$('workspace').classList.toggle('console-mode',embedded);document.title=titles[page][0]+' · FortiLens';const menuWasOpen=state.navOpen;setNavigation(false,false);if(menuWasOpen)$('page-title').focus();if(!embedded){$('console-frame').removeAttribute('src');$('console-loading').hidden=true}for(const a of document.querySelectorAll('[data-page]')){a.classList.toggle('active',a.dataset.page===page);if(a.dataset.page===page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')}$('page-title').textContent=titles[page][0];$('page-caption').textContent=titles[page][1];for(const id of ['overview-page','settings-page','diagnostics-page','console-page'])$(id).hidden=true;if(['overview','settings','diagnostics'].includes(page))$(page+'-page').hidden=false;else{$('console-page').hidden=false;loadConsole(page)}if(page==='settings')selectSection(state.section);if(page==='diagnostics')runDiagnostics();if(page==='overview')loadSystem();if(location.hash!=='#'+page)history.pushState(null,'','#'+page);notice('')}
+function navigate(page){if(!titles[page])page=defaultPage();if(!state.view)page='diagnostics';else if(!pageEnabled(page))page='overview';if(state.view&&!state.view.configured&&!['settings','diagnostics'].includes(page))page='settings';const embedded=!['overview','settings','diagnostics'].includes(page);$('workspace').classList.toggle('console-mode',embedded);document.title=titles[page][0]+' · FortiLens';const menuWasOpen=state.navOpen;setNavigation(false,false);if(menuWasOpen)$('page-title').focus();if(!embedded){clearConsoleCheck();$('console-frame').removeAttribute('src');$('console-loading').hidden=true}for(const a of document.querySelectorAll('[data-page]')){a.classList.toggle('active',a.dataset.page===page);if(a.dataset.page===page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')}$('page-title').textContent=titles[page][0];$('page-caption').textContent=titles[page][1];for(const id of ['overview-page','settings-page','diagnostics-page','console-page'])$(id).hidden=true;if(['overview','settings','diagnostics'].includes(page))$(page+'-page').hidden=false;else{$('console-page').hidden=false;loadConsole(page)}if(page==='settings')selectSection(state.section);if(page==='diagnostics')runDiagnostics();if(page==='overview')loadSystem();if(location.hash!=='#'+page)history.pushState(null,'','#'+page);notice('')}
 function loadConsole(page){
- const frame=$('console-frame');
- $('console-error').hidden=true;
- $('console-loading').hidden=true;
+ clearConsoleCheck();
+ const previous=$('console-frame');
+ $('console-error').hidden=true;$('console-loading').hidden=true;
  if(!state.system?.links?.console){
-  frame.removeAttribute('src');
-  $('console-error').hidden=false;
+  previous.removeAttribute('src');$('console-error').hidden=false;
   $('console-error').textContent='This existing deployment retains separate native service authentication. Open the existing service below, or review the unified-console migration guide.';
   if(state.system?.links?.grafana_port){
    const link=E('a','Open native Grafana (separate sign-in)');
    link.href='http://'+location.hostname+':'+state.system.links.grafana_port+(state.system.links.grafana_prefix||'/');
-   link.target='_blank';link.rel='noopener';
-   $('console-error').append(E('br'),link);
+   link.target='_blank';link.rel='noopener';$('console-error').append(E('br'),link);
   }
   return;
  }
  const urls={quality:'/console/#quality',wan:'/console/#wan',devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/#overview',monitoring:state.system.links.dashboard};
- frame.title=titles[page][0];
- $('console-loading').textContent='Loading '+titles[page][0].toLowerCase()+'…';
- $('console-loading').hidden=false;
- frame.hidden=false;frame.style.visibility='hidden';frame.setAttribute('aria-busy','true');
+ // A new browsing context cannot display the preceding page during navigation.
+ // Keep its own loader visible; do not wait for every Grafana subresource.
+ const frame=previous.cloneNode(false);frame.removeAttribute('src');
+ frame.hidden=false;frame.style.visibility='visible';frame.title=titles[page][0];frame.setAttribute('aria-busy','true');
+ frame.addEventListener('load',()=>consoleDocumentReady(frame));previous.replaceWith(frame);
+ $('console-loading').textContent='Loading '+titles[page][0].toLowerCase()+'…';$('console-loading').hidden=false;
  frame.src=urls[page]||urls.reports;
+ let checks=0;state.consoleCheck=setInterval(()=>{if(consoleDocumentReady(frame))return;if(++checks>=100){clearConsoleCheck();$('console-loading').textContent='This view is still loading. Reload it or check Diagnostics.'}},100);
 }
 async function runDiagnostics(){
  $('diagnostic-checks').setAttribute('aria-busy','true');
