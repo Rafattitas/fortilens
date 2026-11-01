@@ -79,7 +79,7 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
                     raise Problem('request_limit','The request is too large.',413)
                 if request.headers.get('origin') not in (None,origin):
                     raise Problem('origin_rejected','This request did not originate from the management site.',403)
-                if request.headers.get('x-fortilens-request')!='1' and not request.url.path.startswith('/console/'):
+                if request.headers.get('x-fortilens-request')!='1' and not request.url.path.startswith(('/console/','/grafana/')):
                     raise Problem('request_header_required','Use the management interface to perform this action.',403)
             public=request.url.path in ('/','/health','/api/bootstrap/status','/api/bootstrap','/api/login') or request.url.path.startswith('/static/')
             if not public:
@@ -87,7 +87,7 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
                 if request.method=='POST' and (not request.headers.get('x-csrf-token') or not hmac.compare_digest(request.headers['x-csrf-token'],session['csrf'])):
                     # Native Grafana's same-origin query POSTs inside the proxy
                     # cannot add our CSRF header. They must have an exact Origin.
-                    if not(request.url.path.startswith('/console/grafana/') and request.headers.get('origin')==origin):
+                    if not(request.url.path.startswith(('/console/grafana/','/grafana/')) and request.headers.get('origin')==origin):
                         raise Problem('csrf_rejected','The form expired. Reload before submitting.',403)
             response=await call_next(request)
         except Problem as e:response=JSONResponse({'error':e.code,'message':e.message},status_code=e.status)
@@ -95,8 +95,9 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
         response.headers['Cache-Control']='no-store'
         response.headers['X-Content-Type-Options']='nosniff'
         response.headers['Referrer-Policy']='same-origin'
-        response.headers['Content-Security-Policy']=("frame-ancestors 'self'" if request.url.path.startswith('/console/') else "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
-        response.headers['X-Frame-Options']='SAMEORIGIN' if request.url.path.startswith('/console/') else 'DENY'
+        embedded=request.url.path.startswith(('/console/','/grafana/'))
+        response.headers['Content-Security-Policy']=("frame-ancestors 'self'" if embedded else "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+        response.headers['X-Frame-Options']='SAMEORIGIN' if embedded else 'DENY'
         return response
 
     @app.get('/')
@@ -168,6 +169,13 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
     @app.get('/api/jobs/{job_id}')
     def job(job_id:str):return helper.call('job',Job(job_id=job_id).model_dump())
 
+    @app.api_route('/grafana/{path:path}',methods=['GET','POST'])
+    async def native_monitoring(request:Request,path:str):
+        # Keep Grafana's configured subpath intact. Rewriting its HTML alone
+        # leaves runtime settings/router URLs inconsistent and can alter plugin
+        # IDs and external documentation links containing the word grafana.
+        return await console(request,'grafana/'+path)
+
     @app.api_route('/console/{path:path}',methods=['GET','POST'])
     async def console(request:Request,path:str):
         suffix='/'+path+('?' + request.url.query if request.url.query else '')
@@ -177,7 +185,10 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
         body=base64.b64decode(result['body']);kind=result['content_type']
         if 'text/html' in kind:
             text=body.decode('utf-8')
-            text=text.replace('/grafana/','/console/grafana/').replace('"/grafana"','"/console/grafana"')
+            if path.startswith('grafana/') and request.url.path.startswith('/console/'):
+                # Existing nested links retain an authenticated compatibility
+                # redirect, while native assets/settings use the stable mount.
+                return Response(status_code=307,headers={'Location':suffix})
             if path=='':
                 text=text.replace("'/api/","'/console/api/")
                 # Existing reporting code renders received records unchanged.
@@ -188,16 +199,12 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
                 if section=='vlans':css+='#device-section{display:none!important}'
                 text=text.replace('</style>','\n'+css+'</style>')
             body=text.encode()
-        elif 'application/json' in kind and path=='api/monitoring-status':
-            obj=json.loads(body)
-            if isinstance(obj.get('path'),str) and obj['path'].startswith('/grafana/'):obj['path']='/console'+obj['path']
-            body=json.dumps(obj).encode()
         response=Response(body,status_code=result['status'],media_type=kind)
         if result.get('location'):
             location=result['location']
             if not location.startswith('/grafana/'):
                 raise Problem('console_redirect_rejected','An unexpected console redirect was blocked.',502)
-            response.headers['Location']='/console'+location
+            response.headers['Location']=location
         return response
 
     return app

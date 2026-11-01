@@ -65,8 +65,12 @@ Bootstrap/login attempts are rate limited. Static assets are local, with no CDN.
 
 The read-only console bridge authenticates server-side to an already configured
 unified gateway. That gateway still enforces its read-only native Grafana Viewer
-boundary, allowed resource/query routes and report authentication. Service cookies
-and raw passwords never cross into the browser. Upstream Set-Cookie is discarded,
+boundary, allowed resource/query routes and report authentication. Native
+monitoring keeps its configured `/grafana/` mount on the
+management origin; reports use `/console/`. Preserving the native mount avoids
+rewriting runtime router settings, plugin identifiers or external documentation.
+Both mounts require the management session and the same query/write boundaries.
+Service cookies and raw passwords never cross into the browser. Upstream Set-Cookie is discarded,
 redirects are restricted, and framing is same-origin only. Native admin endpoints
 are not a management-login bypass. Grafana Live WebSockets remain unsupported;
 ordinary queries and refresh use HTTP. Do not expose either internal service on

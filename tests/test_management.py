@@ -1,5 +1,6 @@
 """Management control-plane acceptance. All devices/credentials here are synthetic."""
 from copy import deepcopy
+import base64
 import json
 import argparse
 import contextlib
@@ -119,6 +120,30 @@ class ManagementTests(unittest.TestCase):
         diagnostics=self.client.get('/api/diagnostics')
         self.assertEqual(diagnostics.status_code,200)
         self.assertTrue(diagnostics.json()['read_only'])
+
+    def test_native_grafana_mount_preserves_router_and_plugin_urls(self):
+        self.administrator()
+        html='<base href="/grafana/"><script>window.settings={"appSubUrl":"/grafana","plugin":"public/plugins/grafana"}</script><a href="https://grafana.com/docs/grafana/latest/">Docs</a>'
+        result={'status':200,'body':base64.b64encode(html.encode()).decode(),'content_type':'text/html'}
+        with patch.object(self.app.state.helper,'call',return_value=result) as proxy:
+            response=self.client.get('/grafana/d/fixture/?kiosk')
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.text,html)
+            self.assertEqual(proxy.call_args.args[1]['path'],'/grafana/d/fixture/?kiosk')
+            response=self.client.get('/console/grafana/d/fixture/?kiosk',follow_redirects=False)
+            self.assertEqual(response.status_code,307)
+            self.assertEqual(response.headers['location'],'/grafana/d/fixture/?kiosk')
+        self.assertEqual(self.ops.status()['links']['dashboard'],'/grafana/d/forti-monitor/?kiosk&theme=dark')
+
+    def test_native_grafana_mount_keeps_auth_origin_and_write_boundaries(self):
+        self.assertEqual(self.client.get('/grafana/api/user').status_code,401)
+        self.administrator()
+        self.assertEqual(self.client.post('/grafana/api/admin/users',json={},headers=self.csrf).status_code,403)
+        result={'status':200,'body':base64.b64encode(b'{"results":{}}').decode(),'content_type':'application/json'}
+        with patch.object(self.app.state.helper,'call',return_value=result):
+            self.assertEqual(self.client.post('/grafana/api/ds/query',json={},headers={'Origin':'http://testserver'}).status_code,200)
+            self.assertEqual(self.client.post('/grafana/api/ds/query',json={}).status_code,403)
+            self.assertEqual(self.client.post('/grafana/api/ds/query',json={},headers={'Origin':'https://outside.invalid'}).status_code,403)
 
     def test_one_time_bootstrap_password_hash_and_no_default_credentials(self):
         r=self.client.post('/api/bootstrap',json={'username':'operator','password':PASSWORD,'confirmation':PASSWORD,'bootstrap_token':'wrong'},headers=self.headers)

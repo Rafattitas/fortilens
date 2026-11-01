@@ -178,9 +178,13 @@ def main():
             assert run('docker','exec',worker,'python','-c',"from pathlib import Path;print(Path('/data/management-preservation.txt').read_text())")=='synthetic persistence marker'
             assert run('docker','exec',worker,'python','-c',"import sqlite3;print(sqlite3.connect('file:/data/usage.sqlite?mode=ro',uri=True).execute('PRAGMA quick_check').fetchone()[0])")=='ok'
         def console(path):
-            req=urllib.request.Request(origin+'/console/'+path,headers={'Cookie':cookie})
+            req=urllib.request.Request(origin+('/' if path.startswith('grafana/') else '/console/')+path,headers={'Cookie':cookie})
             with urllib.request.urlopen(req,context=context,timeout=30) as r:return r.status,r.read()
         assert console('grafana/api/health')[0]==200
+        native=api('/api/system')['links']['dashboard']
+        assert native.startswith('/grafana/d/')
+        status,html=console(native.lstrip('/'));assert status==200 and b'<base href="/grafana/"' in html
+        _,settings=console('grafana/api/frontend/settings');assert json.loads(settings)['appSubUrl']=='/grafana'
         assert console('api/report?period=today')[0]==200
         # Adopt the actual running project into a new registry without init.
         adopted=Configuration(c.root,base/'adopt-control',project=c.project)

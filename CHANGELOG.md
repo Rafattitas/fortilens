@@ -12,6 +12,8 @@
   restricted helper, revisioned candidates, private backups and configuration-only rollback.
 - Preserve legacy implicit443 exporter credentials/probe selections, real scrape
   intervals and additional Alloy listener bindings during adoption/settings changes.
+- Mount native Grafana at its configured `/grafana/` path under the management
+  login; preserve runtime router settings, plugin IDs and external links.
 - Repository `AGENTS.md`, public project context, QA guide and a discoverable
   `fortilens-maintainer` skill for future AI-assisted work.
 - Existing accounting algorithms, persistent volumes, native dashboards and active

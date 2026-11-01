@@ -320,7 +320,7 @@ class Operations:
                 'installation':{'configured':self.c.state()['configured'],'project':self.c.project},
                 'storage_projection':self.storage(),'latest_job':latest,
                 'links':{'console':'fortilens-portal' in (self.c.compose() or {'services':{}})['services'],
-                         'dashboard':'/console/grafana/d/'+self.dashboard_uid+'/?kiosk&theme=dark',
+                         'dashboard':'/grafana/d/'+self.dashboard_uid+'/?kiosk&theme=dark',
                          'grafana_port':load(self.c.root/self.c.state()['site_file'],{}).get('grafana_port',3001),
                          'grafana_prefix':'/grafana/' if 'fortilens-portal' in (self.c.compose() or {'services':{}})['services'] else '/'}}
 
