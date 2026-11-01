@@ -39,6 +39,7 @@ Designed for **one FortiGate per independent installation**: your server, your c
 
 | Capability | What it does |
 |---|---|
+| **Web Setup & Settings (current source)** | Independent nonroot management, one-time admin bootstrap, seven-step setup, write-only secrets, revisions, safe Apply/rollback and diagnostics. [Web installation guide](docs/WEB_SETUP.md). |
 | **Unified console (current source)** | One FortiLens sign-in and navigation for native Grafana monitoring and persistent reports; opt in with `init --enable-portal`. See the [console guide](docs/UNIFIED_CONSOLE.md). |
 | **WAN SLA visibility** | State, latency, jitter, packet loss, observed availability, and sample coverage. |
 | **A dashboard that adapts** | Chained FortiGate → VDOM → SLA → WAN selectors, with repeating interface cards. |
@@ -52,6 +53,29 @@ Designed for **one FortiGate per independent installation**: your server, your c
 | **Optional alert candidates** | Paused WAN/performance/collection rules; email/Telegram environment references without changing existing notifications. |
 
 ### Get started
+
+For **Ubuntu24.04+ x86-64 with Docker Compose v2 and Python3.11+**, the current Web
+Setup & Settings source provides one-command bootstrap:
+
+```bash
+git clone https://github.com/Rafattitas/fortilens.git
+cd fortilens
+git switch codex/web-setup-settings # Until this feature is merged
+sudo ./install.sh
+```
+
+Open management on `http://127.0.0.1:3030` through an SSH tunnel, or install with a
+trusted HTTPS certificate for LAN access. Create your own administrator using the
+one-time installation token, then configure the connection, WANs, syslog and
+retention in the browser. Review and Apply starts the monitoring stack. There is
+no default management password. The portal starts independently of Grafana/Loki.
+
+See [Web Setup & Settings](docs/WEB_SETUP.md) for prerequisites, HTTPS, explicit
+adoption of existing installations and recovery. This is source-branch work; the
+published v0.2.0 ZIP remains unchanged. Existing installations must use `--adopt`
+with their **exact existing Compose project**, rather than initializing again.
+
+#### Existing portable CLI
 
 You need **Linux x86-64**, **Docker Compose v2**, and **Python 3.10+**. The setup utility uses only the Python standard library. These prerequisites are not installed by FortiLens.
 

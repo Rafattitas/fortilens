@@ -6,7 +6,21 @@ Useful first contributions include documentation fixes, FortiOS compatibility re
 
 ## Local checks
 
-Python 3.10+ is enough for the source test suite; no pip dependencies are required.
+Python 3.10+ is enough for the portable CLI tests; those remain dependency-free.
+Web management requires Python3.11+ and its isolated development dependencies:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r management/requirements-test.txt
+python -m unittest discover -s tests -v
+# Linux Docker/OpenSSL only; creates and removes its own disposable resources:
+python tests/integration_management.py
+```
+
+CI also tests the real Ubuntu/systemd installer twice on an ephemeral VM. Never
+run `--installed` integration mode against a personal or company installation;
+it is restricted to a disposable CI VM. Review [management verification](docs/MANAGEMENT_VERIFICATION.md).
 
 ```bash
 python3 -m unittest discover -s tests -v

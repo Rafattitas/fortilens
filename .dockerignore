@@ -1,0 +1,11 @@
+*
+!management/
+!management/**
+!portable/
+!portable/**
+**/__pycache__/
+**/*.pyc
+portable/local/
+portable/local-*/
+portable/site.json
+**/secrets/
