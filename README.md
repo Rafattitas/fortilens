@@ -54,13 +54,12 @@ Designed for **one FortiGate per independent installation**: your server, your c
 
 ### Get started
 
-For **Ubuntu24.04+ x86-64 with Docker Compose v2 and Python3.11+**, the current Web
+For **Ubuntu 24.04+ x86-64 with Docker Compose v2 and Python 3.11+**, the current Web
 Setup & Settings source provides one-command bootstrap:
 
 ```bash
 git clone https://github.com/Rafattitas/fortilens.git
 cd fortilens
-git switch codex/web-setup-settings # Until this feature is merged
 sudo ./install.sh
 ```
 
@@ -71,8 +70,8 @@ retention in the browser. Review and Apply starts the monitoring stack. There is
 no default management password. The portal starts independently of Grafana/Loki.
 
 See [Web Setup & Settings](docs/WEB_SETUP.md) for prerequisites, HTTPS, explicit
-adoption of existing installations and recovery. This is source-branch work; the
-published v0.2.0 ZIP remains unchanged. Existing installations must use `--adopt`
+adoption of existing installations and recovery. Web management is included in the
+current source; the older published v0.2.0 ZIP remains unchanged. Existing installations must use `--adopt`
 with their **exact existing Compose project**, rather than initializing again.
 
 #### Existing portable CLI
@@ -171,3 +170,13 @@ If FortiLens helps you, a star makes it easier for other network engineers to di
 Built by [Rafat Almudarres](https://github.com/Rafattitas) · [MIT licensed](LICENSE).
 
 <sub>Independent community project. Not affiliated with or endorsed by Fortinet. FortiGate and related names belong to their respective owners.</sub>
+
+## Working with AI agents
+
+Start with [AGENTS.md](AGENTS.md) and the maintained [project context](docs/PROJECT_CONTEXT.md).
+The repository includes a [FortiLens Maintainer skill](.agents/skills/fortilens-maintainer/SKILL.md)
+for code, deployment, accounting-evidence and QA work. Codex can discover it under
+`.agents/skills`; other assistants can read the same Markdown entry point.
+See [QA and release checks](docs/QA.md) before changing a running installation.
+These files describe the project and its boundaries; live operations still follow
+the current user's authorization and the installation's actual state.

@@ -1,6 +1,6 @@
 # Web Setup & Settings
 
-This source branch adds an independent administrative web application. The
+The current source includes an independent administrative web application. The
 published v0.2.0 ZIP does not include it. Use a reviewed source checkout containing
 `install.sh`; the dependency-free portable CLI continues to work separately.
 
@@ -15,7 +15,6 @@ monitoring workload. Size storage from actual ingestion and retained data.
 ```bash
 git clone https://github.com/Rafattitas/fortilens.git
 cd fortilens
-git switch codex/web-setup-settings # Until this feature is merged
 sudo ./install.sh
 ```
 

@@ -354,5 +354,51 @@ class ManagementTests(unittest.TestCase):
         with self.assertRaises(ValueError):Settings(fortigate_host='192.0.2.1',grafana_port=3002,usage_port=3002)
         with self.assertRaises(ValueError):Settings(fortigate_host='192.0.2.1',syslog_port=3001)
 
+    def legacy_existing(self):
+        c=self.existing()
+        auth=c.root/'secrets/fortigate-key.yaml'
+        old=yaml.safe_load(auth.read_text());record=old.pop('https://192.0.2.1:443')
+        record['probes']=['System','Interfaces'];old['https://192.0.2.1']=record
+        auth.write_text(yaml.safe_dump(old))
+        path=c.root/'prometheus/prometheus.yml';prom=yaml.safe_load(path.read_text())
+        prom['global']={'scrape_interval':'15s','evaluation_interval':'15s'}
+        prom['scrape_configs'][0]['static_configs'][0]['targets']=['https://192.0.2.1']
+        prom['scrape_configs'][-1]['scrape_timeout']='10s'
+        path.write_text(yaml.safe_dump(prom))
+        compose=c.compose();compose['services']['alloy']['ports']=['1514:1514/tcp','12345:12345']
+        (c.root/'compose.yaml').write_text(yaml.safe_dump(compose))
+        # Simulate first registration after a CLI/manual legacy deployment.
+        return Configuration(c.root,self.base/'legacy-control',project=c.project)
+
+    def test_legacy_default_https_port_and_actual_interval_preserve_credentials(self):
+        c=self.legacy_existing();view=c.view()
+        self.assertTrue(view['secret_status']['api_token_present'])
+        self.assertEqual(view['settings']['monitoring_interval'],15)
+        before=(c.root/'secrets/fortigate-key.yaml').read_bytes()
+        view['settings']['site_name']='Changed display only'
+        saved=c.save({'revision':view['revision'],'settings':view['settings']})
+        plan=c.prepare(saved['revision']);folder,_=c.plan(plan['plan_id'])
+        self.assertNotIn('secrets/fortigate-key.yaml',plan['changed_files'])
+        prom=yaml.safe_load((folder/'candidate/prometheus/prometheus.yml').read_text())
+        self.assertEqual(prom['global'],{'scrape_interval':'15s','evaluation_interval':'15s'})
+        self.assertEqual(prom['scrape_configs'][0]['static_configs'][0]['targets'],['https://192.0.2.1'])
+        self.assertEqual((c.root/'secrets/fortigate-key.yaml').read_bytes(),before)
+        view=c.view();view['settings']['syslog_port']=1515;view['settings']['syslog_protocol']='udp'
+        saved=c.save({'revision':view['revision'],'settings':view['settings'],'api_token':'synthetic-replacement-token','replace_token':True})
+        plan=c.prepare(saved['revision']);folder,_=c.plan(plan['plan_id'])
+        auth=yaml.safe_load((folder/'candidate/secrets/fortigate-key.yaml').read_text())
+        self.assertEqual(list(auth),['https://192.0.2.1'])
+        self.assertEqual(auth['https://192.0.2.1'],{'token':'synthetic-replacement-token','probes':['System','Interfaces']})
+        ports=yaml.safe_load((folder/'candidate/compose.yaml').read_text())['services']['alloy']['ports']
+        self.assertEqual(ports,['1515:1514/udp','12345:12345'])
+        self.assertEqual((c.root/'secrets/fortigate-key.yaml').read_bytes(),before)
+
+    def test_ambiguous_https_credentials_are_not_guessed(self):
+        c=self.legacy_existing();path=c.root/'secrets/fortigate-key.yaml'
+        auth=yaml.safe_load(path.read_text());auth['https://192.0.2.1:443']={'token':'another-synthetic-token'}
+        path.write_text(yaml.safe_dump(auth))
+        with self.assertRaises(Problem):c.token()
+        self.assertFalse(c.view()['secret_status']['api_token_present'])
+
 
 if __name__=='__main__':unittest.main()

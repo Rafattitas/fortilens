@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased — unified console and Web Setup & Settings
+
+- Primary FortiLens navigation with protected native Grafana monitoring, fixed-period
+  device/VLAN reports, WAN evidence and data quality behind the existing Viewer boundary.
+- Independent nonroot FastAPI management, one-time administrator bootstrap, secure
+  sessions/CSRF/rate limits and permanent English setup/settings/diagnostics.
+- Read-only TLS-tested FortiGate connection and interface discovery, explicit WAN
+  selection, supported monitoring/syslog/retention controls and measured storage evidence.
+- Idempotent Ubuntu/systemd installer, explicit existing-project adoption, authenticated
+  restricted helper, revisioned candidates, private backups and configuration-only rollback.
+- Preserve legacy implicit443 exporter credentials/probe selections, real scrape
+  intervals and additional Alloy listener bindings during adoption/settings changes.
+- Repository `AGENTS.md`, public project context, QA guide and a discoverable
+  `fortilens-maintainer` skill for future AI-assisted work.
+- Existing accounting algorithms, persistent volumes, native dashboards and active
+  alert/notification configuration are preserved. Standalone v0.2.0 artifacts are unchanged.
+
 ## 0.2.0 — received-log accounting and evidence
 
 - Optional persistent Python/SQLite service: session-aware directional accounting, replay idempotency, conservative cumulative fallback, bounded incremental Loki reads and retained daily/monthly summaries.

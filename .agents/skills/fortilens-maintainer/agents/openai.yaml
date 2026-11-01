@@ -1,0 +1,4 @@
+interface:
+  display_name: "FortiLens Maintainer"
+  short_description: "Maintain, deploy and verify FortiLens safely"
+  default_prompt: "Use $fortilens-maintainer to understand this checkout and complete the requested FortiLens change with appropriate verification."

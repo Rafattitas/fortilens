@@ -22,8 +22,8 @@ from .models import Change, Settings
 SERVICES = ('fortigate-exporter', 'prometheus', 'grafana', 'loki', 'alloy', 'node-exporter', 'fortilens-usage', 'fortilens-portal')
 
 
-def prometheus_policy(data,interval):
-    data.setdefault('global',{}).update(scrape_interval=str(interval)+'s',scrape_timeout=str(min(40,interval-1))+'s')
+def prometheus_policy(data,interval,*,update_global=True):
+    if update_global:data.setdefault('global',{}).update(scrape_interval=str(interval)+'s',scrape_timeout=str(min(40,interval-1))+'s')
     for job in data.get('scrape_configs',[]):
         if job.get('scrape_interval') or 'scrape_timeout' not in job:continue
         value=re.fullmatch(r'(\d+)([smh])',str(job['scrape_timeout']))
@@ -66,6 +66,11 @@ class Configuration:
             d['retention'] = {'ledger_days': c.get('accounting_ledger_days', 8), 'summary_days': c.get('accounting_summary_days', 400), 'database_bytes': c.get('accounting_max_bytes', 4294967296)}
             # Read actual policies, never assume that template defaults are live.
             compose = self.compose()
+            prom=self.bound_file(compose,'prometheus','/etc/prometheus/prometheus.yml')
+            global_config=(yaml.safe_load(prom.read_text()) or {}).get('global',{})
+            interval=re.fullmatch(r'(\d+)([smh])',str(global_config.get('scrape_interval','1m')))
+            if not interval:raise Problem('scrape_policy_review','Register a whole-second monitoring interval before adoption.')
+            d['monitoring_interval']=int(interval[1])*{'s':1,'m':60,'h':3600}[interval[2]]
             loki = self.bound_file(compose, 'loki', '/etc/loki/local-config.yaml', optional=True)
             if loki:
                 value = yaml.safe_load(loki.read_text()) or {}
@@ -136,10 +141,25 @@ class Configuration:
         p = self.bound_file(compose, 'fortigate-exporter', destination)
         auth = yaml.safe_load(p.read_text()) or {}
         old = load(self.root / self.state()['site_file'], {})
-        record = auth.get(setup.target_url({**setup.DEFAULTS, **old}))
+        record = auth[self.auth_key(auth,old)]
         if not isinstance(record, dict) or not isinstance(record.get('token'), str):
             raise Problem('secret_unavailable', 'The existing exporter credential could not be mapped safely.')
         return record['token']
+
+    @staticmethod
+    def auth_key(auth,config,*,optional=False):
+        """Recognize one HTTPS origin, including the legacy implicit443 form."""
+        if not isinstance(auth,dict):raise Problem('secret_unavailable','The exporter credential mapping needs a host-side review.')
+        wanted=urllib.parse.urlsplit(setup.target_url({**setup.DEFAULTS,**config}))
+        matches=[]
+        for key in auth:
+            try:
+                item=urllib.parse.urlsplit(key)
+                if item.scheme=='https' and not item.username and not item.password and item.path in ('','/') and not item.query and not item.fragment and item.hostname==wanted.hostname and (item.port or 443)==(wanted.port or 443):matches.append(key)
+            except (TypeError,ValueError):continue
+        if not matches and optional:return None
+        if len(matches)!=1:raise Problem('secret_unavailable','One unambiguous exporter credential must match the configured HTTPS origin; review its existing mapping.')
+        return matches[0]
 
     def view(self):
         state = self.state()
@@ -210,6 +230,7 @@ class Configuration:
         generated = setup.load(stage / 'compose.yaml')
         files = {}
         active = load(self.root / self.state()['site_file'], {})
+        endpoint_changed=setup.target_url(c)!=setup.target_url({**setup.DEFAULTS,**active})
         for service in ('fortilens-usage', 'fortilens-portal'):
             if service not in compose['services'] and service in generated['services']:
                 if service == 'fortilens-portal':
@@ -242,7 +263,7 @@ class Configuration:
         pdata = yaml.safe_load(prom.read_text())
         for job in pdata['scrape_configs']:
             if job.get('job_name') == 'fortigate':
-                job['static_configs'][0]['targets'] = [setup.target_url(c)]
+                if endpoint_changed:job['static_configs'][0]['targets'] = [setup.target_url(c)]
                 for relabel in job.get('relabel_configs', []):
                     if relabel.get('target_label') == 'instance':
                         relabel['replacement'] = c['fortigate_host']
@@ -251,7 +272,8 @@ class Configuration:
             if generated_job.get('job_name') != 'fortilens-accounting':
                 raise Problem('accounting_job_missing', 'The accounting scrape candidate could not be generated.')
             compose['services']['prometheus'].setdefault('secrets', []).append('usage_admin_password')
-        prometheus_policy(pdata,settings.monitoring_interval)
+        applied=self.state().get('applied') or {}
+        prometheus_policy(pdata,settings.monitoring_interval,update_global=settings.monitoring_interval!=applied.get('monitoring_interval'))
         files[str(prom.relative_to(self.root))] = yaml.safe_dump(pdata, sort_keys=False).encode()
         service = compose['services']['prometheus']
         service['command'] = [('--storage.tsdb.retention.time=' + str(settings.retention.prometheus_days) + 'd') if str(arg).startswith('--storage.tsdb.retention.time=') else arg for arg in service['command']]
@@ -276,23 +298,33 @@ class Configuration:
         ports = compose['services']['alloy'].get('ports', [])
         if ports and not all(isinstance(p, str) for p in ports):
             raise Problem('custom_ports_review', 'Custom published-port syntax requires a host-side review.')
-        replaced=[]
+        replaced=[];receiver_found=False
         for binding in ports:
             address=binding.split('/')[0];parts=address.rsplit(':',2)
             if parts[-1]!='1514':
-                if settings.syslog_port!=old_port or settings.syslog_protocol!=active.get('syslog_protocol','tcp'):
-                    raise Problem('custom_ports_review','Register the actual syslog target port before changing its listener.')
                 replaced.append(binding);continue
+            receiver_found=True
             parts[-2]=str(settings.syslog_port)
             replaced.append(':'.join(parts)+'/'+settings.syslog_protocol)
+        if not receiver_found and (settings.syslog_port!=old_port or settings.syslog_protocol!=active.get('syslog_protocol','tcp')):
+            raise Problem('custom_ports_review','Register the actual syslog target port before changing its listener.')
         compose['services']['alloy']['ports']=replaced
         exporter = compose['services']['fortigate-exporter']
         cmd = exporter.get('command', [])
         destination = next((cmd[i+1] for i,x in enumerate(cmd[:-1]) if x == '-auth-file'), '/config/fortigate-key.yaml')
         authfile = self.bound_file(compose, 'fortigate-exporter', destination)
         auth = yaml.safe_load(authfile.read_text())
-        if setup.target_url(c)!=setup.target_url({**setup.DEFAULTS,**active}) or load(self.secret_path,{}).get('token'):
-            auth[setup.target_url(c)] = {'token': self.token()}
+        if endpoint_changed or load(self.secret_path,{}).get('token'):
+            old_key=self.auth_key(auth,active)
+            key=setup.target_url(c) if endpoint_changed else old_key
+            if endpoint_changed:
+                existing_key=self.auth_key(auth,c,optional=True)
+                if existing_key and not load(self.secret_path,{}).get('token'):
+                    raise Problem('token_action_required','Changing to an existing credential target requires an explicit token replacement.')
+                key=existing_key or key
+            record=auth.get(key,auth[old_key])
+            if not isinstance(record,dict):raise Problem('secret_unavailable','Review the existing exporter credential record before changing it.')
+            auth[key] = {**record,'token': self.token()}
             files[str(authfile.relative_to(self.root))] = yaml.safe_dump(auth).encode()
         exporter['command'] = [x for x in cmd if x != '-insecure'] + ([] if c['api_tls_verify'] else ['-insecure'])
         pending=load(self.secret_path,{})
