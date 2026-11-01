@@ -326,5 +326,15 @@ class ManagementTests(unittest.TestCase):
         with patch('sys.argv',['install']),patch('sys.platform','win32'),self.assertRaises(SystemExit) as error:main()
         self.assertIn('Ubuntu',str(error.exception))
 
+    def test_short_monitoring_interval_produces_valid_accounting_timeout(self):
+        view=self.save(monitoring_interval=15)
+        plan=self.c.prepare(view['revision']);folder,_=self.c.plan(plan['plan_id'])
+        prom=yaml.safe_load((folder/'candidate/prometheus/prometheus.yml').read_text())
+        self.assertEqual(prom['global']['scrape_interval'],'15s')
+        accounting=next(j for j in prom['scrape_configs'] if j['job_name']=='fortilens-accounting')
+        self.assertEqual(accounting['scrape_timeout'],'14s')
+        with self.assertRaises(ValueError):Settings(fortigate_host='192.0.2.1',grafana_port=3002,usage_port=3002)
+        with self.assertRaises(ValueError):Settings(fortigate_host='192.0.2.1',syslog_port=3001)
+
 
 if __name__=='__main__':unittest.main()

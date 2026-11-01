@@ -12,12 +12,13 @@ python -m pip install -r management/requirements-test.txt
 python -m unittest discover -s tests -v
 ```
 
-On November1,2026, **153 tests passed on Windows and Ubuntu/Python3.12** with the management
-dependencies installed: the existing131 tests plus22 management tests. They cover
+On November1,2026, **154 tests passed on Windows/Python3.12** with the management
+dependencies installed: the existing131 tests plus23 management tests. The earlier
+153-test suite also passed on Ubuntu; CI runs the final suite. They cover
 first-run bootstrapping, password hashes, one-time closure, sessions, login rate
 limits, CSRF/origin/role checks, private error responses, explicit secret changes,
 revision conflicts/stale plans, file fingerprints, read-only discovery/WAN
-confirmation, existing configurations/secrets/images/mounts, conservative policy
+confirmation, valid short-interval scrape timeouts, existing configurations/secrets/images/mounts, conservative policy
 and source-scope locks, occupied ports, interrupted jobs and admin recovery.
 
 The dependency-free CLI matrix intentionally skips the management module when
@@ -68,7 +69,10 @@ The `Real Ubuntu systemd installer` CI job uses a disposable Ubuntu24.04 VM. It
 explicitly installs Python venv prerequisites, runs the actual `sudo ./install.sh`
 twice, verifies both system services and the web user's lack of Docker-group
 membership, then drives the real installed portal/helper through the same
-acceptance scenario. The root `--installed` test mode refuses ordinary hosts and
+acceptance scenario. This actual installer/host-service scenario passed along with
+all seven CI jobs at commit `ad70689611d17fad39c2d8a85da8fbac13b057bc`
+([run41328625535](https://github.com/Rafattitas/fortilens/actions/runs/41328625535)).
+The root `--installed` test mode refuses ordinary hosts and
 is only for that ephemeral Actions VM. Check the feature branch's CI result before
 treating a new revision as a verified Ubuntu installer release.
 

@@ -22,6 +22,20 @@ from .models import Change, Settings
 SERVICES = ('fortigate-exporter', 'prometheus', 'grafana', 'loki', 'alloy', 'node-exporter', 'fortilens-usage', 'fortilens-portal')
 
 
+def prometheus_policy(data,interval):
+    data.setdefault('global',{}).update(scrape_interval=str(interval)+'s',scrape_timeout=str(min(40,interval-1))+'s')
+    for job in data.get('scrape_configs',[]):
+        if job.get('scrape_interval') or 'scrape_timeout' not in job:continue
+        value=re.fullmatch(r'(\d+)([smh])',str(job['scrape_timeout']))
+        if not value:raise Problem('scrape_policy_review','Review a custom scrape timeout before changing the monitoring interval.')
+        seconds=int(value[1])*{'s':1,'m':60,'h':3600}[value[2]]
+        if seconds>interval:
+            if job.get('job_name') not in ('fortigate','node-exporter','fortilens-accounting'):
+                raise Problem('scrape_policy_review','A custom scrape timeout exceeds the requested global interval. Review that job on the host.')
+            job['scrape_timeout']=str(interval-1)+'s'
+    return data
+
+
 class Configuration:
     def __init__(self, root, control, *, project=None, compose_file='compose.yaml'):
         self.root, self.control = Path(root).resolve(), Path(control).resolve()
@@ -226,7 +240,6 @@ class Configuration:
             c['accounting_enabled'] = True
         prom = self.bound_file(compose, 'prometheus', '/etc/prometheus/prometheus.yml')
         pdata = yaml.safe_load(prom.read_text())
-        pdata.setdefault('global', {}).update(scrape_interval=str(settings.monitoring_interval) + 's', scrape_timeout=str(min(40, settings.monitoring_interval - 1)) + 's')
         for job in pdata['scrape_configs']:
             if job.get('job_name') == 'fortigate':
                 job['static_configs'][0]['targets'] = [setup.target_url(c)]
@@ -238,6 +251,7 @@ class Configuration:
             if generated_job.get('job_name') != 'fortilens-accounting':
                 raise Problem('accounting_job_missing', 'The accounting scrape candidate could not be generated.')
             compose['services']['prometheus'].setdefault('secrets', []).append('usage_admin_password')
+        prometheus_policy(pdata,settings.monitoring_interval)
         files[str(prom.relative_to(self.root))] = yaml.safe_dump(pdata, sort_keys=False).encode()
         service = compose['services']['prometheus']
         service['command'] = [('--storage.tsdb.retention.time=' + str(settings.retention.prometheus_days) + 'd') if str(arg).startswith('--storage.tsdb.retention.time=') else arg for arg in service['command']]
@@ -363,7 +377,7 @@ class Configuration:
                 c=setup.load(stage/'site.json')
                 files['compose.yaml'] = (stage / 'compose.yaml').read_bytes()
                 prom = json.loads(files['prometheus/prometheus.yml'])
-                prom['global'].update(scrape_interval=str(settings.monitoring_interval) + 's', scrape_timeout=str(min(40, settings.monitoring_interval-1)) + 's')
+                prometheus_policy(prom,settings.monitoring_interval)
                 files['prometheus/prometheus.yml'] = setup.dumps(prom).encode()
                 ldata = json.loads(files['loki/loki-config.yaml']);ldata['limits_config']['retention_period'] = str(settings.retention.loki_days) + 'd'
                 files['loki/loki-config.yaml'] = setup.dumps(ldata).encode()

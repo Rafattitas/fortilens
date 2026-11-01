@@ -146,7 +146,7 @@ def main():
         api('/api/login',{'username':'operator','password':PASSWORD})
         view=api('/api/settings');assert view['configured'] is False
         s=view['settings'];s.update(site_name='Synthetic management lab',fortigate_host=bridge,api_port=fixture.server_port,
-            grafana_port=port(),usage_port=port(),syslog_port=port(),expected_devid='FG-FIXTURE')
+            grafana_port=port(),usage_port=port(),syslog_port=port(),expected_devid='FG-FIXTURE',monitoring_interval=15)
         # First test must expose the self-signed certificate problem, without
         # disabling verification or returning its request's secret.
         view=api('/api/settings',{'revision':view['revision'],'settings':s,'api_token':TOKEN,'replace_token':True})

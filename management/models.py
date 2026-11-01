@@ -59,6 +59,10 @@ class Settings(Strict):
                 raise ValueError()
             if self.monitoring.accounting and not self.monitoring.syslog or self.monitoring.vlans and not self.monitoring.accounting:
                 raise ValueError()
+            if self.monitoring.accounting and self.grafana_port==self.usage_port:
+                raise ValueError()
+            if self.monitoring.syslog and self.syslog_protocol=='tcp' and self.syslog_port in [self.grafana_port]+([self.usage_port] if self.monitoring.accounting else []):
+                raise ValueError()
             self.portable(validate=True)
         except (ValueError, setup.SetupError, ZoneInfoNotFoundError):
             raise ValueError('Review host, timezone, WAN/SLA names and monitoring/retention dependencies.') from None
