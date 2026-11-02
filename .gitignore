@@ -9,6 +9,25 @@ portable/site.json
 !.env.example
 *.pem
 *.key
+*.crt
+*.p12
+*.pfx
+**/.fortilens/
+/local/
+/local-*/
+/private/
+/exports/
+/qa-private/
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.har
 # Runtime and build output
 __pycache__/
 *.py[cod]
@@ -18,3 +37,9 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+coverage.json
+htmlcov/

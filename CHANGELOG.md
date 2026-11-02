@@ -2,6 +2,27 @@
 
 ## Unreleased — unified console and Web Setup & Settings
 
+### Repository engineering
+
+- Add an explicitly allowlisted full source distribution beside the compatible
+  23-file portable ZIP, with reproducible archive metadata, source provenance,
+  SHA256 checksums and extracted-artifact tests. Existing release assets remain
+  immutable; no new version is tagged or published by this preparation.
+- Prepare read-only PR/manual package validation and disposable packaged
+  Docker/Ubuntu acceptance before an explicitly published release can attach assets.
+- Add development-only Ruff/EditorConfig, branch coverage, dependency advisory
+  auditing, update automation and source/link/YAML checks while retaining the
+  existing Python/OS matrix and real integration scenarios.
+- Add a documentation index, realistic roadmap, sanitized issue/PR forms,
+  maintainer recommendations, repository audit and validation report.
+- Expand private-state/tool-output ignore patterns. Preserve runtime files,
+  dependency pins, installer/build allowlists, CLI/API contracts, data formats,
+  service/volume identity and existing security/accounting behavior.
+- Document module responsibilities and defer broad runtime reformatting/import
+  restructuring to independently characterized changes.
+
+### Application changes already on main
+
 - Restore one dark operations workspace with flat summary strips, wider borderless
   monitoring/reports, clearer pending configuration and scoped report styling.
 - Add keyboard-accessible mobile navigation, compact settings selection, loading

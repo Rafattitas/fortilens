@@ -47,6 +47,8 @@ flowchart LR
 | `portable/wan_health.py` | Observed WAN states/history/coverage and destination-specific route evidence. |
 | `portable/upgrade.py` | Existing reviewed CLI upgrade/rollback; do not run concurrently with management deployment. |
 | `tests/`, `.github/workflows/ci.yml` | Unit/security/regression checks, isolated real Docker and Ubuntu installer acceptance. |
+| `tools/check_repository.py`, `pyproject.toml`, `requirements-dev.txt` | Development-only grammar/link/YAML/source checks, narrow Ruff rules and measured branch coverage. No production dependencies or package/import migration. |
+| `tools/release.py`, `.github/workflows/release.yml` | Reproducible allowlisted full source and compatible portable distributions, checksums and extracted-artifact acceptance; publication remains an explicit maintainer action. |
 
 ## Deployment identities and defaults
 
@@ -71,7 +73,10 @@ and actual container labels/mounts; never substitute a template project or UID.
 Use [WEB_SETUP.md](WEB_SETUP.md) for installation/adoption/HTTPS/recovery,
 [MANAGEMENT_ARCHITECTURE.md](MANAGEMENT_ARCHITECTURE.md) for trust boundaries, and
 [UPGRADE.md](UPGRADE.md) for the separate CLI path. The published v0.2.0 standalone
-ZIP predates web management; management requires the current source checkout.
+ZIP predates web management; management requires current source from a reviewed
+checkout or a validated full distribution. The additive full distribution is
+prepared by [RELEASING.md](RELEASING.md); repository cleanup does not publish it
+or replace existing release assets.
 
 ## Invariants and practical limits
 
@@ -106,6 +111,14 @@ service checks, live deployment checks and real firewall numeric evidence. Use
 the CI result for the actual head being released; old passing runs do not validate
 a new commit. Record unsupported cases and current source availability instead
 of asserting universal FortiOS compatibility, billing accuracy or capacity.
+
+Start repository maintenance at the [documentation index](README.md),
+[repository audit](REPOSITORY_AUDIT.md) and [cleanup validation](CLEANUP_VALIDATION.md).
+The runtime layout, installer source allowlist, Docker contexts, accounting/auth
+logic and CLI stay in place; [MAINTAINABILITY.md](MAINTAINABILITY.md) records
+prerequisites for separately reviewed refactors. New development tools are
+formatted independently of existing runtime source. The roadmap marks
+unimplemented analytics/reporting extensions as planned.
 
 Future work should follow the current user's request. Real-device source
 completeness, source identity, packet-time allocation and production capacity need
