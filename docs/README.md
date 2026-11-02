@@ -41,6 +41,7 @@ Read [release preparation](RELEASING.md) before choosing or building an archive.
 |---|---|
 | [Contributing](../CONTRIBUTING.md) | Development setup, quality checks, focused PRs and synthetic fixtures. |
 | [QA](QA.md) | Source checks, isolated Docker/systemd scenarios and bounded live acceptance. |
+| [Error handling and recovery](ERROR_HANDLING.md) | Safe failure responses, unknown mutation outcomes, retained recovery evidence and failure-injection validation. |
 | [Verification and compatibility](VERIFICATION.md) | Accounting/pipeline evidence and remaining real-device limitations. |
 | [Management verification](MANAGEMENT_VERIFICATION.md) | Management test history, installer checks and optional read-only FortiGate validation. |
 | [Release preparation](RELEASING.md) | Full/portable archive manifests, checksums, extracted-artifact validation and publication review. |

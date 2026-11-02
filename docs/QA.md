@@ -28,8 +28,12 @@ python portable/setup.py bundle --destination dist/fortilens-single-device.zip
 ```
 
 The standalone frontend syntax check uses a development Node.js executable to
-compile the console, reporting and managed-status scripts. It does not execute
-the application or add a Node.js dependency to the production installation.
+compile the console, reporting and managed-status scripts. The failure-regression
+suite also executes the actual transport and pending-control functions under Node
+with synthetic requests, deadlines and response bodies; it explicitly skips when
+Node is unavailable. These checks do not add a production Node dependency or
+replace real browser entry, rendering and reload acceptance. See
+[error handling and recovery](ERROR_HANDLING.md) for failure boundaries and limits.
 
 ## Repository quality and release checks
 
@@ -40,8 +44,8 @@ From the repository root:
 ```bash
 python -m pip install -r requirements-dev.txt
 python -m ruff check .
-python -m ruff check tools tests/test_repository_checks.py tests/test_release.py --extend-select I
-python -m ruff format --check tools tests/test_repository_checks.py tests/test_release.py
+python -m ruff check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py --extend-select I
+python -m ruff format --check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py
 python tools/check_repository.py
 python -m coverage run -m unittest discover -s tests -v
 python -m coverage report -m

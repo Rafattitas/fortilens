@@ -69,6 +69,7 @@ PUBLIC_FILES = (
     "docs/ACCOUNTING_ENGINE.md",
     "docs/ARCHITECTURE.md",
     "docs/CLEANUP_VALIDATION.md",
+    "docs/ERROR_HANDLING.md",
     "docs/FRONTEND_DESIGN_REVIEW.md",
     "docs/INSTALLATION.md",
     "docs/MAINTAINABILITY.md",

@@ -2,6 +2,21 @@
 
 ## Unreleased — unified console and Web Setup & Settings
 
+### Error handling and recovery
+
+- Return bounded, safe operational errors across management/helper HTTP,
+  reporting/gateway services, CLI/installer/tools and browser transport. Keep
+  successful API/CLI contracts and existing authentication checks.
+- Recover partial configuration writes conservatively; release failed queue
+  locks, retain observable job failures when journaling is unavailable, and avoid
+  undoing committed configuration when only final diagnostics cannot be saved.
+- Reject malformed upstream payloads before recording checkpoints or displaying
+  telemetry. Keep missing evidence unknown and close resources on failed startup.
+- Add browser deadlines and safe failure messages, clear rejected sessions,
+  restore pending controls and require status review after unknown POST outcomes.
+- Add synthetic failure-injection regressions without new runtime dependencies,
+  schema changes, altered accounting/WAN formulas or production operations.
+
 ### Repository engineering
 
 - Add an explicitly allowlisted full source distribution beside the compatible

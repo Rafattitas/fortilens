@@ -120,6 +120,16 @@ prerequisites for separately reviewed refactors. New development tools are
 formatted independently of existing runtime source. The roadmap marks
 unimplemented analytics/reporting extensions as planned.
 
+Runtime failures are documented in [ERROR_HANDLING.md](ERROR_HANDLING.md).
+HTTP/helper/CLI/browser boundaries return bounded diagnostics without raw
+exception content. Corrupt configuration remains for host review; partial
+deployment writes use the existing recovery marker, and queue failures release
+the operation lock. Failed ingestion never advances a checkpoint. A timed-out
+mutation has an unknown outcome: inspect actual settings/job status before
+retrying. The helper's bounded latest-job cache is not durable recovery storage.
+No runtime module moves, new dependencies, database schemas, Compose identities,
+accounting/WAN formulas or authentication policies accompany these changes.
+
 Future work should follow the current user's request. Real-device source
 completeness, source identity, packet-time allocation and production capacity need
 site-specific evidence. Alert candidates remain opt-in; multi-device/tenant and
