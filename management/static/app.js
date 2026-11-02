@@ -1,6 +1,6 @@
 'use strict';
 const $=id=>document.getElementById(id);
-const state={navOpen:false,csrf:'',bootstrap:false,initialNavigation:true,view:null,system:null,section:'general',plan:null,job:null,inventory:[],selected:new Set()};
+const state={navOpen:false,csrf:'',bootstrap:false,initialNavigation:true,view:null,system:null,section:'general',plan:null,job:null,jobPending:false,jobUnknown:false,discoveryStale:false,inventory:[],selected:new Set()};
 const sections=['general','connection','interfaces','monitoring','storage','review'];
 const compactNavigation=window.matchMedia('(max-width: 900px)');
 function setNavigation(open,restoreFocus=true){state.navOpen=!!open&&compactNavigation.matches;$('workspace').classList.toggle('nav-open',state.navOpen);$('menu-toggle').setAttribute('aria-expanded',String(state.navOpen));$('workspace-nav').inert=compactNavigation.matches&&!state.navOpen;$('main-shell').inert=state.navOpen;if(state.navOpen){$('workspace-nav').setAttribute('role','dialog');$('workspace-nav').setAttribute('aria-modal','true')}else{$('workspace-nav').removeAttribute('role');$('workspace-nav').removeAttribute('aria-modal')}$('nav-scrim').hidden=!state.navOpen;if(state.navOpen)$('menu-close').focus();else if(restoreFocus&&compactNavigation.matches)$('menu-toggle').focus()}
@@ -76,18 +76,18 @@ async function api(path,body){
  return data;
 }
 // End transport boundary.
-async function action(button,run){button.disabled=true;const label=button.textContent;button.textContent='Working…';try{await run()}catch(e){notice(errorText(e),true);if(button.id==='test-connection')$('connection-result').textContent=errorText(e);if(button.id==='discover-interfaces')$('inventory-caption').textContent=errorText(e)}finally{button.disabled=false;button.textContent=label}}
-function dirty(){state.plan=null;$('plan-review').hidden=true;$('approve-plan').checked=false;$('save-status').textContent='Unsaved changes'}
+async function action(button,run){button.disabled=true;const label=button.textContent;button.textContent='Working…';try{await run()}catch(e){notice(errorText(e),true);if(button.id==='test-connection')$('connection-result').textContent=errorText(e);if(button.id==='discover-interfaces')$('inventory-caption').textContent=errorText(e)}finally{button.disabled=false;button.textContent=label;if(typeof updateDeploymentControls==='function')updateDeploymentControls()}}
+function dirty(){state.plan=null;$('plan-review').hidden=true;$('approve-plan').checked=false;$('save-status').textContent='Unsaved changes';updateDeploymentControls()}
 function pathGet(obj,path){return path.split('.').reduce((v,k)=>v?.[k],obj)}
 function pathSet(obj,path,value){const parts=path.split('.');let target=obj;for(const k of parts.slice(0,-1))target=target[k];target[parts.at(-1)]=value}
-function signedOut(){setNavigation(false,false);clearConsoleCheck();clearTimeout(state.jobTimer);state.jobTimer=null;$('workspace-loading').hidden=true;document.title='FortiLens · Management';state.csrf='';state.view=null;state.plan=null;$('console-frame').removeAttribute('src');$('workspace').hidden=true;$('auth').hidden=false;$('auth-form').reset();$('password-form').reset();for(const id of ['api-token','custom-ca','bootstrap-token'])$(id).value=''}
-async function enter(){const session=await api('/api/session');state.csrf=session.csrf;state.initialNavigation=true;$('session-user').textContent=session.username;$('auth').hidden=true;$('workspace').hidden=true;$('workspace-loading').hidden=false;let failure=null;try{await reloadSettings();await loadSystem()}catch(e){failure=e}finally{$('workspace-loading').hidden=true}if(!state.csrf)return;$('workspace').hidden=false;if(failure){navigate('diagnostics');notice(errorText(failure),true);return}navigate(state.view.configured?(location.hash.slice(1)||new URL(location.href).searchParams.get('view')||defaultPage()):'settings');if(state.system?.latest_job&&!state.job)watchJob(state.system.latest_job.job_id).catch(e=>notice(errorText(e),true))}
+function signedOut(){setNavigation(false,false);clearConsoleCheck();clearTimeout(state.jobTimer);clearTimeout(state.successTimer);state.jobTimer=null;$('workspace-loading').hidden=true;document.title='FortiLens · Management';state.csrf='';state.view=null;state.plan=null;state.job=null;state.jobPending=false;state.jobUnknown=false;$('deployment').hidden=true;$('deployment-history').hidden=true;$('console-frame').removeAttribute('src');$('workspace').hidden=true;$('auth').hidden=false;$('auth-form').reset();$('password-form').reset();for(const id of ['api-token','custom-ca','bootstrap-token'])$(id).value=''}
+async function enter(){const session=await api('/api/session');state.csrf=session.csrf;state.initialNavigation=true;$('session-user').textContent=session.username;$('auth').hidden=true;$('workspace').hidden=true;$('workspace-loading').hidden=false;let failure=null;try{await reloadSettings();await loadSystem()}catch(e){failure=e}finally{$('workspace-loading').hidden=true}if(!state.csrf)return;$('workspace').hidden=false;if(failure){navigate('diagnostics');notice(errorText(failure),true);return}navigate(state.view.configured?(location.hash.slice(1)||new URL(location.href).searchParams.get('view')||defaultPage()):'settings');restoreLatestJob(state.system?.latest_job)}
 async function reloadSettings(){state.view=await api('/api/settings');state.selected=new Set(state.view.settings.wan_interfaces);fillSettings();state.plan=null;$('plan-review').hidden=true}
-function fillSettings(){$('workspace').classList.toggle('configured',state.view.configured);for(const input of document.querySelectorAll('[data-setting]')){const value=pathGet(state.view.settings,input.dataset.setting);if(input.type==='checkbox')input.checked=!!value;else input.value=value??''}if(!state.view.configured&&state.view.revision===0)$('fortigate-host').value='';$('token-status').textContent=state.view.secret_status.api_token_present?'Stored token configured. It is never returned to the browser.':'No stored API token.';$('replace-token').checked=!state.view.secret_status.api_token_present;$('wizard-intro').hidden=state.view.configured;$('site-label').textContent=state.view.settings.site_name;for(const id of ['vdom','accounting-timezone','expected-devid'])$(id).readOnly=state.view.scope_locked;$('revision').textContent=state.view.pending_changes?'Draft revision '+state.view.revision:state.view.configured?'Applied revision '+state.view.applied_revision:'Not configured';$('revision').className='pill '+(state.view.pending_changes?'warn':state.view.configured?'good':'');$('insecure-row').hidden=$('verify-tls').checked;for(const link of document.querySelectorAll('[data-page]'))link.hidden=state.view.configured&&!pageEnabled(link.dataset.page);updateSelection();renderReview()}
+function fillSettings(){$('workspace').classList.toggle('configured',state.view.configured);for(const input of document.querySelectorAll('[data-setting]')){const value=pathGet(state.view.settings,input.dataset.setting);if(input.type==='checkbox')input.checked=!!value;else input.value=value??''}if(!state.view.configured&&state.view.revision===0)$('fortigate-host').value='';$('token-status').textContent=state.view.secret_status.api_token_present?'Stored token configured. It is never returned to the browser.':'No stored API token.';$('replace-token').checked=!state.view.secret_status.api_token_present;$('wizard-intro').hidden=state.view.configured;$('site-label').textContent=state.view.settings.site_name;for(const id of ['vdom','accounting-timezone','expected-devid'])$(id).readOnly=state.view.scope_locked;$('revision').textContent=state.view.pending_changes?'Draft revision '+state.view.revision:state.view.configured?'Applied revision '+state.view.applied_revision:'Not configured';$('revision').className='pill '+(state.view.pending_changes?'warn':state.view.configured?'good':'');$('insecure-row').hidden=$('verify-tls').checked;for(const link of document.querySelectorAll('[data-page]'))link.hidden=state.view.configured&&!pageEnabled(link.dataset.page);updateSelection();renderReview();renderWorkflowReadiness()}
 function readSettings(){const settings=structuredClone(state.view.settings);for(const input of document.querySelectorAll('[data-setting]')){const value=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value.trim();pathSet(settings,input.dataset.setting,value)}settings.wan_interfaces=[...state.selected];return settings}
 async function saveDraft(){const body={revision:state.view.revision,settings:readSettings(),acknowledge_insecure_tls:$('insecure-ack').checked};if($('api-token').value){body.api_token=$('api-token').value;body.replace_token=$('replace-token').checked}if($('replace-ca').checked){body.custom_ca=$('custom-ca').value;body.replace_ca=true}state.view=await api('/api/settings',body);$('api-token').value='';$('custom-ca').value='';$('replace-ca').checked=false;$('insecure-ack').checked=false;state.plan=null;$('plan-review').hidden=true;fillSettings();$('save-status').textContent='Draft saved. Active services have not changed.';notice('Configuration draft saved. Review and apply when ready.');return state.view}
 function selectSection(section){state.section=section;$('settings-section-picker').value=section;for(const b of document.querySelectorAll('[data-section]')){const active=b.dataset.section===section;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}const auth=section==='authentication';$('configuration-form').hidden=auth;$('authentication-section').hidden=!auth;for(const part of document.querySelectorAll('[data-form-section]'))part.hidden=part.dataset.formSection!==section;const index=sections.indexOf(section);$('step-label').textContent='Step '+(index+2)+' of 7';$('previous-section').hidden=index===0;$('next-section').hidden=index===sections.length-1||auth;$('save').hidden=auth;renderReview()}
-async function loadSystem(){try{state.system=await api('/api/system');renderSystem()}catch(e){notice(errorText(e),true);$('overview-cards').replaceChildren(metric('Management portal','Running','Independent of monitoring'),metric('Monitoring status','Unavailable','Open Diagnostics for recovery'))}}
+async function loadSystem(){try{state.system=await api('/api/system');renderSystem();return true}catch(e){notice(errorText(e),true);$('overview-cards').replaceChildren(metric('Management portal','Running','Independent of monitoring'),metric('Monitoring status','Unavailable','Open Diagnostics for recovery'));return false}}
 function metric(title,value,caption){const card=E('div',undefined,'metric-card');card.append(E('span',title,'metric-label'),E('div',value,'metric'),E('small',caption));return card}
 function fact(root,title,value){const block=E('div',undefined,'fact');block.append(E('span',title),E('strong',value));root.append(block)}
 function renderSystem(){const s=state.system;const running=s.services.filter(r=>r.status==='running').length;$('overview-cards').replaceChildren(metric('Console','Available','Settings and diagnostics'),metric('Services running',running+' / '+s.services.length,'Docker: '+s.docker),metric('Available storage',size(s.disk.available),'of '+size(s.disk.total)),metric('Configuration',state.view.pending_changes?'Changes pending':state.view.configured?'Configured':'Setup needed',state.view.pending_changes?'Draft '+state.view.revision+' · Applied '+state.view.applied_revision:state.view.configured?'Applied revision '+state.view.applied_revision:'Not yet applied'));$('service-list').replaceChildren();for(const service of Object.keys(names)){const row=s.services.find(x=>x.service===service);const line=E('div',undefined,'service-row');const status=row?(row.health==='healthy'?'Healthy':row.health==='unhealthy'?'Failed':row.health==='starting'?'Starting':row.status==='running'?'Running':row.status==='disabled'?'Disabled':row.status==='exited'?'Stopped':row.status):'Not started';line.append(E('span',names[service]),E('span',status,'pill '+(status==='Healthy'||status==='Running'?'good':'warn')));$('service-list').append(line)}$('server-facts').replaceChildren();for(const [name,value]of [['Hostname',s.hostname],['Operating system',s.os],['CPU / Architecture',s.cpu_count+' cores · '+s.architecture],['RAM',size(s.ram_bytes)],['Available disk',size(s.disk.available)],['Docker',s.docker]])fact($('server-facts'),name,value);$('storage-facts').replaceChildren();for(const [name,value]of [['Total server storage',size(s.disk.total)],['Used storage',size(s.disk.used)],['Available storage',size(s.disk.available)]])fact($('storage-facts'),name,value);for(const [service,value] of Object.entries(s.storage_projection.components||{})){fact($('storage-facts'),(names[service]||service)+' measured size',size(value.bytes));if(value.projection_bytes!==undefined)fact($('storage-facts'),(names[service]||service)+' growth projection',size(value.projection_bytes))}$('storage-projection').textContent=s.storage_projection.message;$('next-title').textContent=state.view.configured?'Workspace settings':'Connect your network.';$('next-caption').textContent=state.view.configured?'Review the connection, Internet interfaces and data retention for this installation.':'Review the connection, confirm Internet interfaces and apply your monitoring configuration.'}
@@ -175,20 +175,103 @@ async function runDiagnostics(){
   $('diagnostic-help').textContent='Read-only · No firewall changes.';
  }
 }
+// Deployment lifecycle: completed jobs belong in details, not live progress.
+function jobActive(job){return !!job&&!['complete','failed'].includes(job.status)}
+function acknowledgedJob(id){try{return JSON.parse(sessionStorage.getItem('fortilens.acknowledgedJobs')||'[]').includes(id)}catch{return false}}
+function acknowledgeJob(){if(!state.job||state.job.status!=='failed')return;try{const old=JSON.parse(sessionStorage.getItem('fortilens.acknowledgedJobs')||'[]');sessionStorage.setItem('fortilens.acknowledgedJobs',JSON.stringify([...new Set([...old,state.job.job_id])].slice(-32)))}catch{}$('deployment').hidden=true}
+function discoveryBlocked(){return state.discoveryStale||!!(state.view?.discovery?.required&&!state.view.discovery.current)}
+function updateDeploymentControls(){
+ const busy=state.jobPending||state.jobUnknown||jobActive(state.job);
+ for(const id of ['save','prepare','test-connection','discover-interfaces'])$(id).disabled=busy;
+ $('apply').disabled=busy||!state.plan||!$('approve-plan').checked||discoveryBlocked();
+ $('rollback').disabled=busy;$('history-rollback').disabled=busy;
+ $('deployment-acknowledge').hidden=state.job?.status!=='failed'||state.jobUnknown;
+}
+function renderWorkflowReadiness(){
+ if(!state.view)return;
+ const d=state.view.discovery,changed=d?.changed_fields||[];
+ let message=state.discoveryStale?'Connection or credential settings changed. Save, test the connection and discover interfaces again before applying.':d?.required&&!d.current?(d.reason||'Discover interfaces for the saved connection before applying.'):'Connection discovery is current for the saved settings.';
+ if(!d&&!state.discoveryStale)message='Save, test the connection, discover interfaces and confirm Internet interfaces before reviewing changes.';
+ if(changed.length)message+=' Changed scope: '+changed.join(', ')+'.';
+ $('workflow-readiness').textContent=message;$('apply-readiness').textContent=message;
+ $('workflow-readiness').classList.toggle('warn-text',discoveryBlocked());
+ $('pending-state').textContent=state.view.pending_changes?'Draft '+state.view.revision+' is saved; active services still use applied revision '+(state.view.applied_revision??'unavailable')+'. Review and apply when ready.':'The saved configuration is applied.';
+ updateDeploymentControls();
+}
+function invalidateDiscovery(){state.discoveryStale=true;renderWorkflowReadiness()}
+function renderJobEvents(target,job){
+ target.replaceChildren();
+ for(const event of job.events||[]){if(!event||typeof event.message!=='string')continue;const at=Number.isFinite(event.at)?stamp(event.at*1000):'Timestamp unavailable';target.append(E('li',at+' · '+event.message))}
+}
+function renderJobHistory(job){
+ if(!job||typeof job.job_id!=='string')return;
+ $('deployment-history').hidden=false;
+ $('history-summary').textContent='Deployment history · '+(job.status==='complete'?'Last operation completed':job.status==='failed'?'Last operation needs review':'Operation in progress');
+ $('history-result').textContent=job.status==='complete'?'Completed':job.status==='failed'?'Failed':job.status;
+ $('history-job-id').textContent=job.job_id;
+ const at=(job.events||[]).filter(e=>Number.isFinite(e?.at)).at(-1)?.at;
+ $('history-time').textContent=at===undefined?'Unavailable':stamp(at*1000);
+ $('history-revision').textContent=Number.isInteger(job.applied_revision)?String(job.applied_revision):'Unavailable for this recorded job';
+ $('history-requested-revision').textContent=Number.isInteger(job.requested_revision)?String(job.requested_revision):'Unavailable for this recorded job';
+ $('history-message').textContent=job.message||'No additional message was recorded.';
+ $('history-stage').textContent=job.failed_step||job.phase||'Unavailable';
+ renderJobEvents($('history-events'),job);
+ $('history-warnings').replaceChildren();
+ for(const check of job.diagnostics?.monitoring?.checks||[]){if(check.status!=='PASS')$('history-warnings').append(E('li',check.status+' · '+check.message))}
+ $('history-rollback').hidden=!job.rollback_available;
+ $('history-rollback').dataset.planId=job.plan_id||'';
+ updateDeploymentControls();
+}
+function restoreLatestJob(job){
+ if(!job||typeof job.job_id!=='string')return;
+ state.job=job;renderJobHistory(job);
+ if(job.status==='complete'){state.jobPending=false;state.jobUnknown=false;$('deployment').hidden=true;updateDeploymentControls();return}
+ if(job.status==='failed'&&acknowledgedJob(job.job_id)){$('deployment').hidden=true;updateDeploymentControls();return}
+ watchJob(job.job_id).catch(e=>notice(errorText(e),true));
+}
 async function watchJob(id){
  if(!state.csrf)return;
  clearTimeout(state.jobTimer);state.jobTimer=null;
  try{
   const job=await api('/api/jobs/'+id);if(!state.csrf)return;
-  state.job=job;$('deployment').hidden=false;$('deployment-title').textContent=job.phase==='complete'?'Deployment complete':job.phase==='failed'?'Deployment needs review':'Applying configuration';$('deployment-status').textContent=job.status;$('deployment-message').textContent=job.message;$('deployment-events').replaceChildren(...job.events.map(e=>E('li',stamp(e.at*1000)+' · '+e.message)));$('rollback').hidden=!job.rollback_available;
-  if(['complete','failed'].includes(job.status)){const firstSetup=!state.view.configured;await reloadSettings();await loadSystem();if(job.status==='complete'&&firstSetup&&state.view.configured)navigate(defaultPage());if(job.status==='complete')notice('Configuration applied. Open Diagnostics to review collection warnings.');else notice(job.message,true);return}
+  state.job=job;state.jobPending=false;state.jobUnknown=false;renderJobHistory(job);
+  $('deployment').hidden=job.status==='complete'||job.status==='failed'&&acknowledgedJob(job.job_id);
+  $('deployment-title').textContent=job.status==='failed'?'Deployment needs review':'Applying configuration';
+  $('deployment-status').textContent=job.status;$('deployment-message').textContent=(job.failed_step?'Failed stage: '+job.failed_step+'. ':'')+(job.message||'');
+  renderJobEvents($('deployment-events'),job);$('rollback').hidden=!job.rollback_available;updateDeploymentControls();
+  if(['complete','failed'].includes(job.status)){
+   const firstSetup=!state.view.configured;let refreshed=false;
+   try{await reloadSettings();refreshed=await loadSystem()}catch(error){
+    if(!state.csrf)return;
+    if(job.status==='complete'){$('deployment').hidden=true;notice('Configuration applied. Settings or service health could not be refreshed; review Diagnostics before another operation.',true)}
+    else notice((job.message||'Deployment failed.')+' Current settings could not be refreshed; review Diagnostics.',true);
+    updateDeploymentControls();return;
+   }
+   if(!state.csrf)return;
+   if(job.status==='complete'){
+    $('deployment').hidden=true;
+    if(firstSetup&&state.view.configured)navigate(defaultPage());
+    const success=refreshed===false?'Configuration applied. Current service health could not be refreshed; review Diagnostics.':'Configuration applied successfully. Service status and settings are refreshed; review collection warnings in Diagnostics.';
+    notice(success,refreshed===false);
+    clearTimeout(state.successTimer);if(refreshed!==false)state.successTimer=setTimeout(()=>{if($('notice').textContent===success&&!$('notice').classList.contains('error'))notice('')},8000);
+   }else if(!acknowledgedJob(job.job_id))notice(job.message,true);
+   return;
+  }
   state.jobTimer=setTimeout(()=>watchJob(id).catch(e=>notice(errorText(e),true)),1200);
  }catch(error){
+  state.jobUnknown=true;state.jobPending=false;updateDeploymentControls();
   $('deployment').hidden=false;$('deployment-title').textContent='Deployment status unavailable';$('deployment-status').textContent='Unknown';
-  $('deployment-message').textContent=errorText(error)+' Deployment may still be running. Review Diagnostics before repeating Apply or rollback.';
+  $('deployment-message').textContent=errorText(error)+' Deployment may still be running. Refresh deployment status and review Diagnostics before repeating Apply or rollback.';
   notice(errorText(error),true);
  }
 }
+async function beginDeployment(path,body){
+ if(state.jobPending||state.jobUnknown||jobActive(state.job))throw safeError('An operation may still be running. Refresh deployment status before trying again.');
+ state.jobPending=true;updateDeploymentControls();
+ try{const job=await api(path,body);state.job=job;state.jobPending=false;updateDeploymentControls();await watchJob(job.job_id)}
+ catch(error){state.jobPending=false;if(['network','timeout','invalid_response','internal_error','operation_failed'].includes(error.code))state.jobUnknown=true;updateDeploymentControls();throw error}
+}
+// End deployment lifecycle.
 $('auth-form').addEventListener('submit',e=>{e.preventDefault();action($('auth-submit'),async()=>{const username=$('username').value,password=$('password').value;$('auth-error').textContent='';try{if(state.bootstrap){await api('/api/bootstrap',{username,password,confirmation:$('confirmation').value,bootstrap_token:$('bootstrap-token').value});state.bootstrap=false;$('bootstrap-fields').hidden=true;$('confirmation-field').hidden=true}$('auth-form').reset();const r=await api('/api/login',{username,password});state.csrf=r.csrf;await enter()}catch(error){$('password').value='';$('confirmation').value='';$('bootstrap-token').value='';$('auth-error').textContent=errorText(error)}})});
 $('signout').addEventListener('click',()=>action($('signout'),async()=>{await api('/api/logout',{});signedOut()}));
 $('configuration-form').addEventListener('submit',e=>{e.preventDefault();action($('save'),saveDraft)});
@@ -196,13 +279,18 @@ $('settings-section-picker').addEventListener('change',()=>selectSection($('sett
 for(const b of document.querySelectorAll('[data-section]'))b.addEventListener('click',()=>selectSection(b.dataset.section));
 $('next-section').addEventListener('click',()=>selectSection(sections[Math.min(sections.length-1,sections.indexOf(state.section)+1)]));$('previous-section').addEventListener('click',()=>selectSection(sections[Math.max(0,sections.indexOf(state.section)-1)]));
 $('verify-tls').addEventListener('change',()=>{$('insecure-row').hidden=$('verify-tls').checked});
-for(const input of document.querySelectorAll('[data-setting]'))input.addEventListener('change',()=>{dirty();if(['fortigate_host','api_port','vdom','api_tls_verify'].includes(input.dataset.setting)){$('connection-result').textContent='Connection settings changed. Save and test this connection.';state.inventory=[];renderInterfaces()}const controls=key=>document.querySelector('[data-setting="monitoring.'+key+'"]');if(input.dataset.setting==='monitoring.syslog'&&!input.checked){controls('accounting').checked=false;controls('vlans').checked=false}if(input.dataset.setting==='monitoring.accounting'&&!input.checked)controls('vlans').checked=false;if(input.dataset.setting==='monitoring.accounting'&&input.checked)controls('syslog').checked=true;if(input.dataset.setting==='monitoring.vlans'&&input.checked){controls('accounting').checked=true;controls('syslog').checked=true}});
-for(const id of ['api-token','custom-ca','replace-token','replace-ca','insecure-ack'])$(id).addEventListener('input',()=>{dirty();$('connection-result').textContent='Connection settings changed. Save and test this connection.'});
+for(const input of document.querySelectorAll('[data-setting]'))input.addEventListener('change',()=>{dirty();if(['fortigate_host','api_port','vdom','api_tls_verify'].includes(input.dataset.setting)){$('connection-result').textContent='Connection settings changed. Save and test this connection.';state.inventory=[];renderInterfaces();invalidateDiscovery()}const controls=key=>document.querySelector('[data-setting="monitoring.'+key+'"]');if(input.dataset.setting==='monitoring.syslog'&&!input.checked){controls('accounting').checked=false;controls('vlans').checked=false}if(input.dataset.setting==='monitoring.accounting'&&!input.checked)controls('vlans').checked=false;if(input.dataset.setting==='monitoring.accounting'&&input.checked)controls('syslog').checked=true;if(input.dataset.setting==='monitoring.vlans'&&input.checked){controls('accounting').checked=true;controls('syslog').checked=true}});
+for(const id of ['api-token','custom-ca','replace-token','replace-ca','insecure-ack'])$(id).addEventListener('input',()=>{dirty();invalidateDiscovery();$('connection-result').textContent='Connection settings changed. Save and test this connection.'});
 $('test-connection').addEventListener('click',()=>action($('test-connection'),async()=>{$('connection-result').textContent='Testing saved connection…';await saveDraft();const d=await api('/api/connection/test',{revision:state.view.revision});$('connection-result').textContent=d.message+(Object.keys(d.device).length?' '+Object.values(d.device).join(' · '):'')}));
-$('discover-interfaces').addEventListener('click',()=>action($('discover-interfaces'),async()=>{state.inventory=[];renderInterfaces();$('inventory-caption').textContent='Discovery in progress. Previous selections require confirmation against this connection.';await saveDraft();const report=await api('/api/interfaces/discover',{revision:state.view.revision});state.inventory=report.interfaces;renderInterfaces();$('inventory-caption').textContent=report.coverage+' · '+report.notes.join(' ')}));$('interface-search').addEventListener('input',renderInterfaces);
-$('prepare').addEventListener('click',()=>action($('prepare'),async()=>{await saveDraft();state.plan=await api('/api/configuration/prepare',{revision:state.view.revision});$('plan-files').replaceChildren(...state.plan.changed_files.map(p=>E('li',p)));$('plan-warnings').replaceChildren(...state.plan.warnings.map(p=>E('li',p)));$('plan-review').hidden=false;$('approve-plan').checked=false}));
-$('apply').addEventListener('click',()=>action($('apply'),async()=>{if(!state.plan||!$('approve-plan').checked)throw safeError('Review the candidate and approve its changes first.');const job=await api('/api/configuration/apply',{revision:state.plan.revision,plan_id:state.plan.plan_id,confirm:true});watchJob(job.job_id).catch(e=>notice(errorText(e),true))}));
-$('rollback').addEventListener('click',()=>action($('rollback'),async()=>{if(!state.job)throw safeError('Choose a deployment with a retained configuration backup.');const job=await api('/api/configuration/rollback',{revision:state.view.revision,plan_id:state.job.plan_id,confirm:true});watchJob(job.job_id).catch(e=>notice(errorText(e),true))}));
+$('discover-interfaces').addEventListener('click',()=>action($('discover-interfaces'),async()=>{state.inventory=[];renderInterfaces();$('inventory-caption').textContent='Discovery in progress. Previous selections require confirmation against this connection.';await saveDraft();const report=await api('/api/interfaces/discover',{revision:state.view.revision});await reloadSettings();state.discoveryStale=false;state.inventory=report.interfaces;renderInterfaces();renderWorkflowReadiness();$('inventory-caption').textContent=report.coverage+' · '+report.notes.join(' ')}));$('interface-search').addEventListener('input',renderInterfaces);
+$('prepare').addEventListener('click',()=>action($('prepare'),async()=>{await saveDraft();state.plan=await api('/api/configuration/prepare',{revision:state.view.revision});$('plan-files').replaceChildren(...state.plan.changed_files.map(p=>E('li',p)));$('plan-warnings').replaceChildren(...state.plan.warnings.map(p=>E('li',p)));$('plan-review').hidden=false;$('approve-plan').checked=false;if(state.plan.discovery)state.view.discovery=state.plan.discovery;renderWorkflowReadiness()}));
+$('apply').addEventListener('click',()=>action($('apply'),async()=>{if(!state.plan||!$('approve-plan').checked)throw safeError('Review the candidate and approve its changes first.');if(discoveryBlocked())throw safeError('Save, test and discover interfaces for this connection before applying.');await beginDeployment('/api/configuration/apply',{revision:state.plan.revision,plan_id:state.plan.plan_id,confirm:true})}));
+$('rollback').addEventListener('click',()=>action($('rollback'),async()=>{if(!state.job)throw safeError('Choose a deployment with a retained configuration backup.');await beginDeployment('/api/configuration/rollback',{revision:state.view.revision,plan_id:state.job.plan_id,confirm:true})}));
+$('approve-plan').addEventListener('change',updateDeploymentControls);
+$('deployment-acknowledge').addEventListener('click',acknowledgeJob);
+$('deployment-refresh').addEventListener('click',()=>action($('deployment-refresh'),async()=>{await loadSystem();const latest=state.system?.latest_job;if(latest){state.jobUnknown=false;restoreLatestJob(latest)}else notice('No deployment history was returned. Review Diagnostics before retrying.',true)}));
+$('history-lookup-form').addEventListener('submit',e=>{e.preventDefault();action($('history-lookup'),async()=>{const id=$('history-lookup-id').value.trim();if(!/^[a-f0-9]{32}$/.test(id))throw safeError('Enter a recorded 32-character deployment ID.');const job=await api('/api/jobs/'+id);renderJobHistory(job)})});
+$('history-rollback').addEventListener('click',()=>action($('history-rollback'),async()=>{const plan=$('history-rollback').dataset.planId;if(!plan)throw safeError('Choose a deployment with a retained configuration backup.');await beginDeployment('/api/configuration/rollback',{revision:state.view.revision,plan_id:plan,confirm:true})}));
 $('password-form').addEventListener('submit',e=>{e.preventDefault();action($('password-form').querySelector('button'),async()=>{await api('/api/password',{current:$('current-password').value,password:$('new-password').value,confirmation:$('confirm-password').value});signedOut();$('auth-caption').textContent='Password changed. Sign in with your new password.'})});
 $('refresh-system').addEventListener('click',()=>action($('refresh-system'),loadSystem));$('run-diagnostics').addEventListener('click',()=>action($('run-diagnostics'),runDiagnostics));$('reload-console').addEventListener('click',()=>loadConsole(location.hash.slice(1)));
 window.addEventListener('hashchange',()=>{if(state.csrf)navigate(location.hash.slice(1))});

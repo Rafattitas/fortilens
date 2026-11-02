@@ -235,3 +235,11 @@ hr { margin: 24px 0; border: 0; border-top: 1px solid var(--line); }
 
 .console-refresh { display: none; font-size: 12px; flex-shrink: 0; }
 .console-mode .console-refresh { display: inline-flex; }
+
+#deployment-history { margin-top: 28px; }
+#deployment-history summary { color: var(--muted); }
+#deployment-history[open] summary { color: var(--text); }
+#history-job-id { overflow-wrap: anywhere; font-family: monospace; }
+.history-lookup { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-top: 20px; }
+.history-lookup label { width: 100%; }
+.history-lookup input { max-width: 360px; flex: 1; min-width: 180px; }
