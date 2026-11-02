@@ -4,11 +4,12 @@ from contextlib import asynccontextmanager
 import base64
 import hmac
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlsplit, urlencode
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.concurrency import run_in_threadpool
 from pydantic import Field, SecretStr
@@ -19,6 +20,59 @@ from .models import Apply, Change, Job, Revision, Strict
 
 STATIC=Path(__file__).parent/'static'
 COOKIE='fortilens_management'
+EMBEDDED_VIEWS={'monitoring','wan','devices','vlans','reports','quality'}
+
+
+def immutable_asset(path,method,status,content_type):
+    """Only authenticated, successful fingerprinted Grafana code is cacheable."""
+    match=re.fullmatch(r'/grafana/public/build/[A-Za-z0-9_./-]+\.[0-9a-f]{8,}\.(js|css)',path)
+    if method!='GET' or status!=200 or not match or '..' in path.split('/'):return False
+    kind=content_type.split(';',1)[0].strip().lower()
+    return kind in ({'application/javascript','text/javascript'} if match[1]=='js' else {'text/css'})
+
+# Only the existing reporting document receives shell styling. Native Grafana
+# keeps its own configured mount, boot settings, plugin URLs and saved dashboard.
+HOSTED_REPORT_CSS='''
+:root{--bg:#111217;--surface:#181c25;--border:#2b3342;--text:#e9edf5;--muted:#a5afc1;--blue:#87b4ff}
+header,aside,.page-head,footer,#login{display:none!important}
+#application[hidden]{display:none!important}
+#application:not([hidden]){display:block!important;min-height:0!important}
+#managed-report-status{padding:24px 2px;color:var(--muted);font-size:14px}
+#managed-report-status p{margin-bottom:12px}#managed-report-status a{color:var(--blue);display:inline-flex;min-height:44px;align-items:center}
+main{padding:0 2px 24px!important;max-width:none!important}
+.card,.section,.toolbar,.chart{background:transparent;border:0;border-radius:0;box-shadow:none}
+.toolbar{padding:0 0 18px;margin:0}.filters{margin-top:18px}
+.stats{gap:0;margin:0 0 24px;padding:18px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.stats .card{padding:0 20px;border-left:1px solid var(--border)}
+.stats .card:first-child{padding-left:0;border-left:0}
+.metric-value{font-size:27px;font-variant-numeric:tabular-nums}.metric-label{font-size:12px}
+.section-head{padding:18px 0;border-bottom:1px solid var(--border)}
+.section-head h2{font-size:16px}.section-head p{font-size:12px}
+.section{margin-bottom:24px}.empty{border:0;border-radius:0;padding:28px 12px}
+.periods button{min-height:44px}.context{font-size:12px}
+input,select{border-color:#63728b}.notice{border-radius:0;border-width:0 0 0 2px}
+.quality-grid>.card{padding:18px 0}.quality-grid{column-gap:32px}
+.pager{padding:14px 0}.chart{padding:18px 0}
+@media(max-width:700px){main{padding:0 0 20px!important}.toolbar{padding:0 0 16px}.stats{row-gap:22px}.stats .card{padding:0 12px}.stats .card:nth-child(2n+1){border-left:0;padding-left:0}.metric-value{font-size:23px}.periods{gap:4px}.periods button{font-size:12px;padding:8px 10px}input,select{font-size:16px}.filters{gap:14px}.section-head{padding:18px 0}.context{font-size:11px}.quality-grid>.card{padding:16px 0}}
+'''
+
+HOSTED_REPORT_STATUS='''<section id="managed-report-status" role="status"><p id="managed-report-message">Connecting to reports…</p><a id="managed-report-recovery" href="/#diagnostics" target="_top" hidden>Open diagnostics</a></section>'''
+HOSTED_REPORT_SCRIPT='''<script>
+(()=>{const app=document.getElementById('application'),status=document.getElementById('managed-report-status'),message=document.getElementById('managed-report-message'),recovery=document.getElementById('managed-report-recovery');let connected=false;
+const timer=setTimeout(()=>{if(app.hidden){message.textContent='Reports are taking longer than expected. Refresh this view or check diagnostics.';recovery.hidden=false}},8000);
+const update=()=>{status.hidden=!app.hidden;if(!app.hidden){connected=true;clearTimeout(timer)}else if(connected){message.textContent='Reports need to reconnect. Refresh this view or check diagnostics.';recovery.hidden=false}};
+new MutationObserver(update).observe(app,{attributes:true,attributeFilter:['hidden']});update()})();
+</script>'''
+
+
+def hosted_report(text,section=None):
+    """Style the trusted report template; untrusted input never becomes CSS."""
+    if 'id="managed-report-status"' in text:return text
+    css=HOSTED_REPORT_CSS
+    if section=='devices':css+='#vlan-section{display:none!important}'
+    if section=='vlans':css+='#device-section{display:none!important}'
+    return (text.replace("'/api/","'/console/api/").replace('</style>','\n'+css+'</style>')
+            .replace('<body>','<body>'+HOSTED_REPORT_STATUS).replace('</body>',HOSTED_REPORT_SCRIPT+'</body>'))
 
 
 class Login(Strict):
@@ -92,7 +146,8 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
             response=await call_next(request)
         except Problem as e:response=JSONResponse({'error':e.code,'message':e.message},status_code=e.status)
         except (ValueError,TypeError):response=JSONResponse({'error':'invalid_request','message':'The request could not be validated.'},status_code=400)
-        response.headers['Cache-Control']='no-store'
+        response.headers['Cache-Control']=('private, max-age=86400, immutable' if
+            immutable_asset(request.url.path,request.method,response.status_code,response.headers.get('content-type','')) else 'no-store')
         response.headers['X-Content-Type-Options']='nosniff'
         response.headers['Referrer-Policy']='same-origin'
         embedded=request.url.path.startswith(('/console/','/grafana/'))
@@ -101,7 +156,18 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
         return response
 
     @app.get('/')
-    def index():return FileResponse(STATIC/'index.html')
+    def index(request:Request):
+        # A parser-created frame loads reliably on initial entry. Keep this
+        # document independent of the helper/monitoring stack and never include
+        # session credentials or settings in its HTML.
+        text=(STATIC/'index.html').read_text(encoding='utf-8')
+        page=request.query_params.get('view','monitoring')
+        if page in EMBEDDED_VIEWS:
+            try:auth.session(request.cookies.get(COOKIE,''))
+            except Problem:pass
+            else:
+                text=text.replace('id="console-frame"','id="console-frame" data-initial-view="'+page+'" src="/console/initial-view?view='+page+'"',1)
+        return Response(text,media_type='text/html')
     app.mount('/static',StaticFiles(directory=STATIC),name='static')
 
     @app.get('/health')
@@ -176,6 +242,34 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
         # IDs and external documentation links containing the word grafana.
         return await console(request,'grafana/'+path)
 
+    @app.get('/console/initial-view')
+    async def initial_view(view:str='monitoring'):
+        # Fixed read-only destinations only; the ordinary session boundary above
+        # still protects the launch route and every redirected request.
+        if view not in EMBEDDED_VIEWS:
+            raise Problem('view_rejected','Choose a supported workspace view.',400)
+        config=await run_in_threadpool(helper.call,'view')
+        flags=config.get('active_monitoring')
+        enabled=(not flags or (any(flags.get(k) for k in ('wan','sla','interfaces','server')) if view=='monitoring'
+                 else flags.get('vlans' if view=='vlans' else 'wan' if view=='wan' else 'accounting')))
+        if not config['configured'] or not enabled:
+            raise Problem('view_unavailable','This view is not enabled. Review your installation settings.',503)
+        paths={'wan':'/console/#wan','devices':'/console/?section=devices#overview',
+               'vlans':'/console/?section=vlans#overview','reports':'/console/#overview','quality':'/console/#quality'}
+        if view=='monitoring':
+            result=await run_in_threadpool(helper.call,'console',{'path':'/api/monitoring-status','method':'GET','body':'','content_type':'application/json'})
+            try:status=json.loads(base64.b64decode(result['body']))
+            except (ValueError,KeyError,TypeError):raise Problem('view_unavailable','Monitoring could not confirm its configured view.',503) from None
+            if not isinstance(status,dict):
+                raise Problem('view_unavailable','Monitoring could not confirm its configured view.',503)
+            target=status.get('path')
+            if result['status']!=200 or not status.get('available'):
+                raise Problem('view_unavailable','Monitoring is unavailable. Review Diagnostics.',503)
+            if not isinstance(target,str) or not re.fullmatch(r'/grafana/d/[A-Za-z0-9_-]+/(?:\?kiosk(?:=true)?&theme=dark)?',target):
+                raise Problem('console_redirect_rejected','An unexpected monitoring destination was blocked.',502)
+        else:target=paths[view]
+        return Response(status_code=307,headers={'Location':target})
+
     @app.api_route('/console/{path:path}',methods=['GET','POST'])
     async def console(request:Request,path:str):
         suffix='/'+path+('?' + request.url.query if request.url.query else '')
@@ -190,14 +284,7 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
                 # redirect, while native assets/settings use the stable mount.
                 return Response(status_code=307,headers={'Location':suffix})
             if path=='':
-                text=text.replace("'/api/","'/console/api/")
-                # Existing reporting code renders received records unchanged.
-                # Hide its duplicate chrome when hosted in the management shell.
-                section=request.query_params.get('section')
-                css='header,aside,.page-head,footer{display:none!important}.layout{display:block!important}main{padding:12px!important}'
-                if section=='devices':css+='#vlan-section{display:none!important}'
-                if section=='vlans':css+='#device-section{display:none!important}'
-                text=text.replace('</style>','\n'+css+'</style>')
+                text=hosted_report(text,request.query_params.get('section'))
             body=text.encode()
         response=Response(body,status_code=result['status'],media_type=kind)
         if result.get('location'):

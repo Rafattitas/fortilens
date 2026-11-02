@@ -4,6 +4,15 @@ Test observable behavior and data preservation. Report the exact source head,
 environment, results and unresolved source-data limitations. Do not treat a green
 container/process status as evidence that all FortiGate traffic was captured.
 
+Initial entry is a separate browser check from clicking navigation links. Verify
+fresh root entry, full reload of Monitoring and Device usage, legacy hash-only
+links and the URL query for the selected view, without pressing Reload view.
+Authenticated initial HTML uses a parser-created protected launch frame; the
+launch endpoint must reject unknown/disabled views and unexpected redirect paths.
+The root HTML must remain available with the helper offline and never include
+session credentials. Mobile drawer/section controls and later navigation still
+need actual browser review. Passing API tests alone does not prove these flows.
+
 ## Automated coverage
 
 Portable CLI checks retain Python 3.10+ standard-library compatibility. Management
@@ -14,8 +23,13 @@ python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r management/requirements-test.txt
 python -m unittest discover -s tests -v
+python tests/check_frontend.py
 python portable/setup.py bundle --destination dist/fortilens-single-device.zip
 ```
+
+The standalone frontend syntax check uses a development Node.js executable to
+compile the console, reporting and managed-status scripts. It does not execute
+the application or add a Node.js dependency to the production installation.
 
 On a disposable Linux Docker-enabled test account:
 

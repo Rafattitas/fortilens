@@ -94,6 +94,12 @@ ZIP predates web management; management requires the current source checkout.
 
 ## Verification and continuation
 
+The console uses a continuous dark workspace, divided summary strips, viewport-
+filling native monitoring/reports and an accessible compact-screen drawer. Read
+[UI_DESIGN.md](UI_DESIGN.md) before changing the shell or hosted report styling.
+Preserve the native `/grafana/` mount and scope report presentation to `/console/`;
+do not replace saved Grafana panels or reintroduce nested framed surfaces.
+
 See [QA.md](QA.md), [MANAGEMENT_VERIFICATION.md](MANAGEMENT_VERIFICATION.md) and
 [VERIFICATION.md](VERIFICATION.md). Distinguish unit fixtures, isolated real
 service checks, live deployment checks and real firewall numeric evidence. Use
