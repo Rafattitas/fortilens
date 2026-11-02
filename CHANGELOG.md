@@ -4,6 +4,18 @@
 
 ### Error handling and recovery
 
+- Collapse successful deployment progress into compact history, restore only
+  active/failing operations, preserve explicit failure acknowledgement and guard
+  duplicate Apply/rollback requests. Add real-browser lifecycle regressions.
+- Resolve pending CA replacement/removal before candidate validation and return
+  safe typed configuration errors. Retained active CA plus disabled TLS remains
+  an explicit conflict requiring removal or verified TLS.
+- Show connection-scope discovery readiness and recorded deployment revisions;
+  diagnostics observe applied settings, distinguish polling from source delivery,
+  report explicit optional-probe policy and warn about disabled TLS verification.
+- Provide a narrowly validated optional-probe policy helper without changing
+  default probe coverage or silently weakening existing installations.
+
 - Return bounded, safe operational errors across management/helper HTTP,
   reporting/gateway services, CLI/installer/tools and browser transport. Keep
   successful API/CLI contracts and existing authentication checks.

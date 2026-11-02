@@ -130,6 +130,18 @@ retrying. The helper's bounded latest-job cache is not durable recovery storage.
 No runtime module moves, new dependencies, database schemas, Compose identities,
 accounting/WAN formulas or authentication policies accompany these changes.
 
+Deployment success leaves the main progress surface and remains in collapsed
+history; running operations restore tracking, failures require acknowledgement
+and recorded job IDs remain usable for older details. Optional requested/applied
+revision fields preserve old journals. Settings expose discovery readiness;
+monitoring diagnostics use the applied connection rather than an unapplied draft.
+Pending CA operations resolve before candidate validation. TLS-off with an active
+retained CA remains a typed conflict, never a silent trust-policy change.
+Selected optional exporter capabilities are reported separately; successful Loki
+polling does not establish delivery. Pinning requires an independently trusted
+reference and coordinated coverage of all clients; no partial pinning option is
+advertised. See [repair verification](REPAIR_VERIFICATION.md).
+
 Future work should follow the current user's request. Real-device source
 completeness, source identity, packet-time allocation and production capacity need
 site-specific evidence. Alert candidates remain opt-in; multi-device/tenant and
