@@ -9,6 +9,36 @@ permissions:
   contents: read
 
 jobs:
+  quality:
+    name: Repository quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            management/requirements*.txt
+      - name: Install development checks
+        run: python -m pip install -r requirements-dev.txt
+      - name: Check Python correctness
+        run: python -m ruff check .
+      - name: Check new tooling imports and formatting
+        run: |
+          python -m ruff check tools tests/test_repository_checks.py --extend-select I
+          python -m ruff format --check tools tests/test_repository_checks.py
+      - name: Check source grammar, documentation links and workflow YAML
+        run: python tools/check_repository.py
+      - name: Audit development and management dependency advisories
+        run: python -m pip_audit --strict -r requirements-dev.txt
+
   test:
     name: Python ${{ matrix.python }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -69,12 +99,26 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
+      - name: Set up development-only JavaScript syntax checker
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
       - name: Install management test dependencies
-        run: python -m pip install -r management/requirements-test.txt
+        run: python -m pip install -r requirements-dev.txt
       - name: Check shipped browser JavaScript syntax
         run: python tests/check_frontend.py
-      - name: Run all tests with the management dependencies
-        run: python -m unittest discover -s tests -v
+      - name: Run all tests with branch coverage
+        run: python -m coverage run -m unittest discover -s tests -v
+      - name: Report measured coverage
+        run: |
+          python -m coverage report -m
+          python -m coverage xml
+      - name: Upload coverage report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: python-coverage
+          path: coverage.xml
+          if-no-files-found: error
       - name: Run actual nonroot web / helper / Docker integration
         run: python tests/integration_management.py
 

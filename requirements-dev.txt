@@ -1,0 +1,7 @@
+# Developer/CI environment only (Python 3.11+). Do not install on portable hosts.
+# Runtime declarations remain in management/requirements*.txt; the portable CLI
+# still requires only the Python 3.10+ standard library.
+-r management/requirements-test.txt
+ruff==0.17.3
+coverage==7.17.0
+pip-audit==2.10.1
