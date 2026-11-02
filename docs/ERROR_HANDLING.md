@@ -80,7 +80,7 @@ Executed on Windows with Python 3.12.14 and the pinned development environment:
 
 | Check | Observed result |
 |---|---|
-| Complete unit suite with branch coverage | 260 tests passed, no skips; combined line/branch coverage 73.58%. |
+| Complete unit suite with branch coverage | 260 source tests passed before the packaging follow-up; all 261 passed from the corrected, actually extracted Full archive, with no skips and combined line/branch coverage 73.58%. |
 | Dependency-free portable environment | 197 tests, 6 explicit optional-dependency skips; passed before the final test-only cleanup synchronization correction. |
 | Failure regressions | 82 new tests across management, deployment/configuration, services/storage, CLI/tools and browser transport. |
 | Ruff correctness/imports and scoped formatting | Passed. Existing runtime-wide formatting remains separate. |
@@ -88,6 +88,8 @@ Executed on Windows with Python 3.12.14 and the pinned development environment:
 | Shipped frontend syntax | All three scripts passed Node compilation. |
 | Workflow actionlint | Both workflows passed, with external shellcheck/pyflakes integrations disabled. |
 | Dependency advisory audit | `pip_audit --strict -r requirements-dev.txt` reported no known vulnerabilities at execution time. |
+| Candidate archive build/verify | Both distributions and SHA256 verified: 122 Full files and the existing 23 Portable files. |
+| Real extraction and portable rebuild | Passed, including the added packaging regression; validated source payload tree `22dee490ac4825174514eb1ac85a4b257e295c2e`. |
 
 Regression evidence includes auth/error headers, secret-bearing synthetic
 exceptions, disconnects, worker checkpoint preservation, secondary storage/log
@@ -98,10 +100,13 @@ unless this operation actually attempted installation. Threaded HTTP cleanup
 tests synchronize on completion rather than assume response receipt means that
 the server's `finally` block already ran.
 
-The existing release tests exercise manifest completeness, byte reproducibility,
-checksums and extracted CLI/accounting behavior. They are part of the complete
-suite above. Final candidate archives still require the separate build/verify and
-packaged acceptance procedures in [RELEASING.md](RELEASING.md).
+The release tests exercise manifest completeness, byte reproducibility,
+checksums and extracted CLI/accounting behavior. Actual extraction exposed a
+pre-1980 ZIP timestamp failure that byte-only extraction had missed. Full archive
+member times now use 1980-01-02 UTC; the unchanged portable bundle selector works
+from the extracted source, and all 261 tests pass there. No tag or release was
+published. Packaged Ubuntu/systemd installation still requires the separate
+disposable acceptance procedure in [RELEASING.md](RELEASING.md).
 
 Docker, Unix peer/socket permissions and real Ubuntu/systemd installation cannot
 run on this Windows host without a disposable Linux environment. Use the exact
