@@ -257,21 +257,22 @@ class Operations:
     def dispatch(self, operation, data):
         if operation in ('view','status','diagnostics') and data:
             raise Problem('unexpected_fields','This operation accepts no additional fields.')
-        if operation=='view':return self.c.view()
+        if operation=='view':return self.view()
         if operation=='status':return self.status()
         if operation=='diagnostics':return self.diagnostics()
         if operation=='save':
             if self.busy.locked():raise Problem('deployment_busy','A deployment is running. Wait before saving.',409)
-            return self.c.save(data)
+            result=self.c.save(data);result['discovery']=self.discovery_readiness();return result
         if operation=='prepare':
             rev=Revision.model_validate(data)
             if self.busy.locked():raise Problem('deployment_busy','A deployment is already running.',409)
-            plan=self.c.prepare(rev.revision);self.docker.validate(plan['plan_id']);return plan
+            plan=self.c.prepare(rev.revision);self.docker.validate(plan['plan_id']);plan['discovery']=self.discovery_readiness();return plan
         if operation in ('test','discover'):
             Revision.model_validate(data)
             try:
                 result=self.device(operation,data['revision'])
                 if operation=='test':atomic(self.c.control/'connection-test.json',{'at':time.time(),'scope':self.inventory_scope(Settings.model_validate(self.c.state()['settings'])),'result':result})
+                if operation=='discover':result['discovery']=self.discovery_readiness()
                 return result
             except Problem as e:
                 if operation=='test':atomic(self.c.control/'connection-test.json',{'at':time.time(),'revision':data['revision'],'result':{'status':'failed','message':e.message,'code':e.code}})
@@ -283,6 +284,24 @@ class Operations:
             return self.read_job(request.job_id)
         if operation=='console':return self.console(Console.model_validate(data))
         raise Problem('operation_rejected','This management operation is not supported.',403)
+
+    def view(self):
+        result=self.c.view();result['discovery']=self.discovery_readiness();return result
+
+    def discovery_readiness(self):
+        state=self.c.state();settings=Settings.model_validate(state['settings'])
+        previous=state.get('applied') or {}
+        fields=('wan_interfaces','fortigate_host','api_port','vdom','api_tls_verify')
+        changed=[key for key in fields if previous.get(key)!=state['settings'].get(key)]
+        required=bool(settings.wan_interfaces) and (not state['configured'] or bool(changed))
+        if not required:return {'required':False,'current':True,'changed_fields':changed,'reason':'No new interface discovery is required for this draft.'}
+        try:
+            inventory=load(self.c.control/'inventory.json',{})
+            current=isinstance(inventory,dict) and inventory.get('scope')==self.inventory_scope(settings)
+            if current:interfaces.selected_names(inventory['report'],settings.wan_interfaces,settings.vdom)
+        except (Problem,OSError,ValueError,TypeError,KeyError):current=False
+        return {'required':True,'current':bool(current),'changed_fields':changed,
+                'reason':'Interface discovery matches this connection and WAN selection.' if current else 'Connection, trust, credentials or WAN selection changed. Save, discover interfaces and confirm the Internet interfaces before Apply.'}
 
     def credentials(self, settings):
         pending=load(self.c.secret_path,{})
@@ -424,7 +443,11 @@ class Operations:
         return result
 
     def diagnostics(self):
-        state=self.c.state();settings=Settings.model_validate(state['settings']);c=settings.portable(load(self.c.root/state['site_file'],{}))
+        state=self.c.state()
+        # Collection diagnostics describe the running installation, not an
+        # unapplied connection draft. Draft readiness is shown by Settings.
+        observed=state.get('applied') if state['configured'] else state['settings']
+        settings=Settings.model_validate(observed or state['settings']);c=settings.portable(load(self.c.root/state['site_file'],{}))
         def raw_request(p,config,path,method='GET',body=None,timeout=15):
             if path=='/api/health':return self.docker.http('grafana',3000,('/grafana' if 'fortilens-portal' in (self.c.compose() or {'services':{}})['services'] else '')+'/api/health')
             for uid,service,port in ((setup.PROM_UID,'prometheus',9090),(setup.LOKI_UID,'loki',3100)):
@@ -447,8 +470,14 @@ class Operations:
             # subprocess-based status reader is replaced with approved helper data.
             rows=self.docker.statuses()
             checks=[doctor.check('service:'+r['service'],'PASS' if r['status']=='running' else 'WARN',r['service']+': '+str(r['status']),'service_state') for r in rows]
+            compose=self.c.compose() or {};exporter=compose.get('services',{}).get('fortigate-exporter',{})
+            command=exporter.get('command',[])
+            destination=next((command[i+1] for i,x in enumerate(command[:-1]) if x=='-auth-file'),'/config/fortigate-key.yaml')
+            auth=yaml.safe_load(self.c.bound_file(compose,'fortigate-exporter',destination).read_text()) if exporter else {}
+            record=auth.get(self.c.auth_key(auth,c),{}) if auth else {}
+            exclusions=(record.get('probes') or {}).get('exclude',[])
             report=doctor.run(self.c.root,c,request,lambda *a:[],setup.PROM_UID,setup.LOKI_UID,
-                              service_reader=lambda *a,**k:checks,usage_request=lambda *a:self.accounting_diagnostics(c))
+                              service_reader=lambda *a,**k:checks,usage_request=lambda *a:self.accounting_diagnostics(c),probe_exclusions=exclusions)
             previous=load(self.c.control/'connection-test.json',{})
             recent=previous and time.time()-previous['at']<300
             same=recent and previous.get('scope')==self.inventory_scope(settings)
@@ -473,7 +502,9 @@ class Operations:
         if settings.monitoring.accounting:
             try:collection['processing_lag_seconds']=self.accounting_diagnostics(c).get('processing_lag_seconds')
             except (Problem,OSError,ValueError,TypeError):pass
-        return {'monitoring':report,'system':self.status(),'collection':collection,'read_only':True}
+        return {'monitoring':report,'system':self.status(),'collection':collection,'read_only':True,
+                'observed_revision':state.get('applied_revision') if state['configured'] else None,
+                'saved_revision':state['revision']}
 
     def accounting_diagnostics(self,c):
         compose=self.c.compose() or {}
@@ -521,7 +552,7 @@ class Operations:
     def apply(self,request):
         if not request.confirm:raise Problem('confirmation_required','Review the candidate before applying it.')
         if not self.busy.acquire(blocking=False):raise Problem('deployment_busy','A deployment is already running.',409)
-        identity=os.urandom(16).hex();job={'job_id':identity,'plan_id':request.plan_id,'status':'starting','phase':'queued','events':[]}
+        identity=os.urandom(16).hex();job={'job_id':identity,'plan_id':request.plan_id,'requested_revision':request.revision,'status':'starting','phase':'queued','events':[]}
         queued=False
         try:
             self._progress(job,'queued','Preparing the approved configuration.')
@@ -566,7 +597,7 @@ class Operations:
                 self._progress(job,'diagnostics','Checking collection evidence. Missing FortiGate data is not a deployment failure.')
                 diagnostic=self.diagnostics()
                 self.c.complete(request.plan_id)
-                self._safe_progress(job,'complete','Configuration applied. Review any collection warnings in Diagnostics.',status='complete',services=services,diagnostics=diagnostic)
+                self._safe_progress(job,'complete','Configuration applied. Review any collection warnings in Diagnostics.',status='complete',services=services,diagnostics=diagnostic,applied_revision=self.c.state().get('applied_revision'))
         except Exception as e:
             report_failure('deployment_failed',e)
             restored=False
@@ -588,7 +619,7 @@ class Operations:
         if not request.confirm:raise Problem('confirmation_required','Confirm the configuration rollback.')
         if request.revision!=self.c.state()['revision']:raise Problem('revision_conflict','Reload the latest configuration before choosing rollback.',409)
         if not self.busy.acquire(blocking=False):raise Problem('deployment_busy','Wait for the running operation.',409)
-        identity=os.urandom(16).hex();job={'job_id':identity,'plan_id':request.plan_id,'status':'starting','events':[]}
+        identity=os.urandom(16).hex();job={'job_id':identity,'plan_id':request.plan_id,'requested_revision':request.revision,'status':'starting','events':[]}
         def run():
             try:
                 _,plan=self.c.plan(request.plan_id)
@@ -597,11 +628,11 @@ class Operations:
                     # No original stack exists on a failed first install: stop
                     # only this registered project's services; retain all files/data.
                     self.docker.run(self.docker.command()+['stop',*[n for n in SERVICES if n in self.c.compose()['services']]])
-                    self._safe_progress(job,'complete','Fresh-install services stopped; all data retained.',status='complete')
+                    self._safe_progress(job,'complete','Fresh-install services stopped; all data retained.',status='complete',applied_revision=self.c.state().get('applied_revision'))
                     return
                 s=Settings.model_validate(plan['previous']['settings']);enabled,disabled=enabled_services(s,self.c.compose())
                 self.docker.start(enabled,disabled);self.docker.ready(enabled)
-                self._safe_progress(job,'complete','Previous configuration restored; no application-data rollback was attempted.',status='complete')
+                self._safe_progress(job,'complete','Previous configuration restored; no application-data rollback was attempted.',status='complete',applied_revision=self.c.state().get('applied_revision'))
             except Exception as e:
                 report_failure('rollback_failed',e)
                 self._failed_job(job,e.message if isinstance(e,Problem) else 'Rollback could not be completed. Retained data was not deleted; review diagnostics.')

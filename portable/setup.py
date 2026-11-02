@@ -48,6 +48,49 @@ class SetupError(Exception):
     pass
 
 
+OPTIONAL_EXPORTER_PROBES = (
+    'Log/Fortianalyzer/Status', 'System/Interface/Transceivers', 'System/SensorInfo',
+)
+
+
+def exclude_optional_probes(record, exclusions):
+    """Build a reviewed profile; never change required probes or defaults.
+
+    Names match the pinned exporter 1.25 registry. Callers verify capabilities
+    before explicitly selecting exclusions. Credentials and existing rules stay.
+    """
+    if (not isinstance(record, dict) or not isinstance(exclusions, list)
+            or any(name not in OPTIONAL_EXPORTER_PROBES for name in exclusions)):
+        raise SetupError('Choose only individually verified optional exporter probes')
+    result = deepcopy(record)
+    profile = result.get('probes')
+    if profile is None:profile = {}
+    if not isinstance(profile, dict) or set(profile)-{'include','exclude'}:
+        raise SetupError('Review the existing exporter probe policy before changing it')
+    for names in profile.values():
+        if (not isinstance(names, list) or any(not isinstance(name,str) or len(name)>128
+                or not re.fullmatch(r'[A-Za-z0-9_/-]*',name) for name in names)):
+            raise SetupError('Review the existing exporter probe policy before changing it')
+    if exclusions:
+        profile.setdefault('exclude',[])
+        profile['exclude'].extend(name for name in exclusions if name not in profile['exclude'])
+        result['probes'] = profile
+    return result
+
+
+def exporter_probe_exclusions(installation, config):
+    """Read generated JSON profiles only; unknown/custom formats stay unknown."""
+    try:
+        record=load(Path(installation)/'secrets/fortigate-key.yaml')[target_url(config)]
+        profile=record.get('probes')
+        if profile is None:return []
+        if not isinstance(profile,dict):return None
+        names=profile.get('exclude',[])
+        return names if isinstance(names,list) and all(isinstance(x,str) for x in names) else None
+    except (OSError,ValueError,KeyError,TypeError,AttributeError):
+        return None
+
+
 def dumps(value):
     return json.dumps(value, ensure_ascii=False, indent=2) + "\n"
 
@@ -724,7 +767,8 @@ def main(argv=None):
             elif args.command == "doctor":
                 import doctor
                 report = doctor.run(p, c, grafana_request, compose_command, PROM_UID, LOKI_UID,
-                                    freshness=args.freshness_seconds, direct_api=args.api_check)
+                                    freshness=args.freshness_seconds, direct_api=args.api_check,
+                                    probe_exclusions=exporter_probe_exclusions(p,c))
                 return doctor.print_report(report, args.json)
             elif args.command == "interfaces":
                 interface_command(p, c, args)

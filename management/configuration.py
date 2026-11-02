@@ -406,15 +406,20 @@ class Configuration:
             if not token:
                 raise Problem('token_required', 'Save the FortiGate API token before preparing deployment.')
             baseline = load(self.root / state['site_file'], {})
-            c = settings.portable(baseline)
             pending = load(self.secret_path, {})
             if pending and pending.get('revision')!=state['revision']:
                 raise Problem('interrupted_draft','The last draft save was interrupted. Save the form again before preparing.')
+            # Resolve write-only CA operations before validating the effective
+            # candidate. An applied CA must not invalidate its pending removal.
+            baseline = deepcopy(baseline)
+            if 'ca' in pending:
+                baseline['api_ca_file'] = 'secrets/web-fortigate-ca.pem' if pending['ca'] else ''
+            if not settings.api_tls_verify and baseline.get('api_ca_file'):
+                raise Problem('tls_ca_conflict','A custom CA cannot be actively used while TLS verification is disabled. Explicitly remove the custom CA or enable certificate verification.')
+            c = settings.portable(baseline)
             identity = secrets.token_hex(16)
             folder = self.control / 'plans' / identity
             folder.mkdir(parents=True, mode=0o700)
-            if 'ca' in pending:
-                c['api_ca_file'] = 'secrets/web-fortigate-ca.pem' if pending['ca'] else ''
             # render reads CA files but accepts no browser-supplied paths.
             render_config = deepcopy(c)
             if c['api_ca_file']:

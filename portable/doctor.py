@@ -94,7 +94,12 @@ def metric_snapshot(p, c, request, prom_uid, now, freshness):
                 points.append((stamp, value))
         if points:
             stamp, value = max(points)
-            result.append({"labels": row["metric"], "age": now - stamp, "value": value})
+            sample={"labels": row["metric"], "age": now - stamp, "value": value,
+                    "observed_at":stamp}
+            if row['metric'].get('__name__') in ('up','probe_success'):
+                sample['last_success_at']=max((t for t,v in points if v==1),default=None)
+                sample['last_failure_at']=max((t for t,v in points if v!=1),default=None)
+            result.append(sample)
     return result
 
 
@@ -127,14 +132,23 @@ def metrics_checks(samples, c, freshness):
         result.append(absent("fortigate_scrape", rows))
     rows = select("probe_success")
     latest = fresh(rows)
+    evidence={'newest_sample_age_seconds':round(min((x['age'] for x in latest),default=0),1)} if latest else {}
+    for key in ('observed_at','last_success_at','last_failure_at'):
+        values=[x[key] for x in latest if isinstance(x.get(key),(int,float)) and math.isfinite(x[key])]
+        if values:evidence[key]=max(values)
+    if latest:evidence['observation_window_seconds']=2*freshness
     if latest and all(x["value"] == 1 for x in latest) and scrape_failed:
         result.append(check("fortigate_api", "UNKNOWN", "An earlier successful probe does not confirm readiness after a newer failed scrape.",
                             "probe_not_current", "Wait for a new successful sample or use --api-check."))
     elif latest and all(x["value"] == 1 for x in latest):
-        result.append(check("fortigate_api", "PASS", "Recent exporter probes succeeded. This does not verify every API permission.", "probe_ok"))
+        result.append(check("fortigate_api", "PASS", "Recent selected exporter probes succeeded. This does not verify excluded endpoints or every API permission.", "probe_ok", **evidence))
     elif latest:
-        result.append(check("fortigate_api", "FAIL", "The exporter recorded a failed FortiGate probe; this metric alone does not identify the cause.",
-                            "probe_failed", "Use --api-check to inspect API connectivity, authentication, and TLS. This does not establish a WAN outage."))
+        partial=any(fresh(select(metric)) for metric in ('fortigate_virtual_wan_status','fortigate_interface_link_up'))
+        message=('Exporter collection is partial: recent interface or SLA metrics exist, but a selected probe failed.' if partial
+                 else 'The exporter recorded a failed FortiGate probe; this metric alone does not identify the cause.')
+        result.append(check("fortigate_api", "FAIL", message,
+                            "probe_failed", "Review endpoint-specific collector errors and the supported probe policy; retain required interface and SLA probes. A separate system/status test does not verify every probe or establish a WAN outage.",
+                            partial_metrics_received=partial,failure_category='selected_probe_failure',**evidence))
     else:
         result.append(absent("fortigate_api", rows))
 
@@ -276,6 +290,46 @@ def accounting_request(p,c):
     return json.loads(body)
 
 
+def probe_policy_check(exclusions):
+    """Report explicit omissions separately; aggregate success is selected-only."""
+    if exclusions is None:return []
+    if not isinstance(exclusions,list) or any(not isinstance(x,str) for x in exclusions):
+        return [check('exporter_probe_policy','UNKNOWN','The exporter probe policy could not be interpreted.',
+            'exporter_policy_unknown','Review the registered target profile privately; credentials are hidden.')]
+    if not exclusions:return []
+    optional={'Log/Fortianalyzer/Status','System/Interface/Transceivers','System/SensorInfo'}
+    selected=sorted(set(exclusions)&optional)
+    custom=any(name not in optional for name in exclusions)
+    return [check('exporter_probe_policy','WARN',
+        'A custom exporter exclusion policy needs review; aggregate success does not cover excluded capabilities.' if custom else
+        'Optional capabilities are explicitly not collected: '+', '.join(selected)+'. Selected-probe success does not establish their availability.',
+        'exporter_custom_probe_policy' if custom else 'exporter_optional_probes_excluded',
+        'Retain required interface, device and Virtual WAN/SLA probes. Review omitted capabilities separately; do not infer that FortiGate is unreachable.',
+        excluded_optional_probes=selected,custom_exclusions_present=custom)]
+
+
+def accounting_delivery_check(report,now,freshness):
+    stamp=report.get('last_delivery_ns')
+    try:
+        if type(stamp) not in (int,float) or stamp<0:raise ValueError()
+        seconds=stamp/1e9
+        if not math.isfinite(seconds):raise ValueError()
+        observed=datetime.fromtimestamp(seconds,timezone.utc).isoformat()
+    except (ValueError,TypeError,OverflowError,OSError):
+        return check('accounting_delivery','UNKNOWN',
+            'No usage-log delivery observation is available. Successful polling does not mean traffic was collected.',
+            'accounting_delivery_unobserved',
+            'Check sender, listener, Alloy and Loki evidence. No collected data is not zero Internet usage; do not reset the accounting database.')
+    age=now-seconds
+    current=-30<=age<=freshness
+    return check('accounting_delivery','PASS' if current else 'WARN',
+        'Recent log delivery was observed. This does not prove eligible Internet usage or complete capture.' if current else
+        'The latest log delivery is old or future-dated; current collection has not been established.',
+        'accounting_delivery_observed' if current else 'accounting_delivery_stale_or_clock_skew',
+        'Review source traffic, ingestion counters and clock synchronization; a quiet interval is not proof of a network failure.',
+        last_delivery_at=observed,delivery_age_seconds=round(age,1),traffic_coverage='UNKNOWN')
+
+
 def accounting_checks(report,now,freshness):
     if not isinstance(report,dict):raise ValueError('Invalid accounting diagnostics')
     result=[]
@@ -286,6 +340,7 @@ def accounting_checks(report,now,freshness):
         'The usage engine recently processed a Loki poll.' if ready else 'A recent successful usage-engine poll was not established.',
         'accounting_poll_ok' if ready else 'accounting_poll_unavailable',
         '' if ready else 'Review engine reachability and its bounded-query/storage status; processing success does not certify traffic completeness.'))
+    result.append(accounting_delivery_check(report,now,freshness))
     lag=report.get('processing_lag_seconds')
     caught_up=isinstance(lag,(int,float)) and math.isfinite(lag) and 0<=lag<=freshness
     result.append(check('accounting_lag','PASS' if caught_up else 'WARN',
@@ -313,7 +368,7 @@ def accounting_checks(report,now,freshness):
     return result
 
 
-def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, direct_api=False, now=None, usage_request=None, service_reader=None):
+def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, direct_api=False, now=None, usage_request=None, service_reader=None, probe_exclusions=None):
     if type(freshness) is not int or not 60 <= freshness <= 3600:
         raise ValueError("freshness must be between 60 and 3600 seconds")
     now = time.time() if now is None else now
@@ -377,6 +432,13 @@ def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, di
         except (OSError,ValueError,TypeError,KeyError,urllib.error.URLError,http.client.HTTPException):
             checks.append(check('accounting_api','UNKNOWN','Usage-engine diagnostics are unavailable.',
                 'accounting_diagnostics_unavailable','Review the optional service and its local reporting address. No source traffic or WAN state is inferred.'))
+    checks.extend(probe_policy_check(probe_exclusions))
+    if c.get('api_tls_verify',True) is False:
+        checks.append(check('fortigate_tls','WARN',
+            'FortiGate certificate verification is disabled. API success does not authenticate the server identity.',
+            'tls_verification_disabled',
+            'Use an approved certificate verification design. Without an independently trusted reference, certificate pinning cannot be established safely. Do not change FortiGate settings automatically.',
+            verification_enabled=False,requires_fortigate_change=False))
     status = next((s for s in ["FAIL", "WARN", "UNKNOWN"] if any(x["status"] == s for x in checks)), "PASS")
     return {"schema_version": 1, "checked_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
             "status": status, "read_only": True, "direct_api_requested": direct_api,
