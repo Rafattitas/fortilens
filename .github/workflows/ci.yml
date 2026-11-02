@@ -32,8 +32,8 @@ jobs:
         run: python -m ruff check .
       - name: Check new tooling imports and formatting
         run: |
-          python -m ruff check tools tests/test_repository_checks.py --extend-select I
-          python -m ruff format --check tools tests/test_repository_checks.py
+          python -m ruff check tools tests/test_repository_checks.py tests/test_release.py --extend-select I
+          python -m ruff format --check tools tests/test_repository_checks.py tests/test_release.py
       - name: Check source grammar, documentation links and workflow YAML
         run: python tools/check_repository.py
       - name: Audit development and management dependency advisories
