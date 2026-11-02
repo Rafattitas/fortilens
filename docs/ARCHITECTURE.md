@@ -1,6 +1,9 @@
 # Architecture
 
-One FortiGate per independent Linux installation. Six monitoring services remain; an explicitly enabled seventh service adds persistent accounting. The existing exporter remains the WAN SLA source.
+One FortiGate per independent Linux installation. The six base monitoring
+services remain; explicitly enabling accounting adds a seventh service and the
+optional unified gateway adds an eighth. A full fresh web setup normally enables
+both. The existing exporter remains the WAN SLA source.
 
 | Service | Purpose |
 |---|---|
@@ -11,6 +14,11 @@ One FortiGate per independent Linux installation. Six monitoring services remain
 | Loki | Raw received logs and legacy diagnostics. |
 | Grafana | Monitoring dashboards and separately reviewed optional alerts. |
 | Optional Python/SQLite worker | Bounded incremental reads, event/session identity, transactional daily summaries and protected device/VLAN/history/quality reports. |
+| Optional monitoring/report gateway | Authenticated read-only native Grafana and report access; shares Grafana's network namespace. |
+
+Web management adds independent `fortilens-web` and `fortilens-helper` systemd
+services, outside Compose. See [management architecture](MANAGEMENT_ARCHITECTURE.md)
+for their privilege boundary and continued availability when monitoring fails.
 
 SQLite uses one writer, WAL and full synchronous transactions. Idempotent ingestion/checkpoint commits and retained baselines prevent ordinary retry/restart duplication. Daily summaries avoid reparsing a month of raw logs on every request. PostgreSQL is unnecessary for this single-host design; multiple writers/HA need a separate architecture review.
 

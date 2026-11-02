@@ -1,6 +1,13 @@
-name: Release bundle
+name: Release distributions
 
 on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Prospective SemVer tag to validate; this does not create a tag or release'
+        required: true
+        default: 'v0.3.0-rc.1'
   release:
     types: [published]
 
@@ -8,17 +15,17 @@ permissions:
   contents: read
 
 jobs:
-  bundle:
-    name: Test, package and attach release files
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: write
+  build:
+    name: Build and verify both distributions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     env:
       PYTHONUTF8: '1'
-      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      REQUESTED_VERSION: ${{ github.event.release.tag_name || inputs.version }}
     steps:
-      - name: Check out the released source
+      - name: Check out the reviewed source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -26,23 +33,116 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
-      - name: Validate version tag
+      - name: Select the prospective version and build
+        id: version
         shell: bash
         run: |
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]
-      - name: Run tests
-        run: python -m unittest discover -s tests -v
-      - name: Verify isolated Docker accounting pipeline
-        run: python tests/integration_stack.py
-      - name: Build allowlisted bundle and checksum
-        shell: bash
-        run: |
-          python portable/setup.py bundle --destination "dist/fortilens-$RELEASE_TAG.zip"
-          cd dist
-          sha256sum "fortilens-$RELEASE_TAG.zip" > SHA256SUMS.txt
-      - name: Attach verified files
+          version="${REQUESTED_VERSION:-v0.0.0-ci.${GITHUB_RUN_ID}}"
+          python tools/release.py build --version "$version" --output dist
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Verify archive allowlists, checksums and portable compatibility
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: python tools/release.py verify --version "$RELEASE_VERSION" --directory dist
+      - name: Retain candidate artifacts for isolated acceptance
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fortilens-release-candidates
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  acceptance:
+    name: Packaged source / ${{ matrix.scenario }}
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [unit-and-stack, management, ubuntu-installer]
+    env:
+      PYTHONUTF8: '1'
+      RELEASE_VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Set up development-only frontend syntax checker
+        if: matrix.scenario == 'unit-and-stack'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Download only this run's validated candidates
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: fortilens-release-candidates
+          path: dist
+      - name: Verify checksums and unpack the full source artifact
         shell: bash
-        run: gh release upload "$RELEASE_TAG" "dist/fortilens-$RELEASE_TAG.zip" dist/SHA256SUMS.txt
+        run: |
+          (cd dist && sha256sum --check SHA256SUMS.txt)
+          mkdir "$RUNNER_TEMP/fortilens-packaged"
+          tar -xzf "dist/fortilens-$RELEASE_VERSION-full.tar.gz" -C "$RUNNER_TEMP/fortilens-packaged"
+          echo "PACKAGED_SOURCE=$RUNNER_TEMP/fortilens-packaged/fortilens" >> "$GITHUB_ENV"
+      - name: Install management test dependencies from the artifact
+        run: python -m pip install -r "$PACKAGED_SOURCE/management/requirements-test.txt"
+      - name: Verify the extracted artifact against both distributions
+        shell: bash
+        run: python "$PACKAGED_SOURCE/tools/release.py" verify --version "$RELEASE_VERSION" --directory "$GITHUB_WORKSPACE/dist"
+      - name: Run packaged unit, frontend and isolated accounting checks
+        if: matrix.scenario == 'unit-and-stack'
+        shell: bash
+        run: |
+          cd "$PACKAGED_SOURCE"
+          python -m unittest discover -s tests -v
+          python tests/check_frontend.py
+          python tests/integration_stack.py
+      - name: Run packaged nonroot web/helper and Docker acceptance
+        if: matrix.scenario == 'management'
+        shell: bash
+        run: |
+          cd "$PACKAGED_SOURCE"
+          python tests/integration_management.py
+      - name: Install explicit ephemeral-VM prerequisites
+        if: matrix.scenario == 'ubuntu-installer'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv
+      - name: Bootstrap twice from the packaged executable installer
+        if: matrix.scenario == 'ubuntu-installer'
+        shell: bash
+        run: |
+          cd "$PACKAGED_SOURCE"
+          test -x install.sh
+          sudo ./install.sh > "$RUNNER_TEMP/fortilens-packaged-install.log"
+          sudo ./install.sh > "$RUNNER_TEMP/fortilens-packaged-repeat.log"
+          sudo systemctl is-active --quiet fortilens-helper fortilens-web
+          test "$(id -nG fortilens | tr ' ' '\n' | grep -c '^docker$')" = 0
+          sudo env GITHUB_ACTIONS=true /opt/fortilens/venv/bin/python tests/integration_management.py --installed
+      - name: Stop only this disposable VM's management services
+        if: always() && matrix.scenario == 'ubuntu-installer'
+        run: sudo systemctl stop fortilens-web fortilens-helper || true
+
+  attach:
+    name: Attach verified assets to an explicitly published release
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: [build, acceptance]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Download the exact accepted artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: fortilens-release-candidates
+          path: dist
+      - name: Recheck artifact checksums
+        run: cd dist && sha256sum --check SHA256SUMS.txt
+      - name: Attach without replacing any published file
+        run: gh release upload "$RELEASE_VERSION" "dist/fortilens-$RELEASE_VERSION-full.tar.gz" "dist/fortilens-$RELEASE_VERSION.zip" dist/SHA256SUMS.txt

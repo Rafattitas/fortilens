@@ -74,15 +74,24 @@ def from_metrics(response, now=None, freshness=300):
     if not isinstance(response, dict) or response.get("status") != "success":
         raise InventoryError("metrics_invalid", "Exporter inventory metrics could not be read.")
     data = response.get("data", {})
-    if data.get("resultType") != "matrix" or not isinstance(data.get("result"), list):
+    if not isinstance(data,dict) or data.get("resultType") != "matrix" or not isinstance(data.get("result"), list):
         raise InventoryError("metrics_invalid", "Exporter inventory returned an unsupported response.")
     result = []
     for series in data["result"]:
+        if not isinstance(series,dict) or not isinstance(series.get('metric',{}),dict) or not isinstance(series.get('values',[]),list):
+            raise InventoryError('metrics_invalid','Exporter inventory returned an unsupported response.')
         labels = series.get("metric", {})
         name = text(labels.get("name"))
         if not name:
             continue
-        stamps = [float(p[0]) for p in series.get("values", []) if len(p) == 2 and math.isfinite(float(p[0]))]
+        stamps = []
+        for sample in series.get('values',[]):
+            if not isinstance(sample,(list,tuple)) or len(sample)!=2:
+                raise InventoryError('metrics_invalid','Exporter inventory returned an unsupported response.')
+            try:stamp=float(sample[0])
+            except (ValueError,TypeError,OverflowError):
+                raise InventoryError('metrics_invalid','Exporter inventory returned an unsupported response.') from None
+            if math.isfinite(stamp):stamps.append(stamp)
         if not stamps or not -30 <= now - max(stamps) <= freshness:
             continue
         item = row(name, text(labels.get("vdom")), "exporter")
@@ -178,6 +187,8 @@ def cmdb_get(c, token, *, start=0, base=None):
         if len(payload) > 8 * 1024 * 1024:
             raise InventoryError("api_too_large", "The interface API response exceeded the safe inventory size.")
         return json.loads(payload)
+    except InventoryError:
+        raise
     except urllib.error.HTTPError as exc:
         message = {401: "Interface API authentication was rejected (401).",
                    403: "Interface API access was denied (403); review read permissions and VDOM scope."}.get(exc.code,
@@ -208,7 +219,7 @@ def collect(c, token, *, request=None, installation=None, prom_uid="fm-prometheu
                 metrics = from_metrics(request(installation, c, path, timeout=15))
                 if not metrics:
                     notes.append("No recent exporter interface samples were received.")
-            except (OSError, ValueError, KeyError, TypeError, InventoryError):
+            except (OSError, ValueError, KeyError, TypeError, AttributeError, InventoryError):
                 notes.append("Exporter inventory unavailable; no interface state is inferred.")
         else:
             notes.append("Exporter metrics are not yet available before installation startup.")
@@ -237,7 +248,19 @@ def collect(c, token, *, request=None, installation=None, prom_uid="fm-prometheu
                     partial = True
                 coverage = "Accessible API response for the requested VDOM" + ("; partial response" if partial else "")
             except InventoryError as exc:
-                notes.append(exc.code + ": " + str(exc))
+                # Inventory errors normally contain fixed local text. Do not
+                # trust text supplied by a custom API getter or transport.
+                code=exc.code if isinstance(exc.code,str) and re.fullmatch(r'api_(?:invalid|unavailable|too_large|http_[1-5][0-9]{2})',exc.code) else 'api_unavailable'
+                message={
+                    'api_http_401':'Interface API authentication was rejected (401).',
+                    'api_http_403':'Interface API access was denied (403); review read permissions and VDOM scope.',
+                    'api_too_large':'The interface API response exceeded the safe inventory size.',
+                    'api_invalid':'The interface API did not return a successful inventory.',
+                }.get(code,'The interface API is unavailable or incomplete; response contents are hidden.')
+                notes.append(code + ": " + message)
+                coverage = "Exporter evidence only; API inventory unavailable or incomplete"
+            except (OSError,ValueError,KeyError,TypeError,AttributeError):
+                notes.append('api_unavailable: The interface API is unavailable or incomplete; response contents are hidden.')
                 coverage = "Exporter evidence only; API inventory unavailable or incomplete"
         elif incomplete:
             notes.append("API inventory was skipped. Missing roles and types require review.")

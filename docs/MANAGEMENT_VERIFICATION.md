@@ -14,7 +14,9 @@ python -m unittest discover -s tests -v
 
 On November1,2026, **154 tests passed on Windows/Python3.12** with the management
 dependencies installed: the existing131 tests plus23 management tests. The earlier
-153-test suite also passed on Ubuntu; CI runs the final suite. They cover
+153-test suite also passed on Ubuntu. These are historical results; the current
+suite has grown. Use the actual source head, [QA commands](QA.md), CI result and
+[cleanup validation record](CLEANUP_VALIDATION.md) for a new claim. Those tests cover
 first-run bootstrapping, password hashes, one-time closure, sessions, login rate
 limits, CSRF/origin/role checks, private error responses, explicit secret changes,
 revision conflicts/stale plans, file fingerprints, read-only discovery/WAN

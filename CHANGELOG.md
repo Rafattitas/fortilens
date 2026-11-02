@@ -2,6 +2,48 @@
 
 ## Unreleased — unified console and Web Setup & Settings
 
+### Error handling and recovery
+
+- Return bounded, safe operational errors across management/helper HTTP,
+  reporting/gateway services, CLI/installer/tools and browser transport. Keep
+  successful API/CLI contracts and existing authentication checks.
+- Recover partial configuration writes conservatively; release failed queue
+  locks, retain observable job failures when journaling is unavailable, and avoid
+  undoing committed configuration when only final diagnostics cannot be saved.
+- Reject replayed deployment plans before entering automatic recovery, including
+  a repeated request at the unchanged saved revision; explicit rollback remains
+  a separate confirmed operation.
+- Reject malformed upstream payloads before recording checkpoints or displaying
+  telemetry. Keep missing evidence unknown and close resources on failed startup.
+- Add browser deadlines and safe failure messages, clear rejected sessions,
+  restore pending controls and require status review after unknown POST outcomes.
+- Add synthetic failure-injection regressions without new runtime dependencies,
+  schema changes, altered accounting/WAN formulas or production operations.
+- Keep full-archive extraction timestamps compatible with the existing portable
+  ZIP builder and verify rebuilding the identical portable payload after real
+  extraction. Published assets are not replaced.
+
+### Repository engineering
+
+- Add an explicitly allowlisted full source distribution beside the compatible
+  23-file portable ZIP, with reproducible archive metadata, source provenance,
+  SHA256 checksums and extracted-artifact tests. Existing release assets remain
+  immutable; no new version is tagged or published by this preparation.
+- Prepare read-only PR/manual package validation and disposable packaged
+  Docker/Ubuntu acceptance before an explicitly published release can attach assets.
+- Add development-only Ruff/EditorConfig, branch coverage, dependency advisory
+  auditing, update automation and source/link/YAML checks while retaining the
+  existing Python/OS matrix and real integration scenarios.
+- Add a documentation index, realistic roadmap, sanitized issue/PR forms,
+  maintainer recommendations, repository audit and validation report.
+- Expand private-state/tool-output ignore patterns. Preserve runtime files,
+  dependency pins, installer/build allowlists, CLI/API contracts, data formats,
+  service/volume identity and existing security/accounting behavior.
+- Document module responsibilities and defer broad runtime reformatting/import
+  restructuring to independently characterized changes.
+
+### Application changes already on main
+
 - Restore one dark operations workspace with flat summary strips, wider borderless
   monitoring/reports, clearer pending configuration and scoped report styling.
 - Add keyboard-accessible mobile navigation, compact settings selection, loading

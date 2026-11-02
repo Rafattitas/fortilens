@@ -5,6 +5,7 @@ import base64
 import hmac
 import json
 import re
+import sqlite3
 from pathlib import Path
 from urllib.parse import urlsplit, urlencode
 from fastapi import FastAPI, Request
@@ -14,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.concurrency import run_in_threadpool
 from pydantic import Field, SecretStr
 from .auth import Auth
-from .common import Problem
+from .common import Problem, report_failure
 from .helper import Client
 from .models import Apply, Change, Job, Revision, Strict
 
@@ -98,11 +99,15 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
     if parsed.scheme=='http' and parsed.hostname not in ('127.0.0.1','localhost','::1','testserver'):
         raise ValueError('Network access requires HTTPS; use loopback with an SSH tunnel otherwise')
     origin=origin.rstrip('/');secure=parsed.scheme=='https'
+    # Validate required static resources before opening persistent auth state.
+    static_files=StaticFiles(directory=STATIC)
     auth=Auth(data,bootstrap_file)
     @asynccontextmanager
     async def lifespan(app):
         try:yield
-        finally:auth.close()
+        finally:
+            try:auth.close()
+            except sqlite3.Error as exc:report_failure('web_auth_cleanup',exc)
     app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
     app.state.auth=auth;app.state.helper=helper
 
@@ -146,6 +151,15 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
             response=await call_next(request)
         except Problem as e:response=JSONResponse({'error':e.code,'message':e.message},status_code=e.status)
         except (ValueError,TypeError):response=JSONResponse({'error':'invalid_request','message':'The request could not be validated.'},status_code=400)
+        except sqlite3.Error as exc:
+            report_failure('web_storage',exc)
+            response=JSONResponse({'error':'storage_unavailable','message':'Management storage is unavailable. Review service health, permissions and available space before trying again.'},status_code=503)
+        except OSError as exc:
+            report_failure('web_io',exc)
+            response=JSONResponse({'error':'service_unavailable','message':'The management service could not access a required resource. Review service health and permissions before trying again.'},status_code=503)
+        except Exception as exc:
+            report_failure('web_unexpected',exc)
+            response=JSONResponse({'error':'internal_error','message':'The management service could not complete this operation safely. Review service health and diagnostics.'},status_code=500)
         response.headers['Cache-Control']=('private, max-age=86400, immutable' if
             immutable_asset(request.url.path,request.method,response.status_code,response.headers.get('content-type','')) else 'no-store')
         response.headers['X-Content-Type-Options']='nosniff'
@@ -168,7 +182,7 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
             else:
                 text=text.replace('id="console-frame"','id="console-frame" data-initial-view="'+page+'" src="/console/initial-view?view='+page+'"',1)
         return Response(text,media_type='text/html')
-    app.mount('/static',StaticFiles(directory=STATIC),name='static')
+    app.mount('/static',static_files,name='static')
 
     @app.get('/health')
     def health():return {'service':'running','independent_of_monitoring':True}
@@ -297,7 +311,7 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
     return app
 
 
-def main():
+def _run():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data',type=Path,required=True)
     parser.add_argument('--bootstrap-file',type=Path,required=True)
@@ -311,7 +325,18 @@ def main():
         parser.error('LAN listeners require a certificate/key; use loopback with a trusted HTTPS proxy or SSH otherwise')
     import uvicorn
     app=create_app(args.data,args.bootstrap_file,Client(args.helper_socket,args.helper_key),origin=args.origin)
-    uvicorn.run(app,host=args.host,port=args.port,ssl_certfile=args.tls_cert,ssl_keyfile=args.tls_key,access_log=False,proxy_headers=False,workers=1)
+    try:uvicorn.run(app,host=args.host,port=args.port,ssl_certfile=args.tls_cert,ssl_keyfile=args.tls_key,access_log=False,proxy_headers=False,workers=1)
+    finally:
+        try:app.state.auth.close()
+        except sqlite3.Error as exc:report_failure('web_auth_cleanup',exc)
+
+
+def main():
+    try:_run()
+    except Problem as exc:raise SystemExit(exc.message) from None
+    except Exception as exc:
+        report_failure('web_startup',exc)
+        raise SystemExit('Web management could not start safely. Review its configured origin, local state, permissions and service health.') from None
 
 
 if __name__=='__main__':main()

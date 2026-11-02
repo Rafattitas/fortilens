@@ -19,8 +19,11 @@ from urllib.parse import urlsplit
 
 
 def run(*args,check=True):
-    result=subprocess.run(list(args),text=True,capture_output=True,stdin=subprocess.DEVNULL)
-    if check and result.returncode:raise SystemExit('Required host operation failed: '+args[0]+'. Review permissions and the documented prerequisites.')
+    try:
+        result=subprocess.run(list(args),text=True,capture_output=True,stdin=subprocess.DEVNULL,timeout=900)
+    except (OSError,UnicodeError,subprocess.SubprocessError):
+        raise SystemExit('A required host operation could not run or timed out. Review permissions and the documented prerequisites; process output is suppressed.') from None
+    if check and result.returncode:raise SystemExit('Required host operation failed: '+Path(str(args[0])).name+'. Review permissions and the documented prerequisites.')
     return result
 
 
@@ -38,8 +41,26 @@ def put(path,data,mode=0o600,uid=0,gid=0):
     if path.is_symlink():raise SystemExit('Refusing to replace an installation symlink')
     temp=path.with_name('.'+path.name+'.new-'+secrets.token_hex(6))
     fd=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL,mode)
-    with os.fdopen(fd,'w',encoding='utf-8') as stream:stream.write(data);stream.flush();os.fsync(stream.fileno())
-    os.chown(temp,uid,gid);os.chmod(temp,mode);os.replace(temp,path)
+    try:
+        with os.fdopen(fd,'w',encoding='utf-8') as stream:stream.write(data);stream.flush();os.fsync(stream.fileno())
+        os.chown(temp,uid,gid);os.chmod(temp,mode);os.replace(temp,path)
+    finally:
+        try:temp.unlink(missing_ok=True)
+        except OSError:pass
+
+
+def saved_metadata(path, required):
+    """Validate only installer-owned metadata; never echo submitted contents."""
+    try:value=json.loads(Path(path).read_text(encoding='utf-8-sig'))
+    except (ValueError,UnicodeError):
+        raise SystemExit('Saved installer metadata is invalid. Preserve existing files and review the documented recovery procedure.') from None
+    if not isinstance(value,dict) or not all(key in value for key in required):
+        raise SystemExit('Saved installer metadata is incomplete. Preserve existing files and review the documented recovery procedure.')
+    if any(not isinstance(value[key],str) and not (key=='project' and value[key] is None and 'adopt' in required) for key in ('data','origin','installation','project','compose_file') if key in required):
+        raise SystemExit('Saved installer metadata has unsupported field types. No installation was reinitialized.')
+    if 'source' in required and (not isinstance(value['source'],dict) or not all(isinstance(key,str) and isinstance(item,str) and re.fullmatch(r'[0-9a-f]{64}',item) for key,item in value['source'].items())):
+        raise SystemExit('Saved source fingerprints are invalid. Preserve the installation and review its original source.')
+    return value
 
 
 def source_files(source):
@@ -78,7 +99,8 @@ def wait_web(bind,port,origin,tls):
             else:conn=http.client.HTTPConnection(address,port,timeout=2)
             conn.request('GET','/health',headers={'Host':parsed.netloc})
             response=conn.getresponse()
-            if response.status==200 and json.loads(response.read(4096)).get('independent_of_monitoring') is True:return
+            payload=json.loads(response.read(4096)) if response.status==200 else None
+            if isinstance(payload,dict) and payload.get('independent_of_monitoring') is True:return
         except (OSError,ValueError,http.client.HTTPException):pass
         finally:
             if conn:conn.close()
@@ -86,7 +108,7 @@ def wait_web(bind,port,origin,tls):
     raise SystemExit('The web service did not confirm readiness. Existing data is retained; review journalctl -u fortilens-web and rerun the same installer.')
 
 
-def main():
+def _main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prefix',type=path_value,default=Path('/opt/fortilens'))
     parser.add_argument('--data',type=path_value,default=Path('/var/lib/fortilens'))
@@ -122,7 +144,9 @@ def main():
     if tls:
         ctx=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);ctx.load_cert_chain(args.tls_cert,args.tls_key)
     origin=args.origin or ('https' if tls else 'http')+'://'+('['+args.bind+']' if ':' in args.bind else args.bind)+':'+str(args.port)
-    parsed=urlsplit(origin)
+    try:parsed=urlsplit(origin)
+    except ValueError:
+        raise SystemExit('Choose a plain HTTP(S) browser origin, without paths, credentials or query parameters.') from None
     if not re.fullmatch(r'https?://[A-Za-z0-9.\[\]:-]+/?',origin) or parsed.scheme not in ('http','https') or not parsed.hostname or parsed.path not in ('','/') or parsed.username or parsed.query or parsed.fragment:
         raise SystemExit('Choose a plain HTTP(S) browser origin, without paths, credentials or query parameters.')
     try:parsed.port
@@ -133,8 +157,8 @@ def main():
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',args.dashboard_uid):raise SystemExit('Invalid dashboard UID.')
     meta=args.prefix/'installation.json'
     progress=args.prefix/'installing.json'
-    previous=json.loads(meta.read_text()) if meta.exists() else None
-    partial=json.loads(progress.read_text()) if progress.exists() else None
+    previous=saved_metadata(meta,('data','origin','source')) if meta.exists() else None
+    partial=saved_metadata(progress,('data','origin','source','adopt','project','compose_file')) if progress.exists() else None
     for protected in (args.prefix,args.data,Path('/etc/fortilens')):
         if protected.exists() and (protected.is_symlink() or protected.stat().st_uid!=0 or protected.stat().st_mode&0o022):
             raise SystemExit('Management installation/state directories must be root-owned and not group/world writable.')
@@ -190,14 +214,14 @@ def main():
               'web_uid':account.pw_uid,'web_gid':account.pw_gid,'dashboard_uid':args.dashboard_uid,'management_port':args.port}
     if not previous:put('/etc/fortilens/registry.json',json.dumps(registry,indent=2))
     else:
-        registry=json.loads(Path('/etc/fortilens/registry.json').read_text())
+        registry=saved_metadata('/etc/fortilens/registry.json',('installation','project'))
         if args.adopt and str(args.adopt)!=registry['installation'] or args.project and args.project!=registry['project']:
             raise SystemExit('The existing installation is registered to a different project. Nothing was reinitialized.')
         stack=Path(registry['installation'])
     # Validate adoption with the installed interpreter before starting either unit.
     validate="from management.configuration import Configuration; import json; c=json.load(open('/etc/fortilens/registry.json')); Configuration(c['installation'],c['control'],project=c['project'],compose_file=c['compose_file'])"
     env=os.environ.copy();env['PYTHONPATH']=str(args.prefix/'src')
-    result=subprocess.run([str(args.prefix/'venv/bin/python'),'-c',validate],env=env,capture_output=True,text=True)
+    result=subprocess.run([str(args.prefix/'venv/bin/python'),'-c',validate],env=env,capture_output=True,text=True,timeout=60)
     if result.returncode:raise SystemExit('Existing configuration registration needs review. It was not reinitialized or overwritten; see the migration guide.')
     certargs=''
     if tls:
@@ -250,6 +274,15 @@ WantedBy=multi-user.target
         print((web/'bootstrap.token').read_text().strip())
     else:print('Administrator already configured. Existing authentication and monitoring data preserved.')
     if not tls:print('SSH alternative: ssh -L '+str(args.port)+':127.0.0.1:'+str(args.port)+' user@server, then open '+origin)
+
+
+def main():
+    try:return _main()
+    except (OSError,UnicodeError,subprocess.SubprocessError):
+        raise SystemExit('Installation could not read/update required host files or complete a host operation. Review permissions, storage, TLS and service prerequisites. Keep existing state and resume with the same reviewed options; private details are suppressed.') from None
+    except KeyboardInterrupt:
+        print('Installation cancelled. Some host steps may have completed; preserve state and review the same options before resuming.',file=sys.stderr)
+        raise SystemExit(130) from None
 
 
 if __name__=='__main__':main()

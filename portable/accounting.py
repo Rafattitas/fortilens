@@ -304,8 +304,9 @@ class Store:
         tz(config["accounting_timezone"])
         self.config, self.inventory = dict(config), inventory or {"interfaces": []}
         self.db = sqlite3.connect(str(path), timeout=20, check_same_thread=False)
-        self.db.row_factory = sqlite3.Row
-        self.db.executescript("""PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA cache_size=-2048;
+        try:
+            self.db.row_factory = sqlite3.Row
+            self.db.executescript("""PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA cache_size=-2048;
         CREATE TABLE IF NOT EXISTS events(uid TEXT PRIMARY KEY, session TEXT NOT NULL, stamp INTEGER NOT NULL, payload TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS events_session ON events(session,stamp);
         CREATE TABLE IF NOT EXISTS deliveries(uid TEXT PRIMARY KEY,event_uid TEXT NOT NULL,stamp INTEGER NOT NULL);
@@ -316,13 +317,18 @@ class Store:
         CREATE TABLE IF NOT EXISTS quality(day TEXT NOT NULL,classification TEXT NOT NULL,records INTEGER NOT NULL,first_stamp INTEGER NOT NULL,last_stamp INTEGER NOT NULL,PRIMARY KEY(day,classification));
         CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY,value TEXT NOT NULL);
         """)
-        contract = {k: config.get(k) for k in ("accounting_timezone", "source_id", "vdom", "expected_devid")}
-        existing = self.state("contract")
-        if existing is not None and existing != contract:
-            self.db.close()
-            raise ValueError("Accounting identity/timezone contract changed; use an explicitly rebuilt database")
-        with self.db:
-            self.set_state("contract", contract)
+            contract = {k: config.get(k) for k in ("accounting_timezone", "source_id", "vdom", "expected_devid")}
+            existing = self.state("contract")
+            if existing is not None and existing != contract:
+                raise ValueError("Accounting identity/timezone contract changed; use an explicitly rebuilt database")
+            with self.db:
+                self.set_state("contract", contract)
+        except Exception:
+            # Construction did not return a usable Store to its caller. Close
+            # its connection, retaining the original failure if close also fails.
+            try:self.db.close()
+            except Exception:pass
+            raise
 
     def close(self):
         self.db.close()

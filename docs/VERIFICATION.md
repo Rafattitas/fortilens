@@ -10,7 +10,19 @@ python3 portable/setup.py bundle --destination dist/fortilens-single-device.zip
 python3 tests/integration_stack.py
 ```
 
-The current suite has 118 cases covering configuration/packaging, original query preservation, identity conflicts and missing MACs, directional zero/delta/cumulative rules, session baselines/resets, retries/replays/restart/late arrivals, retained summaries, exact VLAN/direction/scope, fixed periods, missing WAN evidence, observed interval math, HTTP authentication, doctor boundaries, alert candidates and hash-guarded upgrades/rollback.
+The earlier portable verification record covered 118 cases. The suite has since
+grown; that historical count is not a claim about the current source. Coverage
+includes configuration/packaging, original query preservation, identity conflicts
+and missing MACs, directional zero/delta/cumulative rules, session baselines/resets,
+retries/replays/restart/late arrivals, retained summaries, exact VLAN/direction/scope,
+fixed periods, missing WAN evidence, observed interval math, HTTP authentication,
+doctor boundaries, alert candidates and hash-guarded upgrades/rollback. Management
+and repository-tooling checks have their own additional coverage.
+
+Use the [QA procedure](QA.md) for current commands and the exact-head
+[cleanup validation record](CLEANUP_VALIDATION.md) for this maintenance change.
+Report measured coverage and skips from the executed environment rather than
+copying a historical count.
 
 CI runs Python 3.10/3.12/3.13 on Linux and Python 3.12 on Windows. UTC works without an IANA database; one timezone case can skip on a configuration-only host without installed timezone data. Deployment remains Linux/amd64. The Docker job requires Linux Docker Compose v2 and OpenSSL; no real FortiGate is contacted.
 

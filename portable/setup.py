@@ -5,6 +5,7 @@ import base64
 from copy import deepcopy
 import getpass
 import hashlib
+import http.client
 import http.cookies
 import ipaddress
 import json
@@ -354,6 +355,15 @@ def compose_command(p, *args):
     return ["docker", "compose", "-p", project, "-f", str(p / "compose.yaml"), *args]
 
 
+def run_compose(p, *args, timeout=600):
+    """Keep failed engine output private and bound each explicit operation."""
+    result = subprocess.run(compose_command(p, *args), check=True,
+        capture_output=True, text=True, timeout=timeout)
+    if result.stdout:print(result.stdout, end="")
+    if result.stderr:print(result.stderr, end="", file=sys.stderr)
+    return result
+
+
 def grafana_request(p, c, path, method="GET", body=None, timeout=100):
     host = c["grafana_bind"] if c["grafana_bind"] != "0.0.0.0" else "127.0.0.1"
     password = (p / "secrets/grafana_admin_password").read_text(encoding="utf-8").strip()
@@ -365,7 +375,13 @@ def grafana_request(p, c, path, method="GET", body=None, timeout=100):
     # Never send initial admin credentials through an environment HTTP proxy.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(req, timeout=timeout) as response:
-        return json.load(response)
+        payload = response.read(16*1024*1024+1)
+        if len(payload)>16*1024*1024:
+            raise SetupError("Grafana returned a response above the safe size limit")
+        value = json.loads(payload)
+        if not isinstance(value, (dict, list)):
+            raise SetupError("Grafana returned an unsupported response; review service readiness")
+        return value
 
 
 def import_dashboard(p, c):
@@ -376,12 +392,14 @@ def import_dashboard(p, c):
         if e.code != 404:
             raise
     else:
+        if not isinstance(existing, dict) or not isinstance(existing.get("spec"), dict) or not isinstance(existing["spec"].get("tags", []), list):
+            raise SetupError("Grafana returned an unsupported dashboard response; nothing overwritten")
         if "forti-monitor" not in existing.get("spec", {}).get("tags", []):
             raise SetupError("Dashboard UID belongs to another dashboard; nothing overwritten")
         print("Existing dashboard preserved (no overwrite).")
         return
     result = grafana_request(p, c, route, "POST", load(p / "grafana/dashboard.json"))
-    if result.get("metadata", {}).get("name") != UID:
+    if not isinstance(result, dict) or not isinstance(result.get("metadata"), dict) or result["metadata"].get("name") != UID:
         raise SetupError("Dashboard import returned an unexpected identifier")
     print("Dashboard imported: /d/" + UID)
 
@@ -389,14 +407,14 @@ def import_dashboard(p, c):
 def start(p, c):
     if sys.platform != "linux":
         raise SetupError("Run start on a Linux Docker host; init also works on Windows")
-    subprocess.run(compose_command(p, "config", "--quiet"), check=True)
-    subprocess.run(compose_command(p, "up", "-d", "--build"), check=True)
+    run_compose(p, "config", "--quiet", timeout=30)
+    run_compose(p, "up", "-d", "--build")
     for _ in range(60):
         try:
             health = grafana_request(p, c, "/api/health", timeout=5)
-            if health.get("database") == "ok":
+            if isinstance(health, dict) and health.get("database") == "ok":
                 break
-        except (urllib.error.URLError, TimeoutError, ConnectionError):
+        except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError, http.client.HTTPException):
             pass
         time.sleep(2)
     else:
@@ -405,9 +423,9 @@ def start(p, c):
         for _ in range(30):
             try:
                 health = grafana_request(p, c, "/api/datasources/uid/" + uid + "/health", timeout=5)
-                if health.get("status") == "OK":
+                if isinstance(health, dict) and health.get("status") == "OK":
                     break
-            except (urllib.error.URLError, TimeoutError, ConnectionError):
+            except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError, http.client.HTTPException):
                 pass
             time.sleep(2)
         else:
@@ -442,19 +460,34 @@ def connect_portal(p, c):
             # Administrative client for the private listener, including when
             # HTTPS terminates at a separate trusted reverse proxy.
             for value in response.headers.get_all('Set-Cookie', []):
-                jar = http.cookies.SimpleCookie(value)
+                try:jar = http.cookies.SimpleCookie(value)
+                except http.cookies.CookieError:
+                    raise SetupError('The portal returned an invalid session cookie; review service readiness') from None
                 if 'fortilens_session' in jar:
                     session_cookie = 'fortilens_session=' + jar['fortilens_session'].value
-            return json.load(response)
+            payload=response.read(1024*1024+1)
+            if len(payload)>1024*1024:
+                raise SetupError('The portal response exceeded the safe size limit')
+            value=json.loads(payload)
+            if not isinstance(value,dict):
+                raise SetupError('The portal returned an unsupported response; review service readiness')
+            return value
     try:
         request('/api/session', {'username': 'admin', 'password': password})
         if not request('/api/monitoring-status').get('available'):
             raise SetupError('The portal Viewer identity could not be verified')
-        user = next((u for u in grafana_request(p, c, '/api/org/users') if u.get('login') == VIEWER), None)
+        users=grafana_request(p,c,'/api/org/users')
+        if not isinstance(users,list) or not all(isinstance(row,dict) for row in users):
+            raise SetupError('Grafana returned an unsupported identity response; no dashboard permissions changed')
+        user = next((u for u in users if u.get('login') == VIEWER), None)
         if not user or user.get('role') != 'Viewer':
             raise SetupError('The portal identity must have the Viewer role')
+        if type(user.get('userId')) is not int or user['userId']<=0:
+            raise SetupError('The portal Viewer identifier is invalid; no dashboard permissions changed')
         route = '/api/dashboards/uid/' + UID + '/permissions'
         existing = grafana_request(p, c, route)
+        if not isinstance(existing,list) or not all(isinstance(row,dict) for row in existing):
+            raise SetupError('Grafana returned an unsupported permissions response; nothing overwritten')
         if any(row.get('userId') == user['userId'] and row.get('permission') == 1 and not row.get('isInherited') for row in existing):
             return
         items = [{key: row[key] for key in ('userId', 'teamId', 'role', 'permission') if row.get(key)}
@@ -465,7 +498,7 @@ def connect_portal(p, c):
     finally:
         try:
             request('/api/session/logout', {})
-        except (OSError, ValueError):
+        except (SetupError, OSError, ValueError, http.client.HTTPException):
             pass
 
 
@@ -473,8 +506,10 @@ def discover(p, c):
     expr = 'count by (vdom, sla, interface) (fortigate_virtual_wan_status{job="fortigate"})'
     path = f"/api/datasources/proxy/uid/{PROM_UID}/api/v1/query?" + urllib.parse.urlencode({"query": expr})
     result = grafana_request(p, c, path)
-    if result.get("status") != "success":
+    if not isinstance(result,dict) or result.get("status") != "success":
         raise SetupError("Discovery query failed")
+    if not isinstance(result.get('data'),dict) or not isinstance(result['data'].get('result'),list) or not all(isinstance(row,dict) and isinstance(row.get('metric'),dict) for row in result['data']['result']):
+        raise SetupError("Discovery returned an unsupported response; no interface choices were changed")
     groups = {}
     for row in result["data"]["result"]:
         labels = row["metric"]
@@ -517,7 +552,11 @@ def interface_command(p, c, args):
     import interfaces
     token = ""
     if not args.metrics_only and not args.inventory_file:
-        token = load(p / "secrets/fortigate-key.yaml")[target_url(c)]["token"]
+        auth = load(p / "secrets/fortigate-key.yaml")
+        record = auth.get(target_url(c)) if isinstance(auth, dict) else None
+        if not isinstance(record, dict):
+            raise SetupError("Invalid local API token file")
+        token = record.get("token")
         if not isinstance(token, str) or not token or any(ord(x) < 33 for x in token):
             raise SetupError("Invalid local API token file")
     report = interfaces.collect(c, token, request=grafana_request, installation=p, prom_uid=PROM_UID,
@@ -567,11 +606,19 @@ def bundle(destination):
     if destination.exists():
         raise SetupError("Bundle destination already exists")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED) as archive:
-        for f in allowed:
-            if not f.is_file() or f.is_symlink():
-                raise SetupError("Invalid bundle input")
-            archive.write(f, "forti-monitor/" + f.relative_to(ROOT).as_posix())
+    created = complete = False
+    try:
+        with zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED) as archive:
+            created = True
+            for f in allowed:
+                if not f.is_file() or f.is_symlink():
+                    raise SetupError("Invalid bundle input")
+                archive.write(f, "forti-monitor/" + f.relative_to(ROOT).as_posix())
+        complete = True
+    finally:
+        if created and not complete:
+            try:destination.unlink(missing_ok=True)
+            except OSError:pass  # Keep the original failure; never remove existing outputs.
     print("Created portable-only bundle: " + str(destination))
 
 
@@ -670,7 +717,7 @@ def main(argv=None):
                 print('Portal Viewer connected to this dashboard; existing permissions preserved.')
             elif args.command=='stop-accounting':
                 if not c['accounting_enabled']:raise SetupError('No optional accounting service is configured')
-                subprocess.run(compose_command(p,'stop','fortilens-usage'),check=True)
+                run_compose(p,'stop','fortilens-usage',timeout=120)
                 print('Optional accounting worker stopped; its data volume is preserved.')
             elif args.command == "discover":
                 discover(p, c)
@@ -731,8 +778,23 @@ def main(argv=None):
         return 0
     except urllib.error.HTTPError as e:
         print(f"HTTP {e.code}: request failed; response body suppressed to protect credentials.", file=sys.stderr)
-    except (SetupError, ValueError, OSError, subprocess.CalledProcessError, urllib.error.URLError) as e:
+        try:e.close()
+        except OSError:pass
+    except SetupError as e:
         print(f"Setup failed: {e}", file=sys.stderr)
+    except EOFError:
+        print("Setup failed: Terminal input ended. Use a terminal or the documented config/token-file options.", file=sys.stderr)
+    except UnicodeError:
+        print("Setup failed: A required file or service response is not valid UTF-8. Input contents are suppressed.", file=sys.stderr)
+    except subprocess.SubprocessError:
+        print("Setup failed: The required host operation failed or timed out. Review Docker readiness and local prerequisites; process output is suppressed.", file=sys.stderr)
+    except (OSError, http.client.HTTPException):
+        print("Setup failed: Required files or services are unavailable. Review permissions, storage, connectivity and TLS; private details are suppressed.", file=sys.stderr)
+    except ValueError as e:
+        from interfaces import InventoryError
+        from upgrade import UpgradeError
+        message = str(e) if isinstance(e, (InventoryError, UpgradeError)) else "Input or service response could not be validated. Review the supported configuration and response format; input contents are suppressed."
+        print("Setup failed: " + message, file=sys.stderr)
     except KeyboardInterrupt:
         print("Setup cancelled.", file=sys.stderr)
     return 1

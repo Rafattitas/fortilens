@@ -1,0 +1,29 @@
+# Developer tooling only: FortiLens keeps its existing portable and management
+# entry points, dependency declarations and distribution layout.
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = ["dist", "portable/local", "portable/local-*"]
+
+[tool.ruff.lint]
+# Correctness checks apply to every Python file. Existing runtime formatting and
+# import order are intentionally preserved; new tooling also checks I (imports).
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.coverage.run]
+branch = true
+source = ["management", "portable"]
+relative_files = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = false
+precision = 2
+
+[tool.coverage.xml]
+output = "coverage.xml"

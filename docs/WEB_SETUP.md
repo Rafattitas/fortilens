@@ -4,6 +4,11 @@ The current source includes an independent administrative web application. The
 published v0.2.0 ZIP does not include it. Use a reviewed source checkout containing
 `install.sh`; the dependency-free portable CLI continues to work separately.
 
+A full source archive prepared by the [release tooling](RELEASING.md) contains
+the same installer/runtime inputs. Verify its checksum and extracted contents
+before using it, then run the commands below from its `fortilens/` directory.
+This archive strategy does not modify or replace an existing published release.
+
 ## Ubuntu prerequisites and installation
 
 Supported host: Ubuntu x86-64, Python 3.11 or later (Ubuntu 24.04+ recommended),

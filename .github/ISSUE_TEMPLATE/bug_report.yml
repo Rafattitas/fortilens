@@ -4,12 +4,35 @@ title: '[Bug] '
 body:
   - type: markdown
     attributes:
-      value: Do not include tokens, passwords, client logs, or unredacted configurations. Report security issues through SECURITY.md.
+      value: |
+        Use synthetic or sanitized evidence. Do not include tokens, passwords,
+        serial numbers, real network addresses, raw traffic logs, private keys or
+        complete configurations. For sensitive findings, follow
+        [SECURITY.md](https://github.com/Rafattitas/fortilens/blob/main/SECURITY.md).
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation path
+      options:
+        - Current source — web management
+        - Current source — portable CLI
+        - Published portable archive
+        - Reviewed full source archive
+        - Other or not yet installed
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: FortiLens revision or archive version
+      description: Commit SHA or tag and artifact name; do not provide a private installation path.
+    validations:
+      required: true
   - type: textarea
     id: environment
     attributes:
       label: Environment
-      description: OS/architecture, Python, Docker Compose, FortiOS, and FortiLens revision.
+      description: OS/architecture, Python, Docker Compose and FortiOS version/build. Omit hostnames, addresses and serial numbers.
     validations:
       required: true
   - type: textarea
@@ -20,13 +43,32 @@ body:
     validations:
       required: true
   - type: textarea
-    id: behavior
+    id: expected
     attributes:
-      label: Expected and actual behavior
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Distinguish a demonstrated failure from missing or unknown telemetry.
     validations:
       required: true
   - type: textarea
     id: evidence
     attributes:
       label: Sanitized evidence
-      description: Relevant errors or redacted doctor output; explain any missing-data limits.
+      description: Minimal error codes or carefully reviewed doctor excerpts; no raw records, credentials or complete configurations. Explain any missing-data limits.
+  - type: textarea
+    id: checks
+    attributes:
+      label: Checks already performed
+      description: List read-only checks and results. Do not change a live firewall or delete/reinitialize monitoring data to reproduce a report.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Data protection
+      options:
+        - label: I reviewed this report for secrets and customer/network-identifying data.
+          required: true

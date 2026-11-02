@@ -145,7 +145,7 @@ If reports are empty, check received evidence, scope, direction, clocks and meta
 python3 setup.py bundle --destination ../fortilens-single-device.zip
 ```
 
-The 22-file source allowlist includes setup/doctor/inventory/quality/style/accounting/WAN/service/upgrade/alerts/UI, example config, guide/license/gitignore and 7 templates. It excludes local installs, private plans, original site exports, client logs, handover files and screenshots. The command does not publish to GitHub. Container images are pinned separately; ARM and every FortiOS version are not certified.
+The 23-file source allowlist includes setup/doctor/inventory/quality/style/accounting/WAN/service/upgrade/alerts/UI, example config, guide/license/gitignore and 7 templates. It excludes local installs, private plans, original site exports, client logs, handover files and screenshots. The command does not publish to GitHub. Container images are pinned separately; ARM and every FortiOS version are not certified.
 
 Source guides: [accounting](https://github.com/Rafattitas/fortilens/blob/main/docs/ACCOUNTING_ENGINE.md), [upgrade](https://github.com/Rafattitas/fortilens/blob/main/docs/UPGRADE.md), [troubleshooting](https://github.com/Rafattitas/fortilens/blob/main/docs/TROUBLESHOOTING.md), [optional alerts](https://github.com/Rafattitas/fortilens/blob/main/docs/OPTIONAL_ALERTS.md), [verification](https://github.com/Rafattitas/fortilens/blob/main/docs/VERIFICATION.md).
 

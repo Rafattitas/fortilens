@@ -2,10 +2,28 @@ name: Feature request
 description: Describe a use case and the improvement you need.
 title: '[Feature] '
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Review the [roadmap](https://github.com/Rafattitas/fortilens/blob/main/ROADMAP.md)
+        and existing issues first. Describe the use case without credentials,
+        raw logs, internal addresses, customer details or private configuration.
   - type: textarea
     id: problem
     attributes:
       label: What problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and current limitations
+      description: Explain whether current reports, diagnostics or documented options already address part of the need.
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and data considerations
+      description: Identify possible installation, API/CLI, accounting, retention or privacy implications. State unknowns rather than guessing.
     validations:
       required: true
   - type: textarea

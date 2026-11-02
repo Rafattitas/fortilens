@@ -7,8 +7,10 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hmac
 import json
+import logging
 import math
 from pathlib import Path
+import sqlite3
 import ssl
 import threading
 import time
@@ -25,6 +27,27 @@ class ServiceError(ValueError):
     pass
 
 
+LOGGER = logging.getLogger(__name__)
+
+
+def log_failure(event, code=None, *, warning=True):
+    """Fixed event/canonical code only; diagnostics cannot replace a failure."""
+    try:
+        method=LOGGER.warning if warning else LOGGER.error
+        if code is None:method(event)
+        else:method('%s code=%s',event,code)
+    except Exception:
+        pass
+
+ERROR_CODES = frozenset({
+    'response_budget_exceeded', 'upstream_query_incomplete', 'invalid_response',
+    'unexpected_loki_response', 'loki_paging_budget_exhausted', 'loki_timestamp_overflow',
+    'loki_record_budget_exhausted', 'device_endpoint_not_allowlisted',
+    'accounting_storage_limit', 'wan_history_window_outside_budget',
+    'unexpected_prometheus_response', 'report_template_unavailable',
+})
+
+
 def fetch_json(base, route, params=None, *, timeout=25, headers=None, context=None, budget=32*1024*1024):
     url = base.rstrip("/")+route+("?"+urllib.parse.urlencode(params) if params else "")
     request = urllib.request.Request(url, headers=headers or {}, method="GET")
@@ -35,10 +58,38 @@ def fetch_json(base, route, params=None, *, timeout=25, headers=None, context=No
         body = response.read(budget+1)
     if len(body)>budget:
         raise ServiceError("response_budget_exceeded")
-    result = json.loads(body)
+    try:
+        result = json.loads(body)
+    except (ValueError, UnicodeError):
+        raise ServiceError('invalid_response') from None
+    if not isinstance(result, dict):
+        raise ServiceError('invalid_response')
     if result.get("status") not in (None,"success") or result.get("warnings"):
         raise ServiceError("upstream_query_incomplete")
     return result
+
+
+def loki_rows(response):
+    """Reject malformed pages before a caller can advance its checkpoint."""
+    data = response.get('data') if isinstance(response, dict) else None
+    if not isinstance(data, dict) or data.get('resultType') != 'streams' or not isinstance(data.get('result'), list):
+        raise ServiceError('unexpected_loki_response')
+    rows = []
+    for stream in data['result']:
+        values = stream.get('values') if isinstance(stream, dict) else None
+        if not isinstance(values, list):
+            raise ServiceError('unexpected_loki_response')
+        for value in values:
+            if not isinstance(value, (list, tuple)) or len(value) != 2 or not isinstance(value[1], str):
+                raise ServiceError('unexpected_loki_response')
+            try:
+                stamp = int(value[0])
+            except (ValueError, TypeError, OverflowError):
+                raise ServiceError('unexpected_loki_response') from None
+            if isinstance(value[0], bool) or not 0 <= stamp < 2**63:
+                raise ServiceError('unexpected_loki_response')
+            rows.append({'timestamp_ns': stamp, 'line': value[1]})
+    return rows
 
 
 class LokiReader:
@@ -49,8 +100,7 @@ class LokiReader:
         while start<end:
             stop=min(end,start+30*86400*accounting.NS)
             result=self.fetch(self.base,'/loki/api/v1/query_range',{'query':'{job="fortigate-syslog"}','start':str(start),'end':str(stop-1),'direction':'forward','limit':'1'})
-            if result['data']['resultType']!='streams':raise ServiceError('unexpected_loki_response')
-            stamps=[int(v[0]) for row in result['data']['result'] for v in row.get('values',[])]
+            stamps=[row['timestamp_ns'] for row in loki_rows(result)]
             if stamps:return min(stamps)
             start=stop
         return None
@@ -62,9 +112,7 @@ class LokiReader:
             if budget['requests']>self.max_requests:raise ServiceError('loki_paging_budget_exhausted')
             # Loki's endpoint includes both boundaries; the engine uses [a,b).
             response=self.fetch(self.base,'/loki/api/v1/query_range',{'query':'{job="fortigate-syslog"}','start':str(a),'end':str(b-1),'direction':'forward','limit':str(self.limit)})
-            data=response['data']
-            if data['resultType']!='streams':raise ServiceError('unexpected_loki_response')
-            rows=[{'timestamp_ns':int(v[0]),'line':v[1]} for stream in data['result'] for v in stream.get('values',[])]
+            rows=loki_rows(response)
             if len(rows)>=self.limit:
                 if b-a<=1:raise ServiceError('loki_timestamp_overflow')
                 middle=(a+b)//2
@@ -77,10 +125,15 @@ class LokiReader:
 
 def safe_error(exc):
     if isinstance(exc,urllib.error.HTTPError):
-        return 'http_'+str(exc.code)
+        return 'http_'+str(exc.code) if type(exc.code) is int and 100<=exc.code<=599 else 'upstream_unavailable'
     if isinstance(exc,ServiceError):
-        return str(exc)
-    return {TimeoutError:'timeout',ssl.SSLError:'tls_verification_failed',ValueError:'invalid_response'}.get(type(exc),'upstream_unavailable')
+        return str(exc) if str(exc) in ERROR_CODES else 'upstream_unavailable'
+    if isinstance(exc,sqlite3.Error):return 'accounting_storage_unavailable'
+    reason=exc.reason if isinstance(exc,urllib.error.URLError) else exc
+    if isinstance(reason,TimeoutError):return 'timeout'
+    if isinstance(reason,ssl.SSLError):return 'tls_verification_failed'
+    if isinstance(exc,(ValueError,UnicodeError)):return 'invalid_response'
+    return 'upstream_unavailable'
 
 
 class Engine:
@@ -121,7 +174,10 @@ class Engine:
                 reason=next((note.split(':',1)[0] for note in report.get('notes',[]) if note.startswith('api_http_')),'inventory_unavailable')
                 self.store.set_state('inventory_error',None if report['interfaces'] else reason)
         except Exception as exc:
-            with self.lock,self.store.db:self.store.set_state('inventory_error',safe_error(exc))
+            try:
+                with self.lock,self.store.db:self.store.set_state('inventory_error',safe_error(exc))
+            except (sqlite3.Error,OSError):
+                log_failure('accounting_inventory_state_unavailable')
 
     def poll(self,now=None):
         now=time.time() if now is None else now
@@ -184,10 +240,14 @@ class Engine:
         metrics='up|fortigate_virtual_wan_status|fortigate_virtual_wan_latency_seconds|fortigate_virtual_wan_latency_jitter_seconds|fortigate_virtual_wan_packet_loss_ratio|fortigate_interface_link_up|fortigate_interface_receive_bytes_total|fortigate_interface_transmit_bytes_total'
         expr='{__name__=~'+json.dumps(metrics)+',job="fortigate",instance='+json.dumps(c['fortigate_host'])+'}['+str(seconds)+'s]'
         response=self.fetch(self.prometheus,'/api/v1/query',{'query':expr,'time':str(now)})
-        data=response['data']
-        if data['resultType']!='matrix':raise ServiceError('unexpected_prometheus_response')
+        data=response.get('data') if isinstance(response,dict) else None
+        if not isinstance(data,dict) or data.get('resultType')!='matrix' or not isinstance(data.get('result'),list):raise ServiceError('unexpected_prometheus_response')
         up=[];values=defaultdict(lambda:defaultdict(list));states=defaultdict(lambda:defaultdict(set));timeline=defaultdict(dict)
         for series in data['result']:
+            if not isinstance(series,dict) or not isinstance(series.get('metric'),dict) or not isinstance(series.get('values',[]),list):
+                raise ServiceError('unexpected_prometheus_response')
+            if any(not isinstance(point,(list,tuple)) or len(point)!=2 for point in series.get('values',[])):
+                raise ServiceError('unexpected_prometheus_response')
             labels=series['metric'];metric=labels.get('__name__','')
             points=[(float(t),float(v)) for t,v in series.get('values',[]) if wan_health.finite(t) is not None and wan_health.finite(v) is not None]
             if metric=='up':up.extend(points);continue
@@ -261,7 +321,13 @@ class Engine:
                     last_prune=now
             except Exception as exc:
                 self.last_poll_ok=False;self.last_error=safe_error(exc);self.last_attempt=now
-                with self.lock,self.store.db:self.store.set_state('last_failure_seconds',now)
+                log_failure('accounting_poll_failed',self.last_error)
+                try:
+                    with self.lock,self.store.db:self.store.set_state('last_failure_seconds',now)
+                except (sqlite3.Error,OSError):
+                    # A full/unavailable database cannot persist its own failure.
+                    # Keep in-memory failure evidence and the worker alive.
+                    log_failure('accounting_failure_state_unavailable')
             self.stop.wait(self.config.get('accounting_poll_seconds',30) if caught_up or not self.last_poll_ok else 0.05)
 
 
@@ -313,22 +379,34 @@ def handler(engine,password,root):
     expected='Basic '+base64.b64encode(('admin:'+password).encode()).decode()
     class Handler(BaseHTTPRequestHandler):
         server_version='FortiLens'
+        def setup(self):
+            super().setup();self.connection.settimeout(30)
         def log_message(self,*args):pass
         def send(self,status,payload,kind='application/json; charset=utf-8'):
             data=payload.encode() if isinstance(payload,str) else json.dumps(payload,ensure_ascii=False).encode()
+            self.response_started=True
             self.send_response(status)
             self.send_header('Content-Type',kind);self.send_header('Content-Length',str(len(data)))
             self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff')
             self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
             self.end_headers();self.wfile.write(data)
-        def do_GET(self):
-            parsed=urllib.parse.urlsplit(self.path)
+        def fail(self,status,payload):
+            if self.response_started:
+                self.close_connection=True
+                return
+            try:self.send(status,payload)
+            except OSError:self.close_connection=True
+        def dispatch(self):
             if len(self.path)>4096:return self.send(414,{'error':'request_too_large'})
+            parsed=urllib.parse.urlsplit(self.path)
+            if parsed.scheme or parsed.netloc:raise ValueError('Invalid request path')
             if parsed.path=='/':
-                return self.send(200,Path(root,'reporting.html').read_text(encoding='utf-8'),'text/html; charset=utf-8')
+                try:page=Path(root,'reporting.html').read_text(encoding='utf-8')
+                except (OSError,UnicodeError):raise ServiceError('report_template_unavailable') from None
+                return self.send(200,page,'text/html; charset=utf-8')
             if parsed.path=='/health':return self.send(200,{'service':'running','poll_success':engine.last_poll_ok})
             supplied=self.headers.get('Authorization','')
-            if not hmac.compare_digest(supplied,expected):
+            if not hmac.compare_digest(supplied.encode(),expected.encode()):
                 # No browser Basic-auth dialog: the report page supplies a
                 # transient Authorization header after its normal login form.
                 return self.send(401,{'error':'authentication_required'})
@@ -354,10 +432,31 @@ def handler(engine,password,root):
                             result['monthly_history']=engine.store.history(device,months=True,limit=36)
                     return self.send(200,result)
                 self.send(404,{'error':'not_found'})
+            except ServiceError as exc:
+                if str(exc)=='wan_history_window_outside_budget':
+                    self.fail(400,{'error':'invalid_or_unavailable_report_range','message':'Review the period, timezone and retained detail. Expired partial-day detail is not returned as zero.'})
+                else:self.fail(503,{'error':safe_error(exc),'message':'Required evidence is unavailable; no outage or zero usage is inferred.'})
             except ValueError:
-                self.send(400,{'error':'invalid_or_unavailable_report_range','message':'Review the period, timezone and retained detail. Expired partial-day detail is not returned as zero.'})
+                self.fail(400,{'error':'invalid_or_unavailable_report_range','message':'Review the period, timezone and retained detail. Expired partial-day detail is not returned as zero.'})
             except Exception as exc:
-                self.send(503,{'error':safe_error(exc),'message':'Required evidence is unavailable; no outage or zero usage is inferred.'})
+                if isinstance(exc,(BrokenPipeError,ConnectionResetError,ConnectionAbortedError)):
+                    self.close_connection=True
+                    return
+                log_failure('accounting_request_failed',safe_error(exc))
+                self.fail(503,{'error':safe_error(exc),'message':'Required evidence is unavailable; no outage or zero usage is inferred.'})
+        def do_GET(self):
+            self.response_started=False
+            try:self.dispatch()
+            except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):
+                self.close_connection=True
+            except ServiceError as exc:
+                log_failure('accounting_request_failed',safe_error(exc))
+                self.fail(503,{'error':safe_error(exc),'message':'Required evidence is unavailable; no outage or zero usage is inferred.'})
+            except ValueError:
+                self.fail(400,{'error':'invalid_or_unavailable_report_range','message':'Review the period, timezone and retained detail. Expired partial-day detail is not returned as zero.'})
+            except Exception as exc:
+                log_failure('accounting_request_failed',safe_error(exc))
+                self.fail(503,{'error':safe_error(exc),'message':'Required evidence is unavailable; no outage or zero usage is inferred.'})
     return Handler
 
 
@@ -371,20 +470,42 @@ def main(argv=None):
     parser.add_argument('--prometheus-url',default='http://prometheus:9090')
     parser.add_argument('--listen',default='0.0.0.0');parser.add_argument('--port',type=int,default=8080)
     args=parser.parse_args(argv)
-    config=json.loads(args.config.read_text(encoding='utf-8-sig'))
-    config.setdefault('accounting_timezone','UTC')
-    args.database.parent.mkdir(parents=True,exist_ok=True)
-    password=args.password_file.read_text().strip()
-    if len(password)<16:raise ValueError('Usage reporting password must have at least 16 characters')
-    store=accounting.Store(args.database,config)
-    store.inventory=store.state('inventory',{'interfaces':[]})
-    engine=Engine(store,loki=args.loki_url,prometheus=args.prometheus_url,token_file=args.token_file,config_root=args.config.parent)
-    thread=threading.Thread(target=engine.run,daemon=True);thread.start()
-    server=ThreadingHTTPServer((args.listen,args.port),handler(engine,password,Path(__file__).parent))
-    try:server.serve_forever()
+    if not 0<=args.port<=65535:parser.error('Choose a valid reporting port.')
+    store=server=engine=thread=None
+    shutdown_failed=False
+    try:
+        config=json.loads(args.config.read_text(encoding='utf-8-sig'))
+        if not isinstance(config,dict):raise ServiceError('invalid_response')
+        config.setdefault('accounting_timezone','UTC')
+        args.database.parent.mkdir(parents=True,exist_ok=True)
+        password=args.password_file.read_text().strip()
+        if len(password)<16:raise ValueError('Usage reporting password must have at least 16 characters')
+        store=accounting.Store(args.database,config)
+        store.inventory=store.state('inventory',{'interfaces':[]})
+        engine=Engine(store,loki=args.loki_url,prometheus=args.prometheus_url,token_file=args.token_file,config_root=args.config.parent)
+        # Bind before starting ingestion: a port failure must not leave a writer
+        # running after startup has already failed.
+        server=ThreadingHTTPServer((args.listen,args.port),handler(engine,password,Path(__file__).parent))
+        thread=threading.Thread(target=engine.run,daemon=True);thread.start()
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    except (OSError,ValueError,KeyError,TypeError,RuntimeError,sqlite3.Error) as exc:
+        parser.exit(1,'Reporting service could not start or continue ('+safe_error(exc)+'). Review private configuration, storage and port availability.\n')
     finally:
-        engine.stop.set();server.server_close();thread.join(timeout=30);store.close()
-    return 0
+        if engine is not None:engine.stop.set()
+        if server is not None:
+            try:server.server_close()
+            except OSError:
+                log_failure('accounting_listener_close_failed',warning=False);shutdown_failed=True
+        if thread is not None and thread.is_alive():thread.join(timeout=30)
+        if thread is not None and thread.is_alive():
+            log_failure('accounting_worker_shutdown_timed_out',warning=False);shutdown_failed=True
+        elif store is not None:
+            try:store.close()
+            except sqlite3.Error:
+                log_failure('accounting_store_close_failed',warning=False);shutdown_failed=True
+    return 1 if shutdown_failed else 0
 
 
 if __name__=='__main__':raise SystemExit(main())

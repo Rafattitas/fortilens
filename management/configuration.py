@@ -16,7 +16,7 @@ import threading
 import time
 import urllib.parse
 import yaml
-from .common import Problem, atomic, fingerprint, guarded, load, setup
+from .common import Problem, atomic, fingerprint, guarded, load, report_failure, setup
 from .models import Change, Settings
 
 SERVICES = ('fortigate-exporter', 'prometheus', 'grafana', 'loki', 'alloy', 'node-exporter', 'fortilens-usage', 'fortilens-portal')
@@ -96,13 +96,29 @@ class Configuration:
                                 'applied': settings if existing else None, 'configured': existing, 'site_file': self.site_name})
 
     def state(self):
-        data = load(self.state_path)
+        try:data = load(self.state_path)
+        except (OSError,ValueError) as exc:
+            report_failure('configuration_state_read_failed',exc)
+            raise Problem('configuration_state_unavailable','Saved configuration is unavailable. Review host storage; do not initialize over an existing installation.',503) from None
+        if (not isinstance(data,dict) or not isinstance(data.get('site_file'),str)
+                or not isinstance(data.get('settings'),dict) or type(data.get('revision')) is not int
+                or data['revision']<0 or type(data.get('configured')) is not bool):
+            raise Problem('configuration_state_invalid','Saved configuration needs host-side review. Existing files and monitoring data were not reset.',503)
+        guarded(self.root,data['site_file'])
         self.site_name = data['site_file']
         return data
 
     def compose(self):
         p = guarded(self.root, self.compose_name)
-        value = yaml.safe_load(p.read_text(encoding='utf-8-sig')) if p.is_file() else None
+        try:
+            if p.exists() and not p.is_file():raise ValueError('invalid_compose_file')
+            value = yaml.safe_load(p.read_text(encoding='utf-8-sig')) if p.is_file() else None
+        except OSError as exc:
+            report_failure('compose_read_failed',exc)
+            raise Problem('configuration_unavailable','The registered Compose file is unavailable. Review host storage and permissions.',503) from None
+        except (ValueError,yaml.YAMLError) as exc:
+            report_failure('compose_invalid',exc)
+            raise Problem('compose_unsupported','The registered Compose file cannot be safely interpreted.') from None
         if value is not None and (not isinstance(value, dict) or not isinstance(value.get('services'), dict)):
             raise Problem('compose_unsupported', 'The registered Compose file cannot be safely interpreted.')
         return value
@@ -175,8 +191,12 @@ class Configuration:
             'collector_note': 'WAN, SLA and interface shortcuts share one exporter. It stops only when all three are disabled.'}
 
     def audit(self, event, fields=(), outcome='success'):
-        with (self.control / 'audit.jsonl').open('a', encoding='utf-8') as stream:
-            stream.write(json.dumps({'time': time.time(), 'event': event, 'fields': sorted(fields), 'outcome': outcome}) + '\n')
+        # This append follows committed state changes. Its failure must not claim
+        # those changes were undone or trigger a configuration-only rollback.
+        try:
+            with (self.control / 'audit.jsonl').open('a', encoding='utf-8') as stream:
+                stream.write(json.dumps({'time': time.time(), 'event': event, 'fields': sorted(fields), 'outcome': outcome}) + '\n')
+        except (OSError,ValueError) as exc:report_failure('configuration_audit_write_failed',exc)
 
     def save(self, change):
         change = Change.model_validate(change)
@@ -447,9 +467,25 @@ class Configuration:
         if not re.fullmatch(r'[a-f0-9]{32}', identity):
             raise Problem('invalid_plan', 'Choose a server-generated configuration plan.')
         folder = self.control / 'plans' / identity
-        plan = load(folder / 'plan.json')
+        try:plan = load(folder / 'plan.json')
+        except (OSError,ValueError) as exc:
+            report_failure('configuration_plan_read_failed',exc)
+            raise Problem('plan_unavailable','The reviewed plan is unreadable. Review host storage and prepare a new candidate.',503) from None
         if not plan:
             raise Problem('plan_missing', 'This reviewed plan is not available.', 404)
+        if (not isinstance(plan,dict) or plan.get('id')!=identity or type(plan.get('revision')) is not int
+                or plan.get('status') not in ('PREPARED','APPLYING','APPLIED','FAILED','ROLLED_BACK')
+                or not isinstance(plan.get('files'),list) or not isinstance(plan.get('settings'),dict)
+                or not isinstance(plan.get('previous'),dict)):
+            raise Problem('plan_invalid','The reviewed plan is incomplete. Review the current installation and prepare a new candidate before applying.',503)
+        for row in plan['files']:
+            if (not isinstance(row,dict) or not isinstance(row.get('path'),str)
+                    or type(row.get('mode')) is not int or not 0<=row['mode']<=0o7777
+                    or not all(key in row for key in ('before','after','uid','gid'))
+                    or row['before'] is not None and not re.fullmatch(r'[a-f0-9]{64}',str(row['before']))
+                    or not re.fullmatch(r'[a-f0-9]{64}',str(row['after']))):
+                raise Problem('plan_invalid','The reviewed plan is incomplete. Review the current installation and prepare a new candidate before applying.',503)
+            guarded(self.root,row['path'])
         return folder, plan
 
     def install_files(self, identity):
@@ -484,10 +520,12 @@ class Configuration:
                 if row['before'] is not None:
                     self.write_target(row,guarded(folder/'before',row['path']).read_bytes())
                 # Newly created files/volumes are retained for recovery, never deleted.
-            plan['status'] = 'ROLLED_BACK';atomic(folder/'plan.json', plan)
             previous = plan['previous'];previous['revision'] = self.state()['revision'] + 1
             previous['applied_revision'] = previous['revision'] if previous['configured'] else None
             atomic(self.state_path, previous)
+            # Do not record a completed rollback before its configuration state
+            # is durable. A failed state write keeps the plan recoverable.
+            plan['status'] = 'ROLLED_BACK';atomic(folder/'plan.json', plan)
             self.audit('configuration_rollback')
             return previous
 
