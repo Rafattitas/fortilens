@@ -13,6 +13,7 @@ from http import cookies
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import logging
 from pathlib import Path
 import re
 import secrets
@@ -22,6 +23,30 @@ import urllib.parse
 
 COOKIE = 'fortilens_session'
 VIEWER = 'fortilens-portal'
+LOGGER = logging.getLogger(__name__)
+
+
+def log_failure(event):
+    """Keep diagnostic-handler failures out of request and cleanup paths."""
+    try:LOGGER.error(event)
+    except Exception:pass
+
+MAX_PROXY_BYTES = 32*1024*1024
+REPORT_FAILURE_CODES = frozenset({
+    'upstream_unavailable', 'accounting_storage_unavailable', 'timeout',
+    'tls_verification_failed', 'invalid_response', 'response_budget_exceeded',
+    'upstream_query_incomplete', 'unexpected_loki_response',
+    'loki_paging_budget_exhausted', 'loki_timestamp_overflow',
+    'loki_record_budget_exhausted', 'device_endpoint_not_allowlisted',
+    'accounting_storage_limit', 'wan_history_window_outside_budget',
+    'unexpected_prometheus_response',
+})
+REPORT_FAILURE_MESSAGE = 'Required evidence is unavailable; no outage or zero usage is inferred.'
+
+
+class UpstreamError(ValueError):
+    """A trusted service returned unusable data; never include its contents."""
+
 REPORT_ROUTES = {'/api/report', '/api/device', '/api/diagnostics', '/api/inventory', '/api/wan'}
 QUERY_ROUTES = {
     '/grafana/api/ds/query', '/grafana/api/frontend-metrics',
@@ -66,6 +91,8 @@ class Portal:
         # Private container/loopback HTTP only. This is never a browser-supplied URL.
         if parsed.scheme != 'http' or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ('', '/') or parsed.query or parsed.fragment:
             raise ValueError('Use a private HTTP upstream origin without credentials or a path')
+        if parsed.port is not None and not 1 <= parsed.port <= 65535:
+            raise ValueError('Use a valid private upstream port')
         return parsed
 
     @staticmethod
@@ -120,7 +147,8 @@ class Portal:
             for name, value in response.getheaders():
                 if name.lower() != 'set-cookie':
                     continue
-                jar = cookies.SimpleCookie(value)
+                try:jar = cookies.SimpleCookie(value)
+                except cookies.CookieError:raise UpstreamError('Invalid upstream cookie') from None
                 for name in ('grafana_session', 'grafana_session_expiry'):
                     if name in jar:
                         saved[name] = jar[name].value
@@ -146,6 +174,10 @@ class Portal:
 def handler(portal):
     class Handler(BaseHTTPRequestHandler):
         server_version = 'FortiLens'
+
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(30)
 
         def log_message(self, *args):
             pass  # URLs, headers and passwords never enter an access log.
@@ -191,10 +223,15 @@ def handler(portal):
                 return self.request_body
             if self.headers.get('Transfer-Encoding'):
                 raise ValueError('Chunked requests are not supported')
+            if len(self.headers.get_all('Content-Length', [])) > 1:
+                raise ValueError('Ambiguous request length')
             size = int(self.headers.get('Content-Length', '0'))
             if not 0 <= size <= limit:
                 raise ValueError('Request too large')
-            return self.rfile.read(size)
+            data = self.rfile.read(size)
+            if len(data) != size:
+                raise ValueError('Incomplete request body')
+            return data
 
         def proxy(self, upstream, *, grafana=False, data=None):
             connection = portal.connect(upstream)
@@ -208,6 +245,18 @@ def handler(portal):
             try:
                 connection.request(self.command, self.path, body=data, headers=headers)
                 response = connection.getresponse()
+                if response.status >= 500:
+                    # Preserve only the existing worker's recognized safe error
+                    # contract. Raw service/Grafana error pages are never proxied.
+                    if response.status == 503 and not grafana:
+                        body=response.read(16385)
+                        try:failure=json.loads(body) if len(body)<=16384 else None
+                        except (ValueError,UnicodeError):failure=None
+                        if isinstance(failure,dict) and set(failure)<= {'error','message'}:
+                            code=failure.get('error')
+                            if isinstance(code,str) and (code in REPORT_FAILURE_CODES or re.fullmatch(r'http_[1-5][0-9]{2}',code)) and failure.get('message',REPORT_FAILURE_MESSAGE)==REPORT_FAILURE_MESSAGE:
+                                return self.send(503,failure)
+                    return self.send(503, {'error': 'upstream_unavailable'})
                 if grafana:
                     portal.save_grafana_cookies(self.headers, response)
                 location = response.getheader('Location')
@@ -216,6 +265,9 @@ def handler(portal):
                     if not grafana or not parsed.path.startswith('/grafana/'):
                         return self.send(502, {'error': 'upstream_redirect_rejected'})
                     location = urllib.parse.urlunsplit(('', '', parsed.path, parsed.query, ''))
+                size = response.getheader('Content-Length')
+                if size is not None and (not size.isdecimal() or int(size) > MAX_PROXY_BYTES):
+                    raise UpstreamError('Upstream response exceeded its safe size')
                 self.response_started = True
                 self.send_response(response.status)
                 for name in ('Content-Type', 'Content-Length', 'Content-Encoding', 'Content-Disposition'):
@@ -232,10 +284,14 @@ def handler(portal):
                 self.end_headers()
                 self.close_connection = True
                 if self.command != 'HEAD':
+                    received = 0
                     while True:
                         block = response.read(65536)
                         if not block:
                             break
+                        received += len(block)
+                        if received > MAX_PROXY_BYTES:
+                            raise UpstreamError('Upstream response exceeded its safe size')
                         self.wfile.write(block)
             finally:
                 connection.close()
@@ -253,15 +309,24 @@ def handler(portal):
                 connection.request('GET', '/grafana/login', headers=portal.grafana_headers(self.headers))
                 response = connection.getresponse()
                 portal.save_grafana_cookies(self.headers, response)
-                response.read()
+                if len(response.read(16385)) > 16384:
+                    raise UpstreamError('Invalid monitoring response')
                 connection.request('GET', '/grafana/api/user', headers=portal.grafana_headers(self.headers))
                 response = connection.getresponse()
                 portal.save_grafana_cookies(self.headers, response)
-                user = json.loads(response.read(16384)) if response.status == 200 else {}
+                body = response.read(16385)
+                if len(body) > 16384:raise UpstreamError('Invalid monitoring response')
+                try:user = json.loads(body) if response.status == 200 else {}
+                except (ValueError,UnicodeError):raise UpstreamError('Invalid monitoring response') from None
                 connection.request('GET', '/grafana/api/user/orgs', headers=portal.grafana_headers(self.headers))
                 response = connection.getresponse()
                 portal.save_grafana_cookies(self.headers, response)
-                orgs = json.loads(response.read(16384)) if response.status == 200 else []
+                body = response.read(16385)
+                if len(body) > 16384:raise UpstreamError('Invalid monitoring response')
+                try:orgs = json.loads(body) if response.status == 200 else []
+                except (ValueError,UnicodeError):raise UpstreamError('Invalid monitoring response') from None
+                if not isinstance(user,dict) or not isinstance(orgs,list) or any(not isinstance(org,dict) for org in orgs):
+                    raise UpstreamError('Invalid monitoring response')
                 role = next((org.get('role') for org in orgs if org.get('orgId') == user.get('orgId')), None)
                 if user.get('login') != VIEWER or role != 'Viewer' or user.get('isGrafanaAdmin'):
                     return False
@@ -277,7 +342,9 @@ def handler(portal):
             path = self.parsed_path()
             if self.command in ('GET', 'HEAD'):
                 if path == '/':
-                    return self.send(200, (portal.root / 'reporting.html').read_text(encoding='utf-8'), 'text/html; charset=utf-8')
+                    try:page=(portal.root / 'reporting.html').read_text(encoding='utf-8')
+                    except (OSError,UnicodeError):raise UpstreamError('Report template unavailable') from None
+                    return self.send(200, page, 'text/html; charset=utf-8')
                 if path == '/health':
                     return self.send(200, {'service': 'running', 'component': 'portal'})
                 if path == '/api/portal':
@@ -288,13 +355,14 @@ def handler(portal):
                 if not portal.allowed_attempt(self.client_address[0]):
                     return self.send(429, {'error': 'login_rate_limited'})
                 supplied = json.loads(self.body(4096))
+                if not isinstance(supplied,dict):raise ValueError('Invalid sign-in request')
                 username, password = supplied.get('username'), supplied.get('password')
                 if not isinstance(username, str) or not isinstance(password, str) or username != 'admin' or not hmac.compare_digest(password.encode(), portal.password.encode()):
                     return self.send(401, {'error': 'authentication_required'})
                 # No upstream or Grafana credential is returned to the browser.
                 return self.send(200, {'authenticated': True}, cookie=portal.cookie(portal.issue()))
             api_credential = (self.command in ('GET', 'HEAD') and path in REPORT_ROUTES and
-                              hmac.compare_digest(self.headers.get('Authorization', ''), portal.report_auth))
+                              hmac.compare_digest(self.headers.get('Authorization', '').encode(), portal.report_auth.encode()))
             if not portal.authenticated(self.headers) and not api_credential:
                 return self.send(401, {'error': 'authentication_required'})
             if path == '/api/session' and self.command == 'GET':
@@ -328,14 +396,26 @@ def handler(portal):
                     # with unread data can discard the 401/403 response on Windows.
                     self.request_body = self.body(2097152)
                 self.dispatch()
+            except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):
+                self.close_connection = True
+            except UpstreamError:
+                self.fail(503, {'error': 'upstream_unavailable'})
             except (ValueError, TypeError, AttributeError):
-                self.send(400, {'error': 'invalid_request'})
+                self.fail(400, {'error': 'invalid_request'})
             except (OSError, http.client.HTTPException):
                 # Some bytes may already have been sent; never append a second
                 # response to a partially streamed asset or API body.
-                if self.response_started:
-                    return
-                self.send(503, {'error': 'upstream_unavailable'})
+                self.fail(503, {'error': 'upstream_unavailable'})
+            except Exception:
+                log_failure('portal_request_failed')
+                self.fail(503, {'error': 'upstream_unavailable'})
+
+        def fail(self, status, payload):
+            if self.response_started:
+                self.close_connection = True
+                return
+            try:self.send(status,payload)
+            except OSError:self.close_connection = True
 
         do_HEAD = do_GET
         do_POST = do_GET
@@ -378,7 +458,7 @@ def configure(compose, config):
         'logging': {'driver': 'json-file', 'options': {'max-size': '10m', 'max-file': '3'}}}
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--password-file', required=True, type=Path)
     parser.add_argument('--usage-url', default='http://fortilens-usage:8080')
@@ -387,16 +467,27 @@ def main():
     parser.add_argument('--listen', default='0.0.0.0')
     parser.add_argument('--port', default=8081, type=int)
     parser.add_argument('--secure-cookie', action='store_true')
-    args = parser.parse_args()
-    portal = Portal(args.password_file.read_text().strip(), Path(__file__).parent,
-                    usage=args.usage_url, grafana=args.grafana_url,
-                    dashboard=args.dashboard_uid, secure_cookie=args.secure_cookie)
-    server = ThreadingHTTPServer((args.listen, args.port), handler(portal))
+    args = parser.parse_args(argv)
+    if not 0 <= args.port <= 65535:parser.error('Choose a valid portal port.')
+    server = None
+    shutdown_failed = False
     try:
+        portal = Portal(args.password_file.read_text().strip(), Path(__file__).parent,
+                        usage=args.usage_url, grafana=args.grafana_url,
+                        dashboard=args.dashboard_uid, secure_cookie=args.secure_cookie)
+        server = ThreadingHTTPServer((args.listen, args.port), handler(portal))
         server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    except (OSError,ValueError,RuntimeError,http.client.HTTPException):
+        parser.exit(1,'The monitoring gateway could not start or continue. Review private credentials, upstream settings and port availability.\n')
     finally:
-        server.server_close()
+        if server is not None:
+            try:server.server_close()
+            except OSError:
+                log_failure('portal_listener_close_failed');shutdown_failed = True
+    return 1 if shutdown_failed else 0
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

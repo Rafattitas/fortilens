@@ -2,9 +2,11 @@
 import hashlib
 import importlib.util
 import json
+import logging
 import os
 from pathlib import Path
 import secrets
+import sqlite3
 import sys
 import time
 
@@ -20,6 +22,28 @@ class Problem(Exception):
     def __init__(self, code, message, status=400):
         self.code, self.message, self.status = code, message, status
         super().__init__(code)
+
+
+def report_failure(event, exc):
+    """Log a fixed event and coarse category, never exception/input contents.
+
+    Callers supply a source-code event constant, not a path, request or user value.
+    Diagnostics are best effort and must not replace the operational failure.
+    """
+    if isinstance(exc, sqlite3.Error):
+        category = 'storage'
+    elif isinstance(exc, OSError):
+        category = 'io'
+    elif isinstance(exc, (ValueError, TypeError, KeyError)):
+        category = 'invalid_data'
+    else:
+        category = 'unexpected'
+    try:
+        logging.getLogger('fortilens.management').error(
+            'management_failure event=%s category=%s', event, category)
+    except Exception:
+        # A broken logging handler cannot turn a handled failure into a new one.
+        pass
 
 
 def atomic(path, value, mode=0o600):
@@ -44,7 +68,8 @@ def atomic(path, value, mode=0o600):
                 if os.name!='nt' or attempt==7:raise
                 time.sleep(.01*(attempt+1))
     finally:
-        temporary.unlink(missing_ok=True)
+        try:temporary.unlink(missing_ok=True)
+        except OSError as exc:report_failure('atomic_cleanup', exc)
 
 
 def load(path, default=None):

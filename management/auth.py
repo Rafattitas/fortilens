@@ -8,7 +8,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
-from .common import Problem, atomic
+from .common import Problem, atomic, report_failure
 
 PASSWORD_WORKERS=threading.Semaphore(2)
 
@@ -29,7 +29,7 @@ def password_hash(password, salt=None):
 def verify(password, stored):
     try:
         return hmac.compare_digest(password_hash(password, bytes.fromhex(stored.split('$')[4])), stored)
-    except (ValueError, Problem):
+    except (ValueError, TypeError, IndexError, AttributeError, Problem):
         return False
 
 
@@ -41,6 +41,14 @@ class Auth:
         self.ttl = ttl
         self.lock = threading.RLock()
         self.db = sqlite3.connect(self.root / 'auth.sqlite', check_same_thread=False)
+        try:
+            self._initialize()
+        except Exception:
+            try:self.db.close()
+            except sqlite3.Error as exc:report_failure('auth_initialization_cleanup',exc)
+            raise
+
+    def _initialize(self):
         self.db.executescript('''
             PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS admin(id INTEGER PRIMARY KEY CHECK(id=1), username TEXT NOT NULL, password TEXT NOT NULL, role TEXT NOT NULL);
@@ -94,7 +102,8 @@ class Auth:
             self.audit('administrator_created')
         # A leftover token file is harmless: the endpoint is irreversibly closed
         # by the administrator row, not by a mutable file existence check.
-        self.bootstrap_file.unlink(missing_ok=True)
+        try:self.bootstrap_file.unlink(missing_ok=True)
+        except OSError as exc:report_failure('bootstrap_token_cleanup',exc)
 
     def login(self, username, password, address):
         self.limit(address)

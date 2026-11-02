@@ -36,11 +36,20 @@ def put(path, data):
     temporary = path.with_name(path.name + '.fortilens-new')
     if temporary.exists():
         raise UpgradeError('An unfinished file replacement needs review')
-    temporary.write_bytes(data)
-    # Compose file-backed secrets retain host permissions. Nonroot container
-    # users must read the bind-mounted file; the installation parent is 0700.
-    temporary.chmod(0o644)
-    os.replace(temporary, path)
+    try:
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    except FileExistsError:
+        raise UpgradeError('An unfinished file replacement needs review') from None
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(data);stream.flush();os.fsync(stream.fileno())
+        # Compose secrets retain their existing generated-file mode. The
+        # installation parent remains private; no application data is removed.
+        temporary.chmod(0o644)
+        os.replace(temporary, path)
+    finally:
+        try:temporary.unlink(missing_ok=True)
+        except OSError:pass
 
 
 def prepare(module, installation, config, *, enable_accounting=False, zone=None, expected_devid=None):
@@ -57,6 +66,8 @@ def prepare(module, installation, config, *, enable_accounting=False, zone=None,
         prom = module.load(root / 'prometheus/prometheus.yml')
     except ValueError:
         raise UpgradeError('Automatic merge supports generated JSON/YAML only. Custom YAML needs a manual reviewed merge; no files changed') from None
+    if not isinstance(compose, dict) or not isinstance(compose.get('services'), dict) or not all(isinstance(service,dict) for service in compose['services'].values()) or not isinstance(compose.get('volumes',{}),dict) or not isinstance(compose.get('secrets',{}),dict) or not isinstance(prom, dict) or not isinstance(prom.get('scrape_configs'), list) or not all(isinstance(row, dict) for row in prom['scrape_configs']):
+        raise UpgradeError('The saved Compose or Prometheus configuration has an unsupported structure; review it manually before preparing an upgrade')
     if 'fortilens-usage' in compose['services'] or 'usage-data' in compose.get('volumes', {}):
         raise UpgradeError('The new service/volume name already exists; nothing replaced')
     if any(x.get('job_name') == 'fortilens-accounting' for x in prom['scrape_configs']):
@@ -68,6 +79,11 @@ def prepare(module, installation, config, *, enable_accounting=False, zone=None,
     new = module.validate_config({**config, 'accounting_enabled': True, 'loki_receive_timestamps': True,
         'accounting_timezone': zone or config['accounting_timezone'],
         'expected_devid': config['expected_devid'] if expected_devid is None else expected_devid})
+    auth=module.load(root/'secrets/fortigate-key.yaml')
+    record=auth.get(module.target_url(config)) if isinstance(auth,dict) else None
+    if not isinstance(record,dict) or not isinstance(record.get('token'),str):
+        raise UpgradeError('The saved exporter credential mapping needs manual review; no upgrade was prepared')
+    token=record['token']
     migration = 'usage-' + str(time.time_ns())
     plan_root = guarded(root, '.upgrades/' + migration)
     plan_root.mkdir(parents=True, mode=0o700)
@@ -75,7 +91,6 @@ def prepare(module, installation, config, *, enable_accounting=False, zone=None,
     draft_config = dict(new)
     if draft_config['api_ca_file'] and not Path(draft_config['api_ca_file']).is_absolute():
         draft_config['api_ca_file'] = str(guarded(root, draft_config['api_ca_file']))
-    token = module.load(root / 'secrets/fortigate-key.yaml')[module.target_url(config)]['token']
     # Draft secrets are private; the existing API/Grafana secrets are not changed.
     draft = module.render(draft_config, plan_root / 'draft', token)
     generated = module.load(draft / 'compose.yaml')
@@ -123,7 +138,14 @@ def read_plan(root, identity):
     if not re.fullmatch(r'usage-[0-9]+', identity):
         raise UpgradeError('Choose a generated upgrade ID')
     plan_root = guarded(Path(root), '.upgrades/' + identity)
-    manifest = json.loads((plan_root / 'plan.json').read_text())
+    try:
+        manifest = json.loads((plan_root / 'plan.json').read_text(encoding='utf-8-sig'))
+    except (ValueError, UnicodeError):
+        raise UpgradeError('The upgrade plan is not readable JSON; preserve it and review the saved recovery metadata') from None
+    if not isinstance(manifest, dict) or not isinstance(manifest.get('files'), list) or not all(isinstance(row, dict) and 'before' in row and isinstance(row.get('path'), str) and isinstance(row.get('after'), str) and re.fullmatch(r'[0-9a-f]{64}',row['after']) and (row.get('before') is None or isinstance(row['before'], str) and re.fullmatch(r'[0-9a-f]{64}',row['before'])) for row in manifest['files']):
+        raise UpgradeError('The upgrade plan has an unsupported file record; preserve it for manual recovery')
+    if type(manifest.get('schema_version')) is not int or manifest['schema_version'] != 1 or manifest.get('status') not in ('PREPARED','APPLYING','APPLIED','ROLLED_BACK'):
+        raise UpgradeError('The upgrade plan version or state is unsupported; no files changed')
     if manifest.get('installation') != str(Path(root).resolve()) or manifest.get('id') != identity:
         raise UpgradeError('This plan belongs to a different installation')
     allowed={'compose.yaml','site.json','prometheus/prometheus.yml','alloy/config.alloy',

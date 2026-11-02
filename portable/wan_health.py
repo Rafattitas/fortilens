@@ -7,7 +7,7 @@ KNOWN = {"UP", "DOWN", "ERROR", "DISABLED", "UNKNOWN"}
 def finite(value):
     try:
         return float(value) if value is not None and math.isfinite(float(value)) else None
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OverflowError):
         return None
 
 

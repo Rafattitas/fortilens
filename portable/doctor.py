@@ -1,5 +1,6 @@
 """Read-only readiness checks; never print credentials, API bodies or log lines."""
 from datetime import datetime, timezone
+import http.client
 import json
 import math
 from pathlib import Path
@@ -31,6 +32,8 @@ def service_checks(p, compose_command, services=SERVICES):
         rows = json.loads(text) if text.startswith("[") else [json.loads(x) for x in text.splitlines()]
         if not isinstance(rows, list) or not all(isinstance(x, dict) for x in rows):
             raise ValueError("docker_response_invalid")
+        if any(not isinstance(x.get('Name',''),str) or not isinstance(x.get('Service',''),str) for x in rows):
+            raise ValueError('docker_response_invalid')
     except (OSError, ValueError, subprocess.TimeoutExpired):
         return [check("service:" + name, "UNKNOWN", name + ": Docker status could not be read.",
                       "docker_unavailable", "Check Docker availability and your account permissions. This does not prove the service is stopped.") for name in services]
@@ -75,12 +78,17 @@ def metric_snapshot(p, c, request, prom_uid, now, freshness):
     if not isinstance(response, dict):
         raise ValueError("Invalid Prometheus response")
     data = response.get("data", {})
-    if response.get("status") != "success" or data.get("resultType") != "matrix":
+    if response.get("status") != "success" or not isinstance(data,dict) or data.get("resultType") != "matrix" or not isinstance(data.get('result'),list):
         raise ValueError("Unexpected Prometheus response")
     result = []
     for row in data["result"]:
+        if not isinstance(row,dict) or not isinstance(row.get('metric'),dict) or not isinstance(row.get('values',[]),list):
+            raise ValueError('Unexpected Prometheus response')
         points = []
-        for stamp, value in row.get("values", []):
+        for point in row.get('values',[]):
+            if not isinstance(point,(list,tuple)) or len(point)!=2:
+                raise ValueError('Unexpected Prometheus response')
+            stamp,value=point
             stamp, value = float(stamp), float(value)
             if math.isfinite(stamp) and math.isfinite(value):
                 points.append((stamp, value))
@@ -161,14 +169,25 @@ def logs_check(p, c, request, loki_uid, now, freshness):
     response = request(p, c, "/api/ds/query", "POST", body, timeout=20)
     if not isinstance(response, dict):
         raise ValueError("Invalid Loki response")
-    result = response.get("results", {}).get("A")
+    results=response.get('results')
+    if not isinstance(results,dict):raise ValueError('Invalid Loki response')
+    result = results.get("A")
     if not isinstance(result, dict) or result.get("error") or result.get("status", 200) >= 400:
         raise ValueError("Loki query failed")
     counts = []
-    for frame in result.get("frames", []):
-        for i, field in enumerate(frame.get("schema", {}).get("fields", [])):
+    frames=result.get('frames',[])
+    if not isinstance(frames,list):raise ValueError('Invalid Loki response')
+    for frame in frames:
+        if not isinstance(frame,dict) or not isinstance(frame.get('schema'),dict) or not isinstance(frame.get('data'),dict):
+            raise ValueError('Invalid Loki response')
+        fields=frame['schema'].get('fields')
+        values=frame['data'].get('values')
+        if not isinstance(fields,list) or not isinstance(values,list):raise ValueError('Invalid Loki response')
+        for i, field in enumerate(fields):
+            if not isinstance(field,dict):raise ValueError('Invalid Loki response')
             if field.get("type") == "number":
-                for value in frame["data"]["values"][i]:
+                if i>=len(values) or not isinstance(values[i],list):raise ValueError('Invalid Loki response')
+                for value in values[i]:
                     if value is not None and math.isfinite(float(value)):
                         counts.append(float(value))
     count = sum(counts)
@@ -207,7 +226,9 @@ def api_check(p, c):
                     urllib.request.HTTPSHandler(context=context), NoRedirect())
         with opener.open(request, timeout=10) as response:
             # Bound the response and discard it; never return status payloads.
-            data = json.loads(response.read(1024 * 1024))
+            payload=response.read(1024*1024+1)
+            if len(payload)>1024*1024:raise ValueError('API response exceeded its safe size')
+            data = json.loads(payload)
         if not isinstance(data, dict) or data.get("status") != "success":
             return check("direct_api", "UNKNOWN", "The API response did not confirm a successful system/status check.",
                          "api_response_unconfirmed", "Review version compatibility, endpoint, and permissions. The response body is hidden.")
@@ -223,7 +244,7 @@ def api_check(p, c):
         return check("direct_api", "FAIL", "The API returned an HTTP status that does not confirm readiness.",
                      "api_redirect_rejected" if 300 <= exc.code < 400 else "api_http_error",
                      "Review the API address, port, and endpoint. Redirects were not followed and the response body is hidden.", http_status=exc.code)
-    except (ssl.SSLError, urllib.error.URLError, OSError) as exc:
+    except (ssl.SSLError, urllib.error.URLError, OSError, http.client.HTTPException) as exc:
         reason = getattr(exc, "reason", exc)
         if isinstance(reason, ssl.SSLError):
             code, msg = "api_tls_error", "HTTPS negotiation or certificate validation failed."
@@ -297,7 +318,13 @@ def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, di
         raise ValueError("freshness must be between 60 and 3600 seconds")
     now = time.time() if now is None else now
     services = SERVICES + (('fortilens-usage',) if c.get('accounting_enabled') else ()) + (('fortilens-portal',) if c.get('portal_enabled') else ())
-    checks = (service_reader or service_checks)(p, compose_command, services)
+    try:
+        checks = (service_reader or service_checks)(p, compose_command, services)
+        if not isinstance(checks,list) or any(not isinstance(item,dict) or item.get('status') not in LABELS for item in checks):
+            raise ValueError('Invalid service status')
+    except (OSError,ValueError,TypeError,KeyError,AttributeError,subprocess.TimeoutExpired,http.client.HTTPException):
+        checks=[check('service:'+name,'UNKNOWN',name+': Docker status could not be read.',
+            'docker_unavailable','Check Docker availability and your account permissions. This does not prove the service is stopped.') for name in services]
     available = {}
     try:
         health = request(p, c, "/api/health", timeout=5)
@@ -306,7 +333,7 @@ def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, di
         available["grafana"] = health.get("database") == "ok"
         checks.append(check("grafana", "PASS" if available["grafana"] else "FAIL",
                             "Grafana and its database are ready." if available["grafana"] else "Grafana did not confirm database readiness.", "grafana_ready" if available["grafana"] else "grafana_not_ready"))
-    except (OSError, ValueError, urllib.error.URLError) as exc:
+    except (OSError, ValueError, urllib.error.URLError, http.client.HTTPException) as exc:
         checks.append(request_failure("grafana", exc))
     for name, uid in [("prometheus", prom_uid), ("loki", loki_uid)]:
         available[name] = False
@@ -318,7 +345,7 @@ def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, di
                 available[name] = h.get("status") == "OK"
                 checks.append(check(name, "PASS" if available[name] else "FAIL",
                     name + (": connected through Grafana." if available[name] else ": datasource health did not confirm connectivity."), "datasource_ready" if available[name] else "datasource_not_ready"))
-            except (OSError, ValueError, urllib.error.URLError) as exc:
+            except (OSError, ValueError, urllib.error.URLError, http.client.HTTPException) as exc:
                 checks.append(request_failure(name, exc))
         else:
             checks.append(check(name, "UNKNOWN", name + ": cannot be checked through Grafana right now.", "grafana_prerequisite_unavailable"))
@@ -326,7 +353,7 @@ def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, di
     if available["prometheus"]:
         try:
             checks.extend(metrics_checks(metric_snapshot(p, c, request, prom_uid, now, freshness), c, freshness))
-        except (OSError, ValueError, KeyError, TypeError, IndexError, urllib.error.URLError) as exc:
+        except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, urllib.error.URLError, http.client.HTTPException) as exc:
             checks.append(request_failure("metric_query", exc))
             checks.extend(check(k, "UNKNOWN", "Metrics for this check could not be read.", "metrics_query_unavailable") for k in metric_ids)
     else:
@@ -334,7 +361,7 @@ def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, di
     if available["loki"]:
         try:
             checks.append(logs_check(p, c, request, loki_uid, now, freshness))
-        except (OSError, ValueError, KeyError, TypeError, IndexError, urllib.error.URLError) as exc:
+        except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, urllib.error.URLError, http.client.HTTPException) as exc:
             checks.append(request_failure("recent_logs", exc))
     else:
         checks.append(check("recent_logs", "UNKNOWN", "Logs cannot be checked until Loki is readable.", "loki_prerequisite_unavailable"))
@@ -347,7 +374,7 @@ def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, di
             checks.append(check('accounting_api','FAIL','The local reporting service rejected or failed its read-only diagnostic request.',
                 'accounting_auth_rejected' if exc.code in (401,403) else 'accounting_http_failed',
                 'Review the local reporting password and engine service. This is not a FortiGate token result.',http_status=exc.code))
-        except (OSError,ValueError,TypeError,KeyError,urllib.error.URLError):
+        except (OSError,ValueError,TypeError,KeyError,urllib.error.URLError,http.client.HTTPException):
             checks.append(check('accounting_api','UNKNOWN','Usage-engine diagnostics are unavailable.',
                 'accounting_diagnostics_unavailable','Review the optional service and its local reporting address. No source traffic or WAN state is inferred.'))
     status = next((s for s in ["FAIL", "WARN", "UNKNOWN"] if any(x["status"] == s for x in checks)), "PASS")

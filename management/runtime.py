@@ -1,6 +1,7 @@
 """Host-only approved operations. No browser command, image, root or project input."""
 import base64
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 import http.client
 import hashlib
 import ipaddress
@@ -18,7 +19,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import yaml
-from .common import Problem, atomic, load, setup
+from .common import Problem, atomic, load, report_failure, setup
 from .configuration import SERVICES
 from .models import Apply, Change, Console, Job, Revision, Settings
 import doctor
@@ -80,7 +81,8 @@ class Docker:
         env.pop('DOCKER_HOST',None);env.pop('DOCKER_CONTEXT',None)
         try:
             result = subprocess.run(args, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL, shell=False,env=env)
-        except (OSError, subprocess.TimeoutExpired):
+        except (OSError, subprocess.TimeoutExpired, UnicodeError) as exc:
+            report_failure('docker_operation_unavailable',exc)
             raise Problem('docker_unavailable', 'Docker is unavailable or the approved operation timed out.') from None
         if result.returncode:
             if 'read-only file system' in result.stderr.lower():
@@ -134,7 +136,17 @@ class Docker:
         if not (self.c.root/self.c.compose_name).exists():
             return []
         text = self.run(self.command()+['ps','--all','--format','json'],30).strip()
-        rows = json.loads(text) if text.startswith('[') else [json.loads(x) for x in text.splitlines() if x]
+        try:
+            rows = json.loads(text) if text.startswith('[') else [json.loads(x) for x in text.splitlines() if x]
+            if not isinstance(rows,list) or any(not isinstance(row,dict) for row in rows):
+                raise ValueError('invalid_container_status')
+            for row in rows:
+                if (not isinstance(row.get('Service'),str) or not isinstance(row.get('State'),str)
+                        or not isinstance(row.get('Name',''),str)):
+                    raise ValueError('invalid_container_status')
+        except ValueError as exc:
+            report_failure('docker_status_invalid',exc)
+            raise Problem('docker_response_invalid','Docker returned an unreadable service status. Review the local engine.',503) from None
         return [{'service':r.get('Service'), 'status':r.get('State'), 'health':r.get('Health') or None,
                  'id':r.get('ID')} for r in rows if r.get('Service') in SERVICES and '-run-' not in r.get('Name','')]
 
@@ -142,10 +154,24 @@ class Docker:
         ids = self.run(self.command()+['ps','--all','-q',service],15).strip().splitlines()
         if len(ids) != 1:
             raise Problem('service_unavailable', 'A required service is not running.')
-        row = json.loads(self.run(['docker','inspect',ids[0]],15))[0]
+        try:
+            inspected = json.loads(self.run(['docker','inspect',ids[0]],15))
+            if not isinstance(inspected,list) or len(inspected)!=1 or not isinstance(inspected[0],dict):
+                raise ValueError('invalid_inspection')
+            row=inspected[0]
+            if not isinstance(row.get('Config'),dict) or not isinstance(row['Config'].get('Labels'),dict):
+                raise ValueError('invalid_container_identity')
+        except (ValueError,TypeError) as exc:
+            report_failure('docker_inspect_invalid',exc)
+            raise Problem('docker_response_invalid','Docker returned unreadable service identity. No operation was redirected.',503) from None
         if row.get('Config',{}).get('Labels',{}).get('com.docker.compose.project') != self.c.project:
             raise Problem('project_mismatch', 'Service identity did not match the registered project.')
-        addresses = [v.get('IPAddress') for v in row['NetworkSettings']['Networks'].values() if v.get('IPAddress')]
+        networks=row.get('NetworkSettings',{}).get('Networks') if isinstance(row.get('NetworkSettings'),dict) else None
+        if not isinstance(networks,dict) or any(not isinstance(v,dict) for v in networks.values()):
+            raise Problem('service_network_unavailable','This service uses an unsupported host/network layout.')
+        addresses = [v.get('IPAddress') for v in networks.values() if v.get('IPAddress')]
+        if any(not isinstance(address,str) for address in addresses):
+            raise Problem('service_network_unavailable','This service uses an unsupported host/network layout.')
         if not addresses:
             raise Problem('service_network_unavailable', 'This service uses an unsupported host/network layout.')
         return addresses[0], port
@@ -158,7 +184,13 @@ class Docker:
             r = conn.getresponse();data=r.read(16*1024*1024+1)
             if r.status != 200 or len(data)>16*1024*1024:
                 raise Problem('service_api_unavailable', 'A monitoring service did not return a readable bounded response.')
-            return json.loads(data)
+            value=json.loads(data)
+            if not isinstance(value,(dict,list)):
+                raise ValueError('invalid_service_payload')
+            return value
+        except (OSError,http.client.HTTPException,ValueError) as exc:
+            report_failure('service_request_failed',exc)
+            raise Problem('service_api_unavailable','A monitoring service did not return a readable bounded response.',503) from None
         finally:
             conn.close()
 
@@ -188,7 +220,7 @@ class Docker:
                     # Loki ready is text, so its query API confirms readiness here.
                     self.http('loki',3100,'/loki/api/v1/query?'+urllib.parse.urlencode({'query':'sum(count_over_time({job="fortigate-syslog"}[1m]))'}))
                     return last
-                except (Problem,OSError,ValueError):pass
+                except (Problem,OSError,ValueError,http.client.HTTPException):pass
             time.sleep(2)
         raise Problem('readiness_failed', 'A required service did not become ready. Configuration rollback is available.')
 
@@ -207,15 +239,20 @@ def enabled_services(settings, compose):
 class Operations:
     def __init__(self, configuration, docker=None, device_get=fortigate, dashboard_uid='forti-monitor'):
         self.c=configuration;self.docker=docker or Docker(configuration);self.device_get=device_get
-        self.jobs={};self.busy=threading.Lock();self.executor=ThreadPoolExecutor(max_workers=1)
+        self.jobs={};self.jobs_lock=threading.Lock();self.busy=threading.Lock();self.executor=ThreadPoolExecutor(max_workers=1)
         self.gateway_cookie=''
         self.gateway_lock=threading.Lock()
         if not interfaces.NAME.fullmatch(dashboard_uid):raise ValueError('Invalid registered dashboard UID')
         self.dashboard_uid=dashboard_uid
         for p in (self.c.control/'jobs').glob('*.json'):
-            job=load(p)
+            try:
+                Job(job_id=p.stem)
+                job=self.read_job(p.stem)
+            except (Problem,ValueError) as exc:
+                report_failure('job_recovery_unavailable',exc)
+                continue
             if job.get('status')=='starting':
-                self._progress(job,'failed','The helper restarted during deployment. Review a controlled configuration rollback.',status='failed',rollback_available=True)
+                self._safe_progress(job,'failed','The helper restarted during deployment. Review a controlled configuration rollback.',status='failed',rollback_available=True)
 
     def dispatch(self, operation, data):
         if operation in ('view','status','diagnostics') and data:
@@ -243,9 +280,7 @@ class Operations:
         if operation=='rollback':return self.rollback(Apply.model_validate(data))
         if operation=='job':
             request=Job.model_validate(data)
-            job=load(self.c.control/'jobs'/ (request.job_id+'.json'))
-            if not job:raise Problem('job_missing','Deployment job not found.',404)
-            return job
+            return self.read_job(request.job_id)
         if operation=='console':return self.console(Console.model_validate(data))
         raise Problem('operation_rejected','This management operation is not supported.',403)
 
@@ -301,7 +336,12 @@ class Operations:
         return result
 
     def status(self):
-        usage=shutil.disk_usage(self.c.control)
+        try:
+            usage=shutil.disk_usage(self.c.control)
+            disk={'total':usage.total,'used':usage.used,'available':usage.free}
+        except OSError as exc:
+            report_failure('storage_probe_failed',exc)
+            disk={'total':None,'used':None,'available':None}
         try:
             self.docker.run(['docker','version','--format','{{.Server.Version}}'],5)
             services=self.docker.statuses();docker='Available'
@@ -313,10 +353,21 @@ class Operations:
             _,disabled=enabled_services(Settings.model_validate(self.c.state()['settings']),self.c.compose())
             for row in services:
                 if row['service'] in disabled:row.update(status='disabled',health=None)
-        jobs=[load(p) for p in (self.c.control/'jobs').glob('*.json')]
-        latest=max(jobs,key=lambda j:j.get('events',[{}])[-1].get('at',0)) if jobs else None
+        identities={p.stem for p in (self.c.control/'jobs').glob('*.json')}
+        with self.jobs_lock:identities.update(self.jobs)
+        jobs=[]
+        for identity in identities:
+            try:
+                Job(job_id=identity)
+                jobs.append(self.read_job(identity))
+            except (Problem,ValueError) as exc:report_failure('job_status_unavailable',exc)
+        def last_event(job):
+            event=(job.get('events') or [{}])[-1]
+            stamp=event.get('at',0) if isinstance(event,dict) else 0
+            return stamp if isinstance(stamp,(int,float)) else 0
+        latest=max(jobs,key=last_event) if jobs else None
         return {'hostname':socket.gethostname(),'os':platform.platform(),'architecture':platform.machine(),'cpu_count':os.cpu_count(),'ram_bytes':ram,
-                'disk':{'total':usage.total,'used':usage.used,'available':usage.free},'docker':docker,'services':services,
+                'disk':disk,'docker':docker,'services':services,
                 'installation':{'configured':self.c.state()['configured'],'project':self.c.project},
                 'storage_projection':self.storage(),'latest_job':latest,
                 'links':{'console':'fortilens-portal' in (self.c.compose() or {'services':{}})['services'],
@@ -328,7 +379,13 @@ class Operations:
         # Plan from observed service growth only. Counter resets/compaction or
         # absent data cannot become a made-up zero-byte storage forecast.
         result={'available':False,'message':'Insufficient data for storage estimation','components':{}}
-        now=time.time();samples=load(self.c.control/'storage-samples.json',{})
+        now=time.time()
+        try:
+            samples=load(self.c.control/'storage-samples.json',{})
+            if not isinstance(samples,dict):raise ValueError('invalid_storage_history')
+        except (OSError,ValueError) as exc:
+            report_failure('storage_history_unavailable',exc)
+            return result
         for service in ('loki','prometheus','fortilens-usage'):
             try:
                 ids=self.docker.run(self.docker.command()+['ps','--all','-q',service],10).strip().splitlines()
@@ -355,9 +412,15 @@ class Operations:
                     result.update(available=True,message='Planning estimate from measured filesystem growth. Compaction, compression and future traffic may change actual use.')
                 if not old or now-old['at']>=300:samples[service]={'at':now,'bytes':total}
             except (Problem,OSError,ValueError,KeyError,TypeError):continue
-        if result['available'] and sum(x.get('projection_bytes',0) for x in result['components'].values())>shutil.disk_usage(self.c.control).free:
-            result['message']+=' Warning: projected growth exceeds currently available storage.'
-        atomic(self.c.control/'storage-samples.json',samples)
+        if result['available']:
+            try:
+                if sum(x.get('projection_bytes',0) for x in result['components'].values())>shutil.disk_usage(self.c.control).free:
+                    result['message']+=' Warning: projected growth exceeds currently available storage.'
+            except OSError as exc:report_failure('storage_probe_failed',exc)
+        try:atomic(self.c.control/'storage-samples.json',samples)
+        except (OSError,ValueError) as exc:
+            report_failure('storage_history_write_failed',exc)
+            result['message']+=' The latest storage sample could not be saved; review host storage.'
         return result
 
     def diagnostics(self):
@@ -423,21 +486,56 @@ class Operations:
         try:return self.docker.http('fortilens-usage',8080,'/api/diagnostics',headers={'Authorization':auth})
         except Problem:raise ValueError('accounting_service_unavailable') from None
 
+    def read_job(self,identity):
+        # The current process knows the newest state even when disk-full prevents
+        # recording it. The bounded cache is not a durable recovery guarantee.
+        with self.jobs_lock:
+            cached=self.jobs.get(identity)
+            if cached is not None:return deepcopy(cached)
+        try:job=load(self.c.control/'jobs'/(identity+'.json'))
+        except (OSError,ValueError) as exc:
+            report_failure('job_read_failed',exc)
+            raise Problem('job_state_unavailable','Deployment history is unavailable. Review host storage and service logs.',503) from None
+        if not job:raise Problem('job_missing','Deployment job not found.',404)
+        if not isinstance(job,dict) or job.get('job_id')!=identity or not isinstance(job.get('events',[]),list):
+            raise Problem('job_state_invalid','Deployment history needs host-side review. Check Settings and the registered installation before retrying.',503)
+        return job
+
     def _progress(self,job,phase,message,**values):
         job.update(phase=phase,message=message,**values)
         job.setdefault('events',[]).append({'at':time.time(),'phase':phase,'message':message})
+        with self.jobs_lock:
+            self.jobs[job['job_id']]=deepcopy(job)
+            while len(self.jobs)>128:self.jobs.pop(next(iter(self.jobs)))
         atomic(self.c.control/'jobs'/(job['job_id']+'.json'),job)
+
+    def _safe_progress(self,job,phase,message,**values):
+        try:self._progress(job,phase,message,**values)
+        except (OSError,ValueError,TypeError,Problem) as exc:report_failure('job_write_failed',exc)
+
+    def _failed_job(self,job,message,**values):
+        self._safe_progress(job,'failed',message,status='failed',**values)
+        try:self.c.audit('deployment_failed',outcome='failed')
+        except (OSError,ValueError,Problem) as exc:report_failure('deployment_audit_failed',exc)
 
     def apply(self,request):
         if not request.confirm:raise Problem('confirmation_required','Review the candidate before applying it.')
         if not self.busy.acquire(blocking=False):raise Problem('deployment_busy','A deployment is already running.',409)
         identity=os.urandom(16).hex();job={'job_id':identity,'plan_id':request.plan_id,'status':'starting','phase':'queued','events':[]}
-        self._progress(job,'queued','Preparing the approved configuration.')
-        self.executor.submit(self._deploy,request,job)
+        queued=False
+        try:
+            self._progress(job,'queued','Preparing the approved configuration.')
+            self.executor.submit(self._deploy,request,job);queued=True
+        except (OSError,ValueError,RuntimeError,Problem) as exc:
+            report_failure('deployment_queue_failed',exc)
+            self._failed_job(job,'Deployment could not be queued. No services were started.')
+            raise Problem('deployment_queue_failed','Deployment could not be queued. Review host storage and the helper service.',503) from None
+        finally:
+            if not queued:self.busy.release()
         return job
 
     def _deploy(self,request,job):
-        installed=False
+        installed=False;install_attempted=False
         try:
             with self.c.lock:
                 if request.revision!=self.c.state()['revision']:raise Problem('revision_conflict','The saved configuration revision changed.',409)
@@ -452,6 +550,7 @@ class Operations:
                         raise Problem('discovery_required','Discover interfaces for this saved revision before deployment.')
                     interfaces.selected_names(inventory['report'],plan['settings']['wan_interfaces'],plan['settings']['vdom'])
                 self._progress(job,'backup','Saving a private configuration backup; monitoring data is not copied or migrated.')
+                install_attempted=True
                 self.c.install_files(request.plan_id);installed=True
                 settings=Settings.model_validate(plan['settings'])
                 enabled,disabled=enabled_services(settings,self.c.compose())
@@ -466,15 +565,22 @@ class Operations:
                 self._progress(job,'diagnostics','Checking collection evidence. Missing FortiGate data is not a deployment failure.')
                 diagnostic=self.diagnostics()
                 self.c.complete(request.plan_id)
-                self._progress(job,'complete','Configuration applied. Review any collection warnings in Diagnostics.',status='complete',services=services,diagnostics=diagnostic)
+                self._safe_progress(job,'complete','Configuration applied. Review any collection warnings in Diagnostics.',status='complete',services=services,diagnostics=diagnostic)
         except Exception as e:
+            report_failure('deployment_failed',e)
             restored=False
+            # install_files can fail after replacing only some files. Its
+            # durable APPLYING marker is written before the first target write.
+            if install_attempted and not installed:
+                try:
+                    _,current=self.c.plan(request.plan_id)
+                    installed=current.get('status') in ('APPLYING','APPLIED','FAILED')
+                except (Problem,OSError,ValueError):pass
             if installed:
                 try:self.c.restore(request.plan_id);restored=True
-                except Problem:pass
-            message=e.message if isinstance(e,Problem) else 'Deployment failed at the recorded step. Previous configuration and data volumes are retained.'
-            self._progress(job,'failed',message,status='failed',failed_step=job['phase'],configuration_restored=restored,rollback_available=installed)
-            self.c.audit('deployment_failed',outcome='failed')
+                except (Problem,OSError,ValueError) as exc:report_failure('configuration_restore_failed',exc)
+            message=e.message if isinstance(e,Problem) else 'Deployment could not be completed. Review the recorded step, configuration recovery and service status before retrying. Monitoring data was not deleted.'
+            self._failed_job(job,message,failed_step=job['phase'],configuration_restored=restored,rollback_available=installed)
         finally:self.busy.release()
 
     def rollback(self,request):
@@ -482,7 +588,6 @@ class Operations:
         if request.revision!=self.c.state()['revision']:raise Problem('revision_conflict','Reload the latest configuration before choosing rollback.',409)
         if not self.busy.acquire(blocking=False):raise Problem('deployment_busy','Wait for the running operation.',409)
         identity=os.urandom(16).hex();job={'job_id':identity,'plan_id':request.plan_id,'status':'starting','events':[]}
-        self._progress(job,'rollback','Restoring the previous configuration. Data volumes remain untouched.')
         def run():
             try:
                 _,plan=self.c.plan(request.plan_id)
@@ -491,14 +596,26 @@ class Operations:
                     # No original stack exists on a failed first install: stop
                     # only this registered project's services; retain all files/data.
                     self.docker.run(self.docker.command()+['stop',*[n for n in SERVICES if n in self.c.compose()['services']]])
-                    self._progress(job,'complete','Fresh-install services stopped; all data retained.',status='complete')
+                    self._safe_progress(job,'complete','Fresh-install services stopped; all data retained.',status='complete')
                     return
                 s=Settings.model_validate(plan['previous']['settings']);enabled,disabled=enabled_services(s,self.c.compose())
                 self.docker.start(enabled,disabled);self.docker.ready(enabled)
-                self._progress(job,'complete','Previous configuration restored; no application-data rollback was attempted.',status='complete')
-            except Exception as e:self._progress(job,'failed',e.message if isinstance(e,Problem) else 'Rollback failed safely; review diagnostics.',status='failed')
+                self._safe_progress(job,'complete','Previous configuration restored; no application-data rollback was attempted.',status='complete')
+            except Exception as e:
+                report_failure('rollback_failed',e)
+                self._failed_job(job,e.message if isinstance(e,Problem) else 'Rollback could not be completed. Retained data was not deleted; review diagnostics.')
             finally:self.busy.release()
-        self.executor.submit(run);return job
+        queued=False
+        try:
+            self._progress(job,'rollback','Restoring the previous configuration. Data volumes remain untouched.')
+            self.executor.submit(run);queued=True
+        except (OSError,ValueError,RuntimeError,Problem) as exc:
+            report_failure('rollback_queue_failed',exc)
+            self._failed_job(job,'Rollback could not be queued. No services were restarted.')
+            raise Problem('rollback_queue_failed','Rollback could not be queued. Review host storage and the helper service.',503) from None
+        finally:
+            if not queued:self.busy.release()
+        return job
 
     def console(self,request):
         # Existing unified console retains its own auth boundary. The helper

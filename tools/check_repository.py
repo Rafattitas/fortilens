@@ -12,12 +12,17 @@ import ast
 import html
 import re
 import subprocess
+import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 EXCLUDED = {".git", ".venv", "venv", "node_modules", "dist", "__pycache__", ".ruff_cache"}
 PINNED_ACTION = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40}$")
+
+
+class RepositoryCheckError(ValueError):
+    """A fixed diagnostic that does not contain submitted file contents."""
 
 
 def source_files(root: Path) -> list[Path]:
@@ -28,6 +33,7 @@ def source_files(root: Path) -> list[Path]:
             cwd=root,
             check=True,
             capture_output=True,
+            timeout=30,
         )
         names = result.stdout.decode("utf-8").split("\0")
         return sorted({root / name for name in names if name and (root / name).is_file()})
@@ -81,19 +87,34 @@ def check_markdown(root: Path, paths: list[Path]) -> list[str]:
     for path in paths:
         if path.suffix.lower() != ".md":
             continue
-        for target in markdown_targets(path.read_text(encoding="utf-8")):
-            parsed = urlsplit(target.strip("<>"))
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            errors.append(f"{path.relative_to(root)}: Markdown source could not be read as UTF-8")
+            continue
+        for target in markdown_targets(text):
+            try:
+                parsed = urlsplit(target.strip("<>"))
+            except ValueError:
+                errors.append(f"{path.relative_to(root)}: Invalid link format; target suppressed")
+                continue
             if parsed.scheme or parsed.netloc:
                 continue
             destination = (path.parent / unquote(parsed.path)).resolve() if parsed.path else path
-            label = f"{path.relative_to(root)}: {target}"
+            label = str(path.relative_to(root))
             if not destination.is_relative_to(root):
                 errors.append(f"Local link leaves repository: {label}")
             elif not destination.exists():
                 errors.append(f"Missing local link: {label}")
             elif parsed.fragment and destination.suffix.lower() == ".md":
                 if destination not in anchors:
-                    anchors[destination] = markdown_anchors(destination.read_text(encoding="utf-8"))
+                    try:
+                        anchors[destination] = markdown_anchors(
+                            destination.read_text(encoding="utf-8")
+                        )
+                    except (OSError, UnicodeError):
+                        errors.append(f"{label}: Linked Markdown source could not be read as UTF-8")
+                        continue
                 if unquote(parsed.fragment) not in anchors[destination]:
                     errors.append(f"Missing Markdown anchor: {label}")
     return errors
@@ -112,6 +133,8 @@ def check_python(root: Path, paths: list[Path]) -> list[str]:
             )
         except SyntaxError as exc:
             errors.append(f"{relative}:{exc.lineno}: incompatible with Python {version}: {exc.msg}")
+        except (OSError, UnicodeError):
+            errors.append(f"{relative}: Python source could not be read as UTF-8")
     return errors
 
 
@@ -164,7 +187,7 @@ def check_yaml(root: Path, paths: list[Path]) -> list[str]:
         for key_node, value_node in node.value:
             key = loader.construct_object(key_node, deep=deep)
             if key in result:
-                raise ValueError("Duplicate YAML mapping key")
+                raise RepositoryCheckError("Duplicate YAML mapping key")
             result[key] = loader.construct_object(value_node, deep=deep)
         return result
 
@@ -179,40 +202,65 @@ def check_yaml(root: Path, paths: list[Path]) -> list[str]:
             if relative.parts[:2] != (".github", "workflows"):
                 continue
             if not isinstance(data, dict) or not isinstance(data.get("jobs"), dict):
-                raise ValueError("Workflow needs a jobs mapping")
+                raise RepositoryCheckError("Workflow needs a jobs mapping")
             if data.get("permissions") == "write-all":
-                raise ValueError("Use explicit workflow permissions instead of write-all")
+                raise RepositoryCheckError("Use explicit workflow permissions instead of write-all")
             for job in data["jobs"].values():
                 if not isinstance(job, dict):
-                    raise ValueError("Workflow jobs must be mappings")
+                    raise RepositoryCheckError("Workflow jobs must be mappings")
+                steps = job.get("steps", [])
+                if not isinstance(steps, list) or not all(isinstance(step, dict) for step in steps):
+                    raise RepositoryCheckError("Workflow steps must be mappings in a list")
                 uses = [job["uses"]] if "uses" in job else []
-                uses += [step["uses"] for step in job.get("steps", []) if "uses" in step]
+                uses += [step["uses"] for step in steps if "uses" in step]
                 for action in uses:
+                    if not isinstance(action, str):
+                        raise RepositoryCheckError("Workflow action references must be strings")
                     if not action.startswith("./") and not PINNED_ACTION.fullmatch(action):
-                        raise ValueError(f"Remote action is not pinned to a full commit: {action}")
-        except (yaml.YAMLError, ValueError, TypeError) as exc:
+                        raise RepositoryCheckError("Remote action is not pinned to a full commit")
+        except RepositoryCheckError as exc:
             errors.append(f"{relative}: {exc}")
+        except (yaml.YAMLError, ValueError, TypeError):
+            errors.append(
+                f"{relative}: Invalid YAML syntax or unsupported workflow structure; source contents suppressed"
+            )
+        except (OSError, UnicodeError):
+            errors.append(f"{relative}: YAML source could not be read as UTF-8")
     return errors
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
-    root = parser.parse_args().root.resolve()
-    paths = source_files(root)
-    failures = []
-    for name, check in (
-        ("Python grammar (portable 3.10+, management 3.11+)", check_python),
-        ("Local Markdown links and anchors", check_markdown),
-        ("Sensitive/generated source filenames", check_sensitive_paths),
-        ("YAML syntax, duplicate keys and pinned workflow actions", check_yaml),
-    ):
-        problems = check(root, paths)
-        failures.extend(problems)
-        print(f"{'FAIL' if problems else 'PASS'}: {name}")
-        for problem in problems:
-            print(f"  {problem}")
-    return 1 if failures else 0
+    args = parser.parse_args()
+    try:
+        root = args.root.resolve()
+        if not root.is_dir():
+            print("FAIL: Repository root is not an available directory", file=sys.stderr)
+            return 1
+        paths = source_files(root)
+        failures = []
+        for name, check in (
+            ("Python grammar (portable 3.10+, management 3.11+)", check_python),
+            ("Local Markdown links and anchors", check_markdown),
+            ("Sensitive/generated source filenames", check_sensitive_paths),
+            ("YAML syntax, duplicate keys and pinned workflow actions", check_yaml),
+        ):
+            problems = check(root, paths)
+            failures.extend(problems)
+            print(f"{'FAIL' if problems else 'PASS'}: {name}")
+            for problem in problems:
+                print(f"  {problem}")
+        return 1 if failures else 0
+    except (OSError, UnicodeError, subprocess.SubprocessError):
+        print(
+            "FAIL: Repository inputs could not be read or Git could not complete. Review file permissions and UTF-8 encoding; private details are suppressed.",
+            file=sys.stderr,
+        )
+        return 1
+    except KeyboardInterrupt:
+        print("Repository validation cancelled.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

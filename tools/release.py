@@ -99,14 +99,18 @@ PUBLIC_FILES = (
     "tests/preview_reports.py",
     "tests/test_accounting.py",
     "tests/test_alerts.py",
+    "tests/test_cli_errors.py",
     "tests/test_dashboard_style.py",
     "tests/test_doctor.py",
     "tests/test_interfaces.py",
     "tests/test_management.py",
+    "tests/test_management_errors.py",
     "tests/test_portable_setup.py",
     "tests/test_portal.py",
     "tests/test_release.py",
     "tests/test_repository_checks.py",
+    "tests/test_runtime_errors.py",
+    "tests/test_service_errors.py",
     "tests/test_upgrade.py",
     "tests/test_usage_quality.py",
     "tests/test_usage_service.py",
@@ -169,6 +173,7 @@ def portable_sources(root: Path) -> dict[str, bytes]:
             text=True,
             capture_output=True,
             check=False,
+            timeout=120,
         )
         if result.returncode:
             raise ReleaseError("The existing portable bundle command failed")
@@ -193,12 +198,14 @@ def source_state(root: Path) -> dict[str, str | None]:
             capture_output=True,
             text=True,
             check=False,
+            timeout=30,
         )
         status = subprocess.run(
             ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all"],
             capture_output=True,
             text=True,
             check=False,
+            timeout=30,
         )
         if revision.returncode == status.returncode == 0:
             return {
@@ -207,7 +214,8 @@ def source_state(root: Path) -> dict[str, str | None]:
             }
     archived = root / MANIFEST
     if archived.is_file() and not archived.is_symlink():
-        source = json.loads(archived.read_text(encoding="utf-8")).get("source")
+        document = json.loads(archived.read_text(encoding="utf-8"))
+        source = document.get("source") if isinstance(document, dict) else None
         if isinstance(source, dict) and set(source) == {"revision", "worktree"}:
             if source["worktree"] in {"clean", "modified", "unversioned"} and (
                 source["revision"] is None
@@ -361,8 +369,25 @@ def main(argv: list[str] | None = None) -> int:
         else:
             counts = verify(ROOT, args.directory, args.version)
             print("Verified full and portable artifacts: " + json.dumps(counts, sort_keys=True))
-    except (ReleaseError, OSError, ValueError, tarfile.TarError, zipfile.BadZipFile) as exc:
+    except ReleaseError as exc:
         parser.exit(1, "Release validation failed: " + str(exc) + "\n")
+    except (OSError, ValueError, tarfile.TarError, zipfile.BadZipFile, subprocess.SubprocessError):
+        parser.exit(
+            1,
+            "Release validation failed: Required source, archive or host operation is unavailable or invalid. Review file permissions, storage and supported inputs; private details are suppressed.\n",
+        )
+    except SystemExit as exc:
+        if exc.code in (None, 0):
+            raise
+        parser.exit(
+            1,
+            "Release validation failed: The reviewed installer source is incomplete or unsafe; no release was published.\n",
+        )
+    except KeyboardInterrupt:
+        parser.exit(
+            130,
+            "Release validation cancelled. Review the candidate output directory before retrying.\n",
+        )
     return 0
 
 
