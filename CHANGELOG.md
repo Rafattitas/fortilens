@@ -9,6 +9,8 @@
 - Make monitoring the configured entry, prevent a duplicate report sign-in flash,
   validate shipped JavaScript in CI and privately cache only fingerprinted native
   code assets while keeping authentication, HTML and API responses uncached.
+- Load the initial protected view from server-rendered HTML and preserve its route
+  on reload, including legacy hash links, without requiring Reload view in Chrome.
 
 - Primary FortiLens navigation with protected native Grafana monitoring, fixed-period
   device/VLAN reports, WAN evidence and data quality behind the existing Viewer boundary.

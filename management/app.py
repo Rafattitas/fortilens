@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlencode
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.concurrency import run_in_threadpool
 from pydantic import Field, SecretStr
@@ -20,6 +20,7 @@ from .models import Apply, Change, Job, Revision, Strict
 
 STATIC=Path(__file__).parent/'static'
 COOKIE='fortilens_management'
+EMBEDDED_VIEWS={'monitoring','wan','devices','vlans','reports','quality'}
 
 
 def immutable_asset(path,method,status,content_type):
@@ -155,7 +156,18 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
         return response
 
     @app.get('/')
-    def index():return FileResponse(STATIC/'index.html')
+    def index(request:Request):
+        # A parser-created frame loads reliably on initial entry. Keep this
+        # document independent of the helper/monitoring stack and never include
+        # session credentials or settings in its HTML.
+        text=(STATIC/'index.html').read_text(encoding='utf-8')
+        page=request.query_params.get('view','monitoring')
+        if page in EMBEDDED_VIEWS:
+            try:auth.session(request.cookies.get(COOKIE,''))
+            except Problem:pass
+            else:
+                text=text.replace('id="console-frame"','id="console-frame" data-initial-view="'+page+'" src="/console/initial-view?view='+page+'"',1)
+        return Response(text,media_type='text/html')
     app.mount('/static',StaticFiles(directory=STATIC),name='static')
 
     @app.get('/health')
@@ -229,6 +241,34 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
         # leaves runtime settings/router URLs inconsistent and can alter plugin
         # IDs and external documentation links containing the word grafana.
         return await console(request,'grafana/'+path)
+
+    @app.get('/console/initial-view')
+    async def initial_view(view:str='monitoring'):
+        # Fixed read-only destinations only; the ordinary session boundary above
+        # still protects the launch route and every redirected request.
+        if view not in EMBEDDED_VIEWS:
+            raise Problem('view_rejected','Choose a supported workspace view.',400)
+        config=await run_in_threadpool(helper.call,'view')
+        flags=config.get('active_monitoring')
+        enabled=(not flags or (any(flags.get(k) for k in ('wan','sla','interfaces','server')) if view=='monitoring'
+                 else flags.get('vlans' if view=='vlans' else 'wan' if view=='wan' else 'accounting')))
+        if not config['configured'] or not enabled:
+            raise Problem('view_unavailable','This view is not enabled. Review your installation settings.',503)
+        paths={'wan':'/console/#wan','devices':'/console/?section=devices#overview',
+               'vlans':'/console/?section=vlans#overview','reports':'/console/#overview','quality':'/console/#quality'}
+        if view=='monitoring':
+            result=await run_in_threadpool(helper.call,'console',{'path':'/api/monitoring-status','method':'GET','body':'','content_type':'application/json'})
+            try:status=json.loads(base64.b64decode(result['body']))
+            except (ValueError,KeyError,TypeError):raise Problem('view_unavailable','Monitoring could not confirm its configured view.',503) from None
+            if not isinstance(status,dict):
+                raise Problem('view_unavailable','Monitoring could not confirm its configured view.',503)
+            target=status.get('path')
+            if result['status']!=200 or not status.get('available'):
+                raise Problem('view_unavailable','Monitoring is unavailable. Review Diagnostics.',503)
+            if not isinstance(target,str) or not re.fullmatch(r'/grafana/d/[A-Za-z0-9_-]+/(?:\?kiosk(?:=true)?&theme=dark)?',target):
+                raise Problem('console_redirect_rejected','An unexpected monitoring destination was blocked.',502)
+        else:target=paths[view]
+        return Response(status_code=307,headers={'Location':target})
 
     @app.api_route('/console/{path:path}',methods=['GET','POST'])
     async def console(request:Request,path:str):

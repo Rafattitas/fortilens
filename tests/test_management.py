@@ -135,6 +135,55 @@ class ManagementTests(unittest.TestCase):
             self.assertEqual(response.headers['location'],'/grafana/d/fixture/?kiosk')
         self.assertEqual(self.ops.status()['links']['dashboard'],'/grafana/d/forti-monitor/?kiosk&theme=dark')
 
+    def test_initial_html_stays_independent_and_never_exposes_session_data(self):
+        with patch.object(self.app.state.helper,'call',side_effect=Problem('helper_offline','Synthetic offline helper.')) as helper:
+            self.assertNotIn('data-initial-view=',self.client.get('/').text)
+            self.administrator()
+            response=self.client.get('/?view=devices')
+            self.assertEqual(response.status_code,200)
+            self.assertIn('data-initial-view="devices" src="/console/initial-view?view=devices"',response.text)
+            self.assertNotIn(self.client.cookies[COOKIE],response.text)
+            self.assertNotIn('data-initial-view=',self.client.get('/?view=settings').text)
+            self.assertNotIn('data-initial-view=',self.client.get('/?view=%22%3E%3Cscript%3E').text)
+            self.assertEqual(response.headers['cache-control'],'no-store')
+            helper.assert_not_called()
+
+    def test_initial_view_uses_only_authenticated_enabled_fixed_destinations(self):
+        self.assertEqual(self.client.get('/console/initial-view',follow_redirects=False).status_code,401)
+        self.administrator()
+        with patch.object(self.app.state.helper,'call',return_value={'configured':False}):
+            self.assertEqual(self.client.get('/console/initial-view',follow_redirects=False).status_code,503)
+        view={'configured':True,'active_monitoring':{'accounting':True,'wan':True,'vlans':True}}
+        with patch.object(self.app.state.helper,'call',return_value=view) as helper:
+            response=self.client.get('/console/initial-view?view=devices',follow_redirects=False)
+            self.assertEqual(response.status_code,307)
+            self.assertEqual(response.headers['location'],'/console/?section=devices#overview')
+            self.assertEqual(response.headers['x-frame-options'],'SAMEORIGIN')
+            self.assertEqual(self.client.get('/console/initial-view?view=https://outside.invalid',follow_redirects=False).status_code,400)
+            self.assertEqual(helper.call_count,1)
+            view['active_monitoring']['accounting']=False
+            self.assertEqual(self.client.get('/console/initial-view?view=quality',follow_redirects=False).status_code,503)
+
+    def test_initial_monitoring_redirect_rejects_unexpected_destinations(self):
+        self.administrator()
+        view={'configured':True,'active_monitoring':{'wan':True}}
+        status={'available':True,'path':'/grafana/d/fixture/?kiosk&theme=dark'}
+        def result(operation,data=None):
+            if operation=='view':return view
+            self.assertEqual(operation,'console');self.assertEqual(data['path'],'/api/monitoring-status')
+            return {'status':200,'body':base64.b64encode(json.dumps(status).encode()).decode()}
+        with patch.object(self.app.state.helper,'call',side_effect=result):
+            response=self.client.get('/console/initial-view',follow_redirects=False)
+            self.assertEqual(response.status_code,307)
+            self.assertEqual(response.headers['location'],status['path'])
+            for target in ('//outside.invalid/','/grafana/d/../admin/','/console/','/grafana/d/fixture/?redirect=https://outside.invalid'):
+                status['path']=target
+                self.assertEqual(self.client.get('/console/initial-view',follow_redirects=False).status_code,502)
+            status['available']=False
+            self.assertEqual(self.client.get('/console/initial-view',follow_redirects=False).status_code,503)
+            status=[]
+            self.assertEqual(self.client.get('/console/initial-view',follow_redirects=False).status_code,503)
+
     def test_hosted_reports_preserve_protected_routes_and_reject_style_input(self):
         self.administrator()
         html=(ROOT/'portable/reporting.html').read_text(encoding='utf-8')

@@ -1,6 +1,6 @@
 'use strict';
 const $=id=>document.getElementById(id);
-const state={navOpen:false,csrf:'',bootstrap:false,view:null,system:null,section:'general',plan:null,job:null,inventory:[],selected:new Set()};
+const state={navOpen:false,csrf:'',bootstrap:false,initialNavigation:true,view:null,system:null,section:'general',plan:null,job:null,inventory:[],selected:new Set()};
 const sections=['general','connection','interfaces','monitoring','storage','review'];
 const compactNavigation=window.matchMedia('(max-width: 900px)');
 function setNavigation(open,restoreFocus=true){state.navOpen=!!open&&compactNavigation.matches;$('workspace').classList.toggle('nav-open',state.navOpen);$('menu-toggle').setAttribute('aria-expanded',String(state.navOpen));$('workspace-nav').inert=compactNavigation.matches&&!state.navOpen;$('main-shell').inert=state.navOpen;if(state.navOpen){$('workspace-nav').setAttribute('role','dialog');$('workspace-nav').setAttribute('aria-modal','true')}else{$('workspace-nav').removeAttribute('role');$('workspace-nav').removeAttribute('aria-modal')}$('nav-scrim').hidden=!state.navOpen;if(state.navOpen)$('menu-close').focus();else if(restoreFocus&&compactNavigation.matches)$('menu-toggle').focus()}
@@ -37,7 +37,7 @@ function dirty(){state.plan=null;$('plan-review').hidden=true;$('approve-plan').
 function pathGet(obj,path){return path.split('.').reduce((v,k)=>v?.[k],obj)}
 function pathSet(obj,path,value){const parts=path.split('.');let target=obj;for(const k of parts.slice(0,-1))target=target[k];target[parts.at(-1)]=value}
 function signedOut(){setNavigation(false,false);clearConsoleCheck();$('workspace-loading').hidden=true;document.title='FortiLens · Management';state.csrf='';state.view=null;state.plan=null;$('console-frame').removeAttribute('src');$('workspace').hidden=true;$('auth').hidden=false;$('auth-form').reset();$('password-form').reset();for(const id of ['api-token','custom-ca','bootstrap-token'])$(id).value=''}
-async function enter(){const session=await api('/api/session');state.csrf=session.csrf;$('session-user').textContent=session.username;$('auth').hidden=true;$('workspace').hidden=true;$('workspace-loading').hidden=false;let failure=null;try{await reloadSettings();await loadSystem()}catch(e){failure=e}finally{$('workspace-loading').hidden=true}if(!state.csrf)return;$('workspace').hidden=false;if(failure){navigate('diagnostics');notice(failure.message,true);return}navigate(state.view.configured?(location.hash.slice(1)||defaultPage()):'settings');if(state.system?.latest_job&&!state.job)watchJob(state.system.latest_job.job_id).catch(e=>notice(e.message,true))}
+async function enter(){const session=await api('/api/session');state.csrf=session.csrf;state.initialNavigation=true;$('session-user').textContent=session.username;$('auth').hidden=true;$('workspace').hidden=true;$('workspace-loading').hidden=false;let failure=null;try{await reloadSettings();await loadSystem()}catch(e){failure=e}finally{$('workspace-loading').hidden=true}if(!state.csrf)return;$('workspace').hidden=false;if(failure){navigate('diagnostics');notice(failure.message,true);return}navigate(state.view.configured?(location.hash.slice(1)||new URL(location.href).searchParams.get('view')||defaultPage()):'settings');if(state.system?.latest_job&&!state.job)watchJob(state.system.latest_job.job_id).catch(e=>notice(e.message,true))}
 async function reloadSettings(){state.view=await api('/api/settings');state.selected=new Set(state.view.settings.wan_interfaces);fillSettings();state.plan=null;$('plan-review').hidden=true}
 function fillSettings(){$('workspace').classList.toggle('configured',state.view.configured);for(const input of document.querySelectorAll('[data-setting]')){const value=pathGet(state.view.settings,input.dataset.setting);if(input.type==='checkbox')input.checked=!!value;else input.value=value??''}if(!state.view.configured&&state.view.revision===0)$('fortigate-host').value='';$('token-status').textContent=state.view.secret_status.api_token_present?'Stored token configured. It is never returned to the browser.':'No stored API token.';$('replace-token').checked=!state.view.secret_status.api_token_present;$('wizard-intro').hidden=state.view.configured;$('site-label').textContent=state.view.settings.site_name;for(const id of ['vdom','accounting-timezone','expected-devid'])$(id).readOnly=state.view.scope_locked;$('revision').textContent=state.view.pending_changes?'Draft revision '+state.view.revision:state.view.configured?'Applied revision '+state.view.applied_revision:'Not configured';$('revision').className='pill '+(state.view.pending_changes?'warn':state.view.configured?'good':'');$('insecure-row').hidden=$('verify-tls').checked;for(const link of document.querySelectorAll('[data-page]'))link.hidden=state.view.configured&&!pageEnabled(link.dataset.page);updateSelection();renderReview()}
 function readSettings(){const settings=structuredClone(state.view.settings);for(const input of document.querySelectorAll('[data-setting]')){const value=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value.trim();pathSet(settings,input.dataset.setting,value)}settings.wan_interfaces=[...state.selected];return settings}
@@ -52,7 +52,31 @@ function renderInterfaces(){const query=$('interface-search').value.toLowerCase(
 function renderReview(){if(!state.view)return;const s=readSettings();$('review-summary').replaceChildren();for(const [name,value]of [['Company / Installation',s.site_name+' / '+s.installation_name],['Timezone / Date format',s.timezone+' / '+s.date_format],['FortiGate',s.fortigate_host+':'+s.api_port+' · VDOM '+s.vdom],['TLS verification',s.api_tls_verify?'Enabled':'Explicitly disabled'],['Confirmed Internet interfaces',s.wan_confirmed?[...state.selected].join(', ')||'None':'Not confirmed'],['Enabled monitoring',Object.entries(s.monitoring).filter(([,v])=>v).map(([k])=>k).join(', ')||'No collectors'],['Syslog',s.syslog_protocol.toUpperCase()+' / '+s.syslog_port+' / '+s.syslog_format],['Retention',s.retention.loki_days+'d logs · '+s.retention.prometheus_days+'d metrics · '+s.retention.ledger_days+'d ledger · '+s.retention.summary_days+'d summaries'],['Accounting database ceiling',size(s.retention.database_bytes)],['Native service ports','Grafana '+s.grafana_port+' · Protected reporting '+s.usage_port],['Network access',location.protocol==='https:'?'HTTPS management origin':'Loopback management / SSH tunnel'],['Credentials','Stored privately; raw tokens and passwords are never included in this review.']]){const row=E('div');row.append(E('dt',name),E('dd',value));$('review-summary').append(row)}}
 function defaultPage(){return pageEnabled('monitoring')?'monitoring':'overview'}
 function pageEnabled(page){const f=state.view?.active_monitoring;if(!f)return true;return page==='wan'?f.wan:['devices','reports','quality'].includes(page)?f.accounting:page==='vlans'?f.vlans:page==='monitoring'?(f.wan||f.sla||f.interfaces||f.server):true}
-function navigate(page){if(!titles[page])page=defaultPage();if(!state.view)page='diagnostics';else if(!pageEnabled(page))page='overview';if(state.view&&!state.view.configured&&!['settings','diagnostics'].includes(page))page='settings';const embedded=!['overview','settings','diagnostics'].includes(page);$('workspace').classList.toggle('console-mode',embedded);document.title=titles[page][0]+' · FortiLens';const menuWasOpen=state.navOpen;setNavigation(false,false);if(menuWasOpen)$('page-title').focus();if(!embedded){clearConsoleCheck();$('console-frame').removeAttribute('src');$('console-loading').hidden=true}for(const a of document.querySelectorAll('[data-page]')){a.classList.toggle('active',a.dataset.page===page);if(a.dataset.page===page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')}$('page-title').textContent=titles[page][0];$('page-caption').textContent=titles[page][1];for(const id of ['overview-page','settings-page','diagnostics-page','console-page'])$(id).hidden=true;if(['overview','settings','diagnostics'].includes(page))$(page+'-page').hidden=false;else{$('console-page').hidden=false;loadConsole(page)}if(page==='settings')selectSection(state.section);if(page==='diagnostics')runDiagnostics();if(page==='overview')loadSystem();if(location.hash!=='#'+page)history.pushState(null,'','#'+page);notice('')}
+function navigate(page){
+ if(!titles[page])page=defaultPage();
+ if(!state.view)page='diagnostics';else if(!pageEnabled(page))page='overview';
+ if(state.view&&!state.view.configured&&!['settings','diagnostics'].includes(page))page='settings';
+ const embedded=!['overview','settings','diagnostics'].includes(page);
+ const route=new URL('/',location.origin);route.searchParams.set('view',page);route.hash=page;
+ // Legacy hash links remain valid. If the server could not know that first
+ // destination (including immediately after sign-in), request its initial HTML.
+ if(state.initialNavigation&&embedded&&$('console-frame').dataset.initialView!==page){
+  $('workspace').hidden=true;$('workspace-loading').hidden=false;
+  if(route.href===location.href)location.reload();else location.replace(route.href);
+  return;
+ }
+ state.initialNavigation=false;
+ $('workspace').classList.toggle('console-mode',embedded);document.title=titles[page][0]+' · FortiLens';
+ const menuWasOpen=state.navOpen;setNavigation(false,false);if(menuWasOpen)$('page-title').focus();
+ if(!embedded){clearConsoleCheck();$('console-frame').removeAttribute('src');delete $('console-frame').dataset.initialView;$('console-loading').hidden=true}
+ for(const a of document.querySelectorAll('[data-page]')){a.classList.toggle('active',a.dataset.page===page);if(a.dataset.page===page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')}
+ $('page-title').textContent=titles[page][0];$('page-caption').textContent=titles[page][1];
+ for(const id of ['overview-page','settings-page','diagnostics-page','console-page'])$(id).hidden=true;
+ if(!embedded)$(page+'-page').hidden=false;else{$('console-page').hidden=false;loadConsole(page)}
+ if(page==='settings')selectSection(state.section);if(page==='diagnostics')runDiagnostics();if(page==='overview')loadSystem();
+ if(location.hash!=='#'+page)history.pushState(null,'',route);else history.replaceState(null,'',route);
+ notice('');
+}
 function loadConsole(page){
  clearConsoleCheck();
  const previous=$('console-frame');
@@ -70,11 +94,12 @@ function loadConsole(page){
  const urls={quality:'/console/#quality',wan:'/console/#wan',devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/#overview',monitoring:state.system.links.dashboard};
  // A new browsing context cannot display the preceding page during navigation.
  // Keep its own loader visible; do not wait for every Grafana subresource.
- const frame=previous.cloneNode(false);frame.removeAttribute('src');
+ const initial=previous.dataset.initialView===page;
+ const frame=initial?previous:previous.cloneNode(false);delete frame.dataset.initialView;if(!initial)frame.removeAttribute('src');
  frame.hidden=false;frame.style.visibility='visible';frame.title=titles[page][0];frame.setAttribute('aria-busy','true');
- frame.addEventListener('load',()=>consoleDocumentReady(frame));previous.replaceWith(frame);
+ frame.onload=()=>consoleDocumentReady(frame);if(!initial)previous.replaceWith(frame);
  $('console-loading').textContent='Loading '+titles[page][0].toLowerCase()+'…';$('console-loading').hidden=false;
- frame.src=urls[page]||urls.reports;
+ if(!initial)frame.src=urls[page]||urls.reports;
  let checks=0;state.consoleCheck=setInterval(()=>{if(consoleDocumentReady(frame))return;if(++checks>=100){clearConsoleCheck();$('console-loading').textContent='This view is still loading. Reload it or check Diagnostics.'}},100);
 }
 async function runDiagnostics(){
