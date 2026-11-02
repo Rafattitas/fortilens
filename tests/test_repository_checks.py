@@ -46,8 +46,15 @@ class RepositoryChecksTests(unittest.TestCase):
         portable = self.write("portable/sample.py", "try:\n pass\nexcept* ValueError:\n pass\n")
         management = self.write("management/sample.py", portable.read_text())
         errors = checks.check_python(self.root, [portable, management])
-        self.assertEqual(len(errors), 1)
-        self.assertIn("portable", errors[0])
+        self.assertTrue(any("portable" in error for error in errors))
+        # feature_version selects an older grammar; it cannot teach an older
+        # interpreter syntax introduced by a future Python release. The quality
+        # job uses Python 3.12 to positively validate the management minimum.
+        if sys.version_info >= (3, 11):
+            self.assertEqual(len(errors), 1)
+        else:
+            self.assertEqual(len(errors), 2)
+            self.assertTrue(any("management" in error for error in errors))
 
     def test_sensitive_filenames_are_checked_without_reading_file_contents(self):
         paths = [
