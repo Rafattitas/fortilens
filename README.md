@@ -16,13 +16,27 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Rafattitas/fortilens/releases/tag/v0.2.0">Download v0.2.0</a> ·
+  <a href="https://github.com/Rafattitas/fortilens/releases/tag/v0.2.0">Portable v0.2.0</a> ·
   <a href="#get-started">Get started</a> ·
-  <a href="docs/INSTALLATION.md">Installation guide</a> ·
+  <a href="docs/README.md">Documentation</a> ·
   <a href="docs/ARCHITECTURE.md">Architecture</a> ·
-  <a href="docs/ACCOUNTING.md">Accounting limits</a> ·
+  <a href="ROADMAP.md">Roadmap</a> ·
   <a href="CONTRIBUTING.md">Contribute</a>
 </p>
+
+**Choose the right installation:** current source includes Web Setup & Settings
+and the unified console. The published v0.2.0 portable ZIP is immutable and
+predates those components. See the [release guide](docs/RELEASING.md) for the full
+and portable distribution strategy; a prepared archive is not a published release.
+
+| Start here | Guide |
+|---|---|
+| Install web management or adopt an existing site | [Web Setup & Settings](docs/WEB_SETUP.md) |
+| Use the dependency-free CLI | [Portable installation and operations](portable/README.md) |
+| Understand usage evidence and limitations | [Accounting contract](docs/ACCOUNTING_ENGINE.md) |
+| Troubleshoot missing data | [Read-only diagnostics](docs/TROUBLESHOOTING.md) |
+| Develop, test or prepare a release | [Contributing](CONTRIBUTING.md), [QA](docs/QA.md), [releases](docs/RELEASING.md) |
+| Browse all guides | [Documentation index](docs/README.md) |
 
 ## A clearer view of the network you already run
 
@@ -49,13 +63,26 @@ Designed for **one FortiGate per independent installation**: your server, your c
 | **Trust evidence** | Pending counters, source-wide classifications, processing lag, missing telemetry and observed WAN coverage. |
 | **Interface and VLAN review** | Reuses exporter labels, fills metadata gaps through read-only API requests, and asks you to confirm Internet interfaces. |
 | **Useful readiness checks** | Distinguishes failed collection, old samples, missing logs, and authentication boundaries. |
-| **Safe deployment** | Six monitoring services plus optional constrained Python/SQLite worker, reviewed upgrade/rollback and preserved dashboards. |
+| **Safe deployment** | Six base monitoring services, an optional constrained Python/SQLite worker and optional gateway, reviewed configuration changes and preserved dashboards. |
 | **Optional alert candidates** | Paused WAN/performance/collection rules; email/Telegram environment references without changing existing notifications. |
 
-### Get started
+## Requirements
 
-For **Ubuntu 24.04+ x86-64 with Docker Compose v2 and Python 3.11+**, the current Web
-Setup & Settings source provides one-command bootstrap:
+| Path | Host and Python | Other prerequisites |
+|---|---|---|
+| Full web management | Ubuntu x86-64, Python 3.11+; Ubuntu 24.04+ recommended | systemd, Python venv, Docker Engine and Docker Compose v2 |
+| Portable CLI | Linux x86-64, Python 3.10+; standard library only | Docker Compose v2 |
+
+Both paths need reachable FortiGate HTTPS/read-only API access, a trusted
+certificate or private CA, and forward-traffic syslog configured by the firewall
+administrator. Windows supports portable configuration generation and tests;
+deployed monitoring targets Linux/amd64. Size resources for actual traffic and
+retention, rather than treating container limits as a capacity guarantee.
+
+## Get started
+
+For the supported Ubuntu host above, the current Web Setup & Settings source
+provides one-command bootstrap:
 
 ```bash
 git clone https://github.com/Rafattitas/fortilens.git
@@ -68,6 +95,13 @@ trusted HTTPS certificate for LAN access. Create your own administrator using th
 one-time installation token, then configure the connection, WANs, syslog and
 retention in the browser. Review and Apply starts the monitoring stack. There is
 no default management password. The portal starts independently of Grafana/Loki.
+
+For the default loopback listener, run this on your workstation and open
+`http://127.0.0.1:3030` locally:
+
+```bash
+ssh -N -L 3030:127.0.0.1:3030 user@monitoring-server
+```
 
 See [Web Setup & Settings](docs/WEB_SETUP.md) for prerequisites, HTTPS, explicit
 adoption of existing installations and recovery. Web management is included in the
@@ -93,7 +127,7 @@ During setup, enter your FortiGate address, HTTPS API port, read-only API token,
 
 Then configure the intended FortiGate syslog destination to send forward traffic logs to your monitoring server. The default receiver is **TCP1514 / RFC5424**. API users, permissions, and syslog settings are configured on FortiGate by your administrator; the setup utility does not change them.
 
-Open `http://YOUR_SERVER:3001/d/forti-monitor`. Grafana login is `admin`; its password is in `local/secrets/grafana_admin_password`. When accounting is enabled, protected reports are at the configured reporting address (default `http://127.0.0.1:3002/`), with a separate password in `local/secrets/usage_admin_password`. Use the portal for fixed-period device/VLAN answers independently of Grafana’s global time range.
+Grafana defaults to `http://127.0.0.1:3001/d/forti-monitor`, reached through an SSH tunnel or reviewed HTTPS proxy. Its login is `admin`; the password is in `local/secrets/grafana_admin_password`. When accounting is enabled, protected reports use the configured reporting address (default `http://127.0.0.1:3002/`) and separate password in `local/secrets/usage_admin_password`. Use these reports for fixed-period device/VLAN answers independently of Grafana’s global time range. The unified-console guide explains the source-only opt-in and its native Grafana subpath.
 
 Interactive setup offers accounting explicitly; file-based setup can add `--enable-accounting`. Choose an explicit accounting timezone and expected FortiGate device ID. Review [installation](docs/INSTALLATION.md), [upgrades](docs/UPGRADE.md), [troubleshooting](docs/TROUBLESHOOTING.md), and [optional alerts](docs/OPTIONAL_ALERTS.md).
 
@@ -165,9 +199,20 @@ See [verification](docs/VERIFICATION.md), [security](SECURITY.md), and [third-pa
 
 Useful contributions include FortiOS compatibility reports, sanitized API fixtures, accounting edge cases, and documentation improvements. [Open a bug report](https://github.com/Rafattitas/fortilens/issues/new/choose) or read the [contribution guide](CONTRIBUTING.md).
 
+The [roadmap](ROADMAP.md) separates implemented behavior from planned work.
+Maintainer workflow recommendations, labels and repository-protection guidance
+are documented in [repository governance](docs/REPOSITORY_GOVERNANCE.md).
+
 If FortiLens helps you, a star makes it easier for other network engineers to discover the project.
 
 Built by [Rafat Almudarres](https://github.com/Rafattitas) · [MIT licensed](LICENSE).
+
+## Security and license
+
+Report sensitive findings using [SECURITY.md](SECURITY.md). Keep tokens,
+production configurations, raw customer logs and private screenshots out of
+public issues and pull requests. FortiLens is distributed under the [MIT
+license](LICENSE); see the [third-party notices](THIRD_PARTY_NOTICES.md).
 
 <sub>Independent community project. Not affiliated with or endorsed by Fortinet. FortiGate and related names belong to their respective owners.</sub>
 

@@ -1,0 +1,63 @@
+name: FortiOS compatibility report
+description: Share supported or failing read-only behavior without device-identifying data.
+title: '[Compatibility] '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share aggregate, sanitized evidence only. Omit serial numbers, tokens,
+        hostnames, real addresses, raw API bodies, customer logs and complete
+        configurations. Do not change firewall policies or inject production
+        traffic solely to complete this form. Sensitive findings follow SECURITY.md.
+  - type: input
+    id: revision
+    attributes:
+      label: FortiLens source or archive version
+      description: Include the commit/tag and web-management or portable installation path.
+    validations:
+      required: true
+  - type: input
+    id: fortios
+    attributes:
+      label: FortiOS version and build
+      description: Firmware version/build only; optional device family, never a serial number.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Monitoring environment
+      description: OS/architecture, Python, Docker Compose and relevant enabled capabilities. No internal topology or addresses.
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Observed outcome
+      options:
+        - Read-only compatibility checks passed for the tested scope
+        - One or more read-only operations failed
+        - Evidence unavailable or not yet tested
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Tested scope and results
+      description: Identify endpoint names, metric families, interface discovery or report behavior. Include only sanitized statuses/error codes, not request URLs or response bodies.
+    validations:
+      required: true
+  - type: textarea
+    id: limitations
+    attributes:
+      label: Untested areas and evidence limitations
+      description: Distinguish API access, fresh metrics/logs, report calculations and independently verified source completeness. A successful connection does not prove every area.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Data protection
+      options:
+        - label: I reviewed this report for credentials and device/customer-identifying data.
+          required: true

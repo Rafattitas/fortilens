@@ -31,6 +31,38 @@ The standalone frontend syntax check uses a development Node.js executable to
 compile the console, reporting and managed-status scripts. It does not execute
 the application or add a Node.js dependency to the production installation.
 
+## Repository quality and release checks
+
+The complete development environment uses Python 3.11+ and
+`requirements-dev.txt`; this does not change the portable Python 3.10+ runtime.
+From the repository root:
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m ruff check .
+python -m ruff check tools tests/test_repository_checks.py tests/test_release.py --extend-select I
+python -m ruff format --check tools tests/test_repository_checks.py tests/test_release.py
+python tools/check_repository.py
+python -m coverage run -m unittest discover -s tests -v
+python -m coverage report -m
+python -m coverage xml
+python -m pip_audit --strict -r requirements-dev.txt
+```
+
+Ruff formatting/import-order enforcement starts with the new tooling/tests;
+runtime-wide formatting is a separate change. The repository checker validates
+local documentation links and repository configuration without contacting a
+firewall. Coverage reports executed paths and does not prove live compatibility;
+dependency-audit findings require a separately reviewed dependency update.
+
+For release changes, build and verify both distributions using
+[RELEASING.md](RELEASING.md). Validate extracted artifacts, required runtime inputs
+and absence of generated/private files. The full installer acceptance must run
+from the packaged source on a disposable Ubuntu VM; building archives alone is
+not an installation pass. Record any unavailable environment checks explicitly.
+
+## Isolated integration environments
+
 On a disposable Linux Docker-enabled test account:
 
 ```bash

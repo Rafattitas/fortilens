@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Sensitive security finding
+    url: https://github.com/Rafattitas/fortilens/blob/main/SECURITY.md
+    about: Follow the private-reporting policy; do not disclose exploit details or customer data publicly.
+  - name: Documentation index
+    url: https://github.com/Rafattitas/fortilens/blob/main/docs/README.md
+    about: Find installation, accounting, troubleshooting and contributor guides.

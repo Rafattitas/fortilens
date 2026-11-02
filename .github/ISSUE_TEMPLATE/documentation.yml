@@ -1,0 +1,38 @@
+name: Documentation improvement
+description: Report an inaccurate, missing or hard-to-find guide using sanitized examples.
+title: '[Docs] '
+body:
+  - type: markdown
+    attributes:
+      value: Do not paste private configuration, tokens, internal addresses, customer logs or screenshots. Use documentation/example addresses and synthetic data.
+  - type: input
+    id: page
+    attributes:
+      label: Affected page or file
+      description: Public documentation link or repository-relative path, including its heading if useful.
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Source revision or release
+      description: Commit SHA, tag or published artifact name. State whether you are using current source or an older portable archive.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is unclear or incorrect?
+      description: Quote only the relevant public text and explain the observed mismatch.
+    validations:
+      required: true
+  - type: textarea
+    id: improvement
+    attributes:
+      label: Suggested improvement
+      description: Link an existing guide where possible instead of duplicating instructions.
+  - type: textarea
+    id: validation
+    attributes:
+      label: Verification
+      description: Which commands, source paths or synthetic examples establish the correction? Do not execute destructive live tests.
