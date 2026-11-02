@@ -16,6 +16,9 @@
   restore pending controls and require status review after unknown POST outcomes.
 - Add synthetic failure-injection regressions without new runtime dependencies,
   schema changes, altered accounting/WAN formulas or production operations.
+- Keep full-archive extraction timestamps compatible with the existing portable
+  ZIP builder and verify rebuilding the identical portable payload after real
+  extraction. Published assets are not replaced.
 
 ### Repository engineering
 

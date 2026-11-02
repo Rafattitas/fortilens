@@ -259,7 +259,10 @@ def write_full(path: Path, files: dict[str, bytes]) -> None:
                 info = tarfile.TarInfo(FULL_PREFIX + "/" + name)
                 info.size = len(data)
                 info.mode = 0o755 if name == "install.sh" else 0o644
-                info.mtime = 0
+                # Extracted sources must remain usable by the existing ZIP
+                # builder (DOS dates start in 1980). Leave a day for negative
+                # local UTC offsets; gzip's independent timestamp stays zero.
+                info.mtime = 315619200  # 1980-01-02 UTC
                 info.uid = info.gid = 0
                 info.uname = info.gname = ""
                 archive.addfile(info, io.BytesIO(data))

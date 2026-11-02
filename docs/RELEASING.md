@@ -82,6 +82,12 @@ version, Python/compression implementation and builder produce identical bytes;
 cross-version compression output is not promised to be identical. Checksums prove
 artifact consistency, not publisher identity or absence of vulnerabilities.
 
+Full-archive files use a fixed 1980-01-02 UTC modification time so the unchanged
+portable ZIP command also works after real extraction in local timezones. Gzip
+keeps its independent zero timestamp. A regression test preserves real extraction
+metadata and rebuilds the portable payload; byte-only extraction cannot verify
+that case.
+
 ## Validate the packaged source
 
 The unit tests verify full/portable content and SHA256, reproducibility, unsafe

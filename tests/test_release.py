@@ -108,6 +108,19 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("OK", result.stderr)
 
+    def test_real_full_extraction_can_rebuild_existing_portable_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            full, _ = release.build(ROOT, folder / "dist", "v0.3.0-test.1")
+            # Validate members, then preserve actual archive metadata on
+            # extraction. Copying only member bytes hid pre-1980 ZIP failures.
+            release.full_members(full)
+            with tarfile.open(full) as archive:
+                options = {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
+                archive.extractall(folder / "extracted", **options)
+            extracted = folder / "extracted" / release.FULL_PREFIX
+            self.assertEqual(release.portable_sources(extracted), release.portable_sources(ROOT))
+
     def test_unlisted_private_files_never_enter_either_archive(self):
         # Build from an isolated source copy so hygiene fixtures cannot enter a
         # contributor's real installation or produce tracked private material.
