@@ -131,6 +131,34 @@ class RuntimeErrorTests(unittest.TestCase):
         self.assertEqual(self.config.state(), before)
         self.assertEqual(self.config.plan(request.plan_id)[1]["status"], "APPLIED")
 
+    def test_same_revision_replay_does_not_restore_an_already_started_plan(self):
+        request = self.plan(existing=True)
+        self.config.install_files(request.plan_id)
+        self.config.complete(request.plan_id)
+        folder, plan = self.config.plan(request.plan_id)
+        before = self.config.state()
+        before_files = {
+            row["path"]: (self.config.root / row["path"]).read_bytes() for row in plan["files"]
+        }
+        self.assertEqual(before["revision"], request.revision)
+        for status in ("APPLIED", "APPLYING", "FAILED"):
+            with self.subTest(plan_status=status):
+                plan["status"] = status
+                atomic(folder / "plan.json", plan)
+                with patch.object(self.config, "restore", wraps=self.config.restore) as restore:
+                    job = self.operations.apply(request)
+                    result = self.wait(job["job_id"])
+                self.assertEqual(result["status"], "failed")
+                self.assertEqual(result["message"], "Prepare and review the latest revision.")
+                self.assertFalse(result["configuration_restored"])
+                self.assertFalse(result["rollback_available"])
+                restore.assert_not_called()
+                self.assertEqual(self.config.state(), before)
+                self.assertEqual(self.config.plan(request.plan_id)[1]["status"], status)
+                for name, data in before_files.items():
+                    self.assertEqual((self.config.root / name).read_bytes(), data)
+        self.assertFalse(any(call[0] == "start" for call in self.docker.calls))
+
     def test_failed_job_remains_observable_when_failure_journal_cannot_be_saved(self):
         request = self.plan(existing=True)
         self.docker.fail = True

@@ -10,6 +10,9 @@
 - Recover partial configuration writes conservatively; release failed queue
   locks, retain observable job failures when journaling is unavailable, and avoid
   undoing committed configuration when only final diagnostics cannot be saved.
+- Reject replayed deployment plans before entering automatic recovery, including
+  a repeated request at the unchanged saved revision; explicit rollback remains
+  a separate confirmed operation.
 - Reject malformed upstream payloads before recording checkpoints or displaying
   telemetry. Keep missing evidence unknown and close resources on failed startup.
 - Add browser deadlines and safe failure messages, clear rejected sessions,

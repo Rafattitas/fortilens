@@ -129,3 +129,21 @@ browser handling. Preserve existing accounting/WAN fixtures and the real isolate
 integration gates. Follow-up work includes sustained fault/load tests, actual
 browser acceptance and separately authorized live-install upgrade validation;
 none is implied by passing the local suite.
+
+## Pre-merge replay review — 2026-11-02
+
+An additional review of candidate `ae886eef6abf650c2caf2c8fb5b766670b64a843`
+found that replaying an already-started plan at the same saved revision could
+mistake its existing recovery marker for a partial write from the new request.
+Deployment now requires the plan to remain PREPARED under the configuration lock
+before entering the installation/recovery boundary. The existing `stale_plan`
+rejection is retained; explicit rollback remains a separate confirmed operation.
+
+A regression replays APPLIED, APPLYING and FAILED markers at the unchanged
+revision and verifies no automatic restore, revision/file changes or service
+start. Existing partial-write recovery remains covered. All 14 runtime failure
+tests and the complete 262-test suite passed locally on Python 3.12.14, with
+combined line/branch coverage of 73.58%. Ruff, scoped formatting, repository
+grammar/links/YAML checks and actionlint also passed. PR acceptance must validate
+the final candidate's packaged Linux/Docker/Ubuntu paths before the authorized
+merge; source merging does not authorize a production rollout or release.

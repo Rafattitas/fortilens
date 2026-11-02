@@ -542,6 +542,7 @@ class Operations:
                 self._progress(job,'validating','Validating Docker Compose and reviewed file fingerprints.')
                 self.docker.validate(request.plan_id)
                 folder,plan=self.c.plan(request.plan_id)
+                if plan['status']!='PREPARED':raise Problem('stale_plan','Prepare and review the latest revision.',409)
                 previous=plan['previous'].get('applied') or {}
                 changed_scope=any(previous.get(k)!=plan['settings'][k] for k in ('wan_interfaces','fortigate_host','api_port','vdom','api_tls_verify'))
                 if plan['settings']['wan_interfaces'] and (plan['fresh'] or changed_scope):
