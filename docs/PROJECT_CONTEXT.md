@@ -19,7 +19,8 @@ flowchart LR
     FG[FortiGate read-only API] --> EX[Existing exporter]
     EX --> PM[Prometheus]
     FG --> INV[Interface metadata]
-    SYS[FortiGate syslog] --> AL[Alloy] --> LK[Loki]
+    SYS[FortiGate RFC syslog] --> AL[Alloy] --> LK[Loki]
+    NATIVE[Optional FortiGate native UDP] --> RX[Managed native receiver] --> AL
     LK --> AC[Bounded Python / SQLite accounting]
     INV --> AC
     PM --> GF[Native Grafana]
@@ -42,6 +43,7 @@ flowchart LR
 | `management/static/` | English responsive setup, permanent settings, progress and diagnostics; no CDN/build toolchain. |
 | `portable/setup.py`, `templates/` | Existing dependency-free setup/render/import/bundle CLI and monitoring templates. |
 | `portable/interfaces.py`, `doctor.py` | Scoped metadata normalization and reusable read-only diagnostic engine. |
+| `portable/syslog_receiver.py`, `templates/Dockerfile.syslog` | Explicit native/default UDP profile: bounded normalization to internal RFC5424/TCP, source-filter and transport counters; no storage/completeness certification. |
 | `portable/accounting.py`, `usage_service.py` | Accounting ledger/summaries, source/session identity, bounded ingestion and protected report backend. |
 | `portable/portal.py`, `reporting.html` | Existing protected native Grafana/report console and allowed read-only query routes. |
 | `portable/wan_health.py` | Observed WAN states/history/coverage and destination-specific route evidence. |
@@ -58,11 +60,22 @@ Older/opt-out installations can have fewer. Management adds two independent
 systemd services, `fortilens-web` and `fortilens-helper`; these are not additional
 Compose containers.
 
+Selecting native `fortigate` format adds a ninth service, `fortilens-syslog`,
+when the other eight are enabled. It replaces only the public syslog leg with
+the configured UDP binding; Alloy remains internal RFC5424/TCP. It is an explicit
+profile, not a changed default or an automatically installed host service.
+
 Defaults, not assumptions about a company: management loopback port 3030, native Grafana
 3001, protected gateway/reports loopback port 3002, syslog TCP 1514 / RFC5424. LAN management
 requires trusted HTTPS. There is no default management password; first admin uses
 a one-time token. Grafana/report credentials are separate server-side service
 credentials. Existing auth layouts are not silently migrated.
+
+SLA names are installation choices. Blank selection stays supported and asks for
+review in diagnostics instead of treating any observed SLA as the selected one.
+`google` is not a public default. Read fresh labels in the intended VDOM and
+explicitly choose/apply a check; do not change WAN algorithms to reconcile
+different destination-specific results.
 
 The installer defaults to `/opt/fortilens` for application code/venv,
 `/var/lib/fortilens/web` for private auth state, `control` for helper state/candidates,
@@ -127,8 +140,9 @@ deployment writes use the existing recovery marker, and queue failures release
 the operation lock. Failed ingestion never advances a checkpoint. A timed-out
 mutation has an unknown outcome: inspect actual settings/job status before
 retrying. The helper's bounded latest-job cache is not durable recovery storage.
-No runtime module moves, new dependencies, database schemas, Compose identities,
-accounting/WAN formulas or authentication policies accompany these changes.
+No runtime module moves, new third-party Python dependencies, database schemas,
+renamed existing Compose identities, accounting/WAN formulas or authentication
+policies accompany these changes.
 
 Deployment success leaves the main progress surface and remains in collapsed
 history; running operations restore tracking, failures require acknowledgement
@@ -150,12 +164,24 @@ The masked API-token field has a separate form association from configuration;
 autocomplete hints supplement the draft boundary. Serial checks and locked
 accounting source contracts remain enforced by the helper.
 
-An optional [native UDP adapter](SYSLOG_NATIVE_UDP.md) documents a separate,
-operator-managed rsyslog service for FortiGate default logfmt messages. It wraps
-the native body for the existing RFC5424/TCP Alloy receiver; managed settings
-continue to describe that Alloy leg. It is included in the full source bundle,
-requires host-specific validation and is not installed by the Ubuntu bootstrap.
-The helper does not manage this host service. UDP delivery remains best effort.
+The [native UDP guide](SYSLOG_NATIVE_UDP.md) describes the explicit managed
+`fortigate`/UDP profile and preserves the separate legacy rsyslog alternative.
+The managed standard-library receiver accepts bounded native logfmt messages,
+retains the source body/eventtime, wraps RFC5424 and forwards to internal Alloy
+with a bounded memory queue. Its IPv4 source filter resolves the configured API
+host at startup; it is not authentication. Health, TCP handoff, Loki storage and
+accounting delivery remain separate evidence. UDP/queue/restart loss is possible;
+no complete-capture or reconstructed-history claim follows. The old rsyslog host
+service remains outside helper management and must not compete for a binding.
+
+Management optional exporter exclusions are explicit and narrowly limited to
+`Log/Fortianalyzer/Status`, `System/Interface/Transceivers` and `System/SensorInfo`.
+Unchanged/null policy preserves existing coverage, including legacy selections;
+an explicit empty list removes only these three exclusions while retaining
+custom include/exclude rules, other targets and the token. Successful selected
+probes do not establish availability of omitted capabilities.
+TLS verification remains owner-controlled and an explicit temporary TLS-off
+deployment stays a warning; no untrusted certificate is silently pinned.
 
 Future work should follow the current user's request. Real-device source
 completeness, source identity, packet-time allocation and production capacity need

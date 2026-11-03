@@ -26,7 +26,7 @@ function consoleDocumentReady(frame){
  }catch(e){return false}
 }
 const titles={overview:['System overview','Monitoring services, storage and configuration readiness.'],wan:['WAN monitoring','Observed health, physical link and route evidence remain separate.'],devices:['Device usage','Recorded upload and download, with identity and coverage limits.'],vlans:['VLAN analytics','Internet usage grouped by exact interface metadata.'],reports:['Usage reports','Daily, weekly and monthly reports from the existing accounting engine.'],monitoring:['Network monitoring','Firewall health, Internet links and interface traffic.'],quality:['Data quality','Collection gaps, accounting evidence and identity limits.'],settings:['Settings','Manage your installation without editing configuration files.'],diagnostics:['System diagnostics','Read-only evidence, service readiness and actionable next steps.']};
-const names={'fortigate-exporter':'FortiGate Exporter',prometheus:'Prometheus',grafana:'Grafana',loki:'Loki',alloy:'Grafana Alloy','node-exporter':'Node Exporter','fortilens-usage':'Accounting Service','fortilens-portal':'Monitoring Gateway'};
+const names={'fortigate-exporter':'FortiGate Exporter',prometheus:'Prometheus',grafana:'Grafana',loki:'Loki',alloy:'Grafana Alloy','node-exporter':'Node Exporter','fortilens-usage':'Accounting Service','fortilens-portal':'Monitoring Gateway','fortilens-syslog':'Native Syslog Receiver'};
 const E=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e};
 const size=n=>n===null||n===undefined?'Unavailable':n>=2**30?(n/2**30).toFixed(1)+' GiB':(n/2**20).toFixed(1)+' MiB';
 function stamp(value){const p=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:state.view?.settings.timezone||'UTC',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(x=>[x.type,x.value]));const pattern=state.view?.settings.date_format||'YYYY-MM-DD';return pattern.replace('YYYY',p.year).replace('MM',p.month).replace('DD',p.day)+' '+p.hour+':'+p.minute+':'+p.second}
@@ -84,6 +84,10 @@ function pathSet(obj,path,value){const parts=path.split('.');let target=obj;for(
 function renderDraftInputs(){
  if(!state.draftSettings)return;
  for(const input of document.querySelectorAll('[data-setting]')){const value=pathGet(state.draftSettings,input.dataset.setting);if(input.type==='checkbox')input.checked=!!value;else input.value=value??''}
+ const exclusions=state.draftSettings.optional_exporter_exclusions??state.view.exporter_policy?.optional_exclusions??[];
+ for(const input of document.querySelectorAll('[data-optional-probe]')){input.checked=exclusions.includes(input.dataset.optionalProbe);input.disabled=state.view.exporter_policy?.available===false}
+ $('syslog-profile-help').textContent=state.draftSettings.syslog_format==='fortigate'?'Native FortiGate default messages require UDP. Set the incoming port to match the firewall (commonly 514). FortiLens forwards internally to Alloy over RFC5424/TCP. UDP delivery is best effort.':'Match the sender protocol, port and RFC format. Native FortiGate default messages need the FortiGate default / native UDP profile.';
+ $('sla-help').textContent=state.draftSettings.sla?'Uses this exact check name. A failed check remains failed; another destination is never substituted.':'No SLA selected. Internet state, latency, jitter and loss remain unknown until you choose the device’s actual check name. Diagnostics lists recently observed names.';
 }
 function intentionalDraftEdit(input,event){
  if(!state.draftSettings||!event.isTrusted||input.disabled||input.readOnly||$('workspace').hidden||$('settings-page').hidden||$('configuration-form').hidden||!input.getClientRects().length)return false;
@@ -99,6 +103,8 @@ function settingChanged(input,event){
  pathSet(state.draftSettings,key,value);dirty();
  if(['fortigate_host','api_port','vdom','api_tls_verify'].includes(key)){state.inventory=[];renderInterfaces();connectionDraftChanged()}
  if(key==='api_tls_verify')$('insecure-row').hidden=value;
+ if(key==='syslog_format'&&value==='fortigate'){state.draftSettings.syslog_protocol='udp';renderDraftInputs()}
+ if(key==='sla'||key==='syslog_format')renderDraftInputs();
  if(key==='monitoring.syslog'&&!value){setDraftFlag('accounting',false);setDraftFlag('vlans',false)}
  if(key==='monitoring.accounting'){if(value)setDraftFlag('syslog',true);else setDraftFlag('vlans',false)}
  if(key==='monitoring.vlans'&&value){setDraftFlag('accounting',true);setDraftFlag('syslog',true)}
@@ -317,6 +323,12 @@ for(const b of document.querySelectorAll('[data-section]'))b.addEventListener('c
 $('next-section').addEventListener('click',()=>selectSection(sections[Math.min(sections.length-1,sections.indexOf(state.section)+1)]));$('previous-section').addEventListener('click',()=>selectSection(sections[Math.max(0,sections.indexOf(state.section)-1)]));
 
 for(const input of document.querySelectorAll('[data-setting]'))for(const type of ['input','change'])input.addEventListener(type,event=>settingChanged(input,event));
+for(const input of document.querySelectorAll('[data-optional-probe]'))input.addEventListener('change',event=>{
+ if(!intentionalDraftEdit(input,event))return;
+ const selected=new Set(state.draftSettings.optional_exporter_exclusions??state.view.exporter_policy?.optional_exclusions??[]);
+ if(input.checked)selected.add(input.dataset.optionalProbe);else selected.delete(input.dataset.optionalProbe);
+ state.draftSettings.optional_exporter_exclusions=[...selected];dirty();
+});
 for(const id of ['api-token','custom-ca','replace-token','replace-ca','insecure-ack'])for(const type of ['input','change'])$(id).addEventListener(type,event=>{const input=$(id);if(!intentionalDraftEdit(input,event))return;if(id==='api-token')state.apiTokenDraft=input.value;if(id==='custom-ca')state.customCADraft=input.value;dirty();connectionDraftChanged()});
 $('connection-secrets-form').addEventListener('submit',event=>{event.preventDefault();action($('save'),saveDraft)});
 $('test-connection').addEventListener('click',()=>action($('test-connection'),async()=>{$('connection-result').textContent='Testing saved connection…';await saveDraft();const d=await api('/api/connection/test',{revision:state.view.revision});$('connection-result').textContent=d.message+(Object.keys(d.device).length?' '+Object.values(d.device).join(' · '):'')}));

@@ -155,12 +155,26 @@ def metrics_checks(samples, c, freshness):
     for name, metric, label in [("sla_metrics", "fortigate_virtual_wan_status", "interface"),
                                  ("interface_metrics", "fortigate_interface_link_up", "name")]:
         rows = select(metric)
+        scope_evidence = {}
         if name == "sla_metrics":
-            rows = [x for x in rows if x["labels"].get("vdom") == c["vdom"]
-                    and (not c["sla"] or x["labels"].get("sla") == c["sla"])]
+            rows = [x for x in rows if x["labels"].get("vdom") == c["vdom"]]
+            observed = sorted({x["labels"]["sla"] for x in fresh(rows)
+                               if isinstance(x["labels"].get("sla"), str)
+                               and 0 < len(x["labels"]["sla"]) <= 128
+                               and not any(ord(ch) < 32 or ord(ch) == 127
+                                           for ch in x["labels"]["sla"])})
+            scope_evidence = {"selected_sla": c["sla"], "observed_sla_names": observed[:64]}
+            if not c["sla"]:
+                result.append(check(name, "WARN", "No SLA check is selected for WAN Internet-state evidence.",
+                    "sla_selection_required", "Review the observed SLA names and select the intended check in Settings. Different checks can report different states; no check was selected automatically.",
+                    **scope_evidence))
+                continue
+            rows = [x for x in rows if x["labels"].get("sla") == c["sla"]]
         latest = fresh(rows)
         if not latest:
-            result.append(absent(name, rows))
+            item = absent(name, rows)
+            item["evidence"].update(scope_evidence)
+            result.append(item)
             continue
         names = {x["labels"].get(label) for x in latest} - {None, ""}
         expected = c.get("confirmed_wan_interfaces") or c["wan_interfaces"]
@@ -171,7 +185,7 @@ def metrics_checks(samples, c, freshness):
             + f" received recently for {len(names)} interface(s)." + (" Some configured choices or older series have no recent sample." if partial else ""),
             "metrics_partial" if partial else "metrics_received",
             "Review names, VDOM/SLA scope, and read permissions. A missing interface is not classified as DOWN." if partial else "",
-            interfaces_received=len(names), configured_interfaces_without_recent_data=missing))
+            interfaces_received=len(names), configured_interfaces_without_recent_data=missing, **scope_evidence))
     return result
 
 
@@ -368,11 +382,75 @@ def accounting_checks(report,now,freshness):
     return result
 
 
-def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, direct_api=False, now=None, usage_request=None, service_reader=None, probe_exclusions=None):
+def native_receiver_checks(report, now, freshness):
+    """Separate local receiver readiness, TCP handoff and downstream storage."""
+    if not isinstance(report, dict) or report.get('service') != 'running' or report.get('component') != 'native-syslog-receiver':
+        raise ValueError('Invalid native receiver diagnostics')
+    for key in ('ready', 'udp_bound', 'worker_alive', 'upstream_connected'):
+        if type(report.get(key)) is not bool:
+            raise ValueError('Invalid native receiver readiness')
+    if report.get('storage_verified') is not False:
+        raise ValueError('Native receiver cannot verify downstream storage')
+    counters = ('queue_depth', 'queue_capacity', 'received_datagrams', 'handed_to_tcp',
+                'rejected_datagrams', 'queue_drops', 'send_errors')
+    if any(type(report.get(key)) is not int or report[key] < 0 for key in counters):
+        raise ValueError('Invalid native receiver counters')
+    if not 1 <= report['queue_capacity'] <= 65536 or report['queue_depth'] > report['queue_capacity']:
+        raise ValueError('Invalid native receiver queue')
+    reasons = report.get('rejected_reasons')
+    known_reasons = ('source', 'oversize', 'utf8', 'control', 'format', 'priority', 'timestamp')
+    if not isinstance(reasons, dict) or any(type(reasons.get(key)) is not int or reasons[key] < 0 for key in known_reasons):
+        raise ValueError('Invalid native receiver rejection counters')
+    ready = all(report[key] for key in ('ready', 'udp_bound', 'worker_alive', 'upstream_connected'))
+    evidence = {key: report[key] for key in counters}
+    evidence.update(udp_bound=report['udp_bound'], worker_alive=report['worker_alive'],
+                    upstream_connected=report['upstream_connected'], source_rejections=reasons['source'],
+                    storage_verified=False)
+    result = [check('native_receiver', 'PASS' if ready else 'FAIL',
+        'The native UDP receiver, forwarding worker and Alloy TCP connection are ready.' if ready else
+        'The native receiver did not confirm its UDP listener, forwarding worker and Alloy TCP connection are ready.',
+        'native_receiver_ready' if ready else 'native_receiver_not_ready',
+        'Review the separate TCP-handoff, Loki and accounting-delivery evidence.' if ready else
+        'Review the native receiver and the existing Alloy service. Readiness alone does not establish stored traffic.',
+        **evidence)]
+    stamp = report.get('last_forwarding_seconds')
+    if stamp is not None and (type(stamp) not in (int, float) or not math.isfinite(stamp) or stamp < 0):
+        raise ValueError('Invalid native receiver forwarding timestamp')
+    observed = datetime.fromtimestamp(stamp, timezone.utc).isoformat() if stamp is not None else None
+    if observed is None or not report['handed_to_tcp']:
+        result.append(check('native_handoff', 'UNKNOWN', 'No native-datagram handoff to Alloy has been observed.',
+            'native_handoff_unobserved', 'Review sender address, UDP destination, format and receiver counters. No observed handoff is not zero usage.',
+            storage_verified=False, traffic_coverage='UNKNOWN'))
+    else:
+        age = now - stamp
+        recent = -30 <= age <= freshness
+        result.append(check('native_handoff', 'PASS' if recent else 'WARN',
+            'Recent native datagrams were handed to the Alloy TCP connection.' if recent else
+            'The latest native TCP handoff is old or future-dated.',
+            'native_handoff_observed' if recent else 'native_handoff_stale_or_clock_skew',
+            'TCP handoff does not establish parsing, Loki storage or complete capture. Review recent_logs and accounting_delivery.',
+            last_forwarding_at=observed, forwarding_age_seconds=round(age, 1),
+            storage_verified=False, traffic_coverage='UNKNOWN'))
+    if report['queue_drops']:
+        result.append(check('native_queue_loss', 'WARN',
+            f"The native receiver has recorded {report['queue_drops']} full-queue drop(s).",
+            'native_queue_drops_recorded', 'This is a cumulative counter. Review input rate and collector availability; dropped UDP records cannot be inferred from a later successful poll.',
+            queue_drops=report['queue_drops'], queue_depth=report['queue_depth'], queue_capacity=report['queue_capacity']))
+    rejected = sum(reasons[key] for key in known_reasons if key != 'source')
+    if rejected:
+        result.append(check('native_input_rejections', 'WARN',
+            f'The native receiver has recorded {rejected} format or size rejection(s).',
+            'native_input_rejections_recorded', 'These counters are cumulative. Review native format, size, encoding and control characters; no raw payload is returned. Source-filter rejections are separate.',
+            rejected_reasons={key: reasons[key] for key in known_reasons if key != 'source'}))
+    return result
+
+
+def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, direct_api=False, now=None, usage_request=None, service_reader=None, probe_exclusions=None, native_receiver_request=None):
     if type(freshness) is not int or not 60 <= freshness <= 3600:
         raise ValueError("freshness must be between 60 and 3600 seconds")
     now = time.time() if now is None else now
-    services = SERVICES + (('fortilens-usage',) if c.get('accounting_enabled') else ()) + (('fortilens-portal',) if c.get('portal_enabled') else ())
+    native = c.get('syslog_format') == 'fortigate'
+    services = SERVICES + (('fortilens-usage',) if c.get('accounting_enabled') else ()) + (('fortilens-portal',) if c.get('portal_enabled') else ()) + (('fortilens-syslog',) if native else ())
     try:
         checks = (service_reader or service_checks)(p, compose_command, services)
         if not isinstance(checks,list) or any(not isinstance(item,dict) or item.get('status') not in LABELS for item in checks):
@@ -432,6 +510,20 @@ def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, di
         except (OSError,ValueError,TypeError,KeyError,urllib.error.URLError,http.client.HTTPException):
             checks.append(check('accounting_api','UNKNOWN','Usage-engine diagnostics are unavailable.',
                 'accounting_diagnostics_unavailable','Review the optional service and its local reporting address. No source traffic or WAN state is inferred.'))
+    if native:
+        if native_receiver_request is None:
+            checks.append(check('native_receiver', 'UNKNOWN', 'Native receiver diagnostics are unavailable through this readiness adapter.',
+                'native_receiver_diagnostics_unavailable', 'Review the fortilens-syslog service and its internal health endpoint. Running containers alone do not prove native log delivery.'))
+        else:
+            try:
+                checks.extend(native_receiver_checks(native_receiver_request(p, c), now, freshness))
+            except urllib.error.HTTPError as exc:
+                checks.append(check('native_receiver', 'FAIL', 'The native receiver health endpoint did not confirm readiness.',
+                    'native_receiver_not_ready' if exc.code == 503 else 'native_receiver_http_failed',
+                    'Review the native receiver and Alloy services. The response body is hidden; no storage or traffic coverage is inferred.', http_status=exc.code))
+            except (OSError, ValueError, TypeError, KeyError, OverflowError, urllib.error.URLError, http.client.HTTPException):
+                checks.append(check('native_receiver', 'UNKNOWN', 'Native receiver diagnostics could not be read or validated.',
+                    'native_receiver_diagnostics_unavailable', 'Review the fortilens-syslog service and its internal health endpoint. No raw exception or input payload is returned.'))
     checks.extend(probe_policy_check(probe_exclusions))
     if c.get('api_tls_verify',True) is False:
         checks.append(check('fortigate_tls','WARN',

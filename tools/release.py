@@ -121,6 +121,7 @@ PUBLIC_FILES = (
     "tests/test_repository_checks.py",
     "tests/test_runtime_errors.py",
     "tests/test_service_errors.py",
+    "tests/test_syslog_receiver.py",
     "tests/test_upgrade.py",
     "tests/test_usage_quality.py",
     "tests/test_usage_service.py",

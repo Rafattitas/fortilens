@@ -176,6 +176,9 @@ class ManagementTests(unittest.TestCase):
             response=self.client.get('/console/initial-view',follow_redirects=False)
             self.assertEqual(response.status_code,307)
             self.assertEqual(response.headers['location'],status['path'])
+            view['active_sla']='google'
+            response=self.client.get('/console/initial-view',follow_redirects=False)
+            self.assertEqual(response.headers['location'],status['path']+'&var-sla=google')
             for target in ('//outside.invalid/','/grafana/d/../admin/','/console/','/grafana/d/fixture/?redirect=https://outside.invalid'):
                 status['path']=target
                 self.assertEqual(self.client.get('/console/initial-view',follow_redirects=False).status_code,502)

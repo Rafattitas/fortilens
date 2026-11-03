@@ -127,8 +127,10 @@ def validate_config(raw):
         port(c[key], key)
     if type(c["api_tls_verify"]) is not bool:
         raise SetupError("api_tls_verify must be true or false")
-    if c["syslog_protocol"] not in ["tcp", "udp"] or c["syslog_format"] not in ["rfc5424", "rfc3164"]:
-        raise SetupError("Supported syslog: tcp/udp and rfc5424/rfc3164")
+    if c["syslog_protocol"] not in ["tcp", "udp"] or c["syslog_format"] not in ["rfc5424", "rfc3164", "fortigate"]:
+        raise SetupError("Supported syslog: tcp/udp and rfc5424/rfc3164/fortigate")
+    if c["syslog_format"] == "fortigate" and c["syslog_protocol"] != "udp":
+        raise SetupError("Native FortiGate syslog requires UDP")
     for key in ["grafana_bind", "syslog_bind", "usage_bind"]:
         try:
             ipaddress.IPv4Address(c[key])
@@ -286,7 +288,23 @@ def render(c, output, token, admin_password=None, inventory_report=None):
     # Build everything in memory before creating a private installation folder.
     compose = load(ROOT / "templates/compose.json")
     compose["services"]["grafana"]["ports"] = [f"{c['grafana_bind']}:{c['grafana_port']}:3000"]
-    compose["services"]["alloy"]["ports"] = [f"{c['syslog_bind']}:{c['syslog_port']}:1514/{c['syslog_protocol']}"]
+    native = c["syslog_format"] == "fortigate"
+    if native:
+        compose["services"]["alloy"].pop("ports", None)
+        compose["services"]["fortilens-syslog"] = {
+            "build":{"context":"./syslog","dockerfile":"Dockerfile"},
+            "image":"fortilens-syslog:local","platform":"linux/amd64",
+            "user":"10001:10001","restart":"unless-stopped",
+            "command":["python","/app/syslog_receiver.py","--config","/config/site.json"],
+            "ports":[f"{c['syslog_bind']}:{c['syslog_port']}:1514/udp"],
+            "volumes":["./site.json:/config/site.json:ro"],"depends_on":["alloy"],
+            "read_only":True,"tmpfs":["/tmp:rw,noexec,nosuid,size=16m"],"cap_drop":["ALL"],
+            "security_opt":["no-new-privileges:true"],"cpus":"0.5","mem_limit":"128m",
+            "healthcheck":{"test":["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)"],"interval":"30s","timeout":"5s","retries":3},
+            "logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}},
+        }
+    else:
+        compose["services"]["alloy"]["ports"] = [f"{c['syslog_bind']}:{c['syslog_port']}:1514/{c['syslog_protocol']}"]
     exporter = compose["services"]["fortigate-exporter"]
     if not c["api_tls_verify"]:
         exporter["command"].append("-insecure")
@@ -297,7 +315,10 @@ def render(c, output, token, admin_password=None, inventory_report=None):
     prom["scrape_configs"][0]["static_configs"][0]["targets"] = [target_url(c)]
     prom["scrape_configs"][0]["relabel_configs"][1]["replacement"] = c["fortigate_host"]
     alloy = (ROOT / "templates/config.alloy").read_text(encoding="utf-8")
-    alloy = alloy.replace("__PROTOCOL__", c["syslog_protocol"]).replace("__FORMAT__", c["syslog_format"])
+    alloy = alloy.replace("__PROTOCOL__", "tcp" if native else c["syslog_protocol"]).replace("__FORMAT__", "rfc5424" if native else c["syslog_format"])
+    if native:
+        alloy=alloy.replace("    use_incoming_timestamp = true", "    max_message_length     = 65536\n    use_incoming_timestamp = true")
+        prom["scrape_configs"].append({"job_name":"fortilens-syslog","static_configs":[{"targets":["fortilens-syslog:8080"]}]})
     if c["accounting_enabled"]:
         c={**c,"loki_receive_timestamps":True}
         alloy=alloy.replace("use_incoming_timestamp = true","use_incoming_timestamp = false")
@@ -339,6 +360,9 @@ def render(c, output, token, admin_password=None, inventory_report=None):
         for name in ("accounting.py","interfaces.py","wan_health.py","usage_service.py","portal.py","reporting.html"):
             files["usage/"+name]=(ROOT/name).read_text(encoding="utf-8")
         files["usage/Dockerfile"]=(ROOT/"templates/Dockerfile.usage").read_text(encoding="utf-8")
+    if native:
+        files["syslog/syslog_receiver.py"]=(ROOT/"syslog_receiver.py").read_text(encoding="utf-8")
+        files["syslog/Dockerfile"]=(ROOT/"templates/Dockerfile.syslog").read_text(encoding="utf-8")
     if inventory_report is not None:
         files["interface-inventory.json"] = dumps(inventory_report)
     output.mkdir(parents=True, mode=0o700)
@@ -368,7 +392,7 @@ def wizard():
     c["api_tls_verify"] = verification == "yes"
     c["syslog_port"] = int(ask("Syslog receive port on monitoring server", "1514"))
     c["syslog_protocol"] = ask("Syslog protocol tcp/udp", "tcp").lower()
-    c["syslog_format"] = ask("Syslog format rfc5424/rfc3164", "rfc5424").lower()
+    c["syslog_format"] = ask("Syslog format rfc5424/rfc3164/fortigate (native UDP)", "rfc5424").lower()
     c["vdom"] = ask("Default VDOM (configuration choice until discovered)", "root")
     c["sla"] = ask("SLA check name (blank = discover when metrics arrive)")
     c["wan_interfaces"] = [v.strip() for v in ask("Fallback WAN names for the SLA above (blank = discover/review inventory later)").split(",") if v.strip()]
@@ -642,9 +666,9 @@ def bundle(destination):
     # Deliberate allowlist: never zip the workspace, local installations, exports,
     # handover documents, screenshots or credentials.
     import zipfile
-    allowed = [ROOT / name for name in ("setup.py","doctor.py","interfaces.py","usage_quality.py","dashboard_style.py","accounting.py","wan_health.py","usage_service.py","portal.py","upgrade.py","alerts.py","reporting.html","site.example.json","README.md",".gitignore","LICENSE")]
+    allowed = [ROOT / name for name in ("setup.py","doctor.py","interfaces.py","usage_quality.py","dashboard_style.py","accounting.py","wan_health.py","usage_service.py","portal.py","upgrade.py","alerts.py","syslog_receiver.py","reporting.html","site.example.json","README.md",".gitignore","LICENSE")]
     allowed.extend(ROOT / "templates" / name for name in [
-        "dashboard.json", "compose.json", "prometheus.json", "loki.json", "datasources.json", "config.alloy", "Dockerfile.usage"])
+        "dashboard.json", "compose.json", "prometheus.json", "loki.json", "datasources.json", "config.alloy", "Dockerfile.usage", "Dockerfile.syslog"])
     destination = Path(destination).resolve()
     if destination.exists():
         raise SetupError("Bundle destination already exists")

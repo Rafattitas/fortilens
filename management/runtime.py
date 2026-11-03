@@ -127,6 +127,9 @@ class Docker:
                 if key in checked:raise Problem('port_conflict','Two enabled services request the same published port.')
                 checked.add(key)
                 if (name,host,port,protocol) in own:continue
+                # A reviewed profile can transfer this exact listener between
+                # the two fixed syslog services in the registered project.
+                if name in ('alloy','fortilens-syslog') and any((other,host,port,protocol) in own for other in ('alloy','fortilens-syslog')):continue
                 sock=socket.socket(socket.AF_INET6 if ':' in host else socket.AF_INET,socket.SOCK_DGRAM if protocol=='udp' else socket.SOCK_STREAM)
                 try:sock.bind((host,port))
                 except OSError:raise Problem('port_in_use','A requested monitoring port is already in use. Review service port settings before applying.') from None
@@ -200,6 +203,10 @@ class Docker:
         stopped = [x for x in disabled if x in services]
         if stopped:self.run(self.command()+['stop',*stopped])
         selected = [x for x in enabled if x in services]
+        if 'fortilens-syslog' in selected:
+            # Release an old Alloy-owned UDP binding before the bridge claims
+            # it. Compose otherwise schedules replacements concurrently.
+            self.run(self.command()+['stop','alloy','fortilens-syslog'])
         # Always recreate the sidecar when its Grafana namespace is replaced.
         if 'grafana' in selected and 'fortilens-portal' in services:
             self.run(self.command()+['stop','fortilens-portal'])
@@ -231,6 +238,7 @@ def enabled_services(settings, compose):
     if f.wan or f.sla or f.interfaces:active.append('fortigate-exporter')
     if f.server:active.append('node-exporter')
     if f.syslog:active.append('alloy')
+    if f.syslog and settings.syslog_format=='fortigate':active.append('fortilens-syslog')
     if f.accounting:active.append('fortilens-usage')
     if 'fortilens-portal' in compose['services']:active.append('fortilens-portal')
     return active,[n for n in SERVICES if n not in active]
@@ -390,7 +398,7 @@ class Operations:
                 'installation':{'configured':self.c.state()['configured'],'project':self.c.project},
                 'storage_projection':self.storage(),'latest_job':latest,
                 'links':{'console':'fortilens-portal' in (self.c.compose() or {'services':{}})['services'],
-                         'dashboard':'/grafana/d/'+self.dashboard_uid+'/?kiosk&theme=dark',
+                         'dashboard':'/grafana/d/'+self.dashboard_uid+'/?kiosk&theme=dark'+('&'+urllib.parse.urlencode({'var-sla':(self.c.state().get('applied') or {}).get('sla')}) if (self.c.state().get('applied') or {}).get('sla') else ''),
                          'grafana_port':load(self.c.root/self.c.state()['site_file'],{}).get('grafana_port',3001),
                          'grafana_prefix':'/grafana/' if 'fortilens-portal' in (self.c.compose() or {'services':{}})['services'] else '/'}}
 
@@ -469,6 +477,8 @@ class Operations:
             # doctor is the same callable used by setup.py doctor --json; its
             # subprocess-based status reader is replaced with approved helper data.
             rows=self.docker.statuses()
+            if settings.syslog_format!='fortigate' or not settings.monitoring.syslog:
+                rows=[row for row in rows if row['service']!='fortilens-syslog']
             checks=[doctor.check('service:'+r['service'],'PASS' if r['status']=='running' else 'WARN',r['service']+': '+str(r['status']),'service_state') for r in rows]
             compose=self.c.compose() or {};exporter=compose.get('services',{}).get('fortigate-exporter',{})
             command=exporter.get('command',[])
@@ -476,8 +486,12 @@ class Operations:
             auth=yaml.safe_load(self.c.bound_file(compose,'fortigate-exporter',destination).read_text()) if exporter else {}
             record=auth.get(self.c.auth_key(auth,c),{}) if auth else {}
             exclusions=(record.get('probes') or {}).get('exclude',[])
+            def native_receiver_request(*args):
+                try:return self.docker.http('fortilens-syslog',8080,'/health')
+                except Problem:raise ValueError('native_receiver_unavailable') from None
             report=doctor.run(self.c.root,c,request,lambda *a:[],setup.PROM_UID,setup.LOKI_UID,
-                              service_reader=lambda *a,**k:checks,usage_request=lambda *a:self.accounting_diagnostics(c),probe_exclusions=exclusions)
+                              service_reader=lambda *a,**k:checks,usage_request=lambda *a:self.accounting_diagnostics(c),probe_exclusions=exclusions,
+                              native_receiver_request=native_receiver_request)
             previous=load(self.c.control/'connection-test.json',{})
             recent=previous and time.time()-previous['at']<300
             same=recent and previous.get('scope')==self.inventory_scope(settings)

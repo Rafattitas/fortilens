@@ -111,6 +111,42 @@ Diagnostics then shows missing evidence. A selected new WAN/source must have a
 matching saved discovery. An unchanged existing connection does not require a
 working FortiGate to edit general settings. Readiness does not certify usage totals.
 
+### Choose the source evidence explicitly
+
+The existing default receiver remains TCP 1514 / RFC5424. If the sender emits
+FortiGate native/default logfmt over UDP, select UDP and format `fortigate`, then
+enter its actual destination port. This explicit profile adds the managed
+`fortilens-syslog` adapter and retains internal RFC5424/TCP delivery to Alloy.
+It does not change the sender or silently select UDP 514. Check port ownership
+and the configured FortiGate host's IPv4 source before applying. Read the
+[native UDP guide](SYSLOG_NATIVE_UDP.md) for format bounds, source filtering,
+delivery limits and the separate legacy rsyslog alternative.
+
+Review the actual SLA names in the selected VDOM before selecting an Internet
+health check. Blank SLA remains readable and supported, but diagnostics asks
+for selection rather than borrowing another check's samples. Names such as
+`google`, `ping` or `ping1` can report different destination-specific states;
+none is selected automatically or established as a public default. Applied
+settings determine managed report scope, while saved Grafana dashboards remain
+preserved. After changing SLA, explicitly Apply before assessing that scope.
+
+Optional exporter exclusions are a deliberate capability decision, not an API
+connectivity repair. The supported selections are `Log/Fortianalyzer/Status`,
+`System/Interface/Transceivers` and `System/SensorInfo`. Excluding one means it is
+not collected; diagnostics continues to show that omission even when selected
+probes succeed. A null/unchanged policy preserves the existing exporter policy;
+an explicit empty list removes only these three known names from exclusions.
+Other custom include/exclude rules, other targets and the token remain intact;
+those retained rules still govern collection. Review explicit selections in the
+candidate before applying. Required device,
+interface and Virtual WAN/SLA collection is not broadly disabled to hide failures.
+
+FortiGate certificate trust remains the owner's decision. Keep verification
+enabled with a trusted certificate or reviewed private CA where possible. An
+explicitly acknowledged temporary TLS-off deployment remains a warning, not
+authenticated server identity. Certificate pinning needs an independently trusted
+reference and coordinated client support; this profile does not establish one.
+
 ## Settings after setup
 
 The setup introduction disappears after successful deployment. Settings remains
@@ -151,9 +187,10 @@ SD-WAN may select different egress paths for different destinations/policies.
 
 An authorized firewall administrator must configure the syslog destination,
 protocol/format and forward-traffic logging. The receiver defaults to TCP1514 /
-RFC5424, binds the monitoring host's configured syslog address, and should be
-restricted to the intended sender at the network/host boundary. Matching a device
-ID does not authenticate a syslog sender. Review [accounting limits](ACCOUNTING.md)
+RFC5424; native/default UDP uses the explicit profile above. Both bind the
+configured host syslog address and need appropriate network/host restrictions.
+The managed native IPv4 source filter and a matching device ID do not authenticate
+a syslog sender. Review [accounting limits](ACCOUNTING.md)
 and synchronize both clocks. No received logs means unknown usage, not zero.
 
 ## Existing installations: explicit adoption
@@ -196,6 +233,12 @@ connection tests are explicit, cached briefly, and tied to the saved connection.
 Failed collection never becomes a WAN outage. Settings, sign-in and health remain
 available when Grafana, Loki or Docker is unavailable; helper unavailability is
 reported without taking down sign-in.
+
+Native receiver readiness, recent TCP handoff, recent Loki logs and accounting
+delivery are separate checks. No input remains unknown usage. Queue drops and
+format/size rejects are cumulative evidence; source-filter rejects alone do not
+prove loss of valid source traffic. A successful poll or receiver health check
+does not establish complete collection.
 
 After a failed Apply, inspect its failed step. Previous configuration is restored
 when safe, and **Restore Previous Configuration** can recreate services from that

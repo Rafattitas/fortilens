@@ -44,13 +44,16 @@ class ReleaseTests(unittest.TestCase):
             first = release.build(ROOT, folder / "first", "v0.3.0-test.1")
             second = release.build(ROOT, folder / "second", "v0.3.0-test.1")
             counts = release.verify(ROOT, folder / "first", "v0.3.0-test.1")
-            self.assertEqual(counts["portable_files"], 23)
+            self.assertEqual(counts["portable_files"], 25)
             for before, after in zip(first, second):
                 self.assertEqual(before.read_bytes(), after.read_bytes())
             full = release.full_members(first[0])
             self.assertIn("management/static/app.js", full)
             self.assertIn("management/requirements.txt", full)
             self.assertIn("portable/templates/Dockerfile.usage", full)
+            self.assertIn("portable/syslog_receiver.py", full)
+            self.assertIn("portable/templates/Dockerfile.syslog", full)
+            self.assertIn("tests/test_syslog_receiver.py", full)
             self.assertIn("install.sh", full)
             self.assertIn("tools/check_repository.py", full)
             adapter_files = (
@@ -68,6 +71,8 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(
                     {n: archive.read(n) for n in archive.namelist()}, release.portable_sources(ROOT)
                 )
+                self.assertIn("forti-monitor/syslog_receiver.py", archive.namelist())
+                self.assertIn("forti-monitor/templates/Dockerfile.syslog", archive.namelist())
                 for name in adapter_files:
                     self.assertFalse(
                         any(n.endswith("/" + Path(name).name) for n in archive.namelist()), name
@@ -99,6 +104,7 @@ class ReleaseTests(unittest.TestCase):
                 ["portable/setup.py", "--help"],
                 ["portable/setup.py", "init", "--help"],
                 ["portable/setup.py", "prepare-upgrade", "--help"],
+                ["portable/syslog_receiver.py", "--help"],
                 ["-m", "management.install", "--help"],
             ):
                 result = subprocess.run(
@@ -130,6 +136,88 @@ class ReleaseTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("OK", result.stderr)
+
+    def test_both_extracted_distributions_can_prepare_native_receiver_without_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory).resolve()
+            full, portable = release.build(ROOT, folder / "dist", "v0.3.0-test.1")
+            extracted = folder / "full"
+            for name, data in release.full_members(full).items():
+                path = extracted / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+            installer_spec = importlib.util.spec_from_file_location(
+                "fortilens_packaged_installer", extracted / "management/install.py"
+            )
+            installer = importlib.util.module_from_spec(installer_spec)
+            installer_spec.loader.exec_module(installer)
+            runtime = installer.source_files(extracted)
+            self.assertIn("portable/syslog_receiver.py", runtime)
+            self.assertIn("portable/templates/Dockerfile.syslog", runtime)
+            self.assertNotIn("tests/test_syslog_receiver.py", runtime)
+
+            portable_root = folder / "portable"
+            with zipfile.ZipFile(portable) as archive:
+                for name in archive.namelist():
+                    path = portable_root / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(archive.read(name))
+            token = "synthetic-artifact-receiver-token"
+            token_file = folder / "token"
+            token_file.write_text(token, encoding="utf-8")
+            config_file = folder / "native.json"
+            config_file.write_text(
+                json.dumps(
+                    {
+                        "fortigate_host": "192.0.2.1",
+                        "syslog_format": "fortigate",
+                        "syslog_protocol": "udp",
+                        "syslog_port": 5514,
+                        "accounting_enabled": True,
+                        "accounting_timezone": "UTC",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            for label, source in (
+                ("full", extracted / "portable"),
+                ("portable", portable_root / release.PORTABLE_PREFIX),
+            ):
+                with self.subTest(distribution=label):
+                    output = folder / (label + "-installation")
+                    result = subprocess.run(
+                        [
+                            sys.executable,
+                            str(source / "setup.py"),
+                            "init",
+                            "--config",
+                            str(config_file),
+                            "--token-file",
+                            str(token_file),
+                            "--output",
+                            str(output),
+                        ],
+                        cwd=source,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=30,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertNotIn(token, result.stdout + result.stderr)
+                    self.assertEqual(
+                        (output / "syslog/syslog_receiver.py").read_bytes(),
+                        (source / "syslog_receiver.py").read_bytes(),
+                    )
+                    self.assertEqual(
+                        (output / "syslog/Dockerfile").read_bytes(),
+                        (source / "templates/Dockerfile.syslog").read_bytes(),
+                    )
+                    compose = json.loads((output / "compose.yaml").read_text(encoding="utf-8"))
+                    receiver = compose["services"]["fortilens-syslog"]
+                    self.assertEqual(receiver["ports"], ["0.0.0.0:5514:1514/udp"])
+                    self.assertNotIn("secrets", receiver)
+                    self.assertNotIn("ports", compose["services"]["alloy"])
 
     def test_real_full_extraction_can_rebuild_existing_portable_bundle(self):
         with tempfile.TemporaryDirectory() as directory:

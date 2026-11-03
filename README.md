@@ -35,6 +35,7 @@ and portable distribution strategy; a prepared archive is not a published releas
 | Use the dependency-free CLI | [Portable installation and operations](portable/README.md) |
 | Understand usage evidence and limitations | [Accounting contract](docs/ACCOUNTING_ENGINE.md) |
 | Troubleshoot missing data | [Read-only diagnostics](docs/TROUBLESHOOTING.md) |
+| Receive FortiGate native/default UDP logs | [Managed native UDP profile](docs/SYSLOG_NATIVE_UDP.md) |
 | Develop, test or prepare a release | [Contributing](CONTRIBUTING.md), [QA](docs/QA.md), [releases](docs/RELEASING.md) |
 | Browse all guides | [Documentation index](docs/README.md) |
 
@@ -63,7 +64,7 @@ Designed for **one FortiGate per independent installation**: your server, your c
 | **Trust evidence** | Pending counters, source-wide classifications, processing lag, missing telemetry and observed WAN coverage. |
 | **Interface and VLAN review** | Reuses exporter labels, fills metadata gaps through read-only API requests, and asks you to confirm Internet interfaces. |
 | **Useful readiness checks** | Distinguishes failed collection, old samples, missing logs, and authentication boundaries. |
-| **Safe deployment** | Six base monitoring services, an optional constrained Python/SQLite worker and optional gateway, reviewed configuration changes and preserved dashboards. |
+| **Safe deployment** | Six base monitoring services, optional constrained accounting/gateway services and an explicit native UDP receiver profile, reviewed configuration changes and preserved dashboards. |
 | **Optional alert candidates** | Paused WAN/performance/collection rules; email/Telegram environment references without changing existing notifications. |
 
 ## Requirements
@@ -125,7 +126,7 @@ Prefer a standalone package? Download [fortilens-v0.2.0.zip](https://github.com/
 
 During setup, enter your FortiGate address, HTTPS API port, read-only API token, optional private CA, and syslog settings. Review discovered interfaces and explicitly confirm your Internet interfaces. Keep browser services on localhost for an SSH tunnel, or use a reviewed HTTPS reverse proxy for network access. Reporting credentials must not cross an untrusted plain-HTTP network.
 
-Then configure the intended FortiGate syslog destination to send forward traffic logs to your monitoring server. The default receiver is **TCP1514 / RFC5424**. API users, permissions, and syslog settings are configured on FortiGate by your administrator; the setup utility does not change them.
+Then configure the intended FortiGate syslog destination to send forward traffic logs to your monitoring server. The default receiver is **TCP1514 / RFC5424**. For an existing native/default UDP sender, current source offers the explicit **UDP / fortigate** profile; choose the actual destination port and review [its input and delivery limits](docs/SYSLOG_NATIVE_UDP.md). Existing installations are not converted automatically. API users, permissions, and syslog settings are configured on FortiGate by your administrator; the setup utility does not change them.
 
 Grafana defaults to `http://127.0.0.1:3001/d/forti-monitor`, reached through an SSH tunnel or reviewed HTTPS proxy. Its login is `admin`; the password is in `local/secrets/grafana_admin_password`. When accounting is enabled, protected reports use the configured reporting address (default `http://127.0.0.1:3002/`) and separate password in `local/secrets/usage_admin_password`. Use these reports for fixed-period device/VLAN answers independently of Grafana’s global time range. The unified-console guide explains the source-only opt-in and its native Grafana subpath.
 
@@ -162,7 +163,9 @@ Inventory never selects WANs automatically. Missing roles, topology gaps, and co
 flowchart LR
   FG[FortiGate] -->|HTTPS API| EX[FortiGate Exporter]
   EX --> PR[Prometheus]
-  FG -->|TCP syslog| AL[Alloy]
+  FG -->|Direct RFC syslog| AL[Alloy]
+  FG -->|Optional native UDP| RX[Managed native receiver]
+  RX -->|RFC5424 TCP| AL
   AL --> LO[Loki]
   NE[Node Exporter] --> PR
   PR --> GR[Grafana]
@@ -180,6 +183,8 @@ Grafana and the protected reports bind to loopback by default; syslog uses its c
 ## Honest signals, clear limits
 
 - **Missing data stays missing.** Dropdown fallback choices are configuration, not measurements. No SLA series does not establish a WAN outage.
+- **SLA selection is explicit.** Review fresh names in the intended VDOM and select the check that represents your Internet-health policy. Blank selection stays supported and requires review; a name such as `google` is a site choice, never a new public default.
+- **Collection paths need separate evidence.** Native UDP source filtering is not authentication. Receiver readiness and TCP handoff do not prove Loki storage, complete traffic capture or accurate site totals.
 - **Usage means received-log evidence.** Valid zero deltas stay zero; unsafe cumulative candidates stay pending. Stable event identities prevent replay double counting. Missing MACs remain explicitly unverified. [Read the accounting contract](docs/ACCOUNTING_ENGINE.md).
 - **Interface metadata has a scope and time.** VLAN mapping uses exact VDOM/interface keys, never subnets. Current inventory cannot establish an old VLAN assignment. FortiGate settings are never changed automatically.
 - **Early access.** Clean Docker installations and controlled HTTPS/syslog fixtures have been tested. Every FortiOS release, ARM, and new real-device onboarding are not yet validated.

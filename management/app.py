@@ -281,6 +281,11 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
                 raise Problem('view_unavailable','Monitoring is unavailable. Review Diagnostics.',503)
             if not isinstance(target,str) or not re.fullmatch(r'/grafana/d/[A-Za-z0-9_-]+/(?:\?kiosk(?:=true)?&theme=dark)?',target):
                 raise Problem('console_redirect_rejected','An unexpected monitoring destination was blocked.',502)
+            # Append only the applied, validated selector after checking the fixed
+            # destination. Never accept a gateway-supplied arbitrary query URL.
+            sla=config.get('active_sla','')
+            if isinstance(sla,str) and re.fullmatch(r'[A-Za-z0-9_.:@ /+\-]{1,250}',sla):
+                target+=('&' if '?' in target else '?')+urlencode({'var-sla':sla})
         else:target=paths[view]
         return Response(status_code=307,headers={'Location':target})
 

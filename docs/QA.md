@@ -83,6 +83,39 @@ The existing pipeline checks independently known synthetic usage through the
 received-log pipeline, replay/restart and old CLI behavior. These checks use
 synthetic sources and cannot certify a real site's completeness.
 
+The stack scenario also creates a separate disposable native UDP project. It
+checks the configured-source filter, normalization through the pinned Alloy/Loki
+pipeline, preserved source event time, independently known synthetic totals,
+replay/restart behavior and receiver metrics. This is a separate acceptance path
+from the unchanged direct RFC syslog project; record the actual executed result
+for each rather than treating one as proof of the other.
+
+For native receiver changes, run the focused standard-library tests too:
+
+```bash
+python -m unittest discover -s tests -p test_syslog_receiver.py -v
+python -m unittest discover -s tests -p test_probe_diagnostics.py -v
+python -m unittest discover -s tests -p test_repair_runtime.py -v
+```
+
+Use synthetic sources and disposable bindings to exercise allowed/disallowed
+IPv4 senders, malformed/oversize/control-character rejection, exact native body
+preservation, bounded queue overflow, reconnect/backoff, shutdown and failure
+after a possibly partial TCP send. Keep health readiness separate from recent
+handoff; neither establishes Loki storage or complete accounting. Cumulative
+queue/validation losses remain visible after forwarding recovers; source-only
+rejections do not automatically imply loss of authorized input. Ensure legacy
+RFC profiles do not call the optional health adapter or acquire a new service.
+
+For setup/apply changes, preserve a blank SLA without automatically selecting a
+received name. A missing, stale, wrong-VDOM or future-dated selected check must
+not pass by borrowing another SLA. Verify an explicitly applied SLA reaches the
+managed report scope while saved native dashboards remain unchanged. Test
+null/unchanged, explicit empty and selected optional-probe policies independently;
+the empty list removes only the three known exclusions and retains custom rules,
+other targets and secret bytes. No live FortiGate writes or TLS
+policy changes are part of these fixtures.
+
 CI additionally runs the actual Ubuntu 24.04/systemd installer twice and exercises
 its real host services. `--installed` acceptance is restricted to a disposable
 Actions VM; never point it at production. Secret/bootstrap output stays private.

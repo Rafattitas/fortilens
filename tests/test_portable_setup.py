@@ -67,6 +67,69 @@ class PortableSetupTests(unittest.TestCase):
             self.assertEqual(marker.read_text(), "preserve")
             self.assertEqual(len(list(Path(parent).iterdir())), 1)
 
+    def test_native_udp_receiver_is_isolated_and_forwards_to_internal_standard_alloy(self):
+        with tempfile.TemporaryDirectory() as parent, contextlib.redirect_stdout(io.StringIO()):
+            output = Path(parent) / "native"
+            token = "synthetic-native-token-not-in-receiver-context"
+            setup.render(self.config(syslog_format="fortigate", syslog_protocol="udp",
+                syslog_port=514, accounting_enabled=True), output, token)
+            compose = setup.load(output / "compose.yaml")
+            receiver = compose["services"]["fortilens-syslog"]
+            self.assertEqual(receiver["ports"], ["0.0.0.0:514:1514/udp"])
+            self.assertEqual(receiver["build"], {"context": "./syslog", "dockerfile": "Dockerfile"})
+            self.assertEqual(receiver["user"], "10001:10001")
+            self.assertTrue(receiver["read_only"])
+            self.assertEqual(receiver["cap_drop"], ["ALL"])
+            self.assertEqual(receiver["security_opt"], ["no-new-privileges:true"])
+            self.assertEqual(receiver["mem_limit"], "128m")
+            self.assertEqual(receiver["cpus"], "0.5")
+            self.assertEqual(receiver["tmpfs"], ["/tmp:rw,noexec,nosuid,size=16m"])
+            self.assertEqual(receiver["volumes"], ["./site.json:/config/site.json:ro"])
+            self.assertNotIn("secrets", receiver)
+            self.assertNotIn("ports", compose["services"]["alloy"])
+            self.assertEqual(compose["volumes"], {
+                **setup.load(ROOT / "portable/templates/compose.json")["volumes"], "usage-data": {}})
+            alloy = (output / "alloy/config.alloy").read_text(encoding="utf-8")
+            self.assertRegex(alloy, r'protocol\s*=\s*"tcp"')
+            self.assertRegex(alloy, r'syslog_format\s*=\s*"rfc5424"')
+            self.assertRegex(alloy, r'max_message_length\s*=\s*65536')
+            self.assertIn("use_incoming_timestamp = false", alloy)
+            site = setup.load(output / "site.json")
+            self.assertEqual((site["syslog_format"], site["syslog_protocol"]), ("fortigate", "udp"))
+            self.assertTrue(site["loki_receive_timestamps"])
+            prom = setup.load(output / "prometheus/prometheus.yml")
+            job = next(x for x in prom["scrape_configs"] if x["job_name"] == "fortilens-syslog")
+            self.assertEqual(job["static_configs"], [{"targets": ["fortilens-syslog:8080"]}])
+            self.assertNotIn("basic_auth", job)
+            context = output / "syslog"
+            self.assertEqual({p.name for p in context.iterdir()}, {"Dockerfile", "syslog_receiver.py"})
+            for name, source in (("Dockerfile", ROOT / "portable/templates/Dockerfile.syslog"),
+                                 ("syslog_receiver.py", ROOT / "portable/syslog_receiver.py")):
+                self.assertEqual((context / name).read_bytes(), source.read_bytes())
+                self.assertNotIn(token, (context / name).read_text(encoding="utf-8"))
+            self.assertEqual((context / "Dockerfile").read_text().splitlines()[0],
+                (ROOT / "portable/templates/Dockerfile.usage").read_text().splitlines()[0])
+
+    def test_native_format_requires_udp_and_never_changes_legacy_modes(self):
+        with self.assertRaises(setup.SetupError):
+            self.config(syslog_format="fortigate", syslog_protocol="tcp")
+        self.assertEqual((setup.DEFAULTS["syslog_protocol"], setup.DEFAULTS["syslog_format"]),
+            ("tcp", "rfc5424"))
+        for protocol, format_name in (("tcp", "rfc5424"), ("udp", "rfc3164")):
+            with self.subTest(protocol=protocol, format=format_name):
+                with tempfile.TemporaryDirectory() as parent, contextlib.redirect_stdout(io.StringIO()):
+                    output = Path(parent) / "standard"
+                    setup.render(self.config(syslog_protocol=protocol, syslog_format=format_name),
+                        output, "synthetic-token")
+                    compose = setup.load(output / "compose.yaml")
+                    self.assertNotIn("fortilens-syslog", compose["services"])
+                    self.assertEqual(compose["services"]["alloy"]["ports"],
+                        ["0.0.0.0:1514:1514/" + protocol])
+                    self.assertFalse((output / "syslog").exists())
+                    self.assertNotIn("max_message_length", (output / "alloy/config.alloy").read_text())
+                    jobs = setup.load(output / "prometheus/prometheus.yml")["scrape_configs"]
+                    self.assertFalse(any(x["job_name"] == "fortilens-syslog" for x in jobs))
+
     def test_rejects_query_injection_and_bad_endpoints(self):
         for change in [{"fortigate_host": "https://host/path"}, {"fortigate_host": "host:8443"},
                        {"fortigate_host": "a..b"}, {"api_port": 65536}, {"api_port": True},
@@ -116,7 +179,7 @@ class PortableSetupTests(unittest.TestCase):
             p = Path(parent) / "bundle.zip"
             setup.bundle(p)
             with zipfile.ZipFile(p) as archive:
-                self.assertEqual(len(archive.namelist()), 23)
+                self.assertEqual(len(archive.namelist()), 25)
                 for name in archive.namelist():
                     self.assertTrue(name.startswith("forti-monitor/"))
                     self.assertNotIn("local/", name)
@@ -124,6 +187,8 @@ class PortableSetupTests(unittest.TestCase):
                     self.assertIsNone(re.search(r"[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb50-\ufdff\ufe70-\ufeff]", archive.read(name).decode("utf-8")),
                                       "Non-English Arabic text in distribution file: " + name)
                 self.assertIn("forti-monitor/LICENSE", archive.namelist())
+                self.assertIn("forti-monitor/syslog_receiver.py", archive.namelist())
+                self.assertIn("forti-monitor/templates/Dockerfile.syslog", archive.namelist())
 
 
 if __name__ == "__main__":

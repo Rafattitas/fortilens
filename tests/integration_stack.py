@@ -53,6 +53,104 @@ def request(base,path,password=None):
         return body.decode() if path=='/metrics' else json.loads(body)
 
 
+def traffic_fields(stamp,session,interface,mac,sent,received):
+    return f'devid="FG-FIXTURE" vd="root" type="traffic" subtype="forward" logid="0000000020" sessionid="{session}" srcip="192.0.2.{session}" dstip="198.51.100.1" srcport="1234" dstport="443" proto="6" srcintf="{interface}" dstintf="uplink-a" srcintfrole="lan" dstintfrole="wan" mastersrcmac="{mac}" srcname="fixture-{session}" sentdelta="{sent}" rcvddelta="{received}" sentbyte="{sent}" rcvdbyte="{received}" duration="60" eventtime="{stamp}"'
+
+
+def native_udp_pipeline(temporary,certificate):
+    """A second disposable project checks the optional native receiver end to end."""
+    root=temporary/'native-installation'
+    command=None
+    try:
+        with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as sock:
+            sock.bind(('127.0.0.1',0));udp_port=sock.getsockname()[1]
+        config=s.validate_config({'site_name':'Synthetic native UDP integration','fortigate_host':'fixture-api','api_port':8443,
+            'api_ca_file':str(certificate),'api_tls_verify':True,'vdom':'root','sla':'fixture-check',
+            'wan_interfaces':['uplink-a'],'confirmed_wan_interfaces':['uplink-a'],
+            'grafana_bind':'127.0.0.1','grafana_port':free_port(),'syslog_bind':'127.0.0.1','syslog_port':udp_port,
+            'syslog_protocol':'udp','syslog_format':'fortigate','accounting_enabled':True,'expected_devid':'FG-FIXTURE',
+            'usage_bind':'127.0.0.1','usage_port':free_port(),'accounting_poll_seconds':5,'accounting_settle_seconds':1})
+        with contextlib.redirect_stdout(io.StringIO()):
+            s.render(config,root,'synthetic-integration-token','synthetic-grafana-password')
+        config=s.load(root/'site.json');compose=s.load(root/'compose.yaml')
+        compose['services']['fixture-api']={'image':'fortilens-usage:local','entrypoint':['python','/fixture/fixture_api.py'],
+            'volumes':[str(temporary)+':/fixture:ro'],'platform':'linux/amd64'}
+        # Resolve the allowed fixture sender only after its private DNS record exists.
+        compose['services']['fortilens-syslog']['depends_on'].append('fixture-api')
+        prom_port=free_port()
+        compose['services']['prometheus']['ports']=[f'127.0.0.1:{prom_port}:9090']
+        (root/'compose.yaml').write_text(s.dumps(compose))
+        command=s.compose_command(root)
+        def docker(*args,**kwargs):return subprocess.run([*command,*args],cwd=root,check=True,**kwargs)
+        docker('config','--quiet')
+        docker('build','fortilens-usage','fortilens-syslog')
+        docker('run','--rm','--no-deps','alloy','validate','/etc/alloy/config.alloy')
+        docker('run','--rm','--no-deps','--entrypoint','promtool','prometheus','check','config','/etc/prometheus/prometheus.yml')
+        docker('up','-d','--no-build')
+        usage=f"http://127.0.0.1:{config['usage_port']}"
+        password=(root/'secrets/usage_admin_password').read_text().strip()
+        def receiver_request(path):
+            # Internal HTTP remains unpublished; the fixture sees only generic counters.
+            result=subprocess.run([*command,'exec','-T','fixture-api','python','-c',
+                "import sys,urllib.request; print(urllib.request.urlopen('http://fortilens-syslog:8080'+sys.argv[1],timeout=5).read().decode())",path],
+                cwd=root,capture_output=True,text=True,check=False,timeout=15)
+            if result.returncode:return None
+            return result.stdout if path=='/metrics' else json.loads(result.stdout)
+        wait_for(lambda:receiver_request('/health'))
+        wait_for(lambda:request(usage,'/api/diagnostics',password).get('inventory_available'))
+        time.sleep(2)
+        now=datetime.now(timezone.utc);stamp=int(now.timestamp()*1e9)
+        prefix='<134>date='+now.strftime('%Y-%m-%d')+' time='+now.strftime('%H:%M:%S')+' '
+        first=prefix+traffic_fields(stamp,10,'staff','02:00:00:00:00:01',1000000000,2000000000)
+        second=prefix+traffic_fields(stamp,11,'guests','02:00:00:00:00:02',300000000,700000000)
+        # The published UDP port must reject the host as a different sender.
+        rejected_before=receiver_request('/health')['rejected_reasons']['source']
+        with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as sock:
+            sock.sendto(first.encode(),('127.0.0.1',config['syslog_port']))
+        def source_rejected():
+            health=receiver_request('/health')
+            return health if health and health['rejected_reasons']['source']>rejected_before else None
+        wait_for(source_rejected,30)
+        def send(*payloads):
+            # The native receiver permits the resolved FortiGate address. Send
+            # from that fixture container, never pretend host loopback is it.
+            docker('exec','-T','fixture-api','python','-c',
+                "import base64,socket,sys; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); [s.sendto(base64.b64decode(p),('fortilens-syslog',1514)) for p in sys.argv[1:]]; s.close()",
+                *(base64.b64encode(payload.encode()).decode() for payload in payloads))
+        send(first,second)
+        def complete():
+            report=request(usage,'/api/report?period=today',password)
+            return report if report['totals']['upload_bytes']==1300000000 else None
+        report=wait_for(complete,180)
+        assert report['totals']['download_bytes']==2700000000
+        assert len(report['devices'])==2 and {row['vlan']['vlan_id'] for row in report['vlans']}=={100,200}
+        assert request(usage,'/api/diagnostics',password)['last_received_event_ns']==stamp
+        for period in ('week','month'):
+            assert request(usage,'/api/report?period='+period,password)['totals']==report['totals']
+        health=receiver_request('/health')
+        assert health['ready'] and health['handed_to_tcp']>=2
+        assert health['storage_verified'] is False # The accounting result above establishes storage separately.
+        counters=receiver_request('/metrics')
+        assert 'fortilens_native_syslog_handed_to_tcp_total' in counters
+        assert 'fortilens_native_syslog_tcp_send_errors_total' in counters
+        send(first)
+        time.sleep(12)
+        assert request(usage,'/api/report?period=today',password)['totals']==report['totals']
+        docker('restart','fortilens-usage')
+        wait_for(lambda:request(usage,'/api/diagnostics',password).get('last_poll_ok'))
+        assert request(usage,'/api/report?period=today',password)['totals']==report['totals']
+        query='/api/v1/query?'+urllib.parse.urlencode({'query':'up{job="fortilens-syslog"}'})
+        wait_for(lambda:any(row['value'][1]=='1' for row in request('http://127.0.0.1:'+str(prom_port),query)['data']['result']),130)
+        print(json.dumps({'synthetic_only':True,'native_udp_pipeline':'PASS','source_filter':'fixture-api',
+            'upload_bytes':1300000000,'download_bytes':2700000000,'vlans':[100,200],
+            'source_eventtime_preserved':True,'disallowed_host_sender':'REJECTED',
+            'replay_and_worker_restart':'PASS','native_receiver_scrape':'PASS'},sort_keys=True))
+    finally:
+        if command:
+            subprocess.run([*command,'logs','--tail','12','fortilens-syslog','fortilens-usage','fixture-api'],cwd=root,check=False)
+            subprocess.run([*command,'down','--volumes','--remove-orphans'],cwd=root,check=False)
+
+
 def main():
     if sys.platform!='linux':raise SystemExit('This isolated Docker check requires Linux')
     temporary=Path(tempfile.mkdtemp(prefix='fortilens-integration-')).resolve()
@@ -137,7 +235,7 @@ def main():
         time.sleep(2)
         now=datetime.now(timezone.utc);stamp=int(now.timestamp()*1e9)
         def line(session,interface,mac,sent,received):
-            fields=f'devid="FG-FIXTURE" vd="root" type="traffic" subtype="forward" logid="0000000020" sessionid="{session}" srcip="192.0.2.{session}" dstip="198.51.100.1" srcport="1234" dstport="443" proto="6" srcintf="{interface}" dstintf="uplink-a" srcintfrole="lan" dstintfrole="wan" mastersrcmac="{mac}" srcname="fixture-{session}" sentdelta="{sent}" rcvddelta="{received}" sentbyte="{sent}" rcvdbyte="{received}" duration="60" eventtime="{stamp}"'
+            fields=traffic_fields(stamp,session,interface,mac,sent,received)
             return '<134>1 '+now.isoformat().replace('+00:00','Z')+' fixture FortiGate - - - '+fields+'\n'
         first=line(10,'staff','02:00:00:00:00:01',1000000000,2000000000)
         second=line(11,'guests','02:00:00:00:00:02',300000000,700000000)
@@ -177,6 +275,7 @@ def main():
         print(json.dumps({'synthetic_only':True,'services':len(compose['services']),'upload_bytes':1300000000,
             'download_bytes':2700000000,'vlans':[100,200],'replay_and_restart':'PASS','authenticated_prometheus_scrape':'PASS',
             'real_fortigate_numeric_verification':'PENDING'},sort_keys=True))
+        native_udp_pipeline(temporary,certificate)
     finally:
         if command:
             # Only sanitized service diagnostics and fixture-only logs; no

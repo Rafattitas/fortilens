@@ -1,16 +1,119 @@
-# Optional native FortiGate UDP adapter
+# Native FortiGate UDP reception
+
+Current source supports a managed `fortigate` syslog profile for a FortiGate
+already sending native `<PRI>date=... time=...` logfmt datagrams. Select this
+profile explicitly when the sender's actual format is native/default. The
+existing default remains TCP 1514 / RFC5424; existing installations are not
+converted automatically. FortiLens does not change the firewall's sender.
+
+## Managed native UDP profile
+
+In **Monitoring & Syslog**, choose UDP and the `fortigate` native format, then
+set the host port to the actual destination used by the sender. Native format
+requires UDP; selecting it does not silently change the configured port. For
+example, a sender using UDP 514 needs host port 514 after checking that this
+binding is free. Do not displace another listener.
+
+The corresponding portable configuration fields are:
+
+```json
+{
+  "syslog_protocol": "udp",
+  "syslog_format": "fortigate",
+  "syslog_port": 514
+}
+```
+
+This is a fragment to merge into a reviewed configuration for a **new**
+installation, not a complete configuration or an upgrade command. Do not run
+`init` over an existing stack. For an existing registered installation, save a
+draft, inspect the candidate and port conflicts, then explicitly Apply. Keep
+the exact Compose project, volumes, secrets, accounting source/timezone and
+saved dashboards. Changes can create a collection gap.
+
+```text
+FortiGate native/default UDP, configured host port
+    -> fortilens-syslog UDP 1514, IPv4 source filter
+    -> alloy:1514 TCP, octet-counted RFC5424
+    -> existing Alloy -> Loki -> existing accounting worker
+```
+
+The profile adds one fixed Compose service, `fortilens-syslog`, and an internal
+Prometheus scrape. Alloy's syslog listener remains TCP/RFC5424 inside the stack;
+its direct host syslog binding is replaced by the receiver's UDP binding. The
+service runs as UID/GID 10001 with a read-only root filesystem, dropped
+capabilities and a read-only site configuration. Its build context includes
+only its standard-library Python receiver and pinned Dockerfile. It has no API
+token, Docker socket or writable monitoring data mount. Internal health/metrics
+port 8080 is not published to the host. The Ubuntu bootstrap still installs
+management only; the receiver is built/started with an approved monitoring
+configuration, not during bootstrap.
+
+### Accepted input and limits
+
+The adapter accepts a canonical priority prefix in 0–191 followed by
+`date=YYYY-MM-DD time=HH:MM:SS` and the native body. It removes the priority
+prefix and trailing CR/LF/NUL delimiters, then preserves the UTF-8 body without
+reserializing fields. Embedded control characters, invalid UTF-8, other formats
+and datagrams over 64,000 bytes are rejected. Source `eventtime`, byte counters,
+quoted values and backslashes remain in the body. The new RFC5424 envelope uses
+host receipt time; existing accounting event-time and late-data rules remain
+unchanged. This adapter does not correct a FortiGate clock.
+
+The source allowlist resolves only the configured `fortigate_host` to IPv4
+addresses at receiver startup. IPv6-only sources are unsupported. If a NAT,
+relay or another FortiGate interface produces a different observed source,
+review the actual path before applying this profile; do not broaden the filter
+or change the API host merely to bypass a rejection. A source address and raw
+`devid` are **not sender authentication**; UDP can be spoofed. Existing accounting
+source identity remains a separate contract.
+
+The queue holds at most 256 messages in memory, with one forwarding worker and
+bounded TCP reconnect backoff. Full queues drop input; a process restart can
+lose queued records and UDP can lose packets before reception. A failed TCP
+send can also have an uncertain delivery outcome. No raw log files or persistent
+disk queue are created. This is best-effort collection, not lossless delivery or
+a full-capture guarantee. Existing replay/accounting rules are not replaced.
+
+### Diagnostics and acceptance
+
+Management Diagnostics uses the fixed receiver health endpoint only for the
+native profile. `native_receiver` requires the UDP listener, worker and Alloy
+TCP connection to be ready. `native_handoff` separately reports a recent TCP
+send, which does **not** establish parsing, Loki storage or accounting
+eligibility. Without a health adapter, the standalone doctor reports actionable
+unknown receiver evidence rather than inventing delivery. Internal metrics use
+the `fortilens_native_syslog_` prefix and the `fortilens-syslog` Prometheus job.
+
+Queue-drop and non-source validation-rejection counters are cumulative warnings;
+source-filter rejections alone do not prove loss of authorized input. A healthy
+receiver without received datagrams has unknown handoff evidence. `recent_logs`
+and `accounting_delivery` remain separate observations, and successful polling
+does not prove collection or complete usage.
+
+Before live use, run the isolated cases in [QA](QA.md): allowed/disallowed
+senders, body preservation, boundaries, reconnect/backpressure, Alloy parsing,
+Loki storage and independently known synthetic accounting totals. Never send
+fixtures to a production listener. During an authorized live change, use bounded
+natural-traffic observations and preserve private backups. If acceptance fails,
+review and restore the previous registered configuration using the existing
+configuration-only rollback; do not delete data or silently change the firewall.
+Coordinate rollback with any separately installed host adapter to avoid binding
+conflicts. Missing historical records cannot be reconstructed.
+
+## Legacy operator-managed rsyslog alternative
 
 Use this operator-managed Ubuntu adapter when a FortiGate already sends native
 `<PRI>date=... time=...` logfmt messages over UDP and changing its sender is outside
 the approved scope. It wraps the native body in an RFC5424 envelope for the existing
 Alloy receiver. It does not change the firewall or accounting algorithm.
 
-This is an optional host configuration example, not an automatically installed
-FortiLens feature. Test the installed rsyslog binary, the pinned Alloy image and
+This remains a separate optional host configuration example. It is not installed
+or controlled by the managed native profile. Test the installed rsyslog binary, the pinned Alloy image and
 the actual sender before using it. The example alone is not a compatibility or
 traffic-completeness claim.
 
-## Choose the correct path
+### Choose the correct path
 
 FortiGate's native/default format is not necessarily RFC3164. Selecting
 `rfc3164` in Alloy does not establish that it can parse a native logfmt datagram.
@@ -26,7 +129,7 @@ FortiGate native/default UDP 514
     -> existing Alloy -> Loki -> existing accounting worker
 ```
 
-FortiLens Settings continue to describe the **Alloy leg**: TCP, port 1514,
+For this legacy alternative, FortiLens Settings describe the **Alloy leg**: TCP, port 1514,
 RFC5424. The external UDP 514 listener belongs to this separate host service.
 Changing those management settings later requires reviewing the adapter's
 forwarding target too. Do not silently change managed settings to UDP/RFC3164
@@ -49,7 +152,7 @@ This avoids enabling Alloy's experimental `raw` format. The
 [Alloy v1.19.2 reference](https://github.com/grafana/alloy/blob/v1.19.2/docs/sources/reference/components/loki/loki.source.syslog.md)
 marks that format experimental and requires an experimental stability flag.
 
-## Prerequisites and review
+### Prerequisites and review
 
 - Ubuntu with rsyslog already installed, `/usr/sbin/rsyslogd`, a `syslog` user and
   group, and systemd ambient-capability support. This guide does not install
@@ -89,7 +192,7 @@ The foreground process uses `-iNONE` to disable PID-file creation under systemd;
 it needs no persistent writable directory. It does not grant FortiLens web/helper
 processes additional permissions.
 
-## Isolated validation before installation
+### Isolated validation before installation
 
 Run a disposable test with synthetic records and separate test bindings. Use
 high ports for ordinary fixtures, then verify privileged-port capability in a
@@ -120,7 +223,7 @@ Rsyslog's default message limit is 8 KiB; the RFC5424 envelope adds bytes before
 Alloy's own limit applies. Inspect maximum observed sizes and test their boundary
 in isolation. Do not claim all records are preserved from a short sample.
 
-## Validation record
+### Legacy validation record
 
 An isolated check on 2026-11-02 used installed rsyslog **8.2512.0** and the pinned
 Alloy **1.19.2** image. The example configuration was used with test-address
@@ -139,7 +242,7 @@ overload or crash durability, independent byte totals, traffic completeness, or
 compatibility with every Ubuntu/FortiOS version. Repeat acceptance on the intended
 host; production validation is a separate, private deployment record.
 
-## Operator installation
+### Operator installation
 
 The following commands assume the reviewed private copy has replaced both example
 addresses and the prerequisite checks passed. Run from a reviewed source checkout;
@@ -162,7 +265,7 @@ being loaded by the system logger's flat `*.conf` include. Confirm that behavior
 on the actual host. After editing this adapter's configuration, validate it and
 restart only `fortilens-syslog.service`; HUP is not a configuration reload.
 
-## Live acceptance and rollback
+### Live acceptance and rollback
 
 Record the actual source revision and configuration hashes privately. Check
 service/socket ownership, source filtering, Alloy entry/parser counters, recent
