@@ -12,7 +12,7 @@ import socketserver
 import struct
 import sqlite3
 import sys
-from .common import Problem, load, report_failure
+from .common import Problem, load, report_failure, setup
 from .configuration import Configuration
 from .runtime import Operations
 
@@ -74,6 +74,15 @@ def handler(operations, key, web_uid):
                 if len(payload)>MAX_RESPONSE:
                     raise Problem('helper_response_limit','The management response exceeded its safe limit.',503)
             except Problem as e:result={'error':e.code,'message':e.message};status=e.status
+            except setup.SetupError as exc:
+                report_failure('helper_configuration_invalid',exc)
+                # Recognize a fixed local validation cause; never forward raw
+                # exception text, which may contain submitted or host values.
+                if str(exc)=='A custom CA requires api_tls_verify=true':
+                    result={'error':'tls_ca_conflict','message':'A custom CA cannot be actively used while TLS verification is disabled. Explicitly remove the custom CA or enable certificate verification.'}
+                else:
+                    result={'error':'configuration_invalid','message':'Configuration validation failed. Review the saved connection, monitoring, retention and certificate settings.'}
+                status=400
             except (ValueError,TypeError,KeyError) as exc:
                 report_failure('helper_invalid_operation',exc)
                 result={'error':'operation_failed','message':'The operation could not be completed safely. Review saved settings and diagnostics.'};status=400

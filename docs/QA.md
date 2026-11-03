@@ -44,8 +44,8 @@ From the repository root:
 ```bash
 python -m pip install -r requirements-dev.txt
 python -m ruff check .
-python -m ruff check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py --extend-select I
-python -m ruff format --check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py
+python -m ruff check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py --extend-select I
+python -m ruff format --check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py
 python tools/check_repository.py
 python -m coverage run -m unittest discover -s tests -v
 python -m coverage report -m
@@ -82,6 +82,39 @@ SQLite integrity, rollback and management survival after test Grafana/Loki stop.
 The existing pipeline checks independently known synthetic usage through the
 received-log pipeline, replay/restart and old CLI behavior. These checks use
 synthetic sources and cannot certify a real site's completeness.
+
+The stack scenario also creates a separate disposable native UDP project. It
+checks the configured-source filter, normalization through the pinned Alloy/Loki
+pipeline, preserved source event time, independently known synthetic totals,
+replay/restart behavior and receiver metrics. This is a separate acceptance path
+from the unchanged direct RFC syslog project; record the actual executed result
+for each rather than treating one as proof of the other.
+
+For native receiver changes, run the focused standard-library tests too:
+
+```bash
+python -m unittest discover -s tests -p test_syslog_receiver.py -v
+python -m unittest discover -s tests -p test_probe_diagnostics.py -v
+python -m unittest discover -s tests -p test_repair_runtime.py -v
+```
+
+Use synthetic sources and disposable bindings to exercise allowed/disallowed
+IPv4 senders, malformed/oversize/control-character rejection, exact native body
+preservation, bounded queue overflow, reconnect/backoff, shutdown and failure
+after a possibly partial TCP send. Keep health readiness separate from recent
+handoff; neither establishes Loki storage or complete accounting. Cumulative
+queue/validation losses remain visible after forwarding recovers; source-only
+rejections do not automatically imply loss of authorized input. Ensure legacy
+RFC profiles do not call the optional health adapter or acquire a new service.
+
+For setup/apply changes, preserve a blank SLA without automatically selecting a
+received name. A missing, stale, wrong-VDOM or future-dated selected check must
+not pass by borrowing another SLA. Verify an explicitly applied SLA reaches the
+managed report scope while saved native dashboards remain unchanged. Test
+null/unchanged, explicit empty and selected optional-probe policies independently;
+the empty list removes only the three known exclusions and retains custom rules,
+other targets and secret bytes. No live FortiGate writes or TLS
+policy changes are part of these fixtures.
 
 CI additionally runs the actual Ubuntu 24.04/systemd installer twice and exercises
 its real host services. `--installed` acceptance is restricted to a disposable
@@ -123,6 +156,17 @@ traffic windows using [VERIFICATION.md](VERIFICATION.md). If the source is absen
 report it as unavailable; do not fabricate zero usage, an outage or 100% accuracy.
 
 ## Publishing
+
+For Monitoring No data investigations, compare browser and server clocks before
+changing queries. Execute the actual saved queries with their current variables
+at both end timestamps. A correct server-default query does not validate a
+browser-chosen range. Preserve legitimate missing SLA values on a failed link.
+Verify management and inner-portal launch paths retain the applied SLA. Test the
+optional page-local clock adapter with positive/negative skew, healthy clocks,
+explicit dates, Date construction/static methods, subclasses and parent-window
+isolation. Check calendar-day/month panel overrides in actual Grafana; shifting
+only the global URL range does not cover those independent calculations.
+Never change an operator's OS clock or stored timestamps to hide this failure.
 
 Use the current authorized branch/release scope and expected-head merges. Verify
 the deployed source against the intended source files/tree, wait for all required

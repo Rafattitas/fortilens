@@ -43,7 +43,10 @@ class Settings(Strict):
     wan_confirmed: bool = False
     syslog_protocol: Literal['tcp', 'udp'] = 'tcp'
     syslog_port: int = Field(default=1514, ge=1, le=65535)
-    syslog_format: Literal['rfc5424', 'rfc3164'] = 'rfc5424'
+    syslog_format: Literal['rfc5424', 'rfc3164', 'fortigate'] = 'rfc5424'
+    optional_exporter_exclusions: list[Literal[
+        'Log/Fortianalyzer/Status', 'System/Interface/Transceivers', 'System/SensorInfo',
+    ]] | None = Field(default=None, max_length=3)
     monitoring_interval: int = Field(default=60, ge=15, le=3600)
     accounting_timezone: str = 'UTC'
     expected_devid: str = ''

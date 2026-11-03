@@ -34,7 +34,7 @@ def report_failure(event, exc):
         category = 'storage'
     elif isinstance(exc, OSError):
         category = 'io'
-    elif isinstance(exc, (ValueError, TypeError, KeyError)):
+    elif isinstance(exc, (ValueError, TypeError, KeyError, setup.SetupError)):
         category = 'invalid_data'
     else:
         category = 'unexpected'

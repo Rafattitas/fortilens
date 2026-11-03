@@ -66,7 +66,8 @@ def docker_result():
 class DoctorTests(unittest.TestCase):
     def test_accounting_checks_report_processing_without_certifying_traffic_coverage(self):
         details={'last_attempt':NOW-10,'last_poll_ok':True,'processing_lag_seconds':5,
-            'inventory_available':True,'source_identity_bound':True,'loki_timestamps_at_receipt':True}
+            'inventory_available':True,'source_identity_bound':True,'loki_timestamps_at_receipt':True,
+            'last_delivery_ns':(NOW-20)*10**9}
         checks=doctor.accounting_checks(details,NOW,300)
         self.assertTrue(all(x['status']=='PASS' for x in checks))
         details.update(inventory_available=False,inventory_error='api_http_403',parser_rejections=2,processing_lag_seconds=900)

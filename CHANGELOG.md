@@ -2,7 +2,48 @@
 
 ## Unreleased — unified console and Web Setup & Settings
 
+### Source collection and diagnostics
+
+- Separate managed Device usage from period Reports: retain device inspection in
+  the former and show aggregate totals, top consumers and segment distribution
+  in the latter, reusing existing accounting evidence and filters.
+- Preserve the applied SLA on inner-console Monitoring launches and compensate
+  detected browser clock skew inside the native Grafana document only. Warn
+  clearly, retain saved dashboards and explicit dates, and cover independent
+  calendar-period panel queries without changing OS or stored timestamps.
+- Add an explicit managed `fortigate`/UDP native log profile with a bounded
+  standard-library receiver, internal RFC5424/TCP forwarding to existing Alloy,
+  fixed internal health/metrics and additive source/build inputs. Keep the
+  existing TCP 1514 / RFC5424 default and published releases unchanged.
+- Separate native receiver readiness, TCP handoff, Loki receipt and accounting
+  delivery; surface cumulative queue/validation losses without treating a source
+  filter as authentication or a successful poll as complete capture.
+- Keep blank SLA supported but require explicit diagnostic review; retain fresh
+  VDOM-scoped observed names without selecting one automatically. A selected
+  missing/stale/wrong-VDOM check cannot borrow another check's samples. SLA names
+  remain site choices, and saved native dashboards are preserved.
+- Expose narrowly scoped optional exporter exclusions as an explicit reviewed
+  policy while preserving unchanged/legacy coverage and required probes. Omitted
+  capabilities remain visible; TLS trust remains a separate owner decision.
+- Document managed native UDP setup, best-effort limits and the retained
+  operator-managed rsyslog alternative; add isolated source-path regressions.
+
 ### Error handling and recovery
+
+- Keep configuration drafts independent of hidden browser autofill values,
+  isolate the masked API-token form, and preserve reviewed or locked device
+  identities during connection tests. Add first-run browser regressions.
+- Collapse successful deployment progress into compact history, restore only
+  active/failing operations, preserve explicit failure acknowledgement and guard
+  duplicate Apply/rollback requests. Add real-browser lifecycle regressions.
+- Resolve pending CA replacement/removal before candidate validation and return
+  safe typed configuration errors. Retained active CA plus disabled TLS remains
+  an explicit conflict requiring removal or verified TLS.
+- Show connection-scope discovery readiness and recorded deployment revisions;
+  diagnostics observe applied settings, distinguish polling from source delivery,
+  report explicit optional-probe policy and warn about disabled TLS verification.
+- Provide a narrowly validated optional-probe policy helper without changing
+  default probe coverage or silently weakening existing installations.
 
 - Return bounded, safe operational errors across management/helper HTTP,
   reporting/gateway services, CLI/installer/tools and browser transport. Keep
@@ -26,7 +67,7 @@
 ### Repository engineering
 
 - Add an explicitly allowlisted full source distribution beside the compatible
-  23-file portable ZIP, with reproducible archive metadata, source provenance,
+  portable ZIP, with reproducible archive metadata, source provenance,
   SHA256 checksums and extracted-artifact tests. Existing release assets remain
   immutable; no new version is tagged or published by this preparation.
 - Prepare read-only PR/manual package validation and disposable packaged

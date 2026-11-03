@@ -70,6 +70,68 @@ process.stdin.on('end',async()=>{
 
 @unittest.skipUnless(NODE, "Browser transport tests require development-only Node.js.")
 class FrontendErrorTests(unittest.TestCase):
+    def test_monitoring_clock_alignment_is_bounded_capability_gated_and_preserves_ranges(self):
+        harness = r"""
+const assert=require('node:assert/strict'),vm=require('node:vm');
+let input='';process.stdin.setEncoding('utf8');process.stdin.on('data',part=>input+=part);
+process.stdin.on('end',()=>{
+ const context={URL,Date:{now:()=>1793696400000},location:{origin:'http://testserver'}};
+ vm.createContext(context);vm.runInContext(JSON.parse(input).source,context);
+ const now=1793696400,base='/grafana/d/fixture/?kiosk&theme=dark&var-sla=Google%2FDNS';
+ assert.equal(context.monitoringClockOffset(undefined),undefined);
+ assert.equal(context.monitoringClockOffset(now+30),0);
+ assert.equal(context.monitoringClockOffset(now-60),0);
+ for(const bad of [null,'1793696400',NaN,Infinity,-1,now+86401,now-86401]){
+  assert.equal(context.monitoringClockOffset(bad),null);
+  assert.equal(context.monitoringLaunch(base,context.monitoringClockOffset(bad),true).path,base);
+  assert.match(context.monitoringClockNotice(null,false),/unavailable/);
+ }
+ for(const offset of [2612,-2612,86400,-86400]){
+  assert.equal(context.monitoringClockOffset(now+offset),offset);
+  const result=context.monitoringLaunch(base,offset,true),url=new URL(result.path,'http://testserver');
+  assert.equal(result.aligned,true);assert.equal(url.searchParams.get('fortilens-clock'),'server');
+  assert.equal(url.searchParams.has('from'),false);assert.equal(url.searchParams.has('to'),false);
+  assert.equal(url.searchParams.has('refresh'),false);
+  assert.equal(url.searchParams.get('var-sla'),'Google/DNS');
+  assert.equal(url.searchParams.has('kiosk'),true);assert.equal(url.searchParams.get('theme'),'dark');
+  assert.match(context.monitoringClockNotice(offset,true),/Monitoring uses server time/);
+  assert.match(context.monitoringClockNotice(offset,true),/data have not been changed/);
+ }
+ for(const explicit of ['&from=now-1h','&to=now','&from=123&to=456&refresh=5m']){
+  const before=new URL(base+explicit,'http://testserver');
+  const launch=context.monitoringLaunch(base+explicit,2612,true),after=new URL(launch.path,'http://testserver');
+  assert.equal(launch.aligned,true);
+  for(const [key,value] of before.searchParams)assert.equal(after.searchParams.get(key),value);
+  assert.equal(after.searchParams.get('fortilens-clock'),'server');
+ }
+ for(const supported of [undefined,false,'true']){
+  const launch=context.monitoringLaunch(base,2612,supported);
+  assert.equal(launch.path,base);assert.equal(launch.aligned,false);
+ }
+ assert.equal(context.monitoringLaunch(base,0,true).path,base);
+ assert.equal(context.monitoringLaunch(base,undefined,true).path,base);
+ assert.equal(context.monitoringClockNotice(undefined,false),'');
+ assert.equal(context.monitoringClockNotice(0,false),'');
+ assert.match(context.monitoringClockNotice(2612,false),/range has not been changed/);
+ process.stdout.write('PASS');
+});
+"""
+        for relative in ("management/static/app.js", "portable/reporting.html"):
+            with self.subTest(relative=relative):
+                text = (ROOT / relative).read_text(encoding="utf-8")
+                start = text.index("// Monitoring time alignment:")
+                end = text.index("// End monitoring time alignment.", start)
+                result = subprocess.run(
+                    [NODE, "-e", harness],
+                    input=json.dumps({"source": text[start:end]}),
+                    text=True,
+                    encoding="utf-8",
+                    capture_output=True,
+                    timeout=10,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, "PASS")
+
     def source(self, kind, extra=None):
         path = "management/static/app.js" if kind == "management" else "portable/reporting.html"
         text = (ROOT / path).read_text(encoding="utf-8")

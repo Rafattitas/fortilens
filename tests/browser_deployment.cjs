@@ -1,0 +1,257 @@
+const fs = require('node:fs');
+const http = require('node:http');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const {chromium} = require(process.env.FORTILENS_PLAYWRIGHT_MODULE || 'playwright');
+const root = path.resolve(__dirname, '..');
+const output = process.env.FORTILENS_BROWSER_OUTPUT;
+const settings = {site_name:'Synthetic site',installation_name:'browser-fixture',timezone:'UTC',date_format:'YYYY-MM-DD',fortigate_host:'192.0.2.1',api_port:443,vdom:'root',sla:'',api_tls_verify:true,wan_interfaces:['wan1'],wan_confirmed:true,syslog_protocol:'tcp',syslog_port:1514,syslog_format:'rfc5424',accounting_timezone:'UTC',expected_devid:'',grafana_port:3001,usage_port:3002,monitoring_interval:60,monitoring:{wan:true,sla:true,interfaces:true,syslog:true,accounting:true,vlans:true,server:true},retention:{loki_days:60,prometheus_days:90,ledger_days:8,summary_days:400,database_bytes:4294967296}};
+let mode='complete', discovery=true, applies=0, requests=0;
+const events=[{at:1793606400,phase:'starting',message:'Starting synthetic services.'}];
+const job = () => ({job_id:'a'.repeat(32),plan_id:'b'.repeat(32),status:mode==='unavailable'?'starting':mode,phase:mode==='failed'?'failed':mode==='complete'?'complete':'starting',message:mode==='failed'?'Synthetic readiness failed. Review service health.':'Synthetic configuration applied.',events:[...events,{at:1793606460,phase:mode,message:mode==='failed'?'Synthetic readiness failed.':'Synthetic operation '+mode+'.'}],requested_revision:7,...(mode==='complete'?{applied_revision:7}:{}),...(mode==='failed'?{failed_step:'readiness',rollback_available:true}:{}),diagnostics:{monitoring:{checks:[{status:'WARN',message:'Synthetic collection remains unverified.'}]}}});
+const view = () => ({settings,configured:true,revision:7,applied_revision:mode==='complete'?7:6,pending_changes:mode!=='complete',scope_locked:true,secret_status:{api_token_present:true,custom_ca_present:false},active_monitoring:settings.monitoring,discovery:{required:true,current:discovery,reason:discovery?'Discovery matches this saved connection.':'Connection settings changed. Discover interfaces again.',changed_fields:discovery?[]:['api_tls_verify']}});
+const system = () => ({services:[{service:'grafana',status:'running',health:'healthy'}],disk:{total:10000000000,used:1000000000,available:9000000000},storage_projection:{available:false,components:{},message:'Synthetic capacity unavailable.'},links:{console:false},latest_job:job(),hostname:'synthetic-host',os:'Synthetic OS',architecture:'x86_64',cpu_count:2,ram_bytes:4000000000,docker:'Available'});
+const server=http.createServer((req,res)=>{
+ const pathname=new URL(req.url,'http://localhost').pathname;
+ if(pathname.startsWith('/grafana/d/')){res.setHeader('Content-Type','text/html');res.end('<!doctype html><title>Synthetic monitoring</title><p>Native time controls remain available.</p>');return}
+ const files={'/':'management/static/index.html','/reporting.html':'portable/reporting.html','/static/app.js':'management/static/app.js','/static/app.css':'management/static/app.css','/static/logo.svg':'management/static/logo.svg'};
+ const file=files[pathname];if(!file){res.writeHead(404);res.end('Not found');return}
+ res.setHeader('Content-Type',pathname.endsWith('.js')?'application/javascript':pathname.endsWith('.css')?'text/css':pathname.endsWith('.svg')?'image/svg+xml':'text/html');res.end(fs.readFileSync(path.join(root,file)));
+});
+async function monitoringClockRegression(browser,baseURL,offset,supported=true){
+ const fixedNow=Date.UTC(2026,10,3,9,0,0),nativePath='/grafana/d/fixture/?kiosk&theme=dark&var-sla=google';
+ const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});
+ const page=await context.newPage(),errors=[];
+ await page.addInitScript(now=>{Date.now=()=>now;document.addEventListener('DOMContentLoaded',()=>{window.initialParserFrame=document.getElementById('console-frame')},{once:true})},fixedNow);
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route(url=>url.origin===baseURL&&url.pathname==='/',async route=>{
+  const html=fs.readFileSync(path.join(root,'management/static/index.html'),'utf8').replace('id="console-frame"','id="console-frame" data-initial-view="monitoring" src="/console/initial-view?view=monitoring"');
+  await route.fulfill({status:200,contentType:'text/html',body:html});
+ });
+ await page.route('**/console/initial-view?**',route=>route.fulfill({status:307,headers:{location:nativePath},body:''}));
+ await page.route('**/grafana/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>Synthetic monitoring</title><p>Native time controls remain available.</p>'}));
+ await page.route('**/api/**',async route=>{
+  const pathname=new URL(route.request().url()).pathname;let payload,status=200;
+  if(pathname==='/api/bootstrap/status')payload={required:false};
+  else if(pathname==='/api/session')payload={username:'synthetic-admin',csrf:'synthetic-csrf',authenticated:true};
+  else if(pathname==='/api/settings')payload={...view(),applied_revision:7,pending_changes:false};
+  else if(pathname==='/api/system')payload={...system(),latest_job:null,links:{console:true,dashboard:nativePath},server_time_seconds:fixedNow/1000+offset,server_clock_supported:supported};
+  else if(pathname==='/api/portal')payload={enabled:true};
+  else if(pathname==='/api/monitoring-status')payload={available:true,role:'Viewer',path:nativePath,server_time_seconds:fixedNow/1000+offset,server_clock_supported:supported};
+  else{status=404;payload={error:'not_found'}}
+  await route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
+ });
+ const aligned=Math.abs(offset)>60&&Math.abs(offset)<=86400&&supported===true,warning=Math.abs(offset)>60;
+ function checkPath(value){
+  const url=new URL(value,baseURL);
+  assert.equal(url.pathname,'/grafana/d/fixture/');assert.equal(url.searchParams.get('var-sla'),'google');assert.equal(url.searchParams.get('theme'),'dark');assert.equal(url.searchParams.has('kiosk'),true);
+  assert.equal(url.searchParams.has('from'),false);assert.equal(url.searchParams.has('to'),false);assert.equal(url.searchParams.has('refresh'),false);
+  assert.equal(url.searchParams.get('fortilens-clock'),aligned?'server':null);
+ }
+ try{
+  await page.goto(baseURL+'/?view=monitoring#monitoring');await page.waitForFunction(()=>!document.getElementById('workspace').hidden);
+  await page.waitForFunction(()=>document.getElementById('console-frame').contentDocument?.title==='Synthetic monitoring');
+  checkPath(page.frames().find(frame=>frame.parentFrame())?.url());
+  assert.equal(await page.evaluate(()=>document.getElementById('console-frame')===window.initialParserFrame),!aligned,'Clock compensation failed to replace/preserve the initial parser frame');
+  assert.equal(await page.locator('#console-clock-warning').isVisible(),warning);
+  if(aligned)assert.match(await page.locator('#console-clock-warning').textContent(),/Monitoring uses server time/);
+  else if(warning)assert.match(await page.locator('#console-clock-warning').textContent(),/unavailable/);
+  await page.locator('#workspace-nav a[data-page="overview"]').click();await page.locator('#workspace-nav a[data-page="monitoring"]').click();
+  await page.waitForFunction(()=>document.getElementById('console-frame').contentDocument?.title==='Synthetic monitoring');checkPath(await page.locator('#console-frame').getAttribute('src'));
+  let explicit=await page.evaluate(path=>monitoringLaunch(path,2612,true),nativePath+'&from=now-1h&to=now');
+  assert.equal(new URL(explicit.path,baseURL).searchParams.get('from'),'now-1h');assert.equal(new URL(explicit.path,baseURL).searchParams.get('to'),'now');
+  if(aligned&&offset>0&&output){await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Clock warning causes mobile overflow');fs.mkdirSync(output,{recursive:true});await page.screenshot({path:path.join(output,'monitoring-server-clock-mobile.png'),fullPage:true})}
+  await page.goto(baseURL+'/reporting.html#monitoring');await page.waitForFunction(()=>!document.getElementById('monitoring-frame').hidden);
+  checkPath(await page.locator('#monitoring-frame').getAttribute('src'));assert.equal(await page.locator('#monitoring-clock-warning').isVisible(),warning);
+  explicit=await page.evaluate(path=>monitoringLaunch(path,2612,true),nativePath+'&from=now-1h&to=now');
+  assert.equal(new URL(explicit.path,baseURL).searchParams.get('from'),'now-1h');assert.equal(new URL(explicit.path,baseURL).searchParams.get('to'),'now');
+  await page.locator('#reload-monitoring').click();await page.waitForFunction(()=>!document.getElementById('monitoring-frame').hidden);checkPath(await page.locator('#monitoring-frame').getAttribute('src'));
+  assert.deepEqual(errors,[],'Clock-alignment browser errors');
+ }catch(error){
+  console.error('Clock fixture: '+JSON.stringify({offset,supported,frames:page.frames().map(frame=>frame.url()),errors,src:await page.locator('#console-frame').getAttribute('src').catch(()=>null)}));throw error;
+ }finally{await context.close()}
+}
+async function usageViewsRegression(browser,baseURL){
+ const context=await browser.newContext({viewport:{width:1280,height:900}}),page=await context.newPage(),errors=[],periods=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ const vlan={key:'root:staff',status:'MAPPED',vlan_id:100,interface:'staff'};
+ const devices=[1,2,3,4,5,6].map(n=>({device_id:'synthetic-'+n,hostname:'Fixture '+n,ip:'192.0.2.'+n,mac:'02:00:00:00:00:0'+n,identity_kind:'MAC',vlans:[vlan],upload_bytes:100,download_bytes:900,total_bytes:1000}));
+ const report={devices,vlans:[{vlan,observed_endpoint_identities:6,upload_bytes:600,download_bytes:5400,total_bytes:6000}],totals:{upload_bytes:600,download_bytes:5400,pending_upload_bytes:0,pending_download_bytes:0},flags:{},processing:{last_poll_ok:true},observed_endpoint_identities:6,unverified_endpoint_identities:0,status:'RECORDED_ONLY',timezone:'UTC',start_utc:'2026-11-03T00:00:00Z',end_utc:'2026-11-03T12:00:00Z',daily_history:[],monthly_history:[]};
+ await page.route('**/api/**',route=>{const url=new URL(route.request().url());let payload;
+  if(url.pathname==='/api/portal')payload={enabled:true};else if(url.pathname==='/api/session')payload={authenticated:true};
+  else if(url.pathname==='/api/report'){periods.push(url.searchParams.get('period'));payload=url.searchParams.get('search')==='missing'?{...report,devices:[],vlans:[],totals:{upload_bytes:null,download_bytes:null},status:'UNAVAILABLE'}:report}
+  else if(url.pathname==='/api/device')payload={...report,devices:[devices[0]]};else payload={};
+  return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)});
+ });
+ try{
+  await page.goto(baseURL+'/reporting.html#devices');await page.waitForFunction(()=>document.querySelectorAll('#device-body tr').length===6);assert.equal(await page.locator('#stats').isVisible(),true);assert.equal(await page.locator('#vlan-section').isVisible(),true,'Legacy standalone segment inspection disappeared');
+  await page.goto(baseURL+'/reporting.html?section=devices#overview');await page.waitForFunction(()=>document.querySelectorAll('#device-body tr').length===6);
+  assert.equal(await page.locator('#device-section').isVisible(),true);assert.equal(await page.locator('#stats').isVisible(),false);assert.equal(await page.locator('#vlan-section').isVisible(),false);assert.equal(await page.locator('#report-summary').isVisible(),false);
+  await page.locator('#device-body .entity').first().click();await page.waitForFunction(()=>document.getElementById('details-title').textContent==='Fixture 1');await page.locator('#close-details').click();
+  if(output){fs.mkdirSync(output,{recursive:true});await page.screenshot({path:path.join(output,'device-usage-desktop.png'),fullPage:true})}
+  await page.goto(baseURL+'/reporting.html?section=reports#reports');await page.waitForFunction(()=>document.querySelectorAll('#report-consumers li').length===5);
+  assert.equal(await page.locator('#device-section').isVisible(),false);assert.equal(await page.locator('#stats').isVisible(),true);assert.equal(await page.locator('#vlan-section').isVisible(),true);assert.equal(await page.locator('#report-summary').isVisible(),true);assert.equal(await page.locator('#report-segments li').count(),1);
+  await page.locator('[data-period="week"]').click();await page.waitForFunction(()=>!document.getElementById('refresh').disabled);assert.equal(periods.at(-1),'week');
+  if(output)await page.screenshot({path:path.join(output,'period-reports-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);if(output)await page.screenshot({path:path.join(output,'period-reports-mobile.png'),fullPage:true});
+  await page.locator('#search').fill('missing');await page.locator('#search').press('Enter');await page.waitForFunction(()=>document.getElementById('report-consumers').textContent.includes('No received'));assert.equal(await page.locator('#report-consumers button').count(),0,'Old consumer summary survived empty evidence');
+  assert.deepEqual(errors,[]);
+ }finally{await context.close()}
+}
+async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice,scopeLocked=false}){
+ const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});
+ const page=await context.newPage(),errors=[],saved=[],authRequests=[];
+ const username='admin',password='synthetic-administrator-password',token='synthetic-read-only-api-token',bootstrapToken='synthetic-one-time-bootstrap-token';
+ const device=expectedDevice||'FG-SYNTHETIC-TRUSTED';
+ let signedIn=false,bootstrapRequired=bootstrap,revision=scopeLocked?7:0,connectionTests=0,storedToken=false;
+ let currentSettings={...structuredClone(settings),fortigate_host:'',wan_interfaces:[],wan_confirmed:false,expected_devid:expectedDevice};
+ const currentView=()=>({settings:structuredClone(currentSettings),configured:scopeLocked,revision,applied_revision:scopeLocked?7:null,pending_changes:!scopeLocked||revision!==7,scope_locked:scopeLocked,secret_status:{api_token_present:storedToken,custom_ca_present:false},active_monitoring:currentSettings.monitoring,discovery:{required:false,current:true,changed_fields:[],reason:'Synthetic first-run connection.'}});
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/api/**',async route=>{
+  const request=route.request(),pathname=new URL(request.url()).pathname;let payload,status=200;
+  if(pathname==='/api/bootstrap/status')payload={required:bootstrapRequired};
+  else if(pathname==='/api/bootstrap'){
+   const body=request.postDataJSON();authRequests.push({path:pathname,body});assert.equal(body.bootstrap_token,bootstrapToken);assert.equal(body.username,username);assert.equal(body.password,password);assert.equal(body.confirmation,password);bootstrapRequired=false;payload={status:'created'};
+  }else if(pathname==='/api/login'){
+   const body=request.postDataJSON();authRequests.push({path:pathname,body});assert.equal(body.username,username);assert.equal(body.password,password);signedIn=true;payload={username,csrf:'synthetic-setup-csrf'};
+  }else if(!signedIn){status=401;payload={error:'authentication_required'}}
+  else if(pathname==='/api/session')payload={username,csrf:'synthetic-setup-csrf'};
+  else if(pathname==='/api/settings'){
+   if(request.method()==='POST'){
+    const body=request.postDataJSON();assert.equal(body.revision,revision);saved.push(body);currentSettings=structuredClone(body.settings);revision++;if(body.api_token)storedToken=true;
+   }
+   payload=currentView();
+  }else if(pathname==='/api/system')payload={...system(),services:[],latest_job:null};
+  else if(pathname==='/api/interfaces/discover')payload={interfaces:[{name:'wan1',vdom:'root',type:'physical',role:'wan',ip_address:'192.0.2.2/24',parent:'',vlan_id:null,status:'Configured enabled',review_status:'VERIFIED'}],coverage:'Synthetic interface inventory',notes:[]};
+  else if(pathname==='/api/connection/test'){
+   connectionTests++;assert.equal(request.postDataJSON().revision,revision);
+   if(currentSettings.expected_devid&&currentSettings.expected_devid!==device){status=400;payload={error:'device_identity_mismatch',message:'The API device ID differs from the configured accounting source. Review the address and expected device ID.'}}
+   else payload={status:'success',tls_verified:true,device:{serial:device},message:'Read-only synthetic connection succeeded.'};
+  }else{status=404;payload={error:'not_found'}}
+  await route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
+ });
+ try{
+  await page.goto(baseURL+'/?view=settings#settings');
+  await page.waitForFunction(required=>document.getElementById('bootstrap-fields').hidden!==required,bootstrap);
+  assert.equal(await page.locator('#username').getAttribute('autocomplete'),'username');assert.equal(await page.locator('#password').getAttribute('autocomplete'),bootstrap?'new-password':'current-password');
+  const tokenForm=await page.locator('#api-token').evaluate(input=>input.form?.id||'');assert.notEqual(tokenForm,'');assert.notEqual(tokenForm,'configuration-form','The settings form shares password-manager credential ownership');
+  assert.equal(await page.evaluate(()=>Array.from(document.getElementById('configuration-form').elements).filter(input=>input.type==='password').length),0,'Noncredential settings still own a password field');
+  if(bootstrap){await page.locator('#bootstrap-token').fill(bootstrapToken);await page.locator('#confirmation').fill(password)}
+  await page.locator('#username').fill(username);await page.locator('#password').fill(password);await page.locator('#auth-submit').click();
+  await page.waitForFunction(()=>!document.getElementById('workspace').hidden);
+  assert.equal(await page.locator('[data-form-section="monitoring"]').isVisible(),false,'Setup visited Monitoring before connecting');
+  await page.locator('[data-section="connection"]').click();
+  await page.locator('#fortigate-host').fill('192.0.2.10');await page.locator('#api-port').fill('10443');await page.locator('#api-token').fill(token);
+  // Password managers may mutate hidden DOM values without events, or emit
+  // input/change events. Neither represents an edit to an unvisited setup step.
+  await page.evaluate(({username,password})=>{
+   for(const [id,value,events]of [['expected-devid',username,true],['site-name',password,false],['installation-name',username,true],['accounting-timezone',password,false]]){
+    const input=document.getElementById(id);input.value=value;
+    if(events){input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}))}
+   }
+  },{username,password});
+  const firstResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/connection/test');await page.locator('#test-connection').click();assert.equal((await firstResponse).status(),200,'Hidden autofill caused a false device-identity failure');
+  assert.equal(saved.length,1);assert.equal(saved[0].settings.expected_devid,expectedDevice,'Hidden autofill replaced the saved accounting source');
+  assert.equal(saved[0].settings.site_name,settings.site_name);assert.equal(saved[0].settings.installation_name,settings.installation_name);assert.equal(saved[0].settings.accounting_timezone,settings.accounting_timezone);
+  assert.equal(saved[0].settings.fortigate_host,'192.0.2.10');assert.equal(saved[0].settings.api_port,10443);assert.equal(saved[0].api_token,token);assert.equal(saved[0].replace_token,true);
+  for(const secret of [username,password,token,bootstrapToken])assert.equal(Object.values(saved[0].settings).includes(secret),false,'An authentication value entered noncredential settings');
+  assert.equal(authRequests.filter(x=>x.path==='/api/bootstrap').length,bootstrap?1:0);assert.equal(authRequests.filter(x=>x.path==='/api/login').length,1);
+  await page.evaluate(()=>{document.getElementById('expected-devid').value='admin'});await page.locator('[data-section="monitoring"]').click();
+  assert.equal(await page.locator('#expected-devid').inputValue(),expectedDevice,'An untouched hidden value was displayed as a deliberate setup choice');
+  await page.evaluate(({password,events})=>{
+   const input=document.getElementById('api-token');input.value=password;
+   if(events){input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}))}
+  },{password,events:!bootstrap});
+  if(scopeLocked){
+   assert.equal(await page.locator('#expected-devid').getAttribute('readonly'),'');
+   await page.evaluate(()=>{const input=document.getElementById('expected-devid');input.value='admin';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}))});
+   await page.locator('[data-section="connection"]').click();
+   const lockedResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/connection/test');await page.locator('#test-connection').click();assert.equal((await lockedResponse).status(),200);assert.equal(saved.at(-1).settings.expected_devid,expectedDevice,'A read-only accounting source was changed by a DOM mutation');assert.equal(saved.at(-1).api_token,undefined,'Hidden password autofill replaced a stored API token');assert.equal(connectionTests,2);
+   assert.deepEqual(errors,[],'Locked-source browser JavaScript errors');return;
+  }
+  await page.locator('#expected-devid').fill('FG-EXPLICIT-WRONG');await page.locator('#expected-devid').press('Tab');await page.locator('[data-section="connection"]').click();
+  await page.evaluate(()=>{const input=document.getElementById('expected-devid');input.value='admin';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}))});
+  const mismatchResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/connection/test');await page.locator('#test-connection').click();assert.equal((await mismatchResponse).status(),400,'An explicit mismatching source bypassed identity validation');
+  assert.equal(saved.at(-1).settings.expected_devid,'FG-EXPLICIT-WRONG','Hidden autofill overwrote an earlier deliberate edit');assert.equal(saved.at(-1).api_token,undefined,'Hidden password autofill replaced a stored API token');await page.waitForFunction(()=>document.getElementById('connection-result').textContent.includes('API device ID differs'));
+  await page.locator('[data-section="monitoring"]').click();await page.locator('#expected-devid').fill(device);await page.locator('#expected-devid').press('Tab');await page.locator('[data-section="connection"]').click();
+  const correctedResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/connection/test');await page.locator('#test-connection').click();assert.equal((await correctedResponse).status(),200);assert.equal(saved.at(-1).settings.expected_devid,device);assert.equal(connectionTests,3);
+  if(bootstrap){
+   const save=async()=>{const response=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/settings'&&r.request().method()==='POST');await page.locator('#save').click();assert.equal((await response).status(),200);await page.waitForFunction(()=>document.getElementById('save').disabled===false);return saved.at(-1)};
+   await page.locator('[data-section="monitoring"]').click();await page.locator('[data-setting="monitoring.syslog"]').uncheck();
+   let body=await save();assert.equal(body.settings.monitoring.syslog,false);assert.equal(body.settings.monitoring.accounting,false);assert.equal(body.settings.monitoring.vlans,false);
+   assert.equal(body.settings.optional_exporter_exclusions,undefined,'Untouched legacy policy changed');
+   await page.locator('#syslog-format').focus();await page.locator('#syslog-format').press('End');await page.locator('#syslog-format').press('Tab');assert.equal(await page.locator('#syslog-protocol').inputValue(),'udp');assert.equal(await page.locator('#syslog-port').inputValue(),'1514','Native format silently changed the incoming port');
+   await page.locator('#syslog-port').fill('514');await page.locator('#sla').fill('google');
+   await page.locator('[data-optional-probe="System/SensorInfo"]').check();body=await save();
+   assert.equal(body.settings.syslog_format,'fortigate');assert.equal(body.settings.syslog_protocol,'udp');assert.equal(body.settings.syslog_port,514);assert.equal(body.settings.sla,'google');assert.deepEqual(body.settings.optional_exporter_exclusions,['System/SensorInfo']);
+   await page.locator('[data-optional-probe="System/SensorInfo"]').uncheck();body=await save();assert.deepEqual(body.settings.optional_exporter_exclusions,[]);
+   await page.locator('[data-section="connection"]').click();await page.evaluate(()=>{const input=document.querySelector('[data-optional-probe="System/SensorInfo"]');input.checked=true;input.dispatchEvent(new Event('change',{bubbles:true}))});body=await save();assert.deepEqual(body.settings.optional_exporter_exclusions,[],'Hidden DOM mutation changed exporter policy');await page.locator('[data-section="monitoring"]').click();
+   await page.locator('[data-setting="monitoring.vlans"]').check();body=await save();assert.equal(body.settings.monitoring.syslog,true);assert.equal(body.settings.monitoring.accounting,true);assert.equal(body.settings.monitoring.vlans,true);
+   await page.evaluate(password=>{const input=document.getElementById('custom-ca');input.value=password;input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}))},password);
+   await page.locator('[data-section="connection"]').click();await page.locator('[data-form-section="connection"] details summary').click();assert.equal(await page.locator('#custom-ca').inputValue(),'');await page.locator('#replace-ca').check();
+   body=await save();assert.equal(body.custom_ca,'','Explicit CA clearing adopted an untouched hidden value');assert.equal(body.replace_ca,true);assert.equal(body.api_token,undefined);
+   await page.locator('[data-section="interfaces"]').click();await page.locator('#discover-interfaces').click();
+   const wan=page.getByRole('checkbox',{name:'Select wan1 as Internet interface'});await wan.waitFor({state:'visible'});await wan.check();await page.locator('#confirm-wans').check();
+   body=await save();assert.deepEqual(body.settings.wan_interfaces,['wan1']);assert.equal(body.settings.wan_confirmed,true);
+   await wan.uncheck();assert.equal(await page.locator('#confirm-wans').isChecked(),false);body=await save();assert.deepEqual(body.settings.wan_interfaces,[]);assert.equal(body.settings.wan_confirmed,false,'A changed WAN selection retained the previous confirmation');
+   await wan.check();assert.equal(await page.locator('#confirm-wans').isChecked(),false);await page.locator('#confirm-wans').check();body=await save();assert.equal(body.settings.wan_confirmed,true);
+  }
+  assert.deepEqual(errors,[],'Fresh-setup browser JavaScript errors');
+ }finally{await context.close()}
+}
+(async()=>{
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const browser=await chromium.launch({headless:true,...(process.env.FORTILENS_BROWSER_EXECUTABLE?{executablePath:process.env.FORTILENS_BROWSER_EXECUTABLE}:{})});
+ try{
+ const baseURL='http://127.0.0.1:'+server.address().port;
+ await usageViewsRegression(browser,baseURL);
+ for(const offset of [2612,-2612,30])await monitoringClockRegression(browser,baseURL,offset);
+ await monitoringClockRegression(browser,baseURL,2612,false);
+ await monitoringClockRegression(browser,baseURL,86401,true);
+ await setupAutofillRegression(browser,baseURL,{bootstrap:true,expectedDevice:''});
+ await setupAutofillRegression(browser,baseURL,{bootstrap:false,expectedDevice:'FG-SAVED-SYNTHETIC'});
+ await setupAutofillRegression(browser,baseURL,{bootstrap:false,expectedDevice:'FG-LOCKED-SYNTHETIC',scopeLocked:true});
+ const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/api/**',async route=>{
+  const pathname=new URL(route.request().url()).pathname;let payload,status=200;
+  if(pathname==='/api/bootstrap/status')payload={required:false};
+  else if(pathname==='/api/session')payload={username:'synthetic-admin',csrf:'synthetic-csrf'};
+  else if(pathname==='/api/settings')payload=view();
+  else if(pathname==='/api/system')payload=system();
+  else if(pathname==='/api/configuration/prepare')payload={plan_id:'b'.repeat(32),revision:7,settings,changed_files:['site.json'],warnings:['Synthetic warning.'],discovery:view().discovery};
+  else if(pathname==='/api/configuration/apply'){applies++;mode='starting';payload=job()}
+  else if(pathname.startsWith('/api/jobs/')){requests++;if(mode==='unavailable'){status=503;payload={error:'operation_unavailable',message:'Synthetic helper unavailable.'}}else payload=pathname.endsWith('c'.repeat(32))?{...job(),job_id:'c'.repeat(32),status:'complete',phase:'complete',applied_revision:5,requested_revision:5}:job()}
+  else if(pathname==='/api/diagnostics')payload={monitoring:{status:'UNKNOWN',checks:[]},system:system()};
+  else{status=404;payload={error:'not_found'}}
+  await route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
+ });
+ const url='http://127.0.0.1:'+server.address().port+'/?view=settings#settings';
+ const visible=id=>page.locator('#'+id).isVisible();
+ await page.goto(url);await page.waitForFunction(()=>!document.getElementById('workspace').hidden);
+ assert.equal(await visible('deployment'),false,'Completed startup must not restore progress');
+ assert.equal(await visible('deployment-history'),true);assert.equal(await page.locator('#deployment-history').getAttribute('open'),null);
+ await page.locator('#history-summary').click();assert.equal(await page.locator('#history-revision').textContent(),'7');
+ await page.locator('#history-lookup-id').fill('c'.repeat(32));await page.locator('#history-lookup').click();await page.waitForFunction(()=>document.getElementById('history-revision').textContent==='5');
+ await page.locator('#history-summary').click();
+ await page.locator('[data-section="review"]').click();await page.locator('#prepare').click();await page.locator('#approve-plan').check();assert.equal(await page.locator('#apply').isEnabled(),true);
+ await page.locator('#apply').click();await page.waitForFunction(()=>!document.getElementById('deployment').hidden);
+ assert.equal(await page.locator('#apply').isDisabled(),true);assert.equal(await page.locator('#prepare').isDisabled(),true);
+ await page.locator('#apply').evaluate(el=>el.click());assert.equal(applies,1,'Duplicate Apply was sent');
+ mode='complete';await page.waitForFunction(()=>document.getElementById('deployment').hidden);await page.waitForFunction(()=>document.getElementById('notice').textContent.includes('applied successfully'));assert.match(await page.locator('#notice').textContent(),/applied successfully/);
+ assert.equal(await visible('deployment-history'),true);await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);assert.equal(await visible('deployment'),false,'Completed reload restored progress');
+ await page.locator('a[data-page="overview"]').click();await page.locator('a[data-page="settings"]').click();assert.equal(await visible('deployment'),false,'Navigation restored completed progress');
+ mode='starting';await page.reload();await page.waitForFunction(()=>!document.getElementById('deployment').hidden);assert.equal(await page.locator('#prepare').isDisabled(),true,'Running reload did not lock Apply workflow');
+ mode='failed';await page.waitForFunction(()=>document.getElementById('deployment-status').textContent==='failed');assert.equal(await visible('rollback'),true);assert.match(await page.locator('#deployment-message').textContent(),/Failed stage: readiness/);
+ await page.waitForTimeout(1400);assert.equal(await visible('deployment'),true,'Failure disappeared without acknowledgement');
+ await page.locator('#deployment-acknowledge').click();assert.equal(await visible('deployment'),false);await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);assert.equal(await visible('deployment'),false,'Acknowledged failure returned');
+ await page.locator('#history-summary').click();assert.match(await page.locator('#history-message').textContent(),/readiness failed/);assert.equal(await visible('history-rollback'),true);
+ if(output){fs.mkdirSync(output,{recursive:true});await page.screenshot({path:path.join(output,'deployment-failure-history.png'),fullPage:true})}
+ mode='complete';discovery=false;await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);await page.locator('[data-section="review"]').click();await page.locator('#prepare').click();await page.locator('#approve-plan').check();assert.equal(await page.locator('#apply').isDisabled(),true);assert.match(await page.locator('#apply-readiness').textContent(),/api_tls_verify/);
+ mode='unavailable';await page.reload();await page.waitForFunction(()=>document.getElementById('deployment-status').textContent==='Unknown');assert.equal(await page.locator('#prepare').isDisabled(),true);const before=requests;await page.waitForTimeout(1500);assert.equal(requests,before,'Unknown status retried automatically');
+ mode='complete';discovery=true;await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile horizontal overflow');
+ if(output)await page.screenshot({path:path.join(output,'deployment-complete-mobile.png'),fullPage:true});
+ assert.deepEqual(errors,[],'Browser JavaScript errors');
+ console.log(JSON.stringify({passed:true,checks:['server clock capability handles forward/backward skew in both consoles','normal clocks preserve initial parser frame','unsupported and excessive skew warn without changing time ranges','first administrator setup ignores hidden autofill','saved source survives sign-in/autofill','locked source rejects DOM mutations','explicit source mismatch and deliberate edits remain enforced','collector dependency changes persist','explicit CA clearing ignores hidden pollution','WAN changes clear confirmation until reconfirmed','completed startup/reload/navigation hidden','running restore and duplicate prevention','completion notification and health refresh','failure acknowledgement and recovery history','historical job lookup','discovery gating','unknown outcome no retry','mobile layout'],browser:await browser.version(),screenshots:output||null}));
+ }finally{await browser.close();server.close()}
+})().catch(error=>{console.error(error.stack);server.close();process.exitCode=1});

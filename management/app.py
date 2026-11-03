@@ -6,6 +6,7 @@ import hmac
 import json
 import re
 import sqlite3
+import time
 from pathlib import Path
 from urllib.parse import urlsplit, urlencode
 from fastapi import FastAPI, Request
@@ -22,6 +23,26 @@ from .models import Apply, Change, Job, Revision, Strict
 STATIC=Path(__file__).parent/'static'
 COOKIE='fortilens_management'
 EMBEDDED_VIEWS={'monitoring','wan','devices','vlans','reports','quality'}
+
+
+def monitoring_destination(target, active_sla=''):
+    """Scope a fixed Grafana destination without accepting arbitrary query URLs."""
+    if not isinstance(target,str) or not re.fullmatch(r'/grafana/d/[A-Za-z0-9_-]+/(?:\?kiosk(?:=true)?&theme=dark)?',target):
+        raise Problem('console_redirect_rejected','An unexpected monitoring destination was blocked.',502)
+    if isinstance(active_sla,str) and re.fullmatch(r'[A-Za-z0-9_.:@ /+\-]{1,250}',active_sla):
+        target+=('&' if '?' in target else '?')+urlencode({'var-sla':active_sla})
+    return target
+
+
+def monitoring_clock_document(text, server_seconds):
+    """Use a page-local clock before Grafana initializes its relative ranges."""
+    marker='id="fortilens-monitoring-clock"'
+    if marker in text:return text
+    match=re.search(r'<head(?:\s[^>]*)?>',text,re.IGNORECASE)
+    if not match:
+        raise Problem('view_unavailable','Monitoring could not initialize its server-time view. Reload Monitoring.',503)
+    script='<script '+marker+' src="/static/grafana-clock.js" data-server-time-ms="'+str(int(server_seconds*1000))+'"></script>'
+    return text[:match.end()]+script+text[match.end():]
 
 
 def immutable_asset(path,method,status,content_type):
@@ -72,8 +93,9 @@ def hosted_report(text,section=None):
     css=HOSTED_REPORT_CSS
     if section=='devices':css+='#vlan-section{display:none!important}'
     if section=='vlans':css+='#device-section{display:none!important}'
+    body='<body'+(' data-report-section="'+section+'"' if section in ('devices','vlans','reports') else '')+'>'
     return (text.replace("'/api/","'/console/api/").replace('</style>','\n'+css+'</style>')
-            .replace('<body>','<body>'+HOSTED_REPORT_STATUS).replace('</body>',HOSTED_REPORT_SCRIPT+'</body>'))
+            .replace('<body>',body+HOSTED_REPORT_STATUS).replace('</body>',HOSTED_REPORT_SCRIPT+'</body>'))
 
 
 class Login(Strict):
@@ -269,7 +291,7 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
         if not config['configured'] or not enabled:
             raise Problem('view_unavailable','This view is not enabled. Review your installation settings.',503)
         paths={'wan':'/console/#wan','devices':'/console/?section=devices#overview',
-               'vlans':'/console/?section=vlans#overview','reports':'/console/#overview','quality':'/console/#quality'}
+               'vlans':'/console/?section=vlans#overview','reports':'/console/?section=reports#reports','quality':'/console/#quality'}
         if view=='monitoring':
             result=await run_in_threadpool(helper.call,'console',{'path':'/api/monitoring-status','method':'GET','body':'','content_type':'application/json'})
             try:status=json.loads(base64.b64decode(result['body']))
@@ -279,8 +301,9 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
             target=status.get('path')
             if result['status']!=200 or not status.get('available'):
                 raise Problem('view_unavailable','Monitoring is unavailable. Review Diagnostics.',503)
-            if not isinstance(target,str) or not re.fullmatch(r'/grafana/d/[A-Za-z0-9_-]+/(?:\?kiosk(?:=true)?&theme=dark)?',target):
-                raise Problem('console_redirect_rejected','An unexpected monitoring destination was blocked.',502)
+            # Append only the applied, validated selector after checking the fixed
+            # destination. Never accept a gateway-supplied arbitrary query URL.
+            target=monitoring_destination(target,config.get('active_sla',''))
         else:target=paths[view]
         return Response(status_code=307,headers={'Location':target})
 
@@ -291,6 +314,19 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
         result=await run_in_threadpool(helper.call,'console',{'path':suffix,'method':request.method,'body':base64.b64encode(payload).decode(),
                                       'content_type':request.headers.get('content-type','application/json')})
         body=base64.b64decode(result['body']);kind=result['content_type']
+        if path=='api/monitoring-status' and request.method=='GET' and result['status']==200:
+            try:status=json.loads(body)
+            except (ValueError,TypeError):raise Problem('view_unavailable','Monitoring could not confirm its configured view.',503) from None
+            if not isinstance(status,dict):
+                raise Problem('view_unavailable','Monitoring could not confirm its configured view.',503)
+            if status.get('available'):
+                # The inner reporting console can launch Monitoring too. Use
+                # the applied selector here just as on the initial-view route.
+                config=await run_in_threadpool(helper.call,'view')
+                status['path']=monitoring_destination(status.get('path'),config.get('active_sla',''))
+                status['server_time_seconds']=time.time()
+                status['server_clock_supported']=True
+                body=json.dumps(status).encode()
         if 'text/html' in kind:
             text=body.decode('utf-8')
             if path.startswith('grafana/') and request.url.path.startswith('/console/'):
@@ -299,6 +335,8 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
                 return Response(status_code=307,headers={'Location':suffix})
             if path=='':
                 text=hosted_report(text,request.query_params.get('section'))
+            elif path.startswith('grafana/d/') and request.method=='GET' and result['status']==200 and request.query_params.get('fortilens-clock')=='server':
+                text=monitoring_clock_document(text,time.time())
             body=text.encode()
         response=Response(body,status_code=result['status'],media_type=kind)
         if result.get('location'):

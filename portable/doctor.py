@@ -94,7 +94,12 @@ def metric_snapshot(p, c, request, prom_uid, now, freshness):
                 points.append((stamp, value))
         if points:
             stamp, value = max(points)
-            result.append({"labels": row["metric"], "age": now - stamp, "value": value})
+            sample={"labels": row["metric"], "age": now - stamp, "value": value,
+                    "observed_at":stamp}
+            if row['metric'].get('__name__') in ('up','probe_success'):
+                sample['last_success_at']=max((t for t,v in points if v==1),default=None)
+                sample['last_failure_at']=max((t for t,v in points if v!=1),default=None)
+            result.append(sample)
     return result
 
 
@@ -127,26 +132,49 @@ def metrics_checks(samples, c, freshness):
         result.append(absent("fortigate_scrape", rows))
     rows = select("probe_success")
     latest = fresh(rows)
+    evidence={'newest_sample_age_seconds':round(min((x['age'] for x in latest),default=0),1)} if latest else {}
+    for key in ('observed_at','last_success_at','last_failure_at'):
+        values=[x[key] for x in latest if isinstance(x.get(key),(int,float)) and math.isfinite(x[key])]
+        if values:evidence[key]=max(values)
+    if latest:evidence['observation_window_seconds']=2*freshness
     if latest and all(x["value"] == 1 for x in latest) and scrape_failed:
         result.append(check("fortigate_api", "UNKNOWN", "An earlier successful probe does not confirm readiness after a newer failed scrape.",
                             "probe_not_current", "Wait for a new successful sample or use --api-check."))
     elif latest and all(x["value"] == 1 for x in latest):
-        result.append(check("fortigate_api", "PASS", "Recent exporter probes succeeded. This does not verify every API permission.", "probe_ok"))
+        result.append(check("fortigate_api", "PASS", "Recent selected exporter probes succeeded. This does not verify excluded endpoints or every API permission.", "probe_ok", **evidence))
     elif latest:
-        result.append(check("fortigate_api", "FAIL", "The exporter recorded a failed FortiGate probe; this metric alone does not identify the cause.",
-                            "probe_failed", "Use --api-check to inspect API connectivity, authentication, and TLS. This does not establish a WAN outage."))
+        partial=any(fresh(select(metric)) for metric in ('fortigate_virtual_wan_status','fortigate_interface_link_up'))
+        message=('Exporter collection is partial: recent interface or SLA metrics exist, but a selected probe failed.' if partial
+                 else 'The exporter recorded a failed FortiGate probe; this metric alone does not identify the cause.')
+        result.append(check("fortigate_api", "FAIL", message,
+                            "probe_failed", "Review endpoint-specific collector errors and the supported probe policy; retain required interface and SLA probes. A separate system/status test does not verify every probe or establish a WAN outage.",
+                            partial_metrics_received=partial,failure_category='selected_probe_failure',**evidence))
     else:
         result.append(absent("fortigate_api", rows))
 
     for name, metric, label in [("sla_metrics", "fortigate_virtual_wan_status", "interface"),
                                  ("interface_metrics", "fortigate_interface_link_up", "name")]:
         rows = select(metric)
+        scope_evidence = {}
         if name == "sla_metrics":
-            rows = [x for x in rows if x["labels"].get("vdom") == c["vdom"]
-                    and (not c["sla"] or x["labels"].get("sla") == c["sla"])]
+            rows = [x for x in rows if x["labels"].get("vdom") == c["vdom"]]
+            observed = sorted({x["labels"]["sla"] for x in fresh(rows)
+                               if isinstance(x["labels"].get("sla"), str)
+                               and 0 < len(x["labels"]["sla"]) <= 128
+                               and not any(ord(ch) < 32 or ord(ch) == 127
+                                           for ch in x["labels"]["sla"])})
+            scope_evidence = {"selected_sla": c["sla"], "observed_sla_names": observed[:64]}
+            if not c["sla"]:
+                result.append(check(name, "WARN", "No SLA check is selected for WAN Internet-state evidence.",
+                    "sla_selection_required", "Review the observed SLA names and select the intended check in Settings. Different checks can report different states; no check was selected automatically.",
+                    **scope_evidence))
+                continue
+            rows = [x for x in rows if x["labels"].get("sla") == c["sla"]]
         latest = fresh(rows)
         if not latest:
-            result.append(absent(name, rows))
+            item = absent(name, rows)
+            item["evidence"].update(scope_evidence)
+            result.append(item)
             continue
         names = {x["labels"].get(label) for x in latest} - {None, ""}
         expected = c.get("confirmed_wan_interfaces") or c["wan_interfaces"]
@@ -157,7 +185,7 @@ def metrics_checks(samples, c, freshness):
             + f" received recently for {len(names)} interface(s)." + (" Some configured choices or older series have no recent sample." if partial else ""),
             "metrics_partial" if partial else "metrics_received",
             "Review names, VDOM/SLA scope, and read permissions. A missing interface is not classified as DOWN." if partial else "",
-            interfaces_received=len(names), configured_interfaces_without_recent_data=missing))
+            interfaces_received=len(names), configured_interfaces_without_recent_data=missing, **scope_evidence))
     return result
 
 
@@ -276,6 +304,46 @@ def accounting_request(p,c):
     return json.loads(body)
 
 
+def probe_policy_check(exclusions):
+    """Report explicit omissions separately; aggregate success is selected-only."""
+    if exclusions is None:return []
+    if not isinstance(exclusions,list) or any(not isinstance(x,str) for x in exclusions):
+        return [check('exporter_probe_policy','UNKNOWN','The exporter probe policy could not be interpreted.',
+            'exporter_policy_unknown','Review the registered target profile privately; credentials are hidden.')]
+    if not exclusions:return []
+    optional={'Log/Fortianalyzer/Status','System/Interface/Transceivers','System/SensorInfo'}
+    selected=sorted(set(exclusions)&optional)
+    custom=any(name not in optional for name in exclusions)
+    return [check('exporter_probe_policy','WARN',
+        'A custom exporter exclusion policy needs review; aggregate success does not cover excluded capabilities.' if custom else
+        'Optional capabilities are explicitly not collected: '+', '.join(selected)+'. Selected-probe success does not establish their availability.',
+        'exporter_custom_probe_policy' if custom else 'exporter_optional_probes_excluded',
+        'Retain required interface, device and Virtual WAN/SLA probes. Review omitted capabilities separately; do not infer that FortiGate is unreachable.',
+        excluded_optional_probes=selected,custom_exclusions_present=custom)]
+
+
+def accounting_delivery_check(report,now,freshness):
+    stamp=report.get('last_delivery_ns')
+    try:
+        if type(stamp) not in (int,float) or stamp<0:raise ValueError()
+        seconds=stamp/1e9
+        if not math.isfinite(seconds):raise ValueError()
+        observed=datetime.fromtimestamp(seconds,timezone.utc).isoformat()
+    except (ValueError,TypeError,OverflowError,OSError):
+        return check('accounting_delivery','UNKNOWN',
+            'No usage-log delivery observation is available. Successful polling does not mean traffic was collected.',
+            'accounting_delivery_unobserved',
+            'Check sender, listener, Alloy and Loki evidence. No collected data is not zero Internet usage; do not reset the accounting database.')
+    age=now-seconds
+    current=-30<=age<=freshness
+    return check('accounting_delivery','PASS' if current else 'WARN',
+        'Recent log delivery was observed. This does not prove eligible Internet usage or complete capture.' if current else
+        'The latest log delivery is old or future-dated; current collection has not been established.',
+        'accounting_delivery_observed' if current else 'accounting_delivery_stale_or_clock_skew',
+        'Review source traffic, ingestion counters and clock synchronization; a quiet interval is not proof of a network failure.',
+        last_delivery_at=observed,delivery_age_seconds=round(age,1),traffic_coverage='UNKNOWN')
+
+
 def accounting_checks(report,now,freshness):
     if not isinstance(report,dict):raise ValueError('Invalid accounting diagnostics')
     result=[]
@@ -286,6 +354,7 @@ def accounting_checks(report,now,freshness):
         'The usage engine recently processed a Loki poll.' if ready else 'A recent successful usage-engine poll was not established.',
         'accounting_poll_ok' if ready else 'accounting_poll_unavailable',
         '' if ready else 'Review engine reachability and its bounded-query/storage status; processing success does not certify traffic completeness.'))
+    result.append(accounting_delivery_check(report,now,freshness))
     lag=report.get('processing_lag_seconds')
     caught_up=isinstance(lag,(int,float)) and math.isfinite(lag) and 0<=lag<=freshness
     result.append(check('accounting_lag','PASS' if caught_up else 'WARN',
@@ -313,11 +382,81 @@ def accounting_checks(report,now,freshness):
     return result
 
 
-def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, direct_api=False, now=None, usage_request=None, service_reader=None):
+def native_receiver_checks(report, now, freshness):
+    """Separate local receiver readiness, TCP handoff and downstream storage."""
+    if not isinstance(report, dict) or report.get('service') != 'running' or report.get('component') != 'native-syslog-receiver':
+        raise ValueError('Invalid native receiver diagnostics')
+    for key in ('ready', 'udp_bound', 'worker_alive', 'upstream_connected'):
+        if type(report.get(key)) is not bool:
+            raise ValueError('Invalid native receiver readiness')
+    if report.get('storage_verified') is not False:
+        raise ValueError('Native receiver cannot verify downstream storage')
+    counters = ('queue_depth', 'queue_capacity', 'received_datagrams', 'handed_to_tcp',
+                'rejected_datagrams', 'queue_drops', 'send_errors')
+    if any(type(report.get(key)) is not int or report[key] < 0 for key in counters):
+        raise ValueError('Invalid native receiver counters')
+    if not 1 <= report['queue_capacity'] <= 65536 or report['queue_depth'] > report['queue_capacity']:
+        raise ValueError('Invalid native receiver queue')
+    reasons = report.get('rejected_reasons')
+    known_reasons = ('source', 'oversize', 'utf8', 'control', 'format', 'priority', 'timestamp')
+    if not isinstance(reasons, dict) or any(type(reasons.get(key)) is not int or reasons[key] < 0 for key in known_reasons):
+        raise ValueError('Invalid native receiver rejection counters')
+    ready = all(report[key] for key in ('ready', 'udp_bound', 'worker_alive', 'upstream_connected'))
+    evidence = {key: report[key] for key in counters}
+    evidence.update(udp_bound=report['udp_bound'], worker_alive=report['worker_alive'],
+                    upstream_connected=report['upstream_connected'], source_rejections=reasons['source'],
+                    storage_verified=False)
+    result = [check('native_receiver', 'PASS' if ready else 'FAIL',
+        'The native UDP receiver, forwarding worker and Alloy TCP connection are ready.' if ready else
+        'The native receiver did not confirm its UDP listener, forwarding worker and Alloy TCP connection are ready.',
+        'native_receiver_ready' if ready else 'native_receiver_not_ready',
+        'Review the separate TCP-handoff, Loki and accounting-delivery evidence.' if ready else
+        'Review the native receiver and the existing Alloy service. Readiness alone does not establish stored traffic.',
+        **evidence)]
+    stamp = report.get('last_forwarding_seconds')
+    if stamp is not None and (type(stamp) not in (int, float) or not math.isfinite(stamp) or stamp < 0):
+        raise ValueError('Invalid native receiver forwarding timestamp')
+    observed = datetime.fromtimestamp(stamp, timezone.utc).isoformat() if stamp is not None else None
+    if observed is None or not report['handed_to_tcp']:
+        result.append(check('native_handoff', 'UNKNOWN', 'No native-datagram handoff to Alloy has been observed.',
+            'native_handoff_unobserved', 'Review sender address, UDP destination, format and receiver counters. No observed handoff is not zero usage.',
+            storage_verified=False, traffic_coverage='UNKNOWN'))
+        if reasons['source']:
+            result.append(check('native_source_filter', 'WARN',
+                'Datagrams from an unexpected source were rejected; no permitted handoff has been observed.',
+                'native_source_path_review',
+                'Inspect header-only sender evidence, including Docker UDP proxy/NAT. Do not permit a shared gateway or change the API host to bypass filtering. Use the reviewed host relay when the original sender cannot be preserved.',
+                source_rejections=reasons['source'], authorized_input_loss_verified=False))
+    else:
+        age = now - stamp
+        recent = -30 <= age <= freshness
+        result.append(check('native_handoff', 'PASS' if recent else 'WARN',
+            'Recent native datagrams were handed to the Alloy TCP connection.' if recent else
+            'The latest native TCP handoff is old or future-dated.',
+            'native_handoff_observed' if recent else 'native_handoff_stale_or_clock_skew',
+            'TCP handoff does not establish parsing, Loki storage or complete capture. Review recent_logs and accounting_delivery.',
+            last_forwarding_at=observed, forwarding_age_seconds=round(age, 1),
+            storage_verified=False, traffic_coverage='UNKNOWN'))
+    if report['queue_drops']:
+        result.append(check('native_queue_loss', 'WARN',
+            f"The native receiver has recorded {report['queue_drops']} full-queue drop(s).",
+            'native_queue_drops_recorded', 'This is a cumulative counter. Review input rate and collector availability; dropped UDP records cannot be inferred from a later successful poll.',
+            queue_drops=report['queue_drops'], queue_depth=report['queue_depth'], queue_capacity=report['queue_capacity']))
+    rejected = sum(reasons[key] for key in known_reasons if key != 'source')
+    if rejected:
+        result.append(check('native_input_rejections', 'WARN',
+            f'The native receiver has recorded {rejected} format or size rejection(s).',
+            'native_input_rejections_recorded', 'These counters are cumulative. Review native format, size, encoding and control characters; no raw payload is returned. Source-filter rejections are separate.',
+            rejected_reasons={key: reasons[key] for key in known_reasons if key != 'source'}))
+    return result
+
+
+def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, direct_api=False, now=None, usage_request=None, service_reader=None, probe_exclusions=None, native_receiver_request=None):
     if type(freshness) is not int or not 60 <= freshness <= 3600:
         raise ValueError("freshness must be between 60 and 3600 seconds")
     now = time.time() if now is None else now
-    services = SERVICES + (('fortilens-usage',) if c.get('accounting_enabled') else ()) + (('fortilens-portal',) if c.get('portal_enabled') else ())
+    native = c.get('syslog_format') == 'fortigate'
+    services = SERVICES + (('fortilens-usage',) if c.get('accounting_enabled') else ()) + (('fortilens-portal',) if c.get('portal_enabled') else ()) + (('fortilens-syslog',) if native else ())
     try:
         checks = (service_reader or service_checks)(p, compose_command, services)
         if not isinstance(checks,list) or any(not isinstance(item,dict) or item.get('status') not in LABELS for item in checks):
@@ -377,6 +516,27 @@ def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, di
         except (OSError,ValueError,TypeError,KeyError,urllib.error.URLError,http.client.HTTPException):
             checks.append(check('accounting_api','UNKNOWN','Usage-engine diagnostics are unavailable.',
                 'accounting_diagnostics_unavailable','Review the optional service and its local reporting address. No source traffic or WAN state is inferred.'))
+    if native:
+        if native_receiver_request is None:
+            checks.append(check('native_receiver', 'UNKNOWN', 'Native receiver diagnostics are unavailable through this readiness adapter.',
+                'native_receiver_diagnostics_unavailable', 'Review the fortilens-syslog service and its internal health endpoint. Running containers alone do not prove native log delivery.'))
+        else:
+            try:
+                checks.extend(native_receiver_checks(native_receiver_request(p, c), now, freshness))
+            except urllib.error.HTTPError as exc:
+                checks.append(check('native_receiver', 'FAIL', 'The native receiver health endpoint did not confirm readiness.',
+                    'native_receiver_not_ready' if exc.code == 503 else 'native_receiver_http_failed',
+                    'Review the native receiver and Alloy services. The response body is hidden; no storage or traffic coverage is inferred.', http_status=exc.code))
+            except (OSError, ValueError, TypeError, KeyError, OverflowError, urllib.error.URLError, http.client.HTTPException):
+                checks.append(check('native_receiver', 'UNKNOWN', 'Native receiver diagnostics could not be read or validated.',
+                    'native_receiver_diagnostics_unavailable', 'Review the fortilens-syslog service and its internal health endpoint. No raw exception or input payload is returned.'))
+    checks.extend(probe_policy_check(probe_exclusions))
+    if c.get('api_tls_verify',True) is False:
+        checks.append(check('fortigate_tls','WARN',
+            'FortiGate certificate verification is disabled. API success does not authenticate the server identity.',
+            'tls_verification_disabled',
+            'Use an approved certificate verification design. Without an independently trusted reference, certificate pinning cannot be established safely. Do not change FortiGate settings automatically.',
+            verification_enabled=False,requires_fortigate_change=False))
     status = next((s for s in ["FAIL", "WARN", "UNKNOWN"] if any(x["status"] == s for x in checks)), "PASS")
     return {"schema_version": 1, "checked_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
             "status": status, "read_only": True, "direct_api_requested": direct_api,
