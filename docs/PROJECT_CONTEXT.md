@@ -54,6 +54,11 @@ flowchart LR
 
 ## Deployment identities and defaults
 
+Management edits the accounting database ceiling in GiB, matching storage
+measurements. The browser converts deliberate edits to integer bytes; unchanged
+legacy limits retain their exact bytes. API/configuration formats and the helper's
+data-preservation restriction on reductions remain unchanged.
+
 The full fresh setup normally has eight Compose services: exporter, Prometheus,
 Grafana, Loki, Alloy, Node Exporter, accounting worker and monitoring gateway.
 Older/opt-out installations can have fewer. Management adds two independent

@@ -100,6 +100,9 @@ Secure/HttpOnly/SameSite=Strict cookies on HTTPS, server sessions and CSRF check
    observations at least five minutes apart; otherwise the UI explicitly shows
    **Insufficient data for storage estimation**. Estimates are partial planning
    evidence, affected by compaction/compression/traffic, not a disk guarantee.
+   The accounting database ceiling is entered in GiB (for example, `9` or `9.5`),
+   matching the storage measurements. Existing byte ceilings are preserved when
+   the field is left unchanged; configuration and API values remain integer bytes.
 7. **Review & Apply:** Save Configuration creates a draft. Review Configuration
    Changes generates and validates a private candidate and checks published-port
    conflicts. Approve the review and choose Apply & Start FortiLens. Progress,

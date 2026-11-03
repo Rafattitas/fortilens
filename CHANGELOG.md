@@ -4,6 +4,9 @@
 
 ### Source collection and diagnostics
 
+- Display and edit the accounting database ceiling in GiB while preserving
+  existing integer-byte API/configuration values and exact untouched limits.
+
 - Separate managed Device usage from period Reports: retain device inspection in
   the former and show aggregate totals, top consumers and segment distribution
   in the latter, reusing existing accounting evidence and filters.
