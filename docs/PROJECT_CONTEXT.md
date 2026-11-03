@@ -112,6 +112,13 @@ or replace existing release assets.
 
 ## Verification and continuation
 
+Managed Device usage and Reports are distinct presentations of the same received
+accounting evidence. Device usage focuses on the searchable/paginated endpoint
+table and per-device history. Reports shows period totals, a top-five consumer
+summary, relative segment distribution and the VLAN table, without duplicating
+the full device table. Both retain period/search/segment filters and null/unknown
+evidence semantics. Standalone legacy overview links retain their combined view.
+
 The console uses a continuous dark workspace, divided summary strips, viewport-
 filling native monitoring/reports and an accessible compact-screen drawer. Read
 [UI_DESIGN.md](UI_DESIGN.md) before changing the shell or hosted report styling.

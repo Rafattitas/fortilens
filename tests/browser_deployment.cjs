@@ -71,6 +71,32 @@ async function monitoringClockRegression(browser,baseURL,offset,supported=true){
   console.error('Clock fixture: '+JSON.stringify({offset,supported,frames:page.frames().map(frame=>frame.url()),errors,src:await page.locator('#console-frame').getAttribute('src').catch(()=>null)}));throw error;
  }finally{await context.close()}
 }
+async function usageViewsRegression(browser,baseURL){
+ const context=await browser.newContext({viewport:{width:1280,height:900}}),page=await context.newPage(),errors=[],periods=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ const vlan={key:'root:staff',status:'MAPPED',vlan_id:100,interface:'staff'};
+ const devices=[1,2,3,4,5,6].map(n=>({device_id:'synthetic-'+n,hostname:'Fixture '+n,ip:'192.0.2.'+n,mac:'02:00:00:00:00:0'+n,identity_kind:'MAC',vlans:[vlan],upload_bytes:100,download_bytes:900,total_bytes:1000}));
+ const report={devices,vlans:[{vlan,observed_endpoint_identities:6,upload_bytes:600,download_bytes:5400,total_bytes:6000}],totals:{upload_bytes:600,download_bytes:5400,pending_upload_bytes:0,pending_download_bytes:0},flags:{},processing:{last_poll_ok:true},observed_endpoint_identities:6,unverified_endpoint_identities:0,status:'RECORDED_ONLY',timezone:'UTC',start_utc:'2026-11-03T00:00:00Z',end_utc:'2026-11-03T12:00:00Z',daily_history:[],monthly_history:[]};
+ await page.route('**/api/**',route=>{const url=new URL(route.request().url());let payload;
+  if(url.pathname==='/api/portal')payload={enabled:true};else if(url.pathname==='/api/session')payload={authenticated:true};
+  else if(url.pathname==='/api/report'){periods.push(url.searchParams.get('period'));payload=url.searchParams.get('search')==='missing'?{...report,devices:[],vlans:[],totals:{upload_bytes:null,download_bytes:null},status:'UNAVAILABLE'}:report}
+  else if(url.pathname==='/api/device')payload={...report,devices:[devices[0]]};else payload={};
+  return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)});
+ });
+ try{
+  await page.goto(baseURL+'/reporting.html?section=devices#overview');await page.waitForFunction(()=>document.querySelectorAll('#device-body tr').length===6);
+  assert.equal(await page.locator('#device-section').isVisible(),true);assert.equal(await page.locator('#stats').isVisible(),false);assert.equal(await page.locator('#vlan-section').isVisible(),false);assert.equal(await page.locator('#report-summary').isVisible(),false);
+  await page.locator('#device-body .entity').first().click();await page.waitForFunction(()=>document.getElementById('details-title').textContent==='Fixture 1');await page.locator('#close-details').click();
+  if(output){fs.mkdirSync(output,{recursive:true});await page.screenshot({path:path.join(output,'device-usage-desktop.png'),fullPage:true})}
+  await page.goto(baseURL+'/reporting.html?section=reports#reports');await page.waitForFunction(()=>document.querySelectorAll('#report-consumers li').length===5);
+  assert.equal(await page.locator('#device-section').isVisible(),false);assert.equal(await page.locator('#stats').isVisible(),true);assert.equal(await page.locator('#vlan-section').isVisible(),true);assert.equal(await page.locator('#report-summary').isVisible(),true);assert.equal(await page.locator('#report-segments li').count(),1);
+  await page.locator('[data-period="week"]').click();await page.waitForFunction(()=>!document.getElementById('refresh').disabled);assert.equal(periods.at(-1),'week');
+  if(output)await page.screenshot({path:path.join(output,'period-reports-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);if(output)await page.screenshot({path:path.join(output,'period-reports-mobile.png'),fullPage:true});
+  await page.locator('#search').fill('missing');await page.locator('#search').press('Enter');await page.waitForFunction(()=>document.getElementById('report-consumers').textContent.includes('No received'));assert.equal(await page.locator('#report-consumers button').count(),0,'Old consumer summary survived empty evidence');
+  assert.deepEqual(errors,[]);
+ }finally{await context.close()}
+}
 async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice,scopeLocked=false}){
  const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});
  const page=await context.newPage(),errors=[],saved=[],authRequests=[];
@@ -177,6 +203,7 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  const browser=await chromium.launch({headless:true,...(process.env.FORTILENS_BROWSER_EXECUTABLE?{executablePath:process.env.FORTILENS_BROWSER_EXECUTABLE}:{})});
  try{
  const baseURL='http://127.0.0.1:'+server.address().port;
+ await usageViewsRegression(browser,baseURL);
  for(const offset of [2612,-2612,30])await monitoringClockRegression(browser,baseURL,offset);
  await monitoringClockRegression(browser,baseURL,2612,false);
  await monitoringClockRegression(browser,baseURL,86401,true);

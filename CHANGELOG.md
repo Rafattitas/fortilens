@@ -4,6 +4,9 @@
 
 ### Source collection and diagnostics
 
+- Separate managed Device usage from period Reports: retain device inspection in
+  the former and show aggregate totals, top consumers and segment distribution
+  in the latter, reusing existing accounting evidence and filters.
 - Preserve the applied SLA on inner-console Monitoring launches and compensate
   detected browser clock skew inside the native Grafana document only. Warn
   clearly, retain saved dashboards and explicit dates, and cover independent

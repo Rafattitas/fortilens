@@ -202,7 +202,7 @@ function loadConsole(page){
   }
   return;
  }
- const urls={quality:'/console/#quality',wan:'/console/#wan',devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/#overview',monitoring:state.system.links.dashboard};
+ const urls={quality:'/console/#quality',wan:'/console/#wan',devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/?section=reports#reports',monitoring:state.system.links.dashboard};
  const original=urls[page]||urls.reports;
  const launch=page==='monitoring'?monitoringLaunch(original,state.monitoringTimeOffset,state.system.server_clock_supported):{path:original,aligned:false};
  const destination=launch.path,compensated=launch.aligned;
