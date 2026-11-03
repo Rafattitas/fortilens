@@ -421,6 +421,12 @@ def native_receiver_checks(report, now, freshness):
         result.append(check('native_handoff', 'UNKNOWN', 'No native-datagram handoff to Alloy has been observed.',
             'native_handoff_unobserved', 'Review sender address, UDP destination, format and receiver counters. No observed handoff is not zero usage.',
             storage_verified=False, traffic_coverage='UNKNOWN'))
+        if reasons['source']:
+            result.append(check('native_source_filter', 'WARN',
+                'Datagrams from an unexpected source were rejected; no permitted handoff has been observed.',
+                'native_source_path_review',
+                'Inspect header-only sender evidence, including Docker UDP proxy/NAT. Do not permit a shared gateway or change the API host to bypass filtering. Use the reviewed host relay when the original sender cannot be preserved.',
+                source_rejections=reasons['source'], authorized_input_loss_verified=False))
     else:
         age = now - stamp
         recent = -30 <= age <= freshness

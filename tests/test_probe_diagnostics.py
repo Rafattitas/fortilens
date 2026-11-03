@@ -122,6 +122,11 @@ class ProbeRepairTests(unittest.TestCase):
         self.assertEqual(checks["native_receiver"]["status"], "PASS")
         self.assertEqual(checks["native_receiver"]["evidence"]["source_rejections"], 3)
         self.assertNotIn("native_input_rejections", checks)
+        self.assertEqual(checks["native_source_filter"]["status"], "WARN")
+        self.assertFalse(
+            checks["native_source_filter"]["evidence"]["authorized_input_loss_verified"]
+        )
+        self.assertIn("Docker UDP proxy/NAT", checks["native_source_filter"]["action"])
         details["rejected_reasons"].update(oversize=1, utf8=1, control=1, format=1)
         checks = self.native_checks(details)
         self.assertEqual(checks["native_input_rejections"]["status"], "WARN")

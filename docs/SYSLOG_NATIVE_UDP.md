@@ -68,6 +68,16 @@ or change the API host merely to bypass a rejection. A source address and raw
 `devid` are **not sender authentication**; UDP can be spoofed. Existing accounting
 source identity remains a separate contract.
 
+Some Docker UDP publishing paths use a userland proxy or source NAT, so the
+container sees a shared bridge gateway even when the host receives the correct
+FortiGate address. Check bounded packet headers on both sides before acceptance.
+The managed receiver cannot recover the original sender from those datagrams.
+Do not add the shared gateway to its allowlist: that would also accept unrelated
+forwarded senders. Use the separately reviewed host rsyslog alternative below
+when the host path preserves the original address. Keep its narrow source filter,
+and configure FortiLens for the relay's RFC5424/TCP output. The helper does not
+manage or independently verify that external host service.
+
 The queue holds at most 256 messages in memory, with one forwarding worker and
 bounded TCP reconnect backoff. Full queues drop input; a process restart can
 lose queued records and UDP can lose packets before reception. A failed TCP
