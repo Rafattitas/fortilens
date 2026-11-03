@@ -219,6 +219,27 @@ class NativeHostManagementTests(unittest.TestCase):
         with patch.object(docker, "run", side_effect=["fixture-id", json.dumps(info)]):
             self.assertEqual(docker.address("fortilens-syslog", 8080), ("127.0.0.1", 5515))
 
+    def test_custom_host_handoff_is_not_silently_removed(self):
+        candidate, plan = self.fixture.prepare_settings(
+            syslog_format="fortigate",
+            syslog_protocol="udp",
+            syslog_network="host",
+            syslog_port=5514,
+        )
+        self.install(plan)
+        path = self.c.root / self.c.compose_name
+        compose = yaml.safe_load(path.read_text())
+        compose["services"]["alloy"]["ports"].append("127.0.0.1:6514:1514/tcp")
+        path.write_text(yaml.safe_dump(compose), encoding="utf-8")
+        with self.assertRaises(Problem) as caught:
+            self.fixture.prepare_settings(
+                syslog_format="fortigate",
+                syslog_protocol="udp",
+                syslog_network="bridge",
+                syslog_port=5514,
+            )
+        self.assertEqual(caught.exception.code, "custom_ports_review")
+
     def test_host_port_check_detects_private_health_conflict(self):
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))

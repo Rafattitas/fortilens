@@ -310,6 +310,8 @@ class Configuration:
             expected['healthcheck']['test'][-1]="import urllib.request; urllib.request.urlopen('http://127.0.0.1:"+str(health_port)+"/health',timeout=3)"
             if existing and ({k:v for k,v in existing.items() if k!='ports'}!={k:v for k,v in expected.items() if k!='ports'}):
                 raise Problem('custom_syslog_review','Review the existing native receiver service before replacing its runtime.')
+            if existing and was_native and active.get('syslog_network','bridge')=='host' and existing.get('ports'):
+                raise Problem('custom_syslog_review','Review unexpected published ports on the host receiver.')
             compose['services']['fortilens-syslog']=receiver
             for path in (stage/'syslog').iterdir():files['syslog/'+path.name]=path.read_bytes()
         endpoint_changed=setup.target_url(c)!=setup.target_url({**setup.DEFAULTS,**active})
@@ -411,7 +413,7 @@ class Configuration:
             if host:compose['services']['fortilens-syslog'].pop('ports',None)
             else:compose['services']['fortilens-syslog']['ports']=[binding for binding in replaced if binding.rsplit(':',1)[-1].split('/')[0]=='1514']
             alloy_ports=compose['services']['alloy'].get('ports',[])
-            if was_host and alloy_ports.count(f'127.0.0.1:{old_port}:1514/tcp')!=1:
+            if was_host and [p for p in alloy_ports if isinstance(p,str) and p.rsplit(':',1)[-1].split('/')[0]=='1514']!=[f'127.0.0.1:{old_port}:1514/tcp']:
                 raise Problem('custom_ports_review','Review the host receiver loopback handoff before changing profiles.')
             compose['services']['alloy']['ports']=[binding for binding in alloy_ports if isinstance(binding,str) and binding.rsplit(':',1)[-1].split('/')[0]!='1514']
             if any(not isinstance(binding,str) for binding in alloy_ports):raise Problem('custom_ports_review','Review custom Alloy port bindings before changing its receiver.')
@@ -420,7 +422,7 @@ class Configuration:
             unrelated=compose['services']['alloy'].get('ports',[]) if was_native else []
             if was_host:
                 expected_binding=f'127.0.0.1:{old_port}:1514/tcp'
-                if unrelated.count(expected_binding)!=1:raise Problem('custom_ports_review','Review the host receiver loopback handoff before changing profiles.')
+                if [p for p in unrelated if isinstance(p,str) and p.rsplit(':',1)[-1].split('/')[0]=='1514']!=[expected_binding]:raise Problem('custom_ports_review','Review the host receiver loopback handoff before changing profiles.')
                 unrelated=[binding for binding in unrelated if binding!=expected_binding]
             if was_native and any(not isinstance(binding,str) or binding.rsplit(':',1)[-1].split('/')[0]=='1514' for binding in unrelated):
                 raise Problem('custom_ports_review','Review unexpected Alloy syslog bindings before leaving the native profile.')
