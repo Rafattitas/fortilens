@@ -31,6 +31,7 @@ Read [release preparation](RELEASING.md) before choosing or building an archive.
 | Guide | Use it for |
 |---|---|
 | [Troubleshooting](TROUBLESHOOTING.md) | Read-only doctor evidence, missing telemetry, processing lag and storage failures. |
+| [Optional native UDP adapter](SYSLOG_NATIVE_UDP.md) | Operator-managed Ubuntu normalization of native FortiGate UDP messages for an existing RFC5424/TCP Alloy receiver. |
 | [Upgrade from v0.1.0](UPGRADE.md) | Reviewed accounting migration and hash-guarded configuration rollback. |
 | [Optional alerts](OPTIONAL_ALERTS.md) | Paused review candidates and explicit operator activation. |
 | [Security policy](../SECURITY.md) | Private reporting and deployment/data-protection boundaries. |
