@@ -4,6 +4,9 @@
 
 ### Error handling and recovery
 
+- Keep configuration drafts independent of hidden browser autofill values,
+  isolate the masked API-token form, and preserve reviewed or locked device
+  identities during connection tests. Add first-run browser regressions.
 - Collapse successful deployment progress into compact history, restore only
   active/failing operations, preserve explicit failure acknowledgement and guard
   duplicate Apply/rollback requests. Add real-browser lifecycle regressions.

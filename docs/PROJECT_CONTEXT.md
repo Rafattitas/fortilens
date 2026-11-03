@@ -142,6 +142,14 @@ polling does not establish delivery. Pinning requires an independently trusted
 reference and coordinated coverage of all clients; no partial pinning option is
 advertised. See [repair verification](REPAIR_VERIFICATION.md).
 
+The settings editor keeps a draft value snapshot and records intentional edits
+only from visible, editable controls. Saving, testing and preparing serialize
+that snapshot rather than scanning hidden form values. This prevents browser
+autofill from persisting an unvisited device identity or API-token input.
+The masked API-token field has a separate form association from configuration;
+autocomplete hints supplement the draft boundary. Serial checks and locked
+accounting source contracts remain enforced by the helper.
+
 An optional [native UDP adapter](SYSLOG_NATIVE_UDP.md) documents a separate,
 operator-managed rsyslog service for FortiGate default logfmt messages. It wraps
 the native body for the existing RFC5424/TCP Alloy receiver; managed settings

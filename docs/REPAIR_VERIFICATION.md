@@ -28,6 +28,28 @@ browser state; it covers success/reload/navigation, running jobs, duplicate Appl
 failure acknowledgement/recovery history, recorded job lookup, discovery gating,
 unknown outcomes and mobile layout. It does not prove live sign-in or collection.
 
+## Configuration drafts and browser autofill
+
+Saving a connection previously scanned all settings controls, including hidden
+wizard steps. A password-manager or other DOM write could therefore persist an
+unreviewed device identity before its section was opened. The editor now saves
+its draft value snapshot and accepts intentional edits from visible, editable
+controls. A later hidden overwrite cannot replace a value already reviewed.
+Read-only source bindings retain the saved value.
+
+The API token remains masked, uses a separate form association, and is excluded
+from the configuration form's password controls. Autocomplete hints discourage
+credential-manager classification; browsers and extensions may ignore those
+hints. Draft isolation does not depend on them. Normal administrator password
+autofill remains supported in the authentication forms.
+
+The real-browser fixture covers first-admin setup and sign-in, unvisited hidden
+input/change events and event-free writes, existing and locked source identity,
+intentional serial edits followed by hidden mutation, and API-token pollution.
+Its synthetic password-manager writes establish the persistence defect; they do
+not identify which manager caused a particular live value. Explicit serial
+mismatches continue to fail through the existing backend contract.
+
 ## Candidate CA assembly and error handling
 
 Apply baseline, saved draft and pending CA removal/replacement before final
