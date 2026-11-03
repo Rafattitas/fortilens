@@ -393,7 +393,7 @@ class Operations:
             stamp=event.get('at',0) if isinstance(event,dict) else 0
             return stamp if isinstance(stamp,(int,float)) else 0
         latest=max(jobs,key=last_event) if jobs else None
-        return {'hostname':socket.gethostname(),'os':platform.platform(),'architecture':platform.machine(),'cpu_count':os.cpu_count(),'ram_bytes':ram,
+        return {'server_time_seconds':time.time(),'server_clock_supported':True,'hostname':socket.gethostname(),'os':platform.platform(),'architecture':platform.machine(),'cpu_count':os.cpu_count(),'ram_bytes':ram,
                 'disk':disk,'docker':docker,'services':services,
                 'installation':{'configured':self.c.state()['configured'],'project':self.c.project},
                 'storage_projection':self.storage(),'latest_job':latest,

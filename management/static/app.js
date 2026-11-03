@@ -1,6 +1,6 @@
 'use strict';
 const $=id=>document.getElementById(id);
-const state={navOpen:false,csrf:'',bootstrap:false,initialNavigation:true,view:null,draftSettings:null,apiTokenDraft:null,customCADraft:null,system:null,section:'general',plan:null,job:null,jobPending:false,jobUnknown:false,discoveryStale:false,inventory:[],selected:new Set()};
+const state={navOpen:false,csrf:'',bootstrap:false,initialNavigation:true,view:null,draftSettings:null,apiTokenDraft:null,customCADraft:null,system:null,monitoringTimeOffset:undefined,section:'general',plan:null,job:null,jobPending:false,jobUnknown:false,discoveryStale:false,inventory:[],selected:new Set()};
 const sections=['general','connection','interfaces','monitoring','storage','review'];
 const compactNavigation=window.matchMedia('(max-width: 900px)');
 function setNavigation(open,restoreFocus=true){state.navOpen=!!open&&compactNavigation.matches;$('workspace').classList.toggle('nav-open',state.navOpen);$('menu-toggle').setAttribute('aria-expanded',String(state.navOpen));$('workspace-nav').inert=compactNavigation.matches&&!state.navOpen;$('main-shell').inert=state.navOpen;if(state.navOpen){$('workspace-nav').setAttribute('role','dialog');$('workspace-nav').setAttribute('aria-modal','true')}else{$('workspace-nav').removeAttribute('role');$('workspace-nav').removeAttribute('aria-modal')}$('nav-scrim').hidden=!state.navOpen;if(state.navOpen)$('menu-close').focus();else if(restoreFocus&&compactNavigation.matches)$('menu-toggle').focus()}
@@ -13,6 +13,29 @@ $('skip-content').addEventListener('click',e=>{e.preventDefault();$('main-conten
 window.addEventListener('keydown',e=>{if(!state.navOpen)return;if(e.key==='Escape'){e.preventDefault();setNavigation(false);return}if(e.key==='Tab'){const items=[...$('workspace-nav').querySelectorAll('button,a[href]')].filter(x=>!x.disabled&&!x.hidden&&x.getClientRects().length);const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
 setNavigation(false,false);
 function clearConsoleCheck(){clearInterval(state.consoleCheck);state.consoleCheck=null}
+// Monitoring time alignment: only trusted server evidence scopes a default launch.
+function monitoringClockOffset(serverSeconds,clientNow=Date.now()){
+ if(serverSeconds===undefined)return undefined;
+ if(typeof serverSeconds!=='number'||!Number.isFinite(serverSeconds)||serverSeconds<=0||!Number.isFinite(clientNow))return null;
+ const difference=serverSeconds*1000-clientNow;
+ if(!Number.isFinite(difference)||Math.abs(difference)>86400000)return null;
+ return Math.abs(difference)>60000?Math.round(difference/1000):0;
+}
+function monitoringLaunch(path,offset,supported){
+ const unchanged={path,aligned:false};
+ if(typeof path!=='string'||!Number.isInteger(offset)||offset===0||Math.abs(offset)>86400||supported!==true)return unchanged;
+ let url;try{url=new URL(path,location.origin)}catch{return unchanged}
+ if(url.origin!==location.origin||!/^\/grafana\/d\/[A-Za-z0-9_-]+\/$/.test(url.pathname))return unchanged;
+ url.searchParams.set('fortilens-clock','server');
+ return {path:url.pathname+url.search+url.hash,aligned:true};
+}
+function monitoringClockNotice(offset,compensated){
+ if(offset===undefined||offset===0)return '';
+ if(offset===null)return 'Monitoring clock alignment is unavailable. The computer/server time difference could not be used safely; the selected range has not been changed.';
+ return compensated?'Your computer clock differs from the server. Monitoring uses server time; stored timestamps and data have not been changed.':'Your computer clock differs from the server. Server-time alignment is unavailable for this monitoring connection; the selected range has not been changed.';
+}
+// End monitoring time alignment.
+function rememberSystem(value){state.system=value;state.monitoringTimeOffset=monitoringClockOffset(value.server_time_seconds)}
 function consoleDocumentReady(frame){
  if(frame!==$('console-frame'))return false;
  try{
@@ -109,7 +132,7 @@ function settingChanged(input,event){
  if(key==='monitoring.accounting'){if(value)setDraftFlag('syslog',true);else setDraftFlag('vlans',false)}
  if(key==='monitoring.vlans'&&value){setDraftFlag('accounting',true);setDraftFlag('syslog',true)}
 }
-function signedOut(){setNavigation(false,false);clearConsoleCheck();clearTimeout(state.jobTimer);clearTimeout(state.successTimer);state.jobTimer=null;$('workspace-loading').hidden=true;document.title='FortiLens · Management';state.csrf='';state.view=null;state.draftSettings=null;state.apiTokenDraft=null;state.customCADraft=null;state.plan=null;state.job=null;state.jobPending=false;state.jobUnknown=false;$('deployment').hidden=true;$('deployment-history').hidden=true;$('console-frame').removeAttribute('src');$('workspace').hidden=true;$('auth').hidden=false;$('auth-form').reset();$('password-form').reset();for(const id of ['api-token','custom-ca','bootstrap-token'])$(id).value=''}
+function signedOut(){setNavigation(false,false);clearConsoleCheck();clearTimeout(state.jobTimer);clearTimeout(state.successTimer);state.jobTimer=null;$('workspace-loading').hidden=true;document.title='FortiLens · Management';state.csrf='';state.view=null;state.monitoringTimeOffset=undefined;$('console-clock-warning').hidden=true;state.draftSettings=null;state.apiTokenDraft=null;state.customCADraft=null;state.plan=null;state.job=null;state.jobPending=false;state.jobUnknown=false;$('deployment').hidden=true;$('deployment-history').hidden=true;$('console-frame').removeAttribute('src');$('workspace').hidden=true;$('auth').hidden=false;$('auth-form').reset();$('password-form').reset();for(const id of ['api-token','custom-ca','bootstrap-token'])$(id).value=''}
 async function enter(){const session=await api('/api/session');state.csrf=session.csrf;state.initialNavigation=true;$('session-user').textContent=session.username;$('auth').hidden=true;$('workspace').hidden=true;$('workspace-loading').hidden=false;let failure=null;try{await reloadSettings();await loadSystem()}catch(e){failure=e}finally{$('workspace-loading').hidden=true}if(!state.csrf)return;$('workspace').hidden=false;if(failure){navigate('diagnostics');notice(errorText(failure),true);return}navigate(state.view.configured?(location.hash.slice(1)||new URL(location.href).searchParams.get('view')||defaultPage()):'settings');restoreLatestJob(state.system?.latest_job)}
 async function reloadSettings(){state.view=await api('/api/settings');state.selected=new Set(state.view.settings.wan_interfaces);fillSettings();state.plan=null;$('plan-review').hidden=true}
 function fillSettings(){
@@ -130,7 +153,7 @@ function fillSettings(){
 function readSettings(){const settings=structuredClone(state.draftSettings||state.view.settings);settings.wan_interfaces=[...state.selected];return settings}
 async function saveDraft(){const body={revision:state.view.revision,settings:readSettings(),acknowledge_insecure_tls:$('insecure-ack').checked};if(state.apiTokenDraft){body.api_token=state.apiTokenDraft;body.replace_token=$('replace-token').checked}if($('replace-ca').checked){body.custom_ca=state.customCADraft??'';body.replace_ca=true}state.view=await api('/api/settings',body);state.plan=null;$('plan-review').hidden=true;fillSettings();$('save-status').textContent='Draft saved. Active services have not changed.';notice('Configuration draft saved. Review and apply when ready.');return state.view}
 function selectSection(section){state.section=section;renderDraftInputs();if(section==='connection'){$('api-token').value=state.apiTokenDraft??'';$('custom-ca').value=state.customCADraft??''}$('settings-section-picker').value=section;for(const b of document.querySelectorAll('[data-section]')){const active=b.dataset.section===section;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}const auth=section==='authentication';$('configuration-form').hidden=auth;$('authentication-section').hidden=!auth;for(const part of document.querySelectorAll('[data-form-section]'))part.hidden=part.dataset.formSection!==section;const index=sections.indexOf(section);$('step-label').textContent='Step '+(index+2)+' of 7';$('previous-section').hidden=index===0;$('next-section').hidden=index===sections.length-1||auth;$('save').hidden=auth;renderReview()}
-async function loadSystem(){try{state.system=await api('/api/system');renderSystem();return true}catch(e){notice(errorText(e),true);$('overview-cards').replaceChildren(metric('Management portal','Running','Independent of monitoring'),metric('Monitoring status','Unavailable','Open Diagnostics for recovery'));return false}}
+async function loadSystem(){try{rememberSystem(await api('/api/system'));renderSystem();return true}catch(e){notice(errorText(e),true);$('overview-cards').replaceChildren(metric('Management portal','Running','Independent of monitoring'),metric('Monitoring status','Unavailable','Open Diagnostics for recovery'));return false}}
 function metric(title,value,caption){const card=E('div',undefined,'metric-card');card.append(E('span',title,'metric-label'),E('div',value,'metric'),E('small',caption));return card}
 function fact(root,title,value){const block=E('div',undefined,'fact');block.append(E('span',title),E('strong',value));root.append(block)}
 function renderSystem(){const s=state.system;const running=s.services.filter(r=>r.status==='running').length;$('overview-cards').replaceChildren(metric('Console','Available','Settings and diagnostics'),metric('Services running',running+' / '+s.services.length,'Docker: '+s.docker),metric('Available storage',size(s.disk.available),'of '+size(s.disk.total)),metric('Configuration',state.view.pending_changes?'Changes pending':state.view.configured?'Configured':'Setup needed',state.view.pending_changes?'Draft '+state.view.revision+' · Applied '+state.view.applied_revision:state.view.configured?'Applied revision '+state.view.applied_revision:'Not yet applied'));$('service-list').replaceChildren();for(const service of Object.keys(names)){const row=s.services.find(x=>x.service===service);const line=E('div',undefined,'service-row');const status=row?(row.health==='healthy'?'Healthy':row.health==='unhealthy'?'Failed':row.health==='starting'?'Starting':row.status==='running'?'Running':row.status==='disabled'?'Disabled':row.status==='exited'?'Stopped':row.status):'Not started';line.append(E('span',names[service]),E('span',status,'pill '+(status==='Healthy'||status==='Running'?'good':'warn')));$('service-list').append(line)}$('server-facts').replaceChildren();for(const [name,value]of [['Hostname',s.hostname],['Operating system',s.os],['CPU / Architecture',s.cpu_count+' cores · '+s.architecture],['RAM',size(s.ram_bytes)],['Available disk',size(s.disk.available)],['Docker',s.docker]])fact($('server-facts'),name,value);$('storage-facts').replaceChildren();for(const [name,value]of [['Total server storage',size(s.disk.total)],['Used storage',size(s.disk.used)],['Available storage',size(s.disk.available)]])fact($('storage-facts'),name,value);for(const [service,value] of Object.entries(s.storage_projection.components||{})){fact($('storage-facts'),(names[service]||service)+' measured size',size(value.bytes));if(value.projection_bytes!==undefined)fact($('storage-facts'),(names[service]||service)+' growth projection',size(value.projection_bytes))}$('storage-projection').textContent=s.storage_projection.message;$('next-title').textContent=state.view.configured?'Workspace settings':'Connect your network.';$('next-caption').textContent=state.view.configured?'Review the connection, Internet interfaces and data retention for this installation.':'Review the connection, confirm Internet interfaces and apply your monitoring configuration.'}
@@ -168,6 +191,7 @@ function loadConsole(page){
  clearConsoleCheck();
  const previous=$('console-frame');
  $('console-error').hidden=true;$('console-loading').hidden=true;
+ $('console-clock-warning').hidden=true;
  if(!state.system?.links?.console){
   previous.removeAttribute('src');$('console-error').hidden=false;
   $('console-error').textContent='This existing deployment retains separate native service authentication. Open the existing service below, or review the unified-console migration guide.';
@@ -179,14 +203,19 @@ function loadConsole(page){
   return;
  }
  const urls={quality:'/console/#quality',wan:'/console/#wan',devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/#overview',monitoring:state.system.links.dashboard};
+ const original=urls[page]||urls.reports;
+ const launch=page==='monitoring'?monitoringLaunch(original,state.monitoringTimeOffset,state.system.server_clock_supported):{path:original,aligned:false};
+ const destination=launch.path,compensated=launch.aligned;
+ const clockNotice=page==='monitoring'?monitoringClockNotice(state.monitoringTimeOffset,compensated):'';
+ $('console-clock-warning').textContent=clockNotice;$('console-clock-warning').hidden=!clockNotice;
  // A new browsing context cannot display the preceding page during navigation.
  // Keep its own loader visible; do not wait for every Grafana subresource.
- const initial=previous.dataset.initialView===page;
+ const initial=previous.dataset.initialView===page&&!compensated;
  const frame=initial?previous:previous.cloneNode(false);delete frame.dataset.initialView;if(!initial)frame.removeAttribute('src');
  frame.hidden=false;frame.style.visibility='visible';frame.title=titles[page][0];frame.setAttribute('aria-busy','true');
  frame.onload=()=>consoleDocumentReady(frame);if(!initial)previous.replaceWith(frame);
  $('console-loading').textContent='Loading '+titles[page][0].toLowerCase()+'…';$('console-loading').hidden=false;
- if(!initial)frame.src=urls[page]||urls.reports;
+ if(!initial)frame.src=destination;
  let checks=0;state.consoleCheck=setInterval(()=>{if(consoleDocumentReady(frame))return;if(++checks>=100){clearConsoleCheck();$('console-loading').textContent='This view is still loading. Reload it or check Diagnostics.'}},100);
 }
 async function runDiagnostics(){
@@ -195,7 +224,7 @@ async function runDiagnostics(){
  try{
   if(!state.view)await reloadSettings();
   const d=await api('/api/diagnostics');
-  state.system=d.system;renderSystem();
+  rememberSystem(d.system);renderSystem();
   $('diagnostic-summary').replaceChildren(metric('Console','Available','Settings and diagnostics'),metric('Monitoring evidence',d.monitoring.status,'Missing samples remain unknown'),metric('Available disk',size(d.system.disk.available),'Read-only measurement'));
   if(d.collection){
    $('diagnostic-summary').append(

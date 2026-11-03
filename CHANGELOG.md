@@ -4,6 +4,10 @@
 
 ### Source collection and diagnostics
 
+- Preserve the applied SLA on inner-console Monitoring launches and compensate
+  detected browser clock skew inside the native Grafana document only. Warn
+  clearly, retain saved dashboards and explicit dates, and cover independent
+  calendar-period panel queries without changing OS or stored timestamps.
 - Add an explicit managed `fortigate`/UDP native log profile with a bounded
   standard-library receiver, internal RFC5424/TCP forwarding to existing Alloy,
   fixed internal health/metrics and additive source/build inputs. Keep the

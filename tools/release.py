@@ -110,6 +110,7 @@ PUBLIC_FILES = (
     "tests/test_dashboard_style.py",
     "tests/test_doctor.py",
     "tests/test_frontend_errors.py",
+    "tests/test_grafana_clock.py",
     "tests/test_interfaces.py",
     "tests/test_management.py",
     "tests/test_management_errors.py",

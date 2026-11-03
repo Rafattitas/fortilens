@@ -49,6 +49,8 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(before.read_bytes(), after.read_bytes())
             full = release.full_members(first[0])
             self.assertIn("management/static/app.js", full)
+            self.assertIn("management/static/grafana-clock.js", full)
+            self.assertIn("tests/test_grafana_clock.py", full)
             self.assertIn("management/requirements.txt", full)
             self.assertIn("portable/templates/Dockerfile.usage", full)
             self.assertIn("portable/syslog_receiver.py", full)

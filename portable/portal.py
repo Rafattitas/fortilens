@@ -375,7 +375,7 @@ def handler(portal):
             if path == '/api/monitoring-status' and self.command == 'GET':
                 if not self.verify_viewer():
                     return self.send(503, {'available': False, 'error': 'monitoring_viewer_unavailable'})
-                return self.send(200, {'available': True, 'role': 'Viewer', 'path': '/grafana/d/' + portal.dashboard + '/?kiosk&theme=dark'})
+                return self.send(200, {'available': True, 'role': 'Viewer', 'path': '/grafana/d/' + portal.dashboard + '/?kiosk&theme=dark', 'server_time_seconds': time.time(), 'server_clock_supported': False})
             if self.command in ('GET', 'HEAD') and path in REPORT_ROUTES:
                 return self.proxy(portal.usage)
             if path.startswith('/grafana/'):

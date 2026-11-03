@@ -187,6 +187,81 @@ class ManagementTests(unittest.TestCase):
             status=[]
             self.assertEqual(self.client.get('/console/initial-view',follow_redirects=False).status_code,503)
 
+    def test_inner_monitoring_status_uses_applied_sla_and_preserves_other_fields(self):
+        self.assertEqual(self.client.get('/console/api/monitoring-status').status_code,401)
+        self.administrator()
+        view={'active_sla':'google','settings':{'sla':'unapplied-draft'}}
+        status={'available':True,'role':'Viewer','path':'/grafana/d/fixture/?kiosk&theme=dark'}
+        def result(operation,data=None):
+            if operation=='view':return view
+            self.assertEqual(operation,'console');self.assertEqual(data['method'],'GET')
+            self.assertEqual(data['path'],'/api/monitoring-status')
+            return {'status':200,'body':base64.b64encode(json.dumps(status).encode()).decode(),'content_type':'application/json'}
+        with patch.object(self.app.state.helper,'call',side_effect=result):
+            response=self.client.get('/console/api/monitoring-status')
+            self.assertEqual(response.status_code,200)
+            payload=response.json()
+            self.assertLess(abs(payload.pop('server_time_seconds')-time.time()),5)
+            self.assertTrue(payload.pop('server_clock_supported'))
+            self.assertEqual(payload,{**status,'path':status['path']+'&var-sla=google'})
+            self.assertNotIn('unapplied-draft',response.text)
+            self.assertEqual(response.headers['cache-control'],'no-store')
+            view['active_sla']=''
+            payload=self.client.get('/console/api/monitoring-status').json()
+            self.assertLess(abs(payload.pop('server_time_seconds')-time.time()),5)
+            self.assertTrue(payload.pop('server_clock_supported'))
+            self.assertEqual(payload,status)
+
+    def test_monitoring_launch_paths_encode_supported_sla_names_and_reject_untrusted_queries(self):
+        self.administrator()
+        view={'configured':True,'active_monitoring':{'wan':True},'active_sla':''}
+        status={'available':True,'path':'/grafana/d/fixture/?kiosk&theme=dark'}
+        def result(operation,data=None):
+            if operation=='view':return view
+            self.assertEqual(operation,'console');self.assertEqual(data['path'],'/api/monitoring-status')
+            return {'status':200,'body':base64.b64encode(json.dumps(status).encode()).decode(),'content_type':'application/json'}
+        from urllib.parse import parse_qs,urlsplit
+        with patch.object(self.app.state.helper,'call',side_effect=result):
+            for name in ('Google/DNS + Backup:@ISP_1.test','x'*250):
+                view['active_sla']=name
+                with self.subTest(name=name):
+                    inner=self.client.get('/console/api/monitoring-status')
+                    initial=self.client.get('/console/initial-view',follow_redirects=False)
+                    self.assertEqual(inner.status_code,200)
+                    self.assertEqual(initial.status_code,307)
+                    self.assertEqual(inner.json()['path'],initial.headers['location'])
+                    self.assertEqual(parse_qs(urlsplit(inner.json()['path']).query)['var-sla'],[name])
+            for name in ('x'*251,'x&var-vdom=other','x\nLocation: unsafe',None,42):
+                view['active_sla']=name
+                self.assertEqual(self.client.get('/console/api/monitoring-status').json()['path'],status['path'])
+            view['active_sla']='google'
+            for target in ('//outside.invalid/','/grafana/d/../admin/','/console/',
+                           '/grafana/d/fixture/?redirect=https://outside.invalid',
+                           '/grafana/d/fixture/?kiosk&theme=dark&var-sla=untrusted'):
+                status['path']=target
+                for path in ('/console/api/monitoring-status','/console/initial-view'):
+                    with self.subTest(path=path,target=target):
+                        response=self.client.get(path,follow_redirects=False)
+                        self.assertEqual(response.status_code,502)
+                        self.assertEqual(response.json()['error'],'console_redirect_rejected')
+
+    def test_inner_monitoring_status_keeps_unavailable_results_and_rejects_invalid_bodies(self):
+        self.administrator()
+        status={'available':False,'error':'monitoring_viewer_unavailable'}
+        result={'status':200,'body':base64.b64encode(json.dumps(status).encode()).decode(),'content_type':'application/json'}
+        with patch.object(self.app.state.helper,'call',return_value=result) as helper:
+            response=self.client.get('/console/api/monitoring-status')
+            self.assertEqual(response.json(),status)
+            helper.assert_called_once_with('console',{'path':'/api/monitoring-status','method':'GET','body':'','content_type':'application/json'})
+            result['status']=503
+            self.assertEqual(self.client.get('/console/api/monitoring-status').status_code,503)
+            result['status']=200
+            for raw in ('not-json-private-token','[]','null'):
+                result['body']=base64.b64encode(raw.encode()).decode()
+                response=self.client.get('/console/api/monitoring-status')
+                self.assertEqual(response.status_code,503)
+                self.assertNotIn('not-json-private-token',response.text)
+
     def test_hosted_reports_preserve_protected_routes_and_reject_style_input(self):
         self.administrator()
         html=(ROOT/'portable/reporting.html').read_text(encoding='utf-8')
@@ -206,6 +281,24 @@ class ManagementTests(unittest.TestCase):
             self.assertNotIn(attack,response.text)
             self.assertNotIn('#vlan-section{display:none!important}',response.text)
             self.assertEqual(response.headers['x-frame-options'],'SAMEORIGIN')
+
+    def test_grafana_clock_adapter_is_explicit_page_local_and_before_native_boot(self):
+        self.administrator()
+        original='<html><head><script src="/grafana/public/build/native.js"></script></head><body>Native dashboard</body></html>'
+        result={'status':200,'body':base64.b64encode(original.encode()).decode(),'content_type':'text/html'}
+        with patch.object(self.app.state.helper,'call',return_value=result):
+            self.assertEqual(self.client.get('/grafana/d/fixture/').text,original)
+            response=self.client.get('/grafana/d/fixture/?fortilens-clock=server')
+            self.assertEqual(response.status_code,200)
+            self.assertLess(response.text.index('/static/grafana-clock.js'),response.text.index('/grafana/public/build/native.js'))
+            self.assertIn('data-server-time-ms=',response.text)
+            self.assertEqual(response.headers['cache-control'],'no-store')
+            self.assertEqual(response.headers['content-security-policy'],"frame-ancestors 'self'")
+            self.assertEqual(self.client.get('/grafana/profile?fortilens-clock=server').text,original)
+        from management.app import monitoring_clock_document
+        adapted=monitoring_clock_document(original,1793699000)
+        self.assertEqual(monitoring_clock_document(adapted,1793699001),adapted)
+        with self.assertRaises(Problem):monitoring_clock_document('<body>Unexpected upstream</body>',1793699000)
 
     def test_native_grafana_mount_keeps_auth_origin_and_write_boundaries(self):
         self.assertEqual(self.client.get('/grafana/api/user').status_code,401)

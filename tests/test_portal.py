@@ -140,7 +140,10 @@ class PortalTests(unittest.TestCase):
 
     def test_readiness_requires_viewer_and_upstream_failure_is_explicit(self):
         self.login()
-        self.assertEqual(json.loads(self.request('/api/monitoring-status')[2])['role'], 'Viewer')
+        result=json.loads(self.request('/api/monitoring-status')[2])
+        self.assertEqual(result['role'], 'Viewer')
+        import time
+        self.assertLess(abs(result['server_time_seconds']-time.time()),5)
         self.upstream.shutdown(); self.upstream.server_close()
         self.assertEqual(self.request('/api/report')[0], 503)
 

@@ -69,7 +69,7 @@ def source_files(source):
     names=['management/'+name for name in (
         '__init__.py','app.py','auth.py','common.py','configuration.py','helper.py',
         'install.py','models.py','recovery.py','runtime.py','requirements.txt',
-        'requirements-test.txt','Dockerfile','static/app.css','static/app.js','static/index.html')]
+        'requirements-test.txt','Dockerfile','static/app.css','static/app.js','static/grafana-clock.js','static/index.html')]
     names+=['portable/'+name for name in (
         'setup.py','doctor.py','interfaces.py','accounting.py','usage_service.py','portal.py',
         'wan_health.py','upgrade.py','usage_quality.py','dashboard_style.py','alerts.py',

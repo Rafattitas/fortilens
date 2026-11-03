@@ -13,10 +13,64 @@ const view = () => ({settings,configured:true,revision:7,applied_revision:mode==
 const system = () => ({services:[{service:'grafana',status:'running',health:'healthy'}],disk:{total:10000000000,used:1000000000,available:9000000000},storage_projection:{available:false,components:{},message:'Synthetic capacity unavailable.'},links:{console:false},latest_job:job(),hostname:'synthetic-host',os:'Synthetic OS',architecture:'x86_64',cpu_count:2,ram_bytes:4000000000,docker:'Available'});
 const server=http.createServer((req,res)=>{
  const pathname=new URL(req.url,'http://localhost').pathname;
- const files={'/':'management/static/index.html','/static/app.js':'management/static/app.js','/static/app.css':'management/static/app.css','/static/logo.svg':'management/static/logo.svg'};
+ if(pathname.startsWith('/grafana/d/')){res.setHeader('Content-Type','text/html');res.end('<!doctype html><title>Synthetic monitoring</title><p>Native time controls remain available.</p>');return}
+ const files={'/':'management/static/index.html','/reporting.html':'portable/reporting.html','/static/app.js':'management/static/app.js','/static/app.css':'management/static/app.css','/static/logo.svg':'management/static/logo.svg'};
  const file=files[pathname];if(!file){res.writeHead(404);res.end('Not found');return}
  res.setHeader('Content-Type',pathname.endsWith('.js')?'application/javascript':pathname.endsWith('.css')?'text/css':pathname.endsWith('.svg')?'image/svg+xml':'text/html');res.end(fs.readFileSync(path.join(root,file)));
 });
+async function monitoringClockRegression(browser,baseURL,offset,supported=true){
+ const fixedNow=Date.UTC(2026,10,3,9,0,0),nativePath='/grafana/d/fixture/?kiosk&theme=dark&var-sla=google';
+ const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});
+ const page=await context.newPage(),errors=[];
+ await page.addInitScript(now=>{Date.now=()=>now;document.addEventListener('DOMContentLoaded',()=>{window.initialParserFrame=document.getElementById('console-frame')},{once:true})},fixedNow);
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route(url=>url.origin===baseURL&&url.pathname==='/',async route=>{
+  const html=fs.readFileSync(path.join(root,'management/static/index.html'),'utf8').replace('id="console-frame"','id="console-frame" data-initial-view="monitoring" src="/console/initial-view?view=monitoring"');
+  await route.fulfill({status:200,contentType:'text/html',body:html});
+ });
+ await page.route('**/console/initial-view?**',route=>route.fulfill({status:307,headers:{location:nativePath},body:''}));
+ await page.route('**/grafana/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>Synthetic monitoring</title><p>Native time controls remain available.</p>'}));
+ await page.route('**/api/**',async route=>{
+  const pathname=new URL(route.request().url()).pathname;let payload,status=200;
+  if(pathname==='/api/bootstrap/status')payload={required:false};
+  else if(pathname==='/api/session')payload={username:'synthetic-admin',csrf:'synthetic-csrf',authenticated:true};
+  else if(pathname==='/api/settings')payload={...view(),applied_revision:7,pending_changes:false};
+  else if(pathname==='/api/system')payload={...system(),latest_job:null,links:{console:true,dashboard:nativePath},server_time_seconds:fixedNow/1000+offset,server_clock_supported:supported};
+  else if(pathname==='/api/portal')payload={enabled:true};
+  else if(pathname==='/api/monitoring-status')payload={available:true,role:'Viewer',path:nativePath,server_time_seconds:fixedNow/1000+offset,server_clock_supported:supported};
+  else{status=404;payload={error:'not_found'}}
+  await route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
+ });
+ const aligned=Math.abs(offset)>60&&Math.abs(offset)<=86400&&supported===true,warning=Math.abs(offset)>60;
+ function checkPath(value){
+  const url=new URL(value,baseURL);
+  assert.equal(url.pathname,'/grafana/d/fixture/');assert.equal(url.searchParams.get('var-sla'),'google');assert.equal(url.searchParams.get('theme'),'dark');assert.equal(url.searchParams.has('kiosk'),true);
+  assert.equal(url.searchParams.has('from'),false);assert.equal(url.searchParams.has('to'),false);assert.equal(url.searchParams.has('refresh'),false);
+  assert.equal(url.searchParams.get('fortilens-clock'),aligned?'server':null);
+ }
+ try{
+  await page.goto(baseURL+'/?view=monitoring#monitoring');await page.waitForFunction(()=>!document.getElementById('workspace').hidden);
+  await page.waitForFunction(()=>document.getElementById('console-frame').contentDocument?.title==='Synthetic monitoring');
+  checkPath(page.frames().find(frame=>frame.parentFrame())?.url());
+  assert.equal(await page.evaluate(()=>document.getElementById('console-frame')===window.initialParserFrame),!aligned,'Clock compensation failed to replace/preserve the initial parser frame');
+  assert.equal(await page.locator('#console-clock-warning').isVisible(),warning);
+  if(aligned)assert.match(await page.locator('#console-clock-warning').textContent(),/Monitoring uses server time/);
+  else if(warning)assert.match(await page.locator('#console-clock-warning').textContent(),/unavailable/);
+  await page.locator('#workspace-nav a[data-page="overview"]').click();await page.locator('#workspace-nav a[data-page="monitoring"]').click();
+  await page.waitForFunction(()=>document.getElementById('console-frame').contentDocument?.title==='Synthetic monitoring');checkPath(await page.locator('#console-frame').getAttribute('src'));
+  let explicit=await page.evaluate(path=>monitoringLaunch(path,2612,true),nativePath+'&from=now-1h&to=now');
+  assert.equal(new URL(explicit.path,baseURL).searchParams.get('from'),'now-1h');assert.equal(new URL(explicit.path,baseURL).searchParams.get('to'),'now');
+  if(aligned&&offset>0&&output){await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Clock warning causes mobile overflow');fs.mkdirSync(output,{recursive:true});await page.screenshot({path:path.join(output,'monitoring-server-clock-mobile.png'),fullPage:true})}
+  await page.goto(baseURL+'/reporting.html#monitoring');await page.waitForFunction(()=>!document.getElementById('monitoring-frame').hidden);
+  checkPath(await page.locator('#monitoring-frame').getAttribute('src'));assert.equal(await page.locator('#monitoring-clock-warning').isVisible(),warning);
+  explicit=await page.evaluate(path=>monitoringLaunch(path,2612,true),nativePath+'&from=now-1h&to=now');
+  assert.equal(new URL(explicit.path,baseURL).searchParams.get('from'),'now-1h');assert.equal(new URL(explicit.path,baseURL).searchParams.get('to'),'now');
+  await page.locator('#reload-monitoring').click();await page.waitForFunction(()=>!document.getElementById('monitoring-frame').hidden);checkPath(await page.locator('#monitoring-frame').getAttribute('src'));
+  assert.deepEqual(errors,[],'Clock-alignment browser errors');
+ }catch(error){
+  console.error('Clock fixture: '+JSON.stringify({offset,supported,frames:page.frames().map(frame=>frame.url()),errors,src:await page.locator('#console-frame').getAttribute('src').catch(()=>null)}));throw error;
+ }finally{await context.close()}
+}
 async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice,scopeLocked=false}){
  const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});
  const page=await context.newPage(),errors=[],saved=[],authRequests=[];
@@ -123,6 +177,9 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  const browser=await chromium.launch({headless:true,...(process.env.FORTILENS_BROWSER_EXECUTABLE?{executablePath:process.env.FORTILENS_BROWSER_EXECUTABLE}:{})});
  try{
  const baseURL='http://127.0.0.1:'+server.address().port;
+ for(const offset of [2612,-2612,30])await monitoringClockRegression(browser,baseURL,offset);
+ await monitoringClockRegression(browser,baseURL,2612,false);
+ await monitoringClockRegression(browser,baseURL,86401,true);
  await setupAutofillRegression(browser,baseURL,{bootstrap:true,expectedDevice:''});
  await setupAutofillRegression(browser,baseURL,{bootstrap:false,expectedDevice:'FG-SAVED-SYNTHETIC'});
  await setupAutofillRegression(browser,baseURL,{bootstrap:false,expectedDevice:'FG-LOCKED-SYNTHETIC',scopeLocked:true});
@@ -167,6 +224,6 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  mode='complete';discovery=true;await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile horizontal overflow');
  if(output)await page.screenshot({path:path.join(output,'deployment-complete-mobile.png'),fullPage:true});
  assert.deepEqual(errors,[],'Browser JavaScript errors');
- console.log(JSON.stringify({passed:true,checks:['first administrator setup ignores hidden autofill','saved source survives sign-in/autofill','locked source rejects DOM mutations','explicit source mismatch and deliberate edits remain enforced','collector dependency changes persist','explicit CA clearing ignores hidden pollution','WAN changes clear confirmation until reconfirmed','completed startup/reload/navigation hidden','running restore and duplicate prevention','completion notification and health refresh','failure acknowledgement and recovery history','historical job lookup','discovery gating','unknown outcome no retry','mobile layout'],browser:await browser.version(),screenshots:output||null}));
+ console.log(JSON.stringify({passed:true,checks:['server clock capability handles forward/backward skew in both consoles','normal clocks preserve initial parser frame','unsupported and excessive skew warn without changing time ranges','first administrator setup ignores hidden autofill','saved source survives sign-in/autofill','locked source rejects DOM mutations','explicit source mismatch and deliberate edits remain enforced','collector dependency changes persist','explicit CA clearing ignores hidden pollution','WAN changes clear confirmation until reconfirmed','completed startup/reload/navigation hidden','running restore and duplicate prevention','completion notification and health refresh','failure acknowledgement and recovery history','historical job lookup','discovery gating','unknown outcome no retry','mobile layout'],browser:await browser.version(),screenshots:output||null}));
  }finally{await browser.close();server.close()}
 })().catch(error=>{console.error(error.stack);server.close();process.exitCode=1});

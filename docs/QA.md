@@ -157,6 +157,17 @@ report it as unavailable; do not fabricate zero usage, an outage or 100% accurac
 
 ## Publishing
 
+For Monitoring No data investigations, compare browser and server clocks before
+changing queries. Execute the actual saved queries with their current variables
+at both end timestamps. A correct server-default query does not validate a
+browser-chosen range. Preserve legitimate missing SLA values on a failed link.
+Verify management and inner-portal launch paths retain the applied SLA. Test the
+optional page-local clock adapter with positive/negative skew, healthy clocks,
+explicit dates, Date construction/static methods, subclasses and parent-window
+isolation. Check calendar-day/month panel overrides in actual Grafana; shifting
+only the global URL range does not cover those independent calculations.
+Never change an operator's OS clock or stored timestamps to hide this failure.
+
 Use the current authorized branch/release scope and expected-head merges. Verify
 the deployed source against the intended source files/tree, wait for all required
 checks on the final head, then merge/publish when authorized. Verify main's result

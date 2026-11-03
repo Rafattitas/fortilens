@@ -183,6 +183,16 @@ probes do not establish availability of omitted capabilities.
 TLS verification remains owner-controlled and an explicit temporary TLS-off
 deployment stays a warning; no untrusted certificate is silently pinned.
 
+Monitoring launch paths use the applied SLA, including the inner reporting
+console's Monitoring link. Management also supplies a server-time capability and
+timestamp. When the browser differs by more than one minute and at most one day,
+the console warns and requests a page-local Grafana clock adapter before native
+scripts initialize. This covers Grafana's independent panel-relative periods as
+well as the dashboard range. The OS and parent-page clocks, explicit dates,
+stored records, saved dashboards, queries and selectors are not rewritten.
+Missing/unsupported clock metadata preserves legacy behavior with a warning when
+skew is known. Direct legacy portal access still requires choosing its actual SLA.
+
 Future work should follow the current user's request. Real-device source
 completeness, source identity, packet-time allocation and production capacity need
 site-specific evidence. Alert candidates remain opt-in; multi-device/tenant and
