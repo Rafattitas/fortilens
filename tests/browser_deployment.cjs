@@ -84,6 +84,7 @@ async function usageViewsRegression(browser,baseURL){
   return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)});
  });
  try{
+  await page.goto(baseURL+'/reporting.html#devices');await page.waitForFunction(()=>document.querySelectorAll('#device-body tr').length===6);assert.equal(await page.locator('#stats').isVisible(),true);assert.equal(await page.locator('#vlan-section').isVisible(),true,'Legacy standalone segment inspection disappeared');
   await page.goto(baseURL+'/reporting.html?section=devices#overview');await page.waitForFunction(()=>document.querySelectorAll('#device-body tr').length===6);
   assert.equal(await page.locator('#device-section').isVisible(),true);assert.equal(await page.locator('#stats').isVisible(),false);assert.equal(await page.locator('#vlan-section').isVisible(),false);assert.equal(await page.locator('#report-summary').isVisible(),false);
   await page.locator('#device-body .entity').first().click();await page.waitForFunction(()=>document.getElementById('details-title').textContent==='Fixture 1');await page.locator('#close-details').click();
@@ -237,7 +238,7 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  await page.locator('#apply').click();await page.waitForFunction(()=>!document.getElementById('deployment').hidden);
  assert.equal(await page.locator('#apply').isDisabled(),true);assert.equal(await page.locator('#prepare').isDisabled(),true);
  await page.locator('#apply').evaluate(el=>el.click());assert.equal(applies,1,'Duplicate Apply was sent');
- mode='complete';await page.waitForFunction(()=>document.getElementById('deployment').hidden);assert.match(await page.locator('#notice').textContent(),/applied successfully/);
+ mode='complete';await page.waitForFunction(()=>document.getElementById('deployment').hidden);await page.waitForFunction(()=>document.getElementById('notice').textContent.includes('applied successfully'));assert.match(await page.locator('#notice').textContent(),/applied successfully/);
  assert.equal(await visible('deployment-history'),true);await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);assert.equal(await visible('deployment'),false,'Completed reload restored progress');
  await page.locator('a[data-page="overview"]').click();await page.locator('a[data-page="settings"]').click();assert.equal(await visible('deployment'),false,'Navigation restored completed progress');
  mode='starting';await page.reload();await page.waitForFunction(()=>!document.getElementById('deployment').hidden);assert.equal(await page.locator('#prepare').isDisabled(),true,'Running reload did not lock Apply workflow');
