@@ -53,6 +53,13 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn("portable/templates/Dockerfile.usage", full)
             self.assertIn("install.sh", full)
             self.assertIn("tools/check_repository.py", full)
+            adapter_files = (
+                "docs/SYSLOG_NATIVE_UDP.md",
+                "examples/rsyslog/fortilens-syslog.conf",
+                "examples/rsyslog/fortilens-syslog.service",
+            )
+            for name in adapter_files:
+                self.assertIn(name, full)
             manifest = json.loads(full[release.MANIFEST])
             for row in manifest["files"]:
                 self.assertEqual(row["sha256"], hashlib.sha256(full[row["path"]]).hexdigest())
@@ -61,6 +68,10 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(
                     {n: archive.read(n) for n in archive.namelist()}, release.portable_sources(ROOT)
                 )
+                for name in adapter_files:
+                    self.assertFalse(
+                        any(n.endswith("/" + Path(name).name) for n in archive.namelist()), name
+                    )
 
     def test_extracted_full_artifact_has_installer_inputs_and_existing_cli(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -72,6 +83,17 @@ class ReleaseTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(data)
             self.assertEqual(release.full_sources(extracted), release.full_sources(ROOT))
+            check_spec = importlib.util.spec_from_file_location(
+                "fortilens_packaged_checks", extracted / "tools/check_repository.py"
+            )
+            checks = importlib.util.module_from_spec(check_spec)
+            check_spec.loader.exec_module(checks)
+            self.assertEqual(
+                checks.check_markdown(
+                    extracted, [path for path in extracted.rglob("*") if path.is_file()]
+                ),
+                [],
+            )
             for arguments in (
                 ["portable/setup.py", "--help"],
                 ["portable/setup.py", "init", "--help"],

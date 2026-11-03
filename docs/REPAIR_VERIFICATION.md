@@ -56,6 +56,25 @@ Existing source contracts remain locked; never edit expected_devid or reset the
 database as an automatic repair. Plan migration separately with consistent backups
 and historical reconciliation.
 
+## Optional native UDP normalization and packaging
+
+The [native UDP adapter guide](SYSLOG_NATIVE_UDP.md) describes an optional,
+operator-managed rsyslog service for an existing native/default FortiGate sender.
+The dedicated nonroot instance wraps the native body as RFC5424 over local TCP
+for Alloy without changing firewall settings, accounting scope or the system
+logger. The guide records isolated rsyslog 8.2512.0 / Alloy 1.19.2 checks, including
+enforced AppArmor, restricted startup and rejection of a disallowed test sender.
+Its bounded memory queues and UDP transport do not provide lossless delivery.
+The management helper's Docker checks do not monitor this separate host service.
+
+The full distribution includes that guide and both generic rsyslog examples.
+The installer runtime allowlist and the 23-file portable payload remain unchanged;
+the adapter is not automatically installed or enabled. Release regression checks
+require those files in the full archive, exclude them from the portable archive,
+and validate local Markdown links from extracted full source. Archive checksums
+and source bytes are verified separately from live collection evidence. No tag
+or release publication is part of these checks.
+
 ## Trust, deployment and preservation
 
 Disabled certificate verification remains an explicit diagnostic warning. A

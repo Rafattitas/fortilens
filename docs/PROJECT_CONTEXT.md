@@ -142,6 +142,13 @@ polling does not establish delivery. Pinning requires an independently trusted
 reference and coordinated coverage of all clients; no partial pinning option is
 advertised. See [repair verification](REPAIR_VERIFICATION.md).
 
+An optional [native UDP adapter](SYSLOG_NATIVE_UDP.md) documents a separate,
+operator-managed rsyslog service for FortiGate default logfmt messages. It wraps
+the native body for the existing RFC5424/TCP Alloy receiver; managed settings
+continue to describe that Alloy leg. It is included in the full source bundle,
+requires host-specific validation and is not installed by the Ubuntu bootstrap.
+The helper does not manage this host service. UDP delivery remains best effort.
+
 Future work should follow the current user's request. Real-device source
 completeness, source identity, packet-time allocation and production capacity need
 site-specific evidence. Alert candidates remain opt-in; multi-device/tenant and
