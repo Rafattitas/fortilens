@@ -77,7 +77,8 @@ class ReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
             full, _ = release.build(ROOT, folder / "dist", "v0.3.0-test.1")
-            extracted = folder / "extracted"
+            # Windows TEMP may be a junction; link checks compare resolved paths.
+            extracted = (folder / "extracted").resolve()
             for name, data in release.full_members(full).items():
                 path = extracted / name
                 path.parent.mkdir(parents=True, exist_ok=True)
