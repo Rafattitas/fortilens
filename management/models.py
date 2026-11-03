@@ -44,6 +44,7 @@ class Settings(Strict):
     syslog_protocol: Literal['tcp', 'udp'] = 'tcp'
     syslog_port: int = Field(default=1514, ge=1, le=65535)
     syslog_format: Literal['rfc5424', 'rfc3164', 'fortigate'] = 'rfc5424'
+    syslog_network: Literal['bridge', 'host'] = 'bridge'
     optional_exporter_exclusions: list[Literal[
         'Log/Fortianalyzer/Status', 'System/Interface/Transceivers', 'System/SensorInfo',
     ]] | None = Field(default=None, max_length=3)
@@ -77,6 +78,7 @@ class Settings(Strict):
         c = {**setup.DEFAULTS, **(baseline or {})}
         c.update({key: getattr(self, key) for key in ('site_name', 'fortigate_host', 'api_port', 'grafana_port', 'usage_port', 'vdom', 'sla', 'api_tls_verify', 'syslog_protocol', 'syslog_port', 'syslog_format', 'accounting_timezone', 'expected_devid')})
         c.update(timezone=self.timezone, confirmed_wan_interfaces=self.wan_interfaces,
+                 syslog_network=self.syslog_network,
                  wan_interfaces=self.wan_interfaces if self.sla else [],
                  accounting_enabled=self.monitoring.accounting, portal_enabled=self.monitoring.accounting,
                  accounting_ledger_days=self.retention.ledger_days, accounting_summary_days=self.retention.summary_days,

@@ -110,12 +110,27 @@ class Docker:
             for target,bindings in (info.get('NetworkSettings',{}).get('Ports') or {}).items():
                 for binding in bindings or []:
                     own.add((row['service'],binding['HostIp'],int(binding['HostPort']),target.split('/')[-1]))
+            if row['service']=='fortilens-syslog' and info.get('HostConfig',{}).get('NetworkMode')=='host':
+                active=setup.validate_config(load(self.c.root/self.c.state()['site_file']))
+                if active['syslog_network']=='host':
+                    own.update({('fortilens-syslog',active['syslog_bind'],active['syslog_port'],'udp'),
+                                ('fortilens-syslog','127.0.0.1',active['syslog_port']+1,'tcp')})
         settings=Settings.model_validate(self.c.state()['settings'])
         enabled,_=enabled_services(settings,candidate)
         checked=set()
         for name,service in candidate['services'].items():
             if name not in enabled:continue
-            for binding in service.get('ports',[]):
+            bindings=list(service.get('ports',[]))
+            if name=='fortilens-syslog' and service.get('network_mode')=='host':
+                if platform.system()!='Linux':raise Problem('native_host_unsupported','Native host reception requires Linux Docker Engine.')
+                engine=json.loads(self.run(['docker','info','--format','{{json .}}'],15))
+                if (engine.get('OSType')!='linux' or 'docker desktop' in engine.get('OperatingSystem','').lower()
+                        or any('rootless' in option.lower() for option in engine.get('SecurityOptions',[]))):
+                    raise Problem('native_host_unsupported','Native host reception requires rootful Linux Docker Engine; Desktop and rootless networking are not supported.')
+                config=settings.portable(load(self.c.root/self.c.state()['site_file'],{}))
+                bindings.extend([f"{config['syslog_bind']}:{settings.syslog_port}:{settings.syslog_port}/udp",
+                                 f"127.0.0.1:{settings.syslog_port+1}:{settings.syslog_port+1}/tcp"])
+            for binding in bindings:
                 if not isinstance(binding,str):
                     raise Problem('custom_ports_review','Register custom published-port syntax on the host before managing it.')
                 address,protocol=binding.rsplit('/',1) if '/' in binding else (binding,'tcp')
@@ -169,6 +184,10 @@ class Docker:
             raise Problem('docker_response_invalid','Docker returned unreadable service identity. No operation was redirected.',503) from None
         if row.get('Config',{}).get('Labels',{}).get('com.docker.compose.project') != self.c.project:
             raise Problem('project_mismatch', 'Service identity did not match the registered project.')
+        if service=='fortilens-syslog' and port==8080 and row.get('HostConfig',{}).get('NetworkMode')=='host':
+            active=setup.validate_config(load(self.c.root/self.c.state()['site_file']))
+            if active['syslog_network']!='host':raise Problem('service_network_unavailable','Review the applied native receiver network profile.')
+            return '127.0.0.1',active['syslog_port']+1
         networks=row.get('NetworkSettings',{}).get('Networks') if isinstance(row.get('NetworkSettings'),dict) else None
         if not isinstance(networks,dict) or any(not isinstance(v,dict) for v in networks.values()):
             raise Problem('service_network_unavailable','This service uses an unsupported host/network layout.')

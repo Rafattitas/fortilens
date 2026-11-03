@@ -8,6 +8,67 @@ converted automatically. FortiLens does not change the firewall's sender.
 
 ## Managed native UDP profile
 
+### Source-preserving Linux host reception
+
+On rootful Linux Docker Engine, select **Native UDP reception → Linux host
+(preserve sender address)** when Docker's published UDP path replaces the
+sender with a shared gateway. This is an explicit alternative to the existing
+bridge profile, not an automatic migration. No rsyslog package, host unit,
+Docker daemon change or firewall-policy change is required.
+
+```json
+{
+  "fortigate_host": "192.0.2.1",
+  "syslog_protocol": "udp",
+  "syslog_format": "fortigate",
+  "syslog_network": "host",
+  "syslog_port": 514
+}
+```
+
+Use the actual FortiGate IPv4 address, not the example address or a Docker gateway.
+Host mode requires a literal IPv4 source because the container no longer has
+Compose DNS. The exact same source filter and native message validation apply.
+Docker Desktop and rootless Docker are unsupported for this profile and are
+rejected by managed port validation and portable `start`.
+
+The receiver alone uses `network_mode: host`; other services retain their
+existing network isolation. Docker does not publish/NAT its UDP socket. The
+configured host port is bound directly, using the existing `syslog_bind`
+address. The process remains UID/GID 10001 with all capabilities dropped except
+`NET_BIND_SERVICE`, needed for conventional low syslog/health ports. It has no
+raw-socket capability, Docker socket, API token or persistent data volume.
+Host networking nevertheless shares the host network namespace: select it
+deliberately after reviewing this reduced network isolation.
+
+For UDP port **P**, Alloy is published only at **127.0.0.1:P/TCP**, and receiver
+health/metrics bind only **127.0.0.1:(P+1)/TCP**. Both TCP ports must be free;
+P cannot be 65535. For UDP 514 these are TCP 514 and TCP 515. Management checks
+these bindings before applying and accesses health through the fixed registered
+receiver identity. Existing service readiness, recent handoff, Loki and accounting
+checks remain separate. The bridge-only Prometheus receiver scrape is omitted
+in host mode because its health port is private to the host; counters remain
+available through local `/metrics` and health diagnostics. No LAN metrics port
+is opened to work around that restriction.
+
+Fresh installations render this service through the normal setup/apply path.
+Existing managed installations can review/apply a transition between bridge,
+host and RFC profiles without changing Compose project, volumes or dashboards.
+Custom receiver definitions and unexpected handoff bindings require review.
+Configuration rollback uses the existing candidate recovery path. A separately
+installed rsyslog listener must be coordinated by its operator before applying;
+FortiLens fails on the port conflict rather than stopping an unrelated service.
+
+The cause is a transport boundary: once NAT/proxying has replaced the UDP source,
+the receiver cannot recover or authenticate the original sender. Docker's
+[host-network documentation](https://docs.docker.com/engine/network/drivers/host/)
+explains why host mode bypasses published port mappings. This profile avoids
+that boundary instead of allowing a shared gateway. It cannot correct upstream
+NAT, a different FortiGate source interface, spoofing or missing historical logs.
+Acceptance still requires natural sender evidence on the intended installation.
+
+### Existing bridge reception
+
 In **Monitoring & Syslog**, choose UDP and the `fortigate` native format, then
 set the host port to the actual destination used by the sender. Native format
 requires UDP; selecting it does not silently change the configured port. For
@@ -73,7 +134,7 @@ container sees a shared bridge gateway even when the host receives the correct
 FortiGate address. Check bounded packet headers on both sides before acceptance.
 The managed receiver cannot recover the original sender from those datagrams.
 Do not add the shared gateway to its allowlist: that would also accept unrelated
-forwarded senders. Use the separately reviewed host rsyslog alternative below
+forwarded senders. Use the Linux host profile above or the host rsyslog alternative below
 when the host path preserves the original address. Keep its narrow source filter,
 and configure FortiLens for the relay's RFC5424/TCP output. The helper does not
 manage or independently verify that external host service.
