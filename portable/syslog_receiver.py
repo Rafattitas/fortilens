@@ -16,6 +16,7 @@ import argparse
 import ipaddress
 import json
 import math
+import os
 import queue
 import re
 import select
@@ -316,7 +317,7 @@ class Receiver:
             with self.lock:
                 self.udp_bound = False
 
-    def start(self):
+    def start(self, before_threads=None):
         if self.worker_thread is not None:
             raise RuntimeError("Receiver already started")
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -324,6 +325,8 @@ class Receiver:
         self.udp_socket.bind(self.udp_address)
         with self.lock:
             self.udp_bound = True
+        if before_threads is not None:
+            before_threads()
         self.worker_thread = threading.Thread(target=self._run_forwarder, daemon=True)
         self.receiver_thread = threading.Thread(target=self._run_receiver, daemon=True)
         self.worker_thread.start()
@@ -469,6 +472,21 @@ def host_endpoints(path):
         raise ConfigurationError('Invalid host receiver configuration') from None
 
 
+def drop_host_privileges():
+    """Permanently drop the Linux bind bootstrap before handling input."""
+    if sys.platform != 'linux' or os.geteuid() != 0:
+        raise ConfigurationError('Host receiver requires the managed Linux bootstrap')
+    os.setgroups([])
+    os.setgid(10001)
+    os.setuid(10001)
+    status = dict(line.split(':', 1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)
+    if (os.getuid() != 10001 or os.geteuid() != 10001
+            or os.getgid() != 10001 or os.getegid() != 10001 or os.getgroups()
+            or status.get('NoNewPrivs','').strip() != '1'
+            or any(int(status[key].strip(), 16) for key in ('CapInh', 'CapPrm', 'CapEff', 'CapAmb'))):
+        raise ConfigurationError('Host receiver privilege drop failed')
+
+
 def main(argv=None):
     receiver = server = http_thread = None
     old_handlers = {}
@@ -485,7 +503,7 @@ def main(argv=None):
         receiver = Receiver(load_config(args.config), **options)
         server = ThreadingHTTPServer(http_address, handler(receiver))
         server.daemon_threads = True
-        receiver.start()
+        receiver.start(before_threads=drop_host_privileges if args.host_network else None)
         http_thread = threading.Thread(
             target=server.serve_forever, kwargs={"poll_interval": 0.2}, daemon=True
         )

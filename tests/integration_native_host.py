@@ -66,9 +66,18 @@ def main():
         command = setup.compose_command(root)
 
         def docker(*args):
-            return subprocess.run(
-                [*command, *args], cwd=root, check=True, capture_output=True, text=True, timeout=180
-            ).stdout.strip()
+            result = subprocess.run(
+                [*command, *args],
+                cwd=root,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if result.returncode:
+                print(result.stderr[-4000:], file=sys.stderr)
+            result.check_returncode()
+            return result.stdout.strip()
 
         packets = []
         errors = []
@@ -152,8 +161,18 @@ def main():
             size, message = wire.split(b" ", 1)
             assert int(size) == len(message) and message.endswith(body.encode())
             assert health()["received_datagrams"] == 2
-            # Validate the actual nonroot image retains only the capability needed
-            # for a conventional low syslog port. Fail if another lab process owns it.
+            # The main receiver must drop its bootstrap identity and all usable
+            # capabilities before receiving. Docker exec's identity is separate.
+            docker(
+                "exec",
+                "-T",
+                "fortilens-syslog",
+                "python",
+                "-c",
+                "from pathlib import Path; d=dict(x.split(':',1) for x in Path('/proc/1/status').read_text().splitlines() if ':' in x); assert set(d['Uid'].split())=={'10001'}; assert set(d['Gid'].split())=={'10001'}; assert all(int(d[k].strip(),16)==0 for k in ('CapEff','CapPrm','CapInh','CapAmb')); assert d['NoNewPrivs'].strip()=='1'",
+            )
+            # Conventional low ports use the same bind-then-drop implementation.
+            # Fail if another process on this disposable runner owns either port.
             docker(
                 "run",
                 "--rm",
@@ -161,7 +180,7 @@ def main():
                 "fortilens-syslog",
                 "python",
                 "-c",
-                "import os,socket; assert os.geteuid()==10001; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.bind(('127.0.0.1',514)); s.close()",
+                "import os,socket,syslog_receiver; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.bind(('127.0.0.1',514)); h=socket.socket(); h.bind(('127.0.0.1',515)); syslog_receiver.drop_host_privileges(); assert os.geteuid()==10001; s.close(); h.close()",
             )
             print(
                 json.dumps(
@@ -176,6 +195,13 @@ def main():
             )
         finally:
             finished.set()
+            if sys.exc_info()[0] is not None:
+                subprocess.run(
+                    [*command, "logs", "--tail", "10", "fortilens-syslog"],
+                    cwd=root,
+                    check=False,
+                    timeout=20,
+                )
             subprocess.run(
                 [*command, "down", "--volumes", "--remove-orphans"],
                 cwd=root,

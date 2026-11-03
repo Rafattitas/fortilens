@@ -35,8 +35,12 @@ rejected by managed port validation and portable `start`.
 The receiver alone uses `network_mode: host`; other services retain their
 existing network isolation. Docker does not publish/NAT its UDP socket. The
 configured host port is bound directly, using the existing `syslog_bind`
-address. The process remains UID/GID 10001 with all capabilities dropped except
-`NET_BIND_SERVICE`, needed for conventional low syslog/health ports. It has no
+address. For low ports, a bind-only bootstrap starts as root with only
+`NET_BIND_SERVICE`, `SETUID` and `SETGID`. After binding UDP and private HTTP,
+it permanently drops supplementary groups and UID/GID to 10001 before starting
+any receiving, forwarding or HTTP threads. Startup fails unless effective,
+permitted, inheritable and ambient capabilities are all zero and
+`no-new-privileges` is active. It has no
 raw-socket capability, Docker socket, API token or persistent data volume.
 Host networking nevertheless shares the host network namespace: select it
 deliberately after reviewing this reduced network isolation.

@@ -99,6 +99,7 @@ jobs:
           python -m unittest discover -s tests -v
           python tests/check_frontend.py
           python tests/integration_stack.py
+          python tests/integration_native_host.py
       - name: Run packaged nonroot web/helper and Docker acceptance
         if: matrix.scenario == 'management'
         shell: bash

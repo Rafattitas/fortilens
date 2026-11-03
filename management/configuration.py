@@ -299,10 +299,12 @@ class Configuration:
             # Only these fixed transport fields may change during a transition.
             expected=deepcopy(receiver)
             expected.pop('network_mode',None);expected.pop('cap_add',None)
+            expected['user']='10001:10001'
             expected['command']=[x for x in expected['command'] if x!='--host-network']
             health_port=8080
             if was_native and active.get('syslog_network','bridge')=='host':
-                expected['network_mode']='host';expected['cap_add']=['NET_BIND_SERVICE']
+                expected['network_mode']='host';expected['user']='0:0'
+                expected['cap_add']=['NET_BIND_SERVICE','SETUID','SETGID']
                 expected['command'].append('--host-network')
                 health_port=active['syslog_port']+1
             expected['healthcheck']['test'][-1]="import urllib.request; urllib.request.urlopen('http://127.0.0.1:"+str(health_port)+"/health',timeout=3)"
@@ -427,6 +429,7 @@ class Configuration:
                 disabled=compose['services']['fortilens-syslog']
                 disabled['ports']=[]
                 disabled.pop('network_mode',None);disabled.pop('cap_add',None)
+                disabled['user']='10001:10001'
                 disabled['command']=[x for x in disabled['command'] if x!='--host-network']
                 disabled['healthcheck']['test'][-1]="import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)"
         exporter = compose['services']['fortigate-exporter']
@@ -574,6 +577,7 @@ class Configuration:
                 'warnings': ['Service restarts may create collection gaps. Existing alert rules are not changed.',
                              *(['Choose an actual SLA check name before relying on Internet health or SLA measurements. A blank selection remains unknown.'] if not plan['settings'].get('sla') else []),
                              *(['Native UDP is best effort. The receiver restricts source addresses but does not authenticate the sender or prove complete delivery.'] if plan['settings'].get('syslog_format')=='fortigate' else []),
+                             *(['The native receiver shares the Linux host network namespace. A bind-only root bootstrap permanently drops to UID/GID 10001 with no usable capabilities before processing. TCP handoff and health remain loopback-only; receiver metrics are local and are not scraped by bridge Prometheus.'] if plan['settings'].get('syslog_network')=='host' else []),
                              'Syslog sender configuration and FortiGate read permissions must be set by its administrator.',
                              'WAN/SLA/interface views share the existing exporter.', 'Missing telemetry remains unknown; a completed deployment does not certify traffic accuracy.']}
 

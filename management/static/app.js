@@ -106,6 +106,7 @@ function pathSet(obj,path,value){const parts=path.split('.');let target=obj;for(
 // Draft values come from reviewed settings and intentional visible edits, never a hidden DOM scan.
 function renderDraftInputs(){
  if(!state.draftSettings)return;
+ $('syslog-network').disabled=state.draftSettings.syslog_format!=='fortigate';
  for(const input of document.querySelectorAll('[data-setting]')){const value=pathGet(state.draftSettings,input.dataset.setting);if(input.type==='checkbox')input.checked=!!value;else input.value=value??''}
  const exclusions=state.draftSettings.optional_exporter_exclusions??state.view.exporter_policy?.optional_exclusions??[];
  for(const input of document.querySelectorAll('[data-optional-probe]')){input.checked=exclusions.includes(input.dataset.optionalProbe);input.disabled=state.view.exporter_policy?.available===false}

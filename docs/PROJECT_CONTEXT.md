@@ -66,8 +66,10 @@ the configured UDP binding; Alloy remains internal RFC5424/TCP. It is an explici
 profile, not a changed default or an automatically installed host service.
 
 The explicit `syslog_network: host` variant supports rootful Linux Docker Engine
-when UDP publishing hides the original sender. Only the nonroot native receiver
-shares the host network namespace, with `NET_BIND_SERVICE` as its sole capability.
+when UDP publishing hides the original sender. Only the native receiver
+shares the host network namespace. Its restricted bind bootstrap uses
+`NET_BIND_SERVICE`/`SETUID`/`SETGID`, then permanently drops to UID/GID 10001 and
+verifies zero usable capabilities before starting any message/HTTP threads.
 It binds the configured UDP port directly and uses loopback TCP on that port for
 Alloy and the next port for health. Bridge remains the default. The host profile
 needs an actual FortiGate IPv4 address and omits the bridge-only receiver

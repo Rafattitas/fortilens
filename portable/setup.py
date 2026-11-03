@@ -320,7 +320,8 @@ def render(c, output, token, admin_password=None, inventory_report=None):
             receiver.pop('ports')
             receiver['network_mode'] = 'host'
             receiver['command'].append('--host-network')
-            receiver['cap_add'] = ['NET_BIND_SERVICE']
+            receiver['user'] = '0:0'
+            receiver['cap_add'] = ['NET_BIND_SERVICE', 'SETUID', 'SETGID']
             receiver['healthcheck']['test'][-1] = (
                 "import urllib.request; urllib.request.urlopen('http://127.0.0.1:"
                 + str(c['syslog_port']+1) + "/health',timeout=3)")

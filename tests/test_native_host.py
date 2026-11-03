@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "portable"))
 import setup
@@ -16,6 +16,26 @@ import syslog_receiver as receiver
 
 
 class NativeHostTests(unittest.TestCase):
+    def test_privilege_drop_failure_prevents_all_message_threads(self):
+        service = receiver.Receiver({"192.0.2.10"})
+        udp = Mock()
+
+        def rejected_bootstrap():
+            self.assertTrue(service.udp_bound)
+            self.assertIsNone(service.receiver_thread)
+            self.assertIsNone(service.worker_thread)
+            raise receiver.ConfigurationError("Synthetic privilege drop failure")
+
+        with (
+            patch.object(receiver.socket, "socket", return_value=udp),
+            patch.object(receiver.threading, "Thread") as thread,
+        ):
+            with self.assertRaises(receiver.ConfigurationError):
+                service.start(before_threads=rejected_bootstrap)
+            thread.assert_not_called()
+            service.close()
+        udp.close.assert_called_once()
+
     def config(self, **changes):
         return setup.validate_config(
             {
@@ -37,9 +57,9 @@ class NativeHostTests(unittest.TestCase):
             native = compose["services"]["fortilens-syslog"]
             self.assertEqual(native["network_mode"], "host")
             self.assertNotIn("ports", native)
-            self.assertEqual(native["user"], "10001:10001")
+            self.assertEqual(native["user"], "0:0")  # Bind-only bootstrap, verified dropped below.
             self.assertEqual(native["cap_drop"], ["ALL"])
-            self.assertEqual(native["cap_add"], ["NET_BIND_SERVICE"])
+            self.assertEqual(native["cap_add"], ["NET_BIND_SERVICE", "SETUID", "SETGID"])
             self.assertTrue(native["read_only"])
             self.assertNotIn("secrets", native)
             self.assertEqual(compose["services"]["alloy"]["ports"], ["127.0.0.1:5514:1514/tcp"])
