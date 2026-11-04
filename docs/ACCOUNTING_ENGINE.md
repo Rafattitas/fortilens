@@ -27,6 +27,11 @@ filters and history selection; any committed database change invalidates reuse,
 including pruning or metadata updates without checkpoint advancement. Runtime
 failure/lag evidence is refreshed independently. Existing indexes provide separate
 first/last fact lookups; unchanged diagnostics avoid repeated ledger scans.
+The last-delivery timestamp is also maintained as optional derived state in the
+same ingestion/pruning transaction. The writer rebuilds it from retained delivery
+rows on startup, and legacy read-only snapshots fall back to the original query.
+This removes a full delivery-ledger scan from first reports after each commit;
+it adds no table/index and changes no byte contributions or delivery rows.
 
 The managed console may reuse a report for up to five seconds while navigating
 between Device usage and VLAN analytics. This cache lives only in its current

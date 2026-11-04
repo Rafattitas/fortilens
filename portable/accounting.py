@@ -324,6 +324,9 @@ class Store:
                 raise ValueError("Accounting identity/timezone contract changed; use an explicitly rebuilt database")
             with self.db:
                 self.set_state("contract", contract)
+                # Rebuild this optional derived observation once on writer open,
+                # including after an older version or an offline DB restore.
+                self.set_state('delivery_max_ns', self.db.execute('SELECT MAX(stamp) FROM deliveries').fetchone()[0])
         except Exception:
             # Construction did not return a usable Store to its caller. Close
             # its connection, retaining the original failure if close also fails.
@@ -362,6 +365,11 @@ class Store:
 
     def set_state(self, key, value):
         self.db.execute("INSERT INTO state VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, json.dumps(value)))
+
+    def delivery_max(self):
+        missing = object()
+        maximum = self.state('delivery_max_ns', missing)
+        return self.db.execute('SELECT MAX(stamp) FROM deliveries').fetchone()[0] if maximum is missing else maximum
 
     def _rollup(self, fact, sign):
         if fact['classification']=='BASELINE_ANCHOR':
@@ -403,12 +411,16 @@ class Store:
                 rejected.append(digest([self.config.get("source_id"), record]))
         affected, inserted, repeated = set(), 0, 0
         with self.db:
+            maximum = self.delivery_max()
             for uid in rejected:
                 new = self.db.execute("INSERT OR IGNORE INTO deliveries VALUES(?,?,?)", (uid, "invalid", checkpoint or 0)).rowcount
                 if new:
+                    maximum = max(maximum, checkpoint or 0) if maximum is not None else checkpoint or 0
                     self.set_state("parser_rejections", self.state("parser_rejections", 0)+1)
             for event in normalized:
                 new_delivery = self.db.execute("INSERT OR IGNORE INTO deliveries VALUES(?,?,?)", (event["delivery_uid"], event["uid"], event["record_ns"])).rowcount
+                if new_delivery:
+                    maximum = max(maximum, event['record_ns']) if maximum is not None else event['record_ns']
                 if event["event_ns"] < self.state("ledger_floor_ns", 0):
                     if new_delivery:
                         self.set_state("late_rejections", self.state("late_rejections", 0)+1)
@@ -441,6 +453,7 @@ class Store:
                     self.db.execute("INSERT INTO facts VALUES(?,?,?,?)", (fact["uid"], session, fact["event_ns"], json.dumps(fact)))
                     self._rollup(fact, 1)
             self.set_state("replay_candidates", self.state("replay_candidates", 0)+repeated)
+            self.set_state('delivery_max_ns', maximum)
             if checkpoint is not None:
                 self.set_state("checkpoint_ns", checkpoint)
         return {"new_events": inserted, "new_replay_candidates": repeated, "rejected_input_records": len(rejected), "affected_sessions": len(affected)}
@@ -465,6 +478,9 @@ class Store:
                     self.db.execute("UPDATE events SET payload=? WHERE uid=?", (json.dumps(event), last[0]))
             self.db.execute("DELETE FROM facts WHERE stamp<?", (floor,))
             self.db.execute("DELETE FROM deliveries WHERE stamp<?", (floor,))
+            maximum = self.delivery_max()
+            if maximum is not None and maximum < floor:
+                self.set_state('delivery_max_ns', None)
             cutoff = datetime.fromtimestamp((timestamp_ns(now)-summary_days*86400*NS)//NS, tz(self.config["accounting_timezone"])).date().isoformat()
             self.db.execute("DELETE FROM daily WHERE day<?", (cutoff,))
             self.db.execute('DELETE FROM quality WHERE day<?',(cutoff,))
@@ -605,7 +621,7 @@ class Store:
         floor = self.state('ledger_floor_ns', 0)
         first = self.db.execute('SELECT MIN(stamp) FROM facts WHERE stamp>=?', (floor,)).fetchone()[0]
         last = self.db.execute('SELECT MAX(stamp) FROM facts WHERE stamp>=?', (floor,)).fetchone()[0]
-        delivery = self.db.execute("SELECT MAX(stamp) FROM deliveries").fetchone()[0]
+        delivery = self.delivery_max()
         return {"checkpoint_ns": self.state("checkpoint_ns"), "last_received_event_ns": last, "first_retained_event_ns": first,
                 "last_delivery_ns": delivery,
                 "replay_candidates": self.state("replay_candidates", 0), "late_rejections": self.state("late_rejections", 0),

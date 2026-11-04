@@ -308,6 +308,59 @@ class ReportConcurrencyTests(unittest.TestCase):
             self.report()
         self.assertFalse(self.engine._reader.db.in_transaction)
 
+    def test_delivery_observation_matches_rows_for_late_replay_and_malformed_input(self):
+        for batch, checkpoint in (
+            ([record("2026-10-20T12:10:00Z", sessionid="newer")], CHECKPOINT),
+            ([record("2026-10-20T11:00:00Z", sessionid="older")], CHECKPOINT),
+            ([record("2026-10-20T12:10:00Z", sessionid="newer")], CHECKPOINT),
+            (
+                [{"timestamp": "2026-10-20T12:11:00Z", "line": 'type="traffic" broken="'}],
+                CHECKPOINT + 800 * accounting.NS,
+            ),
+        ):
+            self.store.ingest(batch, checkpoint=checkpoint)
+            actual = self.store.db.execute("SELECT MAX(stamp) FROM deliveries").fetchone()[0]
+            self.assertEqual(self.store.delivery_max(), actual)
+            self.assertEqual(self.engine.diagnostics()["last_delivery_ns"], actual)
+
+    def test_failed_ingestion_rolls_back_derived_delivery_observation(self):
+        before = self.store.delivery_max()
+        with patch.object(
+            accounting, "derive_session", side_effect=ValueError("Synthetic failure")
+        ):
+            with self.assertRaises(ValueError):
+                self.add_event()
+        self.assertEqual(self.store.delivery_max(), before)
+        self.assertEqual(
+            self.store.db.execute("SELECT MAX(stamp) FROM deliveries").fetchone()[0], before
+        )
+
+    def test_pruning_clears_observation_when_all_deliveries_expire(self):
+        self.store.prune("2026-11-20T12:00:00Z")
+        self.assertIsNone(self.store.delivery_max())
+        self.assertIsNone(self.engine.diagnostics()["last_delivery_ns"])
+
+    def test_legacy_read_only_snapshot_falls_back_and_writer_open_rebuilds(self):
+        actual = self.store.db.execute("SELECT MAX(stamp) FROM deliveries").fetchone()[0]
+        with self.store.db:
+            self.store.db.execute("DELETE FROM state WHERE key='delivery_max_ns'")
+        self.assertEqual(self.engine.diagnostics()["last_delivery_ns"], actual)
+        self.engine.close()
+        self.store.close()
+        reopened = accounting.Store(self.path, CONFIG, deepcopy(INVENTORY))
+        self.addCleanup(reopened.close)
+        self.assertEqual(reopened.state("delivery_max_ns"), actual)
+
+    def test_new_snapshot_diagnostics_does_not_scan_delivery_rows(self):
+        with self.engine._read_snapshot() as (reader, _version):
+            queries = []
+            reader.db.set_trace_callback(queries.append)
+            try:
+                self.assertIsNotNone(reader.diagnostics()["last_delivery_ns"])
+            finally:
+                reader.db.set_trace_callback(None)
+        self.assertFalse(any("MAX(stamp) FROM deliveries" in query for query in queries))
+
     def test_initial_inventory_fallback_does_not_publish_uncommitted_metadata(self):
         with self.store.db:
             self.store.db.execute("DELETE FROM state WHERE key='inventory'")
