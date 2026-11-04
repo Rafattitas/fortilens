@@ -449,7 +449,7 @@ function drawChannels(wan){
  const end=wan.observed_at,seconds=Number($('home-window').value)||86400,start=end-seconds;state.home={start,end,wans:wan.interfaces};
  for(const w of wan.interfaces){
   const row=E('div',undefined,'ch'),label=E('div',undefined,'ch-l'),track=E('div',undefined,'tr'),lane=E('div',undefined,'lane');
-  label.append(E('strong',w.interface),marker(w.internet_state),E('span',reading(w.latency_ms,' ms')+' · '+reading(w.packet_loss_pct,'%')+' loss','ch-v'),E('span','Physical '+stateWord(w.physical_state).toLowerCase(),'ch-v'));
+  label.append(E('strong',w.interface),marker(w.internet_state),E('span',reading(w.latency_ms,' ms')+' · '+reading(w.packet_loss_pct,'%')+' loss','ch-v'));
   lane.setAttribute('role','img');
   lane.setAttribute('aria-label',w.interface+' observed Internet state. Observed up '+reading(w.history?.availability_percent,'%')+', valid coverage '+reading(w.history?.valid_state_coverage_percent,'%')+'. Uncovered time is unknown.');
   for(const s of w.history?.segments||[]){
@@ -471,7 +471,7 @@ function setCrosshair(fraction){
 function renderHomeWan(wan){
  const body=$('home-wan-body');body.replaceChildren();$('home-wan').hidden=!wan?.interfaces?.length;
  $('home-route').textContent=wan?(wan.route?.status==='OBSERVED'?'Observed route to '+wan.route.destination+': '+wan.route.interface+'.':'Route selection is unknown. Link health alone does not identify the active route.'):'';
- for(const w of wan?.interfaces||[]){const tr=E('tr'),sla=E('td'),phys=E('td');sla.append(marker(w.internet_state));phys.append(marker(w.physical_state));tr.append(E('td',w.interface),sla,phys,E('td',reading(w.download_mbps)+' / '+reading(w.upload_mbps),'r'),E('td',reading(w.latency_ms)+' / '+reading(w.jitter_ms,' ms'),'r'),E('td',reading(w.packet_loss_pct,'%'),'r'),E('td',reading(w.history?.availability_percent,'%'),'r'));['Link','Internet SLA','Physical','Down / Up Mbps','Latency / Jitter','Loss','Observed up'].forEach((name,i)=>{tr.children[i].dataset.label=name});body.append(tr)}
+ for(const w of wan?.interfaces||[]){const tr=E('tr'),sla=E('td'),phys=E('td'),route=E('td'),observed=wan.route?.status==='OBSERVED',selected=observed&&wan.route.interface===w.interface;sla.append(marker(w.internet_state));phys.append(marker(w.physical_state));route.append(E('span',observed?(selected?'Selected':'Not selected'):'Unknown','pill '+(observed?(selected?'good':'idle'):'')));tr.append(E('td',w.interface),sla,phys,route,E('td',reading(w.download_mbps)+' / '+reading(w.upload_mbps),'r'),E('td',reading(w.latency_ms)+' / '+reading(w.jitter_ms,' ms'),'r'),E('td',reading(w.packet_loss_pct,'%'),'r'),E('td',reading(w.history?.availability_percent,'%'),'r'));['Link','Internet SLA','Physical','Route','Down / Up Mbps','Latency / Jitter','Loss','Observed up'].forEach((name,i)=>{tr.children[i].dataset.label=name});body.append(tr)}
 }
 function renderHomeUsage(report,failed){
  const fields=[['Recorded today',report?reportBytes((report.totals.upload_bytes??NaN)+(report.totals.download_bytes??NaN)):'Unknown'],['Identities',report&&report.devices.length?reading(report.observed_endpoint_identities):'Unknown'],['Pending, not added',report?reportBytes((report.totals.pending_upload_bytes||0)+(report.totals.pending_download_bytes||0)):'Unknown']];
