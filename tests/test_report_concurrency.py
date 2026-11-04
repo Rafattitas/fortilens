@@ -283,11 +283,12 @@ class ReportConcurrencyTests(unittest.TestCase):
     def test_changed_file_identity_closes_old_reader_and_discards_cached_output(self):
         self.report()
         old = self.engine._reader
-        info = self.path.stat()
+        tracked_path = self.store.path
+        info = tracked_path.stat()
         original_stat = Path.stat
 
         def changed_identity(path, *args, **kwargs):
-            if path == self.path:
+            if path == tracked_path:
                 return SimpleNamespace(st_dev=info.st_dev, st_ino=info.st_ino + 1)
             return original_stat(path, *args, **kwargs)
 
