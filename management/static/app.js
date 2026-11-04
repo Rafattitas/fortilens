@@ -52,7 +52,7 @@ const titles={home:['Overview','What the links, logs and usage evidence say righ
 const pageGroups={home:'Network',monitoring:'Overview',wan:'Network',devices:'Network',vlans:'Usage',reports:'Usage',quality:'Trust',overview:'Installation',diagnostics:'System',settings:'Installation'};
 // Theme choice is shared with the same-origin report frame through storage.
 function savedTheme(){try{const value=localStorage.getItem('fortilens.theme');if(value==='light'||value==='dark')return value}catch{}return window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}
-function applyTheme(theme){document.documentElement.dataset.theme=theme;$('theme-toggle').textContent=theme==='dark'?'Light':'Dark';$('theme-toggle').setAttribute('aria-label','Switch to '+(theme==='dark'?'light':'dark')+' theme')}
+function applyTheme(theme){document.documentElement.dataset.theme=theme;try{const doc=$('console-frame').contentDocument;if(doc?.location.pathname.startsWith('/console/'))doc.documentElement.dataset.theme=theme}catch{}$('theme-toggle').textContent=theme==='dark'?'Light':'Dark';$('theme-toggle').setAttribute('aria-label','Switch to '+(theme==='dark'?'light':'dark')+' theme')}
 function toggleTheme(){const next=document.documentElement.dataset.theme==='dark'?'light':'dark';try{localStorage.setItem('fortilens.theme',next)}catch{}applyTheme(next)}
 applyTheme(savedTheme());
 $('theme-toggle').addEventListener('click',toggleTheme);
@@ -275,6 +275,7 @@ async function runDiagnostics(){
   if(!state.view)await reloadSettings();
   const d=await api('/api/diagnostics');
   rememberSystem(d.system);renderSystem();
+  if(d.collection){const seen=Date.parse(d.collection.latest_log_at);state.evidence={lastLog:seen>0?seen/1000:null,lag:d.collection.processing_lag_seconds??NaN};renderEvidenceBar()}
   $('diagnostic-summary').replaceChildren(metric('Console','Available','Settings and diagnostics'),metric('Monitoring evidence',d.monitoring.status,'Missing samples remain unknown'),metric('Available disk',size(d.system.disk.available),'Read-only measurement'));
   if(d.collection){
    $('diagnostic-summary').append(
@@ -521,7 +522,7 @@ function serverNow(){const t=state.system?.server_time_seconds;return typeof t==
 function agoText(seconds){if(!Number.isFinite(seconds)||seconds<0)return 'time unknown';if(seconds<90)return Math.round(seconds)+' seconds ago';if(seconds<5400)return Math.round(seconds/60)+' minutes ago';if(seconds<172800)return Math.round(seconds/3600)+' hours ago';return Math.round(seconds/86400)+' days ago'}
 function renderEvidenceBar(){
  const s=state.system,v=state.view,e=state.evidence||{};
- const logs=$('evidence-logs');logs.textContent=e.lastLog?'Logs: '+agoText(serverNow()-e.lastLog):'Logs: unknown';logs.classList.toggle('attention',!e.lastLog||serverNow()-e.lastLog>900);
+ const logs=$('evidence-logs');logs.textContent=e.lastLog?'Logs: '+agoText(serverNow()-e.lastLog):state.evidence?'Logs: none received':'Logs: open Evidence to check';logs.classList.toggle('attention',!!state.evidence&&(!e.lastLog||serverNow()-e.lastLog>900));
  $('evidence-lag').hidden=!Number.isFinite(e.lag);if(Number.isFinite(e.lag))$('evidence-lag').textContent='Processing lag: '+Number(e.lag).toLocaleString(undefined,{maximumFractionDigits:1})+' s';
  if(s){const running=s.services.filter(r=>r.status==='running').length,enabled=s.services.filter(r=>r.status!=='disabled').length;$('evidence-services').textContent='Services: '+running+' of '+enabled+' running';$('evidence-services').classList.toggle('attention',running<enabled)}else{$('evidence-services').textContent='Services: unknown';$('evidence-services').classList.add('attention')}
  $('evidence-revision').textContent=v?(v.pending_changes?'Draft '+v.revision+' · Applied '+(v.applied_revision??'none'):v.configured?'Applied revision '+v.applied_revision:'Not configured'):'';
@@ -530,6 +531,7 @@ function renderEvidenceBar(){
  else if(s?.links?.grafana_port)href='http://'+location.hostname+':'+s.links.grafana_port+(s.links.grafana_prefix||'/');
  grafana.hidden=!href||!pageEnabled('monitoring');if(href)grafana.href=href;
 }
+window.__fortilensEvidence=(lastLog,lag)=>{state.evidence={lastLog:lastLog>0?lastLog:null,lag:Number.isFinite(lag)?lag:NaN};renderEvidenceBar()};
 // Command palette: pages and actions only, built from text nodes.
 function paletteItems(){const items=[...document.querySelectorAll('#workspace-nav nav a[data-page]')].filter(a=>!a.hidden).map(a=>({label:titles[a.dataset.page][0],hint:pageGroups[a.dataset.page],run:()=>{location.hash=a.dataset.page}}));items.push({label:document.documentElement.dataset.theme==='dark'?'Use light theme':'Use dark theme',hint:'Action',run:toggleTheme},{label:'Run read-only diagnostics',hint:'Action',run:()=>{location.hash='diagnostics'}});if(!$('native-grafana').hidden)items.push({label:'Open native Grafana',hint:'New tab',run:()=>window.open($('native-grafana').href,'_blank','noopener')});return items}
 function renderPalette(){const query=$('palette-input').value.trim().toLowerCase(),list=$('palette-list');state.paletteMatches=paletteItems().filter(x=>(x.label+' '+x.hint).toLowerCase().includes(query));state.paletteIndex=Math.min(state.paletteIndex||0,Math.max(0,state.paletteMatches.length-1));list.replaceChildren(...state.paletteMatches.map((item,i)=>{const li=E('li',undefined,i===state.paletteIndex?'current':''),b=E('button',undefined);b.type='button';b.append(E('span',item.label),E('small',item.hint));b.addEventListener('click',()=>runPalette(i));li.append(b);return li}));if(!state.paletteMatches.length)list.append(E('li','No matching pages or actions.','help'))}
