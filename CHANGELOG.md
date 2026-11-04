@@ -4,6 +4,13 @@
 
 ### Source collection and diagnostics
 
+- Replace short-window retention extrapolation with explicit next-24-hour
+  additional file-size growth trends from bounded, persisted observations.
+  Withhold accounting forecasts during catch-up, retain observation timestamps
+  across refreshes, and separate applied retention/capacity facts from estimates.
+  Compare additional growth on the measured filesystem; preserve all accounting
+  calculations, retention policies, resource limits and stored records.
+
 - Read accounting reports from committed WAL snapshots independently of the
   ingestion lock; reuse bounded exact report results and diagnostics, plus recent
   authenticated device/VLAN navigation results, while preserving accounting math,

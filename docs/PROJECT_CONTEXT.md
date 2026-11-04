@@ -59,6 +59,16 @@ measurements. The browser converts deliberate edits to integer bytes; unchanged
 legacy limits retain their exact bytes. API/configuration formats and the helper's
 data-preservation restriction on reductions remain unchanged.
 
+Storage trends are conditional **next-24-hour additional file-size growth**,
+based on a bounded persisted observation window of at least one hour/four
+samples. They are not full-retention capacity forecasts. Accounting requires a
+healthy, recent processing checkpoint; catch-up invalidates its trend immediately.
+Applied ledger/summary retention and the database ceiling remain separate facts.
+Refreshes retain the original observed-through timestamp, while compaction,
+changed volume/retention, stale history and clock rollback restart sampling.
+Measurements and forecasts remain separate from the unchanged accounting engine,
+database schema, retention policy, Compose resources and persistent data.
+
 The full fresh setup normally has eight Compose services: exporter, Prometheus,
 Grafana, Loki, Alloy, Node Exporter, accounting worker and monitoring gateway.
 Older/opt-out installations can have fewer. Management adds two independent

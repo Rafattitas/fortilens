@@ -157,6 +157,46 @@ async function reportNavigationReuseRegression(browser,baseURL){
   assert.deepEqual(errors,[],'Managed report cache browser errors');
  }catch(error){console.error(JSON.stringify({errors,network:network.slice(-15),reportRequests,sessionChecks,frames:await Promise.all(page.frames().map(async f=>({url:f.url(),body:(await f.locator('body').innerText().catch(()=>'' )).slice(-1200)})))}));throw error}finally{await context.close()}
 }
+async function storageForecastRegression(browser,baseURL){
+ const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'}),page=await context.newPage(),errors=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ const observedAt=Date.UTC(2026,10,4,12,0,0)/1000;
+ const projection={available:true,message:'Partial 24-hour growth trend. <b>Other storage is not included.</b>',components:{
+  loki:{bytes:512*2**20,forecast_status:'available',horizon_seconds:86400,projection_bytes:2*2**30,observation_seconds:5400,sample_count:5,projection_at_seconds:observedAt},
+  prometheus:{bytes:15.8*2**20,projection_bytes:19788.2*2**30},
+  'fortilens-usage':{bytes:11.2*2**30,forecast_status:'catching_up',forecast_message:'Waiting for accounting catch-up <img src=x onerror="window.storageInjected=true">',horizon_seconds:86400,capacity_limit_bytes:20*2**30,ledger_days:8,summary_days:400}
+ }};
+ await page.route('**/api/**',async route=>{
+  const pathname=new URL(route.request().url()).pathname;let payload,status=200;
+  if(pathname==='/api/bootstrap/status')payload={required:false};
+  else if(pathname==='/api/session')payload={username:'synthetic-admin',csrf:'synthetic-csrf'};
+  else if(pathname==='/api/settings')payload={...view(),settings:{...structuredClone(settings),retention:{...settings.retention,ledger_days:30,summary_days:800,database_bytes:30*2**30}}};
+  else if(pathname==='/api/system')payload={...system(),latest_job:null,storage_projection:projection};
+  else{status=404;payload={error:'not_found'}}
+  await route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
+ });
+ try{
+  await page.goto(baseURL+'/?view=settings#settings');await page.waitForFunction(()=>!document.getElementById('workspace').hidden);await page.locator('[data-section="storage"]').click();
+  const facts=page.locator('#storage-facts');await facts.getByText('Loki estimated additional storage (next 24h)',{exact:true}).waitFor();
+  const values=await facts.evaluate(root=>Object.fromEntries([...root.children].map(row=>[row.querySelector('span').textContent,row.querySelector('strong').textContent])));
+  assert.equal(values['Loki measured size'],'512.0 MiB');assert.equal(values['Loki estimated additional storage (next 24h)'],'2.0 GiB');
+  assert.equal(values['Loki observation window'],'1.5 hours · observed through 2026-11-04 12:00:00 UTC','Observation timestamp was replaced by the browser time');
+  assert.equal(values['Accounting Service configured database ceiling'],'20.0 GiB','Capacity used the unapplied settings draft');
+  assert.equal(values['Accounting Service applied retention'],'8 days ledger · 400 days summaries','Retention used the unapplied settings draft');
+  assert.equal(values['Accounting Service measured size'],'11.2 GiB');assert.match(values['Accounting Service next 24h estimate'],/Waiting for accounting catch-up/);
+  assert.match(values['Prometheus next 24h estimate'],/updated helper/);assert.equal(values['Prometheus estimated additional storage (next 24h)'],undefined,'Legacy retention projection was mislabeled as a 24-hour forecast');
+  assert.equal((await facts.innerText()).includes('19788'),false,'Legacy huge projection leaked into the new trend view');
+  assert.equal(await facts.locator('img').count(),0,'Forecast reason was interpreted as HTML');assert.equal(await page.evaluate(()=>window.storageInjected),undefined);
+  assert.equal(await page.locator('#storage-projection b').count(),0,'Global forecast notice was interpreted as HTML');assert.match(await page.locator('#storage-projection').innerText(),/<b>Other storage/);
+  await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Storage trend facts overflow the mobile viewport');
+  if(output){fs.mkdirSync(output,{recursive:true});await page.screenshot({path:path.join(output,'storage-growth-trends-mobile.png'),fullPage:true})}
+  delete projection.components.loki.projection_at_seconds;await page.setViewportSize({width:1280,height:900});
+  await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);await page.locator('[data-section="storage"]').click();
+  await page.waitForFunction(()=>document.getElementById('storage-facts').textContent.includes('Loki next 24h estimate'));
+  assert.equal(await facts.getByText('Loki estimated additional storage (next 24h)',{exact:true}).count(),0,'Incomplete observation metadata displayed a confident forecast');
+  assert.deepEqual(errors,[],'Storage forecast browser errors');
+ }finally{await context.close()}
+}
 async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice,scopeLocked=false}){
  const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});
  const page=await context.newPage(),errors=[],saved=[],authRequests=[];
@@ -276,6 +316,7 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  try{
  const baseURL='http://127.0.0.1:'+server.address().port;
  await usageViewsRegression(browser,baseURL);
+ await storageForecastRegression(browser,baseURL);
  await reportNavigationReuseRegression(browser,baseURL);
  for(const offset of [2612,-2612,30])await monitoringClockRegression(browser,baseURL,offset);
  await monitoringClockRegression(browser,baseURL,2612,false);
@@ -324,6 +365,6 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  mode='complete';discovery=true;await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile horizontal overflow');
  if(output)await page.screenshot({path:path.join(output,'deployment-complete-mobile.png'),fullPage:true});
  assert.deepEqual(errors,[],'Browser JavaScript errors');
- console.log(JSON.stringify({passed:true,checks:['server clock capability handles forward/backward skew in both consoles','normal clocks preserve initial parser frame','unsupported and excessive skew warn without changing time ranges','first administrator setup ignores hidden autofill','saved source survives sign-in/autofill','locked source rejects DOM mutations','explicit source mismatch and deliberate edits remain enforced','GiB input preserves exact legacy ceilings and converts whole/fractional sizes','invalid capacity and hidden DOM edits cannot change saved settings','managed report navigation reuses bounded authenticated snapshots','refresh, period changes, expiry and session revocation bypass report reuse','collector dependency changes persist','explicit CA clearing ignores hidden pollution','WAN changes clear confirmation until reconfirmed','completed startup/reload/navigation hidden','running restore and duplicate prevention','completion notification and health refresh','failure acknowledgement and recovery history','historical job lookup','discovery gating','unknown outcome no retry','mobile layout'],browser:await browser.version(),screenshots:output||null}));
+ console.log(JSON.stringify({passed:true,checks:['storage trends show 24h additional growth, observation age, applied capacity/retention and safe unavailable reasons','legacy or incomplete forecast metadata is not mislabeled','server clock capability handles forward/backward skew in both consoles','normal clocks preserve initial parser frame','unsupported and excessive skew warn without changing time ranges','first administrator setup ignores hidden autofill','saved source survives sign-in/autofill','locked source rejects DOM mutations','explicit source mismatch and deliberate edits remain enforced','GiB input preserves exact legacy ceilings and converts whole/fractional sizes','invalid capacity and hidden DOM edits cannot change saved settings','managed report navigation reuses bounded authenticated snapshots','refresh, period changes, expiry and session revocation bypass report reuse','collector dependency changes persist','explicit CA clearing ignores hidden pollution','WAN changes clear confirmation until reconfirmed','completed startup/reload/navigation hidden','running restore and duplicate prevention','completion notification and health refresh','failure acknowledgement and recovery history','historical job lookup','discovery gating','unknown outcome no retry','mobile layout'],browser:await browser.version(),screenshots:output||null}));
  }finally{await browser.close();server.close()}
 })().catch(error=>{console.error(error.stack);server.close();process.exitCode=1});

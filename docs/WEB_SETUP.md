@@ -96,10 +96,24 @@ Secure/HttpOnly/SameSite=Strict cookies on HTTPS, server sessions and CSRF check
    management display preferences; saved native dashboards keep their own settings.
 6. **Storage & Retention:** configure Loki logs, Prometheus metrics, accounting
    ledger/summaries and the database ceiling. Actual mounted-volume sizes are
-   measured when accessible. A growth projection needs two positive-growth
-   observations at least five minutes apart; otherwise the UI explicitly shows
-   **Insufficient data for storage estimation**. Estimates are partial planning
-   evidence, affected by compaction/compression/traffic, not a disk guarantee.
+   measured when accessible. Growth trends estimate **additional file-size growth
+   over the next 24 hours**, not the storage required for the entire retention
+   period. At least one hour and four eligible observations are required; status
+   requests collect samples at most once every five minutes. The displayed window
+   and observation timestamp remain unchanged between samples. No background
+   sampler is implied: a long gap starts a new observation history.
+   Accounting trends are withheld while processing is unhealthy or more than
+   two polling intervals behind (with a minimum allowance of two minutes).
+   Its applied ledger retention, summary retention and
+   configured ceiling are shown separately; the mixed database is never
+   extrapolated across the summary retention period. The ceiling is an ingestion
+   guard, not an estimate or a guarantee that growth stops safely at that size.
+   Compaction/shrinkage, volume or applied-retention changes, stale observations
+   and clock rollback invalidate the corresponding trend. Unavailable trends
+   remain explicit, without invented zero growth. Warnings compare additional
+   growth with free space on the measured volume's filesystem. Estimates exclude
+   OS files, backups and other storage, and do not guarantee future traffic or
+   full-retention capacity.
    The accounting database ceiling is entered in GiB (for example, `9` or `9.5`),
    matching the storage measurements. Existing byte ceilings are preserved when
    the field is left unchanged; configuration and API values remain integer bytes.
