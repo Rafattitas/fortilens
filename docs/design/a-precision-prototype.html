@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FortiLens Redesign Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600&family=Funnel+Sans:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Concept A, Precision: a bench instrument. Enamel chrome, white or slate measurement wells,
+   stacked channels on one time base. Color is reserved for state.
+   Concept B, Lens: pine-dark or celadon. One bold object, a 24-hour dial, and plain-language answers.
+   Both rely on hatching for "no evidence", which is the shared signature of the product. */
+:root{--p-bg:#2a2d31;--p-bar:#1f2124;--p-line:#3b3f45;--p-text:#eef0f2;--p-sub:#b4b9c0;color-scheme:dark}
+.frame[data-c="a"]{--fb:"IBM Plex Sans",system-ui,"Segoe UI",sans-serif;--fd:"IBM Plex Sans",system-ui,sans-serif;--fc:"IBM Plex Sans",system-ui,sans-serif;--r1:3px;--r2:5px;--gap:10px}
+.frame[data-c="b"]{--fb:"Funnel Sans",system-ui,"Segoe UI",sans-serif;--fd:"Funnel Display","Funnel Sans",system-ui,sans-serif;--fc:"Funnel Sans",system-ui,sans-serif;--r1:9px;--r2:20px;--gap:20px}
+.frame[data-c="a"][data-t="light"]{color-scheme:light;--bg:#e4e8e7;--panel:#f3f5f4;--well:#ffffff;--raise:#e9eceb;--line:#c7cecd;--line2:#dce1e0;--ink:#14191b;--sub:#4a5559;--acc:#0c5a70;--on:#ffffff;--acc-s:#d3e6ea;--d:#17333e;--u:#6c858f;--good:#10694a;--warn:#855300;--bad:#ad231b;--unk:#566367;--good-b:#d7eee3;--warn-b:#f8e8c5;--bad-b:#f9dcd9;--unk-b:#e1e6e5;--hatch:#aeb8b6;--shadow:0 12px 40px #16242a33}
+.frame[data-c="a"][data-t="dark"]{color-scheme:dark;--bg:#1a2024;--panel:#22292e;--well:#161b1f;--raise:#2c353a;--line:#3d484f;--line2:#2f393f;--ink:#e9eff1;--sub:#a7b5ba;--acc:#84c9dc;--on:#0e1a1e;--acc-s:#24414b;--d:#e9eff1;--u:#8399a3;--good:#6ad5a5;--warn:#efc35c;--bad:#ff9087;--unk:#9aa8ae;--good-b:#1c3a30;--warn-b:#3c3218;--bad-b:#452624;--unk-b:#2c363b;--hatch:#4e5b62;--shadow:0 12px 40px #0008}
+.frame[data-c="b"][data-t="dark"]{color-scheme:dark;--bg:#0f2a2a;--panel:#153433;--well:#0c2323;--raise:#1c3f3d;--line:#2d5553;--line2:#214644;--ink:#eef7f2;--sub:#adc8c1;--acc:#8fe8d8;--on:#0a2020;--acc-s:#1f4c49;--d:#8fe8d8;--u:#ffb68a;--good:#86e6a8;--warn:#ffd166;--bad:#ff979c;--unk:#a3bcb5;--good-b:#1b4a3a;--warn-b:#4a4020;--bad-b:#522c33;--unk-b:#21403e;--hatch:#3f6865;--shadow:0 18px 60px #0009}
+.frame[data-c="b"][data-t="light"]{color-scheme:light;--bg:#e6efe9;--panel:#f6faf7;--well:#ffffff;--raise:#dbe7e0;--line:#b8cac1;--line2:#d0ded6;--ink:#0c2b2a;--sub:#3f5d57;--acc:#0a6b66;--on:#ffffff;--acc-s:#cfe7e2;--d:#0a6b66;--u:#c0531a;--good:#0d6d45;--warn:#7f5100;--bad:#ad232b;--unk:#526c66;--good-b:#cfeadd;--warn-b:#f6e6c0;--bad-b:#f8dadb;--unk-b:#d9e4df;--hatch:#a4b9b0;--shadow:0 18px 60px #0c2b2a2e}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--p-bg);color:var(--p-text);font:13px/1.4 "IBM Plex Sans",system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0;padding:0}ul,ol{list-style:none}
+:focus-visible{outline:2px solid var(--acc,#9fd4e3);outline-offset:2px}
+#proto{height:100%;display:flex;flex-direction:column}
+.pbar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:6px 12px;background:var(--p-bar);border-bottom:1px solid var(--p-line)}
+.pbar b{font-weight:600}
+.pbar .note{color:var(--p-sub)}
+.pbar label{display:flex;gap:6px;align-items:center;color:var(--p-sub)}
+.pbar select{background:#2d3035;border:1px solid var(--p-line);border-radius:5px;padding:3px 6px;color:var(--p-text)}
+.pseg{display:inline-flex;border:1px solid var(--p-line);border-radius:6px;overflow:hidden}
+.pseg button{border:0;background:none;padding:3px 10px;color:var(--p-sub);cursor:pointer;white-space:nowrap}
+.pseg button:hover{color:#fff;background:#2d3035}
+.pseg button[aria-pressed="true"]{background:#e6e9ec;color:#16181b;font-weight:600}
+.grow{flex:1}
+.stage{flex:1;min-height:0;display:flex;justify-content:center;gap:8px}
+.stage.framed{padding:12px}
+.frame{container:app/inline-size;flex:1 1 0;min-width:0;height:100%;position:relative;overflow:hidden;background:var(--bg);color:var(--ink);font:14px/1.45 var(--fb);font-variant-numeric:tabular-nums}
+.stage.framed .frame{border-radius:12px;flex:0 1 auto}
+.stage.tablet .frame{width:834px}.stage.phone .frame{width:390px}.stage.compare .frame{flex:1 1 0;width:auto}
+.frame[hidden]{display:none}
+.frame button{cursor:pointer}
+
+/* Shared primitives */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:32px;padding:5px 12px;border:1px solid var(--line);border-radius:var(--r1);background:var(--panel);font-weight:500;white-space:nowrap;color:var(--ink)}
+.btn:hover{border-color:var(--sub)}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:var(--on);font-weight:600}
+.btn:disabled{opacity:.6;cursor:not-allowed}.btn.pri:disabled{background:var(--raise);border-color:var(--line);color:var(--sub);opacity:1;font-weight:500}
+.ln{background:none;border:0;padding:0;color:var(--acc);font-weight:500;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.sub{color:var(--sub)}.sm{font-size:12.5px}.cond{font-family:var(--fc)}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;white-space:nowrap;color:var(--unk)}
+.st::before{content:"";width:8px;height:8px;flex:none;background:currentColor}
+.st.up{color:var(--good)}.st.up::before{border-radius:50%}
+.st.degraded{color:var(--warn)}.st.degraded::before{clip-path:polygon(50% 0,100% 100%,0 100%);width:10px;height:9px}
+.st.down{color:var(--bad)}.st.down::before{border-radius:1px}
+.st.idle{color:var(--sub)}.st.idle::before{background:transparent;border-radius:50%;box-shadow:inset 0 0 0 1.5px currentColor}.st.unknown::before{background:repeating-linear-gradient(135deg,currentColor 0 1.5px,transparent 1.5px 3.5px);border-radius:50%;box-shadow:inset 0 0 0 1px currentColor}
+.seg{display:inline-flex;gap:2px;padding:2px;background:var(--raise);border-radius:calc(var(--r1) + 2px)}
+.seg button{border:0;background:none;padding:3px 10px;min-height:26px;border-radius:var(--r1);color:var(--sub);font-weight:500;white-space:nowrap}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--well);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.tabs{display:flex;gap:2px;margin-bottom:var(--gap);overflow-x:auto;overflow-y:hidden;box-shadow:inset 0 -1px var(--line)}
+.tabs button{border:0;background:none;padding:7px 12px;color:var(--sub);font-weight:500;white-space:nowrap;border-bottom:2px solid transparent}
+.tabs button:hover{color:var(--ink)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc)}
+.alert{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:8px;background:var(--warn-b);margin-bottom:var(--gap)}
+.alert strong{font-weight:600}
+.alert p{flex:1 1 320px}
+.alert .btn{background:var(--well)}
+.note-bar{background:var(--raise)}
+.panel{background:var(--panel);border-radius:var(--r2);padding:12px;min-width:0}
+.ph{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:2px 12px;margin-bottom:8px}
+.ph h2,.ph h3{font-size:14px;font-weight:600}
+.frame[data-c="b"] .ph h2,.frame[data-c="b"] .ph h3{font:500 19px/1.2 var(--fd)}
+.pg{display:flex;flex-wrap:wrap;gap:6px 18px;justify-content:space-between;align-items:flex-end;margin-bottom:var(--gap)}
+.pg h1{font:600 19px/1.25 var(--fd)}
+.frame[data-c="b"] .pg h1{font:500 38px/1.05 var(--fd);letter-spacing:-.015em}
+.pg p{color:var(--sub);max-width:96ch}
+.grid{display:grid;gap:var(--gap);grid-template-columns:repeat(12,minmax(0,1fr))}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c9{grid-column:span 9}.c12{grid-column:span 12}
+.col{display:flex;flex-direction:column;gap:var(--gap);min-width:0}
+.tw{overflow-x:auto;border-radius:var(--r2);background:var(--panel)}
+table{width:100%;border-collapse:collapse}
+th{font:500 12.5px var(--fc);color:var(--sub);text-align:left;padding:7px 10px;white-space:nowrap;border-bottom:1px solid var(--line)}
+td{padding:7px 10px;border-bottom:1px solid var(--line2);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--raise)}
+tr.sel{background:var(--acc-s)!important}
+th.r,td.r{text-align:right;white-space:nowrap}
+th button{border:0;background:none;padding:0;font:inherit;color:inherit}
+th button:hover,th button[aria-pressed="true"]{color:var(--ink)}
+.ent{border:0;background:none;padding:0;text-align:left;font-weight:500;color:var(--ink)}
+.ent:hover{color:var(--acc);text-decoration:underline}
+.ident{display:block;font:12.5px var(--fc);color:var(--sub)}
+.flag{display:inline-block;padding:0 5px;border-radius:3px;background:var(--warn-b);color:var(--warn);font:500 12px var(--fc);white-space:nowrap}
+.flag.q{background:var(--unk-b);color:var(--sub)}
+.bar{display:flex;height:4px;background:var(--line2);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%}.bar .d{background:var(--d)}.bar .u{background:var(--u)}
+.kv li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line2);align-items:baseline}
+.kv li:last-child{border-bottom:0}.kv li>span:first-child{color:var(--sub)}
+.field{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--sub);min-width:0}
+.field input,.field select{min-height:32px;padding:5px 9px;border:1px solid var(--sub);border-radius:var(--r1);background:var(--well);color:var(--ink);font-size:14px;width:100%}
+.fg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
+.bar-f{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end;margin-bottom:var(--gap)}
+.tog{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line2)}
+.tog input{width:18px;height:18px;margin-top:1px;accent-color:var(--acc);flex:none}
+.tog small{display:block;color:var(--sub);font-size:12.5px}
+.empty{padding:44px 20px;text-align:center;color:var(--sub)}
+.empty strong{display:block;color:var(--ink);font-size:15px;margin-bottom:4px;font-weight:600}
+.sk{border-radius:var(--r1);background:linear-gradient(90deg,var(--raise),var(--line2),var(--raise));background-size:200% 100%;animation:sk 1.4s linear infinite}
+@keyframes sk{to{background-position:-200% 0}}
+.hatch{background:repeating-linear-gradient(135deg,var(--hatch) 0 1.5px,transparent 1.5px 6px)}
+
+/* Lanes */
+.lane{position:relative;height:100%;min-height:12px;overflow:hidden;background:var(--raise);border-radius:2px}
+.lane i{position:absolute;top:0;bottom:0}
+.lane .up{background:var(--good);opacity:.8}.frame[data-c="a"] .lane .up{opacity:.3}.frame[data-c="a"] .lkey .up::before{opacity:.3}.lane .degraded{background:var(--warn)}.lane .down{background:var(--bad)}
+.lane .unknown{background:repeating-linear-gradient(135deg,var(--hatch) 0 1.5px,var(--raise) 1.5px 5px)}
+.lkey{display:flex;flex-wrap:wrap;gap:3px 14px;font-size:12.5px;color:var(--sub)}
+.lkey span::before{content:"";display:inline-block;width:10px;height:10px;margin-right:5px;border-radius:2px;vertical-align:-1px}
+.lkey .up::before{background:var(--good);opacity:.8}.lkey .degraded::before{background:var(--warn)}.lkey .down::before{background:var(--bad)}
+.lkey .unknown::before{background:repeating-linear-gradient(135deg,var(--sub) 0 1.5px,transparent 1.5px 4px)}
+
+/* Concept A: scope, the stacked channels */
+.scope{background:var(--well);border-radius:var(--r2);overflow:hidden}
+.scope-h{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 12px;padding:8px 12px;align-items:baseline;box-shadow:inset 0 -1px var(--line2)}
+.scope-h h2{font-size:14px;font-weight:600}
+.scope-cur{font:12.5px var(--fc);color:var(--sub)}
+.ch{display:grid;grid-template-columns:172px minmax(0,1fr);box-shadow:inset 0 -1px var(--line2)}
+.ch:last-of-type{box-shadow:none}
+.ch-l{padding:6px 10px 6px 12px;min-width:0;box-shadow:inset -1px 0 var(--line2)}
+.ch-l strong{display:block;font:500 12.5px var(--fc);color:var(--sub)}
+.ch-l .val{display:flex;flex-wrap:wrap;gap:0 10px;font:400 14px var(--fb)}
+.ch-l .val.big{display:block;font:300 24px/1.15 var(--fd);letter-spacing:-.01em}.ch-u{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--sub);margin-top:2px}.ch-u i{width:10px;height:2px;background:var(--u)}
+.ch-l .val.big small{font-size:12.5px;letter-spacing:0;color:var(--sub);font-weight:400;margin-left:3px}
+.ch-l .val em{font-style:normal;display:inline-flex;align-items:center;gap:5px}
+.ch-l .val em::before{content:"";width:9px;height:2px;background:var(--cc)}
+.tr{position:relative;min-width:0}
+.tr svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.tr .ylab{position:absolute;left:5px;font:11.5px var(--fc);color:var(--sub);transform:translateY(-50%);background:var(--well);padding:0 3px;z-index:1;line-height:1.1}
+.gapb{position:absolute;top:0;bottom:0;z-index:0}
+.thr{position:absolute;left:0;right:0;border-top:1px dashed var(--warn);z-index:0}
+.xh{position:absolute;top:0;bottom:0;width:1px;background:var(--acc);pointer-events:none;z-index:2}
+.xaxis{display:grid;grid-template-columns:172px minmax(0,1fr)}
+.xaxis>div{display:flex;justify-content:space-between;padding:4px 6px;font:12px var(--fc);color:var(--sub)}
+.rd{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-bottom:var(--gap);background:var(--panel);border-radius:var(--r2)}
+.rd>button{all:unset;box-sizing:border-box;cursor:pointer;display:block;padding:10px 14px;min-width:0;box-shadow:inset -1px 0 var(--line2)}.rd>button:last-child{box-shadow:none}
+.rd>button:hover{background:var(--raise)}
+.rd>button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.rd .l{display:block;font:500 12.5px var(--fc);color:var(--sub)}
+.rd .v{display:block;font:300 26px/1.2 var(--fd);letter-spacing:-.01em}
+.rd .v small{font-size:13px;letter-spacing:0;color:var(--sub);font-weight:400;margin-left:3px}
+.rd .c{display:flex;flex-wrap:wrap;gap:0 10px;font-size:12.5px;color:var(--sub)}
+
+.sa{height:100%;display:grid;grid-template-columns:186px minmax(0,1fr);position:relative}
+.side{display:flex;flex-direction:column;min-height:0;padding:10px 8px;background:var(--panel);box-shadow:inset -1px 0 var(--line)}
+.mark{display:flex;align-items:center;gap:8px;padding:2px 6px 12px;font:600 15px var(--fd);letter-spacing:-.01em}
+.mark svg{color:var(--acc);flex:none}
+.side h3{font:500 12.5px var(--fc);color:var(--sub);padding:10px 8px 3px}
+.side button.n{display:flex;gap:9px;align-items:center;width:100%;border:0;background:none;padding:5px 8px;border-radius:var(--r1);color:var(--ink);text-align:left;font-weight:400}
+.side button.n svg{color:var(--sub);flex:none}
+.side button.n:hover{background:var(--raise)}
+.side button.n[aria-current="page"]{background:var(--acc-s);font-weight:500}
+.side button.n[aria-current="page"] svg{color:var(--acc)}
+.side .foot{margin-top:auto}
+.ma{display:flex;flex-direction:column;min-width:0;min-height:0}
+.hd{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:7px 14px;min-height:44px;box-shadow:inset 0 -1px var(--line);background:var(--panel)}
+.hd .ctx{font-size:13px}.hd .ctx b{font-weight:600}.hd .ctx span{color:var(--sub);margin-left:8px;font-family:var(--fc)}
+.kbd{font:12px var(--fc);padding:0 5px;border:1px solid var(--line);border-radius:3px;color:var(--sub)}
+.body{flex:1;min-height:0;overflow:auto;padding:12px 14px}
+.sb{display:flex;gap:4px 18px;padding:4px 14px;background:var(--panel);box-shadow:inset 0 1px var(--line);font:12.5px var(--fc);color:var(--sub);white-space:nowrap;overflow-x:auto}
+.sb button{all:unset;cursor:pointer}.sb button:hover{color:var(--ink);text-decoration:underline}
+.sb button:focus-visible{outline:2px solid var(--acc)}
+.sb .bad{color:var(--warn);font-weight:500}
+.md{display:grid;grid-template-columns:minmax(0,1fr) 332px;gap:var(--gap);align-items:start}
+.dock{position:sticky;top:0;background:var(--panel);border-radius:var(--r2);padding:12px}
+.path{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;position:relative}
+.path li{padding:10px 12px;position:relative;min-width:0;box-shadow:inset -1px 0 var(--line2)}
+.path li:last-child{box-shadow:none}
+.path li strong{display:block;font-weight:600;font-size:13.5px;margin-bottom:3px}
+.path li p{font-size:12.5px;color:var(--sub);margin-top:4px}
+.path li.warn{background:var(--warn-b)}
+
+/* Concept B */
+.sb2{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;position:relative}
+.bh{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px 20px;padding:12px 28px}
+.bh .mark{padding:0;font:500 22px var(--fd)}
+.dock-n{display:flex;gap:2px;padding:3px;background:var(--raise);border-radius:999px}
+.dock-n button{border:0;background:none;padding:6px 16px;border-radius:999px;font-weight:500;color:var(--sub)}
+.dock-n button:hover{color:var(--ink)}
+.dock-n button[aria-current="page"]{background:var(--ink);color:var(--bg)}
+.bb{min-height:0;overflow:auto;padding:6px 28px 32px}
+.wrap{max-width:1320px;margin:0 auto}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,540px);grid-template-areas:"t d" "s d";grid-template-rows:auto 1fr;gap:0 44px;margin-bottom:30px}.h-t{grid-area:t;align-self:end;padding-top:34px}.say{grid-area:s}.dial{grid-area:d;align-self:center}
+.hero h1{font:500 60px/1.0 var(--fd);letter-spacing:-.025em;text-wrap:balance;margin-bottom:12px}
+.hero h1.warn-h{color:var(--warn)}
+.hero .lead{font-size:18px;color:var(--sub);max-width:46ch;margin-bottom:22px}
+.say li{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:4px 14px;padding:13px 0;align-items:baseline;border-top:1px solid var(--line)}
+.say .k{color:var(--sub)}
+.say .t{font:500 19px/1.25 var(--fd)}
+.say .m{display:block;color:var(--sub);font:14px/1.4 var(--fb);margin-top:2px}
+.dial{position:relative;width:100%;max-width:540px;margin:0 auto}
+.dial svg{display:block;width:100%;height:auto;overflow:visible;outline-offset:6px;border-radius:50%}
+.dial .wd{animation:sweep .4s ease-out both}
+@keyframes sweep{from{opacity:.08}to{opacity:1}}
+.dial .hl{fill:var(--ink);opacity:.14}
+.dial .lab{fill:var(--sub);font:13px var(--fb)}
+.dc{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;width:36%}
+.dc .v{display:block;font:500 40px/1 var(--fd);letter-spacing:-.02em}
+.dc .u{display:block;font-size:13px;color:var(--sub);margin-top:3px}
+.dk{display:flex;flex-wrap:wrap;gap:3px 14px;justify-content:center;margin-top:8px;font-size:12.5px;color:var(--sub)}
+.dk i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.tm{position:relative;height:var(--tmh,440px);border-radius:var(--r2);overflow:hidden;background:var(--well)}
+.tg{position:absolute;padding:0}
+.tg>span{position:absolute;left:8px;right:4px;top:4px;font:500 13px var(--fb);color:var(--ink);z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl{position:absolute;border:0;padding:8px 9px;text-align:left;color:var(--ink);overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;gap:0;border-radius:6px;box-shadow:inset 0 0 0 1px var(--well);font-size:13px;line-height:1.2}
+.tl:hover,.tl.sel{box-shadow:inset 0 0 0 2px var(--ink)}
+.tl b{font-weight:500;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl em{font-style:normal;color:var(--ink);font-size:12.5px;white-space:nowrap}
+.tl.big b{font:500 19px/1.15 var(--fd)}.tl.big em{font-size:14px}
+.tl.unv::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,var(--ink) 0 1px,transparent 1px 7px);opacity:.22;pointer-events:none}
+.rank li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:8px 0;border-top:1px solid var(--line2)}
+.rank li:first-child{border-top:0}
+.rank .bar{grid-column:1/-1;height:5px}
+.link-card{position:relative}
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:0 0 14px}
+.trio small{display:block;color:var(--sub);font-size:12.5px;margin-bottom:2px}
+.xlab{display:flex;justify-content:space-between;font-size:12px;color:var(--sub);margin-top:4px}
+.frame[data-c="b"] .ph{margin-bottom:12px}
+.stat{display:flex;flex-wrap:wrap;gap:8px 28px;align-items:center;padding:11px 14px;margin-bottom:var(--gap);border-radius:var(--r2);background:var(--panel)}
+.stat-m{flex:1 1 340px;min-width:0}
+.stat h1{font:600 18px/1.3 var(--fd);display:flex;gap:9px;align-items:center}
+.stat h1::before{content:"";flex:none;width:11px;height:11px;background:var(--good);border-radius:50%}
+.stat p{color:var(--sub)}
+.stat.is-w{background:var(--warn-b)}.stat.is-w h1::before{background:var(--warn);border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%);width:13px;height:12px}.stat.is-w p,.stat.is-w dt{color:var(--ink)}
+.stat.is-u{background:var(--unk-b)}.stat.is-u h1::before{background:repeating-linear-gradient(135deg,var(--ink) 0 1.5px,transparent 1.5px 3.5px);box-shadow:inset 0 0 0 1.5px var(--ink)}
+.stat .btn{background:var(--well)}
+.stat-f{display:flex;gap:6px 26px;flex-wrap:wrap}
+.stat-f dt{font-size:12.5px;color:var(--sub)}.stat-f dd{font:300 21px/1.2 var(--fd)}
+.frame[data-c="a"] .path li.unk::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:repeating-linear-gradient(135deg,var(--sub) 0 1.5px,transparent 1.5px 5px)}
+.frame[data-c="b"] .panel{background:none;border-radius:0;padding:14px 0 0!important;box-shadow:inset 0 1px var(--line)}
+.frame[data-c="b"] .tw{background:none;border-radius:0}
+.frame[data-c="b"] .mini{background:none;box-shadow:inset 0 -1px var(--line2)}
+.frame[data-c="b"] .tr .ylab{background:var(--bg)}
+.frame[data-c="b"] .empty{padding:60px 20px}
+.nums{display:flex;flex-wrap:wrap;gap:6px 22px;margin-bottom:12px}
+.nums dt{font-size:12.5px;color:var(--sub)}.nums dd{font:500 22px/1.15 var(--fd)}
+.nums dd small{font-size:12.5px;color:var(--sub);font-weight:400;margin-left:2px;font-family:var(--fb)}
+.mini{position:relative;height:120px;background:var(--well);border-radius:var(--r1);overflow:hidden}
+.mini svg{position:absolute;inset:0;width:100%;height:100%}
+.sk-flow{position:relative;height:330px}.sl.one b{display:inline;font:500 14px var(--fb);margin-right:6px}
+.sk-flow svg{position:absolute;inset:0;width:100%;height:100%}
+.sl{position:absolute;font-size:13px;line-height:1.25;white-space:nowrap}
+.sl b{display:block;font:500 17px var(--fd)}
+.path.b{grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-bottom:var(--gap)}
+.frame[data-c="b"] .path li{box-shadow:none;padding:22px 16px 6px 0}
+.frame[data-c="b"] .path li::before{content:"";position:absolute;left:0;right:0;top:6px;height:2px;background:var(--line)}
+.frame[data-c="b"] .path li::after{content:"";position:absolute;left:0;top:0;width:14px;height:14px;border-radius:50%;background:var(--good)}
+.frame[data-c="b"] .path li.warn{background:none}
+.frame[data-c="b"] .path li.warn::after{background:var(--warn)}
+.frame[data-c="b"] .path li.unk::after{background:var(--bg);border:2px solid var(--unk)}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tiles li{padding:12px;border-radius:var(--r1);background:var(--panel);display:flex;flex-direction:column;gap:3px;min-width:0}
+.tiles strong{font-weight:500}
+.dtab{display:none}
+
+/* Overlays */
+.scrim{position:absolute;inset:0;background:#0007;z-index:20;border:0;padding:0;width:100%}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--panel);z-index:21;box-shadow:var(--shadow);display:flex;flex-direction:column;animation:slide .16s ease-out}
+.frame[data-c="b"] .drawer{top:10px;right:10px;bottom:10px;border-radius:var(--r2);width:min(440px,calc(100% - 20px))}
+@keyframes slide{from{transform:translateX(24px)}to{transform:none}}
+.dh{display:flex;justify-content:space-between;gap:12px;padding:14px 16px}
+.dbody{padding:0 16px 16px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.dh h2{font-size:17px;font-weight:600}
+.frame[data-c="b"] .dh h2{font:500 24px/1.1 var(--fd)}
+.tri{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tri dt{font-size:12.5px;color:var(--sub)}.tri dd{font:300 19px var(--fd)}
+.frame[data-c="b"] .tri dd{font-weight:500}
+.bars{display:flex;align-items:flex-end;gap:2px;height:78px}
+.bars>span{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;height:100%;min-width:0}
+.bars i{display:block;border-radius:1px}.bars .d{background:var(--d)}.bars .u{background:var(--u)}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}
+.facts dt{font-size:12.5px;color:var(--sub)}.facts dd{overflow-wrap:anywhere;font-size:13.5px}
+.pal{position:absolute;left:50%;top:9%;transform:translateX(-50%);width:min(540px,calc(100% - 24px));background:var(--panel);border-radius:var(--r2);box-shadow:var(--shadow);z-index:31;overflow:hidden}
+.pal input{width:100%;border:0;background:none;padding:13px 16px;font-size:16px;color:var(--ink);box-shadow:inset 0 -1px var(--line);outline:0}
+.pal ul{max-height:330px;overflow:auto;padding:4px}
+.pal button{display:flex;justify-content:space-between;gap:12px;width:100%;border:0;background:none;padding:7px 12px;border-radius:var(--r1);text-align:left;color:var(--ink)}
+.pal button:hover,.pal li.on button{background:var(--acc-s)}
+.pal button span{color:var(--sub);font-size:12.5px}
+.toast{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:7px;z-index:40;font-size:13px;width:max-content;max-width:calc(100% - 28px)}
+.set{display:grid;grid-template-columns:172px minmax(0,1fr);gap:var(--gap)}
+.set nav{display:flex;flex-direction:column;gap:1px}
+.set nav button{border:0;background:none;text-align:left;padding:6px 10px;border-radius:var(--r1);color:var(--sub);font-weight:500;white-space:nowrap}
+.set nav button:hover{background:var(--raise);color:var(--ink)}
+.set nav button[aria-current="true"]{background:var(--acc-s);color:var(--ink)}
+.set h2{font-size:15px;font-weight:600;margin-bottom:3px}
+.frame[data-c="b"] .set h2{font:500 22px var(--fd)}
+.step{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line2)}
+.step:first-child{border-top:0}
+.step .n{display:inline-flex;width:24px;height:24px;margin-right:10px;border-radius:50%;align-items:center;justify-content:center;font-size:12.5px;box-shadow:inset 0 0 0 1px var(--line)}
+.step .n.done{background:var(--good-b);color:var(--good);box-shadow:none}
+.step .n.now{background:var(--acc);color:var(--on);box-shadow:none}
+.auth{height:100%;display:grid;place-items:center;padding:20px;overflow:auto}
+.auth form{width:min(360px,100%);display:flex;flex-direction:column;gap:12px}
+.auth h1{font:600 20px var(--fd)}
+.frame[data-c="b"] .auth h1{font:500 40px/1.05 var(--fd)}
+
+/* Container queries so preview widths behave like real devices */
+@container app (max-width:1180px){
+ .md{grid-template-columns:minmax(0,1fr)}.dock{display:none}
+ .c3,.c4,.c5,.c7,.c8,.c9{grid-column:span 12}
+ .hero{grid-template-columns:minmax(0,1fr) minmax(300px,380px);gap:16px 24px}
+ .hero h1{font-size:44px}
+}
+@container app (max-width:860px){
+ .sa{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+ .side{flex-direction:row;overflow-x:auto;padding:4px 8px;gap:2px;box-shadow:inset 0 -1px var(--line);align-items:center}
+ .side h3,.side .mark span,.side .foot{display:none}.side .mark{padding:0 8px 0 2px}
+ .side button.n{white-space:nowrap;width:auto}
+ .rd{grid-template-columns:1fr 1fr}
+ .c6{grid-column:span 12}
+ .hero{grid-template-columns:minmax(0,1fr);grid-template-areas:"t" "d" "s";grid-template-rows:auto}.h-t{padding-top:6px}.dial{margin-bottom:14px}
+ .dial{max-width:420px}
+ .path,.path.b{grid-template-columns:1fr 1fr}
+ .set{grid-template-columns:minmax(0,1fr)}
+ .set nav{flex-direction:row;overflow-x:auto}
+ .bh{padding:10px 16px}.bb{padding:4px 16px 24px}
+ .tiles{grid-template-columns:1fr 1fr}
+}
+@container app (max-width:620px){
+ .btn,.seg button,.tabs button,.set nav button,.dtab button,.side button.n{min-height:44px}
+ .field input,.field select{min-height:44px;font-size:16px}
+ .body{padding:10px}
+ .ch{grid-template-columns:minmax(0,1fr)}
+ .ch-l{box-shadow:none;padding-bottom:0}
+ .tr{min-height:var(--mh,44px)}
+ .xaxis{grid-template-columns:minmax(0,1fr)}.xaxis>span{display:none}
+ .hd .kbd{display:none}.hd .ctx span{display:none}.side .mark{display:none}.side button.n svg{display:none}.side button.n{flex:1;justify-content:center;padding:5px 6px}
+ .bh .dock-n{display:none}.bh{grid-template-columns:1fr auto}
+ .dtab{display:flex;padding:4px 8px 6px;background:var(--panel);box-shadow:inset 0 1px var(--line)}
+ .dtab button{flex:1;display:flex;flex-direction:column;gap:1px;align-items:center;border:0;background:none;color:var(--sub);font-size:12px;font-weight:500;border-radius:var(--r1);padding:5px 0}
+ .dtab button[aria-current="page"]{color:var(--ink);background:var(--acc-s)}
+ .hero h1{font-size:38px}.hero .lead{font-size:16px}
+ .say li{grid-template-columns:minmax(0,1fr) auto}.say .k{grid-column:1/-1}
+ .fg{grid-template-columns:minmax(0,1fr)}
+ .frame[data-c="b"] .pg h1{font-size:30px}
+ .sk-svg{display:none}.sk-flow{height:auto}.sl{position:static;max-width:none;padding:7px 0;border-top:1px solid var(--line2)}
+ .path,.path.b{grid-template-columns:minmax(0,1fr)}
+ .path li{box-shadow:inset 0 -1px var(--line2)}
+ .tiles{grid-template-columns:minmax(0,1fr)}
+ .hide-p{display:none!important}
+ .tw.cardy{background:none;overflow:visible}
+ table.cards thead{display:none}
+ table.cards,table.cards tbody{display:block}
+ table.cards tr{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px 8px;padding:10px 12px;margin-bottom:6px;background:var(--panel);border-radius:var(--r2)}
+ table.cards td{display:block;padding:0;border:0;text-align:left}
+ table.cards td.w{grid-column:1/-1}
+ table.cards td[data-l]::before{content:attr(data-l);display:block;font:12.5px var(--fc);color:var(--sub)}
+}
+@media (max-width:760px){.pbar .note,.vp{display:none}.pbar{padding:5px 8px;gap:4px 8px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="proto">
+ <header class="pbar">
+  <b>FortiLens concepts</b><span class="note">Synthetic data, nothing is connected</span>
+  <div class="pseg" role="group" aria-label="Concept"><button data-setc="a">A Precision</button><button data-setc="b">B Lens</button></div>
+  <label for="scn">State <select id="scn"><option value="healthy">Healthy</option><option value="degraded">WAN degraded</option><option value="gap">Logs stopped</option><option value="loading">Loading</option><option value="first">First run</option><option value="signin">Signed out</option></select></label>
+  <div class="pseg" role="group" aria-label="Theme"><button data-sett="light">Light</button><button data-sett="dark">Dark</button></div>
+  <span class="grow"></span>
+  <div class="pseg vp" role="group" aria-label="Preview size"><button data-vp="desktop">Desktop</button><button data-vp="tablet">Tablet</button><button data-vp="phone">Phone</button><button data-vp="compare">A and B</button></div>
+ </header>
+ <div class="stage" id="stage"><div class="frame" id="fa" data-c="a" data-t="light"></div><div class="frame" id="fb" data-c="b" data-t="dark" hidden></div></div>
+</div>
+<script>
+'use strict';
+/* Every value is synthetic. This page makes no API request and reads no real device. */
+const S={c:'a',theme:{a:'light',b:'dark'},view:'overview',sc:'healthy',vp:'desktop',period:'today',sub:{usage:'devices',system:'services'},q:'',seg:'',ident:'',sort:'total',sel:0,drawer:null,sec:'connection',plan:'draft',approve:false,diag:'idle',win:'24 h',pal:false,palq:'',palIx:0,toast:'',anim:true};
+let C='a',FW=1200;const store={};
+const NAV=[['overview','Overview','Today'],['internet','Internet','Internet'],['usage','Usage','Usage'],['evidence','Evidence','Evidence'],['system','System','System'],['settings','Settings','Settings']];
+const IC={overview:'<path d="M3 12h4l2.5-7 4 14 2.5-7h5"/>',internet:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',usage:'<path d="M5 20V11M12 20V4M19 20v-6"/>',evidence:'<path d="M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6z"/><path d="M8.500 12l2.500 2.500 4.500-5"/>',system:'<rect x="4" y="4" width="16" height="6" rx="1.500"/><rect x="4" y="14" width="16" height="6" rx="1.500"/><path d="M8 7h.01M8 17h.01"/>',settings:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',ext:'<path d="M14 5h5v5M19 5l-8 8M18 14v5H5V6h5"/>',x:'<path d="M6 6l12 12M18 6L6 18"/>',srch:'<circle cx="11" cy="11" r="6.500"/><path d="M16 16l4.500 4.500"/>'};
+const ic=(n,s=17)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.600" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
+/* Mark: a lens whose ring has a gap, because the product shows where evidence is missing. */
+const mark=(s=22)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 1 1-8.600 6.300" stroke-width="2.400" stroke-linecap="round"/><circle cx="12" cy="12" r="3.200" fill="currentColor" stroke="none"/></svg>`;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const rng=s=>()=>(s=(s*16807)%2147483647)/2147483647;
+const nice=v=>{const p=Math.pow(10,Math.floor(Math.log10(v||1)));for(const m of [1,2,2.5,5,10])if(m*p>=v)return m*p;return 10*p};
+const gb=v=>v==null?'No data':v>=1000?(v/1000).toFixed(2)+' TB':v>=1?v.toFixed(2)+' GB':(v*1000).toFixed(0)+' MB';
+const n1=(v,u='')=>v==null?'No data':v.toLocaleString('en-US',{maximumFractionDigits:1})+u;
+const PER={today:{l:'Today',r:'Today, 00:00 to 15:00',m:1},week:{l:'7 days',r:'Rolling 168 hours',m:5.8},month:{l:'This month',r:'1 to 4 November',m:3.4}};
+const SEG={v10:['VLAN 10','Staff','port5.10','MAPPED'],v20:['VLAN 20','Warehouse','port5.20','MAPPED'],v30:['VLAN 30','Security','port5.30','MAPPED'],v40:['VLAN 40','Guest','port5.40','MAPPED'],v50:['VLAN 50','Voice','port5.50','MAPPED'],p7:['Interface segment','Servers','port7','NOT_VLAN'],unk:['Unknown mapping','No metadata','port9','UNKNOWN']};
+const DEV=[['ws-design-04','10.20.10.41','02:4f:1a:c2:11:04','v10',38.42,6.17],['nas-backup-01','10.20.10.12','02:4f:1a:c2:10:12','v10',3.18,29.6],['cam-nvr-02','10.20.30.9','02:4f:1a:c2:30:09','v30',.84,21.4],['ws-ops-11','10.20.10.77','02:4f:1a:c2:11:4d','v10',14.7,1.9],[null,'10.20.40.87','02:9b:77:10:40:57','v40',9.62,.71],['ws-finance-02','10.20.10.58','02:4f:1a:c2:11:3a','v10',7.81,1.12],[null,'10.20.40.112',null,'v40',6.33,.42],['lap-sales-06','10.20.10.93','02:4f:1a:c2:11:5d','v10',6.2,.9],['srv-erp-01','10.30.0.11','02:4f:1a:c2:70:0b','p7',2.9,4.6],['mtg-room-tv','10.20.40.20','02:9b:77:10:40:14','v40',5.1,.12],['voip-gw-01','10.20.50.2','02:4f:1a:c2:50:02','v50',1.46,1.44],['scanner-wh-07','10.20.20.37','02:4f:1a:c2:20:25','v20',1.2,.38],['pos-front-02','10.20.20.12','02:4f:1a:c2:20:0c','v20',.94,.31],[null,'10.99.0.14',null,'unk',.73,.19],['printer-hq-03','10.20.10.5','02:4f:1a:c2:10:05','v10',.21,.04],['iot-hvac-01','10.20.20.61','02:4f:1a:c2:20:3d','v20',.06,.02]];
+function devices(){const m=PER[S.period].m,f=S.sc==='gap'?.82:1;return DEV.map((d,i)=>{const j=S.period==='today'?1:1+((i*37%11)-5)/40;const down=d[4]*m*j*f,up=d[5]*m*j*f;return {i,name:d[0]||d[1],host:d[0],ip:d[1],mac:d[2],seg:d[3],down,up,total:down+up}})}
+function totals(ds=devices()){const down=ds.reduce((a,d)=>a+d.down,0),up=ds.reduce((a,d)=>a+d.up,0);return {down,up,total:down+up,ids:ds.length,unv:ds.filter(d=>!d.mac).length,pending:3.84*PER[S.period].m}}
+function segments(){const o={};for(const d of devices()){const s=o[d.seg]||(o[d.seg]={key:d.seg,name:SEG[d.seg][0],label:SEG[d.seg][1],iface:SEG[d.seg][2],status:SEG[d.seg][3],down:0,up:0,total:0,ids:0});s.down+=d.down;s.up+=d.up;s.total+=d.total;s.ids++}return Object.values(o).sort((a,b)=>b.total-a.total)}
+const STL={up:'Up',degraded:'Degraded',down:'Down',unknown:'No data',idle:'Idle'};
+/* One x-scale for every gap: a gap runs from the last valid sample to the next valid sample. */
+const gapF=()=>{const n=axis().n,g=Math.round(.235*n);return [(g-1)/(n-1),(g+2)/(n-1)]};
+const gap2I=()=>{const n=axis().n;return [Math.round(.5*n),Math.round(.59*n)]};
+const gap2F=()=>{const n=axis().n,[a,b]=gap2I();return [(a-1)/(n-1),(b+1)/(n-1)]};
+const st=(s,t)=>`<span class="st ${s}">${t||STL[s]}</span>`;
+function wans(){const c=S.sc,[g0,g1]=gapF(),[h0,h1]=gap2F();
+ const a={id:'wan1',alias:'Primary fiber',net:'up',phy:'up',route:'up',routeT:'Selected',down:192.7,up:62.1,lat:11.4,jit:1.2,loss:0,avail:99.94,cov:99.2,segs:[[0,g0,'up'],[g0,g1,'unknown'],[g1,.655,'up'],[.655,.672,'degraded'],[.672,1,'up']],ev:[['Observed degradation','09:47 to 10:02','15 min observed']]};
+ const b={id:'wan2',alias:'LTE backup',net:'up',phy:'up',route:'idle',routeT:'Not selected',down:8.4,up:1.9,lat:38.6,jit:6.1,loss:.1,avail:100,cov:98.7,segs:[[0,g0,'up'],[g0,g1,'unknown'],[g1,1,'up']],ev:[]};
+ if(c==='degraded'){Object.assign(a,{net:'degraded',lat:148,jit:41,loss:3.2,down:92.2,up:30.1,avail:97.31,segs:[[0,g0,'up'],[g0,g1,'unknown'],[g1,.655,'up'],[.655,.672,'degraded'],[.672,.963,'up'],[.963,1,'degraded']],ev:[['Observed degradation','14:27 to now','33 min observed, not recovered'],['Observed degradation','09:47 to 10:02','15 min observed']]})}
+ if(c==='gap'){Object.assign(b,{net:'unknown',phy:'unknown',route:'unknown',routeT:'Unavailable',down:null,up:null,lat:null,jit:null,loss:null,avail:99.8,cov:61.4,segs:[[0,h0,'up'],[h0,h1,'unknown'],[h1,.93,'up'],[.93,1,'unknown']]})}
+ return [a,b]}
+const logLane=()=>{const[g0,g1]=gapF();return S.sc==='gap'?[[0,g0,'up'],[g0,g1,'unknown'],[g1,.948,'up'],[.948,1,'unknown']]:[[0,g0,'up'],[g0,g1,'unknown'],[g1,1,'up']]};
+function cur(){const w=wans(),s=k=>+w.reduce((a,x)=>a+(x[k]||0),0).toFixed(1);return {down:s('down'),up:s('up')}}
+function axis(){const p=S.period;if(p==='today')return {n:61,x:['00:00','03:00','06:00','09:00','12:00','15:00'],lab:i=>String(Math.floor(i/4)).padStart(2,'0')+':'+String(i%4*15).padStart(2,'0')};
+ if(p==='week')return {n:84,x:['Wed','Thu','Fri','Sat','Sun','Mon','Tue','Wed'],lab:i=>['Wed','Thu','Fri','Sat','Sun','Mon','Tue'][Math.floor(i/12)]+' '+String(i%12*2).padStart(2,'0')+':00'};
+ return {n:44,x:['1 Nov','2 Nov','3 Nov','4 Nov'],lab:i=>(1+Math.floor(i/12))+' Nov '+String(i%12*2).padStart(2,'0')+':00'}}
+function bw(){const p=S.period,A=axis(),n=A.n,r=rng(p==='today'?91:p==='week'?44:17),down=[],up=[];
+ for(let i=0;i<n;i++){const h=p==='today'?i/4:(i%12)*2;let c=Math.exp(-Math.pow((h-11.5)/4.2,2));const dy=Math.floor(i/12);if(p==='week'&&(dy===3||dy===4))c*=.3;if(p==='month'&&dy<2)c*=.4;
+  const v=28+360*c*(.82+.36*r());down.push(+v.toFixed(1));up.push(+(v*.2+6+16*r()).toFixed(1))}
+ const nul=(a,b)=>{for(let i=a;i<=b&&i<n;i++){down[i]=null;up[i]=null}};
+ const g=Math.round(.235*n);nul(g,g+1);
+ if(S.sc==='degraded')for(let i=Math.round(.963*n);i<n;i++){down[i]=+(down[i]*.45).toFixed(1);up[i]=+(up[i]*.45).toFixed(1)}
+ const c=cur();down[n-1]=c.down;up[n-1]=c.up;return {down,up,A}}
+function latency(w){const A=axis(),n=A.n,r=rng(w.id==='wan1'?7:23),b=w.id==='wan1'?11:38,v=[];for(let i=0;i<n;i++)v.push(+(b+r()*b*.32).toFixed(1));
+ const g=Math.round(.235*n);v[g]=null;v[g+1]=null;
+ if(S.sc==='degraded'&&w.id==='wan1')for(let i=Math.round(.963*n);i<n;i++)v[i]=+(118+r()*38).toFixed(1);
+ if(w.lat==null){for(let i=Math.round(.93*n);i<n;i++)v[i]=null;const[a,e]=gap2I();for(let i=a;i<=e;i++)v[i]=null}else v[n-1]=w.lat;return v}
+function loss(w){const A=axis(),n=A.n,r=rng(w.id==='wan1'?13:31),v=[];for(let i=0;i<n;i++)v.push(r()>.92?+(r()*.6).toFixed(1):0);const g=Math.round(.235*n);v[g]=null;v[g+1]=null;
+ if(S.sc==='degraded'&&w.id==='wan1')for(let i=Math.round(.963*n);i<n;i++)v[i]=+(2.4+r()*1.4).toFixed(1);if(w.loss==null){for(let i=Math.round(.93*n);i<n;i++)v[i]=null;const[a,e]=gap2I();for(let i=a;i<=e;i++)v[i]=null}else v[n-1]=w.loss;return v}
+
+const lane=(segs,label)=>`<div class="lane" role="img" aria-label="${esc(label)}: ${segs.map(s=>STL[s[2]]+' '+Math.round((s[1]-s[0])*100)+' percent').join(', ')}">${segs.map(s=>`<i class="${s[2]}" style="left:${s[0]*100}%;width:${(s[1]-s[0])*100}%"></i>`).join('')}</div>`;
+const LKEY='<div class="lkey"><span class="up">Observed up</span><span class="degraded">Degraded</span><span class="down">Down</span><span class="unknown">No data, which is not an outage</span></div>';
+
+/* A trace: one or two lines on a shared time base */
+function trace(id,series,opts={}){const n=series[0].values.length,peak=Math.max(...series.flatMap(s=>s.values.filter(v=>v!=null)),opts.thr||0,opts.min||0.0001),max=opts.max||nice(peak*1.04),X=i=>i/(n-1)*100,Y=v=>100-v/max*94;
+ const paths=series.map(s=>{let d='',seg=[],area='';const fl=()=>{if(seg.length>1){const p=seg.map(a=>a[0].toFixed(2)+' '+a[1].toFixed(2)).join('L');d+='M'+p;if(s.area)area+=`<path d="M${seg[0][0].toFixed(2)} 100L${p}L${seg[seg.length-1][0].toFixed(2)} 100Z" fill="${s.color}" opacity=".13"/>`}seg=[]};s.values.forEach((v,i)=>{if(v==null)fl();else seg.push([X(i),Y(v)])});fl();return area+`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.w||1.3}" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`}).join('');
+ let gaps='',a=null,base=series[0].values;for(let i=0;i<=n;i++){const nu=i<n&&base[i]==null;if(nu&&a==null)a=i;if(!nu&&a!=null){const l=X(Math.max(0,a-1)),r=X(Math.min(n-1,i));gaps+=`<div class="gapb hatch" style="left:${l}%;width:${r-l}%" title="No data, which is not an outage"></div>`;a=null}}
+ const grid=opts.grid?`<line x1="0" x2="100" y1="${Y(max/2)}" y2="${Y(max/2)}" stroke="var(--line2)" vector-effect="non-scaling-stroke"/>`:'';
+ const lab=opts.grid?`<span class="ylab" style="top:${Y(max/2)}%">${n1(max/2)}</span><span class="ylab" style="top:10px">${n1(max)}${opts.unit?' '+opts.unit:''}</span>`:'';
+ return `${gaps}<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${grid}${paths}</svg>${lab}${opts.thr?`<div class="thr" style="top:${Y(opts.thr)}%"></div>`:''}`}
+
+/* Concept A overview: scope */
+function chRow(key,label,valHtml,body,h,opts={}){return `<div class="ch ${opts.cls||''}"><div class="ch-l"><strong>${label}</strong><div class="val ${opts.big?'big':''}" data-chv="${key}">${valHtml}</div>${opts.extra||''}</div><div class="tr" data-tr="${key}" style="height:${h}px;--mh:${h}px">${body}</div></div>`}
+function scope(){const b=bw(),A=b.A,ws=wans(),n=A.n,now=(v,u)=>v==null?'No data':n1(v)+`<small>${u}</small>`;
+ const reg={time:A.lab,n,rows:{}};
+ const reg1=(key,fn)=>reg.rows[key]=fn;
+ reg1('bw',i=>`${b.down[i]==null?'No data':n1(b.down[i])+'<small>Mbps down</small>'}`);
+ reg1('bwu',i=>`${b.up[i]==null?'No data':n1(b.up[i])+' Mbps up'}`);
+ const ls=ws.map(latency),lo=ws.map(loss);
+ ws.forEach((w,x)=>{reg1('lat'+x,i=>ls[x][i]==null?'No data':n1(ls[x][i],' ms'));reg1('loss'+x,i=>lo[x][i]==null?'No data':n1(lo[x][i],'%'))});
+ const sAt=(segs,f)=>{const s=segs.find(z=>f>=z[0]&&f<z[1])||segs[segs.length-1];return st(s[2])};
+ ws.forEach((w,x)=>reg1('sla'+x,i=>sAt(w.segs,i/(n-1))));
+ reg1('log',i=>sAt(logLane(),i/(n-1)));
+ const id='sc'+Math.random().toString(36).slice(2,7);store[id]=reg;
+ const def={};for(const k in reg.rows)def[k]=reg.rows[k](n-1);reg.def=def;
+ return `<section class="scope" data-scope="${id}"><div class="scope-h"><h2>Network channels</h2><span class="scope-cur" data-cur>${S.period==='today'?'Now, 15:00':'Latest sample'}, ${PER[S.period].r}</span></div>
+ ${chRow('bw','Throughput',def.bw,trace('bw',[{values:b.down,color:'var(--d)',area:true,w:1.5},{values:b.up,color:'var(--u)',w:1.2}],{grid:true,unit:'Mbps'}),150,{big:true,extra:`<div class="ch-u"><i></i><span data-chv="bwu">${def.bwu}</span></div>`})}
+ ${ws.map((w,x)=>chRow('lat'+x,`${w.id} latency`,def['lat'+x],trace('l',[{values:ls[x],color:'var(--d)',w:1.2}],Math.max(...ls[x].filter(v=>v!=null))>60?{thr:100}:{}),x===0&&S.sc==='degraded'?56:40)).join('')}
+ ${ws.map((w,x)=>chRow('loss'+x,`${w.id} packet loss`,def['loss'+x],trace('p',[{values:lo[x],color:'var(--d)',w:1.2}],{min:1}),30,{cls:'hide-p'})).join('')}
+ ${ws.map((w,x)=>chRow('sla'+x,`${w.id} Internet SLA`,def['sla'+x],`<div style="position:absolute;inset:7px 0">${lane(w.segs,w.id+' SLA')}</div>`,32)).join('')}
+ ${chRow('log','Firewall log delivery',def.log,`<div style="position:absolute;inset:7px 0">${lane(logLane(),'Log delivery')}</div>`,32)}
+ <div class="xaxis"><span></span><div>${A.x.map(l=>`<span>${l}</span>`).join('')}</div></div></section>`}
+function wanTable(full){const ws=wans();return `<div class="tw"><table><thead><tr><th>Interface</th><th>Internet SLA</th><th>Physical</th><th>Route to 1.1.1.1</th><th class="r">Down, Mbps</th><th class="r">Up, Mbps</th><th class="r">Latency</th>${full?'<th class="r">Jitter</th>':''}<th class="r">Loss</th>${full?'<th class="r">Observed up</th><th class="r">Coverage</th>':''}</tr></thead><tbody>${ws.map(w=>`<tr><td style="white-space:nowrap"><b style="font-weight:500">${w.id}</b><span class="ident">${w.alias}</span></td><td>${st(w.net)}</td><td>${st(w.phy)}</td><td>${st(w.route,w.routeT)}</td><td class="r">${n1(w.down)}</td><td class="r">${n1(w.up)}</td><td class="r">${n1(w.lat,' ms')}</td>${full?`<td class="r">${n1(w.jit,' ms')}</td>`:''}<td class="r">${n1(w.loss,'%')}</td>${full?`<td class="r">${n1(w.avail,'%')}</td><td class="r">${n1(w.cov,'%')}</td>`:''}</tr>`).join('')}</tbody></table></div>`}
+function alert(){if(S.sc==='degraded')return `<div class="alert"><p><strong>wan1 is failing its Internet SLA.</strong> Latency is 148 ms with 3.2% loss for 33 minutes. The physical link is up, so look upstream first.</p><button class="btn" data-nav="internet">Inspect wan1</button></div>`;
+ if(S.sc==='gap')return `<div class="alert"><p><strong>Firewall logs stopped arriving 47 minutes ago.</strong> Usage may read low and wan2 has no recent metrics. Neither proves zero traffic or an outage.</p><button class="btn" data-nav="evidence">Find where it stopped</button></div>`;return ''}
+function consumersA(k=8){const ds=devices().sort((a,b)=>b.total-a.total).slice(0,k),mx=ds[0].total;return `<table><thead><tr><th>Device</th><th class="r">Total</th></tr></thead><tbody>${ds.map(d=>`<tr><td><button class="ent" data-dev="${d.i}">${esc(d.name)}</button> ${d.mac?'':'<span class="flag">Unverified</span>'}<span class="ident">${SEG[d.seg][0]}, ${SEG[d.seg][1]}</span><div class="bar" style="width:${Math.max(3,d.total/mx*100)}%;margin-top:4px;background:none" aria-hidden="true"><i class="d" style="flex:${d.down}"></i><i class="u" style="flex:${d.up}"></i></div></td><td class="r" style="vertical-align:top">${gb(d.total)}</td></tr>`).join('')}</tbody></table>`}
+function segsA(){const ss=segments(),t=ss.reduce((a,s)=>a+s.total,0);return `<ul class="kv">${ss.map(s=>`<li style="display:block"><div style="display:flex;justify-content:space-between;gap:10px"><span class="sub">${s.name}, ${s.label}</span><span>${gb(s.total)}</span></div><div class="bar" style="margin-top:4px" aria-hidden="true"><i class="d" style="width:${s.total/t*100}%"></i></div></li>`).join('')}</ul>`}
+function firewall(){return `<ul class="kv"><li><span>CPU</span><span>24%</span></li><li><span>Memory</span><span>58%</span></li><li><span>Active sessions</span><span>18,204</span></li><li><span>Model, VDOM</span><span>FG-100F, root</span></li></ul>`}
+function overviewA(){const t=totals(),ws=wans(),g=S.sc==='gap',dg=S.sc==='degraded';
+ const head=dg?'wan1 is failing its Internet SLA.':g?'Logs stopped 47 minutes ago.':'All links pass and logs are current.';
+ const sub=dg?'Latency 148 ms and 3.2% loss for 33 minutes. The physical link is up, so look upstream first.':g?'Usage may read low and wan2 has no recent metrics. Neither proves zero traffic or an outage.':`wan1 ${n1(ws[0].lat,' ms')}, wan2 ${n1(ws[1].lat,' ms')}. Last log 18 seconds ago.`;
+ return `<section class="stat ${dg?'is-w':g?'is-u':'is-g'}"><div class="stat-m"><h1>${head}</h1><p>${sub}</p></div><dl class="stat-f"><div><dt>Recorded, ${PER[S.period].l.toLowerCase()}</dt><dd>${gb(t.total)}</dd></div><div><dt>Identities</dt><dd>${t.ids}</dd></div><div><dt>Pending, not added</dt><dd>${gb(t.pending)}</dd></div></dl>${dg?'<button class="btn" data-nav="internet">Inspect wan1</button>':g?'<button class="btn" data-nav="evidence">Find where it stopped</button>':''}</section>
+ <div class="grid"><div class="c8 col">${scope()}${LKEY}${wanTable(false)}</div>
+ <div class="c4 col"><section class="tw" style="padding:0"><div class="ph" style="padding:9px 10px 0;margin:0"><h2>Largest recorded consumers</h2><span class="dk" style="margin:0"><span><i style="background:var(--d)"></i>Down</span><span><i style="background:var(--u)"></i>Up</span><button class="ln sm" data-nav="usage">All ${t.ids}</button></span></div>${consumersA()}</section>
+ <section class="panel"><div class="ph"><h2>By segment</h2><button class="ln sm" data-goto="usage:segments">Compare</button></div>${segsA()}</section>
+ <section class="panel"><div class="ph"><h2>Firewall</h2></div>${firewall()}</section></div></div>`}
+
+/* Concept B overview: the Day Lens */
+const pol=(r,a)=>[250+r*Math.cos(a),250+r*Math.sin(a)];
+const sect=(r0,r1,a0,a1)=>{const[p,q]=pol(r1,a0),[s,t]=pol(r1,a1),[u,v]=pol(r0,a1),[w,x]=pol(r0,a0),l=a1-a0>Math.PI?1:0;return `M${p.toFixed(1)} ${q.toFixed(1)}A${r1} ${r1} 0 ${l} 1 ${s.toFixed(1)} ${t.toFixed(1)}L${u.toFixed(1)} ${v.toFixed(1)}A${r0} ${r0} 0 ${l} 0 ${w.toFixed(1)} ${x.toFixed(1)}Z`};
+function dial(){const sv=S.period;S.period='today';const b=bw(),ws=wans(),n=61;S.period=sv;const TAU=Math.PI*2,ang=f=>f*TAU-Math.PI/2,day=f=>f*(15/24);
+ const mx=nice(Math.max(...b.down.filter(v=>v!=null)));const step=TAU/96,pad=.006;let wed='',hit='';
+ for(let i=0;i<n;i++){const a0=ang(i/96)+pad,a1=a0+step-pad*2;
+  if(b.down[i]==null){if(i===0||b.down[i-1]!=null){let e=i;while(e+1<n&&b.down[e+1]==null)e++;wed+=`<path d="${sect(104,196,ang(i/96),ang((e+1)/96))}" fill="url(#hg${C})"/>`}}
+  else{const rd=134+b.down[i]/mx*62,ru=128-b.up[i]/mx*62*1.2;wed+=`<g class="wd" style="animation-delay:${i*11}ms"><path d="${sect(134,rd,a0,a1)}" fill="var(--d)"/><path d="${sect(ru,128,a0,a1)}" fill="var(--u)"/></g>`}
+  hit+=`<path data-w="${i}" d="${sect(100,232,ang(i/96),ang(i/96)+step)}" fill="transparent"/>`}
+ const ring=(w,r)=>w.segs.map((s,x)=>{const nx=w.segs[x+1],a0=ang(day(s[0])+(s[2]==='unknown'?1/96:0))+.004,a1=ang(day(s[1])+(nx&&nx[2]==='unknown'?1/96:0))-.004,th=s[2]==='degraded'?8:4;const col={up:'var(--good)',degraded:'var(--warn)',down:'var(--bad)',unknown:`url(#ht${C})`}[s[2]];return `<path d="${sect(r-th,r+th,a0,Math.max(a1,a0+.002))}" fill="${col}"/>`}).join('');
+ const fut=[222,209].map(r=>`<path d="${sect(r-4,r+4,ang(15/24),ang(1)-.001)}" fill="var(--line2)"/>`).join('');
+ const[gx,gy]=pol(165,ang(.9)),[ox,oy]=pol(196,ang(.9)),[w1x,w1y]=pol(222,ang(.982)),[w2x,w2y]=pol(209,ang(.982));
+ const ticks=`<circle cx="250" cy="250" r="131" fill="none" stroke="var(--line2)"/><circle cx="250" cy="250" r="165" fill="none" stroke="var(--line2)" stroke-dasharray="2 4"/><circle cx="250" cy="250" r="196" fill="none" stroke="var(--line2)" stroke-dasharray="2 4"/><text class="lab" x="${gx.toFixed(1)}" y="${(gy+4).toFixed(1)}" text-anchor="middle" style="font-size:12px;paint-order:stroke;stroke:var(--bg);stroke-width:4px">${mx/2}</text><text class="lab" x="${ox.toFixed(1)}" y="${(oy+4).toFixed(1)}" text-anchor="middle" style="font-size:12px;paint-order:stroke;stroke:var(--bg);stroke-width:4px">${mx} Mbps</text><text class="lab" x="${w1x.toFixed(1)}" y="${(w1y+4).toFixed(1)}" text-anchor="end" style="font-size:11.5px;paint-order:stroke;stroke:var(--bg);stroke-width:4px">wan1</text><text class="lab" x="${w2x.toFixed(1)}" y="${(w2y+4).toFixed(1)}" text-anchor="end" style="font-size:11.5px;paint-order:stroke;stroke:var(--bg);stroke-width:4px">wan2</text>`;
+ const labs=[['00:00',0],['06:00',.25],['12:00',.5],['18:00',.75]].map(([t,f])=>{const[x,y]=pol(243,ang(f));const an=f===.25?'end':f===.75?'start':'middle';const[lx,ly]=f===0?[250,14]:f===.5?[250,497]:f===.25?[534,255]:[-34,255];return `<text class="lab" x="${lx}" y="${ly}" text-anchor="${an}">${t}</text>`}).join('');
+ const[hx,hy]=pol(92,ang(15/24)),[hx2,hy2]=pol(232,ang(15/24));
+ const id='dl'+C;store[id]={b,lab:axis0,ws};
+ const c=cur();
+ return `<figure class="dial" data-dial="${id}"><svg viewBox="-36 0 572 504" role="slider" tabindex="0" aria-label="Day Lens: throughput and WAN state for today, as a 24-hour dial. Use left and right arrows to read each 15-minute sample." aria-valuemin="0" aria-valuemax="60" aria-valuenow="60" aria-valuetext="15:00, ${c.down} megabits per second down"><defs><pattern id="ht${C}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.800" height="6" fill="var(--sub)" opacity=".55"/></pattern><pattern id="hg${C}" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-20)"><rect width="1.100" height="5" fill="var(--sub)" opacity=".5"/></pattern></defs>
+ ${fut}${ring(ws[0],222)}${ring(ws[1],209)}${ticks}<g${S.anim?'':' class="noanim"'}>${wed}</g><path class="hand" d="M${hx.toFixed(1)} ${hy.toFixed(1)}L${hx2.toFixed(1)} ${hy2.toFixed(1)}" stroke="var(--ink)" stroke-width="1.200"/><text class="lab" x="${pol(240,ang(15/24))[0].toFixed(1)}" y="${(pol(240,ang(15/24))[1]+6).toFixed(1)}" text-anchor="end" style="fill:var(--ink)">Now</text>${labs}<path class="hl" d="" />${hit}</svg>
+ <div class="dc"><span class="v" data-dv>${c.down==null?'—':Math.round(c.down)}</span><span class="u" data-du>Mbps down now</span><span class="u" data-dt>15:00</span></div>
+ <figcaption class="dk"><span><i style="background:var(--d)"></i>Download</span><span><i style="background:var(--u)"></i>Upload</span><span><i style="background:var(--good)"></i>SLA up</span><span><i style="background:var(--warn)"></i>Degraded</span><span><i class="hatch"></i>No data, not an outage</span></figcaption></figure>`}
+const axis0=i=>String(Math.floor(i/4)).padStart(2,'0')+':'+String(i%4*15).padStart(2,'0');
+function squarify(items,x,y,w,h){const tot=items.reduce((a,i)=>a+i.v,0),k=w*h/tot;let rest=items.map(i=>({...i,a:i.v*k}));const out=[];
+ while(rest.length){const side=Math.min(w,h),sum=r=>r.reduce((a,i)=>a+i.a,0),worst=r=>{const s=sum(r),mx=Math.max(...r.map(i=>i.a)),mn=Math.min(...r.map(i=>i.a));return Math.max(side*side*mx/(s*s),s*s/(side*side*mn))};let row=[rest[0]],i=1;while(i<rest.length&&worst([...row,rest[i]])<=worst(row)){row.push(rest[i]);i++}const s=sum(row);
+  if(w>=h){const cw=s/h;let cy=y;for(const r of row){const rh=r.a/cw;out.push({...r,x,y:cy,w:cw,h:rh});cy+=rh}x+=cw;w-=cw}else{const ch=s/w;let cx=x;for(const r of row){const rw=r.a/ch;out.push({...r,x:cx,y,w:rw,h:ch});cx+=rw}y+=ch;h-=ch}rest=rest.slice(i)}return out}
+function treemap(H=440){const W=Math.max(320,FW-(FW>620?56:32)),TW=Math.min(W,1320),ss=segments(),ds=devices();const grp=squarify(ss.map(s=>({...s,v:s.total})),0,0,TW,H);const mxd=Math.max(...ds.map(d=>d.total));let html='';
+ for(const g of grp){const top=g.h>70&&g.w>84?24:0;const all=ds.filter(d=>d.seg===g.key).sort((a,b)=>b.total-a.total),TT=ds.reduce((a,d)=>a+d.total,0),tiny=all.filter(d=>d.total/TT<.016);const inner=tiny.length>=2?[...all.filter(d=>d.total/TT>=.016),{other:true,n:tiny.length,total:tiny.reduce((a,d)=>a+d.total,0),seg:g.key,mac:1}]:all;const tiles=squarify(inner.map(d=>({...d,v:d.total})),g.x+2,g.y+top+2,Math.max(1,g.w-4),Math.max(1,g.h-top-4));
+  html+=top?`<div class="tg" style="left:${g.x/TW*100}%;top:${g.y/H*100}%;width:${g.w/TW*100}%;height:24px"><span title="${g.name}, ${g.label}">${g.label}, ${g.name}</span></div>`:'';
+  for(const t of tiles){const big=t.w>150&&t.h>84,show=t.w>64&&t.h>34,mix=12+Math.pow(t.total/mxd,.9)*30,lbl=t.host||t.w>112?t.name:'…'+String(t.ip).slice(-6);if(t.other){html+=`<button class="tl" data-seggo="${t.seg}" aria-label="${t.n} small devices, ${gb(t.total)}" title="Show these ${t.n} devices" style="left:${t.x/TW*100}%;top:${t.y/H*100}%;width:${t.w/TW*100}%;height:${t.h/H*100}%;background:color-mix(in srgb,var(--d) 12%,var(--well))">${show?`<b>${t.n} small</b>${t.h>48?`<em>${gb(t.total)}</em>`:''}`:''}</button>`;continue}html+=`<button class="tl ${big?'big':''} ${t.mac?'':'unv'} ${S.drawer===t.i?'sel':''}" data-dev="${t.i}" aria-label="${esc(t.name)}, ${gb(t.total)}${t.mac?'':', identity unverified'}" title="${esc(t.name)}: ${gb(t.total)}" style="left:${t.x/TW*100}%;top:${t.y/H*100}%;width:${t.w/TW*100}%;height:${t.h/H*100}%;background:color-mix(in srgb,var(--d) ${mix.toFixed(0)}%,var(--well))">${show?`<b>${esc(lbl)}</b>${t.h>48?`<em>${gb(t.total)}${big?`, ${Math.round(t.total/totals().total*100)}%`:''}</em>`:''}`:''}</button>`}}
+ return `<div class="tm" style="--tmh:${H}px" role="group" aria-label="Recorded usage by segment and device">${html}</div>`}
+function overviewB(){const t=totals(),ws=wans(),top=devices().sort((a,b)=>b.total-a.total)[0],ss=segments(),allUp=ws.every(w=>w.net==='up'),g=S.sc==='gap',dg=S.sc==='degraded';
+ const h=dg?'wan1 is struggling.':g?'Logs stopped 47 minutes ago.':'Your Internet is healthy.';
+ const l=dg?'Traffic is flowing, but latency and loss have failed the SLA target for 33 minutes. The physical link is up.':g?'Today’s usage may read low. Missing records stay unknown, never zero.':`${gb(t.total)} recorded today, ${Math.round(ss[0].total/t.total*100)}% of it from ${ss[0].label}.`;
+ return `<section class="hero"><div class="h-t"><h1 class="${dg?'warn-h':''}">${h}</h1><p class="lead">${l}</p>${dg?'<p style="margin:-10px 0 20px"><button class="btn pri" data-nav="internet">Inspect wan1</button></p>':g?'<p style="margin:-10px 0 20px"><button class="btn pri" data-nav="evidence">Find where it stopped</button></p>':''}</div>
+ <ul class="say">
+ <li><span class="k">Internet</span><span class="t">${allUp?'Both links pass':dg?'wan1 degraded, wan2 up':'wan1 up, wan2 has no data'}<span class="m">${ws.map(w=>`${w.id} ${w.lat==null?'no data':n1(w.lat,' ms')}`).join(', ')}</span></span><button class="ln" data-nav="internet">Check links</button></li>
+ <li><span class="k">Busiest</span><span class="t">${esc(top.name)}<span class="m">${gb(top.total)} of ${gb(t.total)}, ${SEG[top.seg][1]}</span></span><button class="ln" data-nav="usage">See everyone</button></li>
+ <li><span class="k">Evidence</span><span class="t">${g?'Incomplete right now':'Logs are on time'}<span class="m">${g?'Last delivery was 47 minutes ago':`${t.unv} identities unverified, ${gb(t.pending)} pending`}</span></span><button class="ln" data-nav="evidence">Review</button></li>
+ </ul>${dial()}</section>
+ <section style="margin-bottom:var(--gap)"><div class="ph"><h2>Where today’s Internet went</h2><span class="sm ${g?'':'sub'}">${g?'Complete through 14:13. Later traffic is not counted yet.':'Area is recorded bytes. Hatched tiles have unverified identity.'}</span></div>${treemap(FW<620?360:400)}</section>
+ <div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))"><li><span class="sub sm">Firewall CPU</span><strong style="font:500 24px var(--fd)">24%</strong></li><li><span class="sub sm">Memory</span><strong style="font:500 24px var(--fd)">58%</strong></li><li><span class="sub sm">Active sessions</span><strong style="font:500 24px var(--fd)">18,204</strong></li><li><span class="sub sm">Model, VDOM</span><strong style="font:500 24px var(--fd)">FG-100F, root</strong></li></div>`}
+
+/* Internet */
+function internet(){if(S.sc==='first')return empty('No WAN evidence yet','Confirm your Internet interfaces during setup. Missing collection is not an outage.');const ws=wans();
+ const M=nice(Math.max(...ws.flatMap(w=>latency(w).filter(v=>v!=null)),40)*1.05),TX=axis().x.filter((x,i,a)=>a.length<7||i%2===0);const hd=`<div class="pg"><div><h1>Internet</h1><p>Physical link, Internet SLA and route selection are separate signals. One can fail while the others look fine.</p></div><div class="seg" role="group" aria-label="History window">${['1 h','24 h','7 d'].map(k=>`<button data-win="${k}" aria-pressed="${S.win===k}">${k}</button>`).join('')}</div></div>${alert()}`;
+ const events=`<section class="panel"><div class="ph"><h2>Observed events</h2><span class="sm sub">From received samples only. Gaps stay unknown.</span></div><ul class="kv">${ws.flatMap(w=>w.ev.map(e=>`<li><span><b style="font-weight:500;color:var(--ink)">${w.id}</b> ${e[0]}</span><span>${e[1]}, ${e[2]}</span></li>`)).join('')||'<li><span>No outage or degradation in received samples</span></li>'}</ul></section>
+ <p class="sm sub" style="margin-top:8px">Route lookup applies to 1.1.1.1 only. It can differ from policy or per-flow SD-WAN selection.</p>`;
+ if(C==='a')return `${hd}<div class="col">${wanTable(true)}${ws.map(w=>{const A=axis();const l=latency(w);return `<section class="scope"><div class="scope-h"><h2>${w.id} ${w.alias}</h2><span class="scope-cur">Observed up ${n1(w.avail,'%')}, coverage ${n1(w.cov,'%')}, ${S.win}</span></div>
+ ${chRow('x','Latency',n1(w.lat,' ms'),trace('l',[{values:l,color:'var(--d)'}],Object.assign({grid:true,unit:'ms',max:M},M>=100?{thr:100}:{})),64)}${chRow('y','Packet loss',n1(w.loss,'%'),trace('p',[{values:loss(w),color:'var(--d)'}],{min:1}),32)}${chRow('z','Internet SLA',st(w.net),`<div style="position:absolute;inset:7px 0">${lane(w.segs,w.id+' SLA')}</div>`,32)}<div class="xaxis"><span></span><div>${A.x.map(t=>`<span>${t}</span>`).join('')}</div></div></section>`}).join('')}${LKEY}${events}</div>`;
+ return `${hd}<div class="grid">${ws.map(w=>{const l=latency(w);return `<section class="panel c6 link-card" style="padding:20px"><div class="ph"><h2>${w.id}, ${w.alias}</h2><span class="sm sub">Up ${n1(w.avail,'%')}, coverage ${n1(w.cov,'%')}</span></div>
+ <div class="trio"><div><small>Physical link</small>${st(w.phy)}</div><div><small>Internet SLA</small>${st(w.net)}</div><div><small>Route to 1.1.1.1</small>${st(w.route,w.routeT)}</div></div>
+ <dl class="nums"><div><dt>Latency</dt><dd>${w.lat==null?'No data':n1(w.lat)+'<small>ms</small>'}</dd></div><div><dt>Jitter</dt><dd>${w.jit==null?'No data':n1(w.jit)+'<small>ms</small>'}</dd></div><div><dt>Loss</dt><dd>${w.loss==null?'No data':n1(w.loss)+'<small>%</small>'}</dd></div><div><dt>Down</dt><dd>${w.down==null?'No data':n1(w.down)+'<small>Mbps</small>'}</dd></div></dl>
+ <div class="sm sub" style="margin-bottom:4px">Latency</div><div class="mini tr" style="height:120px">${trace('l',[{values:l,color:'var(--d)',area:true,w:1.6}],Object.assign({grid:true,unit:'ms',max:M},M>=100?{thr:100}:{}))}</div>
+ <div class="sm sub" style="margin:8px 0 4px">Packet loss</div><div class="mini tr" style="height:44px">${trace('p',[{values:loss(w),color:'var(--u)',w:1.4}],{max:5})}</div>
+ <div class="sm sub" style="margin:8px 0 4px">Internet SLA</div><div style="height:14px">${lane(w.segs,w.id+' SLA')}</div><div class="xlab">${TX.map(t=>`<span>${t}</span>`).join('')}</div></section>`}).join('')}</div><div style="margin:12px 0">${LKEY}</div>${events}`}
+
+/* Usage */
+function rows(){const q=S.q.trim().toLowerCase();let ds=devices().filter(d=>(!S.seg||d.seg===S.seg)&&(!S.ident||(S.ident==='unv'?!d.mac:!!d.mac))&&(!q||[d.host,d.ip,d.mac].some(v=>v&&v.toLowerCase().includes(q))));ds.sort((a,b)=>b[S.sort]-a[S.sort]);
+ if(!ds.length)return `<tr><td colspan="5"><div class="empty"><strong>No received records match</strong>This is not proof of zero traffic. Clear a filter to widen the search.</div></td></tr>`;const mx=Math.max(...ds.map(d=>d.total));
+ return ds.map(d=>`<tr data-dev="${d.i}" style="cursor:pointer" class="${C==='a'&&S.sel===d.i&&FW>1180?'sel':''}"><td class="w"><button class="ent" data-dev="${d.i}">${esc(d.name)}</button> ${d.mac?'':'<span class="flag">Unverified identity</span>'}<span class="ident">${d.host?d.ip+', ':''}${d.mac||'No stable MAC'}</span></td><td class="w">${SEG[d.seg][3]==='UNKNOWN'?`<span class="flag">${SEG[d.seg][0]}</span>`:SEG[d.seg][0]} <span class="sub">${SEG[d.seg][1]}</span><span class="ident">${SEG[d.seg][2]}</span></td><td class="r" data-l="Download">${gb(d.down)}</td><td class="r" data-l="Upload">${gb(d.up)}</td><td class="r" data-l="Total"><b style="font-weight:500">${gb(d.total)}</b><div class="bar hide-p" style="width:${Math.max(4,d.total/mx*100)}%;margin:3px 0 0 auto" aria-hidden="true"><i class="d" style="flex:${d.down}"></i><i class="u" style="flex:${d.up}"></i></div></td></tr>`).join('')}
+function filters(){return `<div class="bar-f"><div class="field" style="flex:1 1 200px"><label for="q${C}">Find a device</label><input id="q${C}" class="fq" type="search" placeholder="IP address, MAC or hostname" value="${esc(S.q)}"></div><div class="field" style="flex:0 1 210px"><label for="s${C}">Segment</label><select id="s${C}" class="fs"><option value="">All observed segments</option>${Object.entries(SEG).map(([k,s])=>`<option value="${k}" ${S.seg===k?'selected':''}>${s[0]}, ${s[1]}</option>`).join('')}</select></div><div class="field" style="flex:0 1 170px"><label for="i${C}">Identity</label><select id="i${C}" class="fi"><option value="">All identities</option><option value="ver" ${S.ident==='ver'?'selected':''}>Stable MAC</option><option value="unv" ${S.ident==='unv'?'selected':''}>Unverified</option></select></div></div>`}
+function table(){const th=(k,l)=>`<th class="r"><button data-sort="${k}" aria-pressed="${S.sort===k}">${l}</button></th>`;return `<div class="tw cardy"><table class="cards"><thead><tr><th>Device</th><th>Segment</th>${th('down','Download')}${th('up','Upload')}${th('total','Total')}</tr></thead><tbody class="dvb">${rows()}</tbody></table></div><p class="sm sub" style="margin-top:6px">Device names are not authenticated user accounts. Totals cover received logs only.</p>`}
+function detail(d){const r=rng(d.i*97+11),hist=[];for(let i=0;i<30;i++){const miss=i===11||i===12||(S.sc==='gap'&&i===29);hist.push(miss?null:(.3+r()*.7)*(DEV[d.i][4]+DEV[d.i][5])*.8)}const mx=Math.max(...hist.filter(v=>v!=null),.01),ra=d.down/d.total,s=SEG[d.seg];
+ return `<dl class="tri"><div><dt>Download</dt><dd>${gb(d.down)}</dd></div><div><dt>Upload</dt><dd>${gb(d.up)}</dd></div><div><dt>Total</dt><dd>${gb(d.total)}</dd></div></dl>
+ <div><div class="sm sub" style="margin-bottom:5px">Last 30 days, peak ${gb(mx)} a day</div><div class="bars" role="img" aria-label="Daily recorded usage. Hatched days have no received records.">${hist.map((v,i)=>v==null?`<span class="hatch" title="Day ${i+1}: no received records"></span>`:`<span title="Day ${i+1}: ${gb(v)}"><i class="u" style="height:${v/mx*(1-ra)*100}%"></i><i class="d" style="height:${v/mx*ra*100}%"></i></span>`).join('')}</div><div class="dk" style="justify-content:flex-start"><span><i style="background:var(--d)"></i>Download</span><span><i style="background:var(--u)"></i>Upload</span><span><i class="hatch"></i>Not received</span></div></div>
+ <dl class="facts"><div><dt>IP address</dt><dd>${d.ip}</dd></div><div><dt>MAC address</dt><dd>${d.mac||'Unavailable'}</dd></div><div><dt>Hostname</dt><dd>${d.host||'Unavailable'}</dd></div><div><dt>VDOM</dt><dd>root</dd></div><div><dt>Segment</dt><dd>${s[0]}, ${s[1]}</dd></div><div><dt>Source interface</dt><dd>${s[2]}</dd></div></dl>
+ <p class="sm sub">Names are not authenticated users. Absent days are unknown, not zero.</p>`}
+function usage(){if(S.sc==='first')return empty('No accounting evidence yet','Device usage starts after syslog and accounting are applied. An empty report is not proof of zero traffic.');const t=totals(),sub=S.sub.usage;
+ const tabs=`<div class="tabs" role="tablist" aria-label="Usage views">${[['devices','Devices'],['segments','Segments'],['report','Period report']].map(([k,l])=>`<button role="tab" data-sub="usage:${k}" aria-selected="${sub===k}">${l}</button>`).join('')}</div>`;
+ const hd=`<div class="pg"><div><h1>Usage</h1><p>${gb(t.total)} recorded from ${t.ids} identities. ${gb(t.pending)} of pending counters is kept out of these totals.</p></div>${C==='b'?period():''}</div>${S.sc==='gap'?alert():''}${tabs}`;
+ if(sub==='segments'){const ss=segments(),mx=ss[0].total;return `${hd}<div class="tw"><table><thead><tr><th>Segment</th><th>Interface</th><th class="r">Identities</th><th class="r">Download</th><th class="r">Upload</th><th class="r">Total</th><th></th></tr></thead><tbody>${ss.map(s=>`<tr><td><b style="font-weight:500">${s.name}</b> <span class="sub">${s.label}</span> ${s.status==='UNKNOWN'?'<span class="flag">Unmapped</span>':s.status==='NOT_VLAN'?'<span class="flag q">Not a VLAN</span>':''}<div class="bar" style="width:${s.total/mx*100}%;margin-top:4px" aria-hidden="true"><i class="d" style="flex:${s.down}"></i><i class="u" style="flex:${s.up}"></i></div></td><td>${s.iface}</td><td class="r">${s.ids}</td><td class="r">${gb(s.down)}</td><td class="r">${gb(s.up)}</td><td class="r"><b style="font-weight:500">${gb(s.total)}</b></td><td class="r"><button class="ln sm" data-seggo="${s.key}">Show devices</button></td></tr>`).join('')}</tbody></table></div><p class="sm sub" style="margin-top:6px">Mapped by exact VDOM and interface keys, never by subnet. Unknown mappings stay unknown.</p>`}
+ if(sub==='report')return `${hd}<div class="grid"><section class="panel c12"><div class="ph"><h2>${PER[S.period].l}</h2><span class="sm sub">${PER[S.period].r}, accounting timezone Africa/Cairo</span></div><dl class="nums"><div><dt>Download</dt><dd>${gb(t.down)}</dd></div><div><dt>Upload</dt><dd>${gb(t.up)}</dd></div><div><dt>Assigned total</dt><dd>${gb(t.total)}</dd></div><div><dt>Identities</dt><dd>${t.ids}</dd></div><div><dt>Pending, not added</dt><dd>${gb(t.pending)}</dd></div></dl></section><section class="panel c7"><div class="ph"><h2>Largest consumers</h2></div><ul class="rank">${devices().sort((a,b)=>b.total-a.total).slice(0,6).map((d,i,arr)=>`<li><button class="ent" data-dev="${d.i}">${esc(d.name)}</button><span>${gb(d.total)}</span><div class="bar" aria-hidden="true" style="width:${d.total/arr[0].total*100}%"><i class="d" style="flex:${d.down}"></i><i class="u" style="flex:${d.up}"></i></div></li>`).join('')}</ul></section><section class="panel c5"><div class="ph"><h2>Segment distribution</h2></div>${segsA()}</section></div><p class="sm sub" style="margin-top:8px">Recorded traffic is not certified billing. A week is a rolling 168 hours. A month follows the accounting timezone.</p>`;
+ if(C==='a')return `${hd}${filters()}<div class="md"><div>${table()}</div><aside class="dock" aria-label="Selected device"><div class="ph"><h2>${esc(devices()[S.sel].name)}</h2>${devices()[S.sel].mac?st('up','MAC endpoint'):st('degraded','Unverified')}</div><div class="col" style="gap:12px">${detail(devices()[S.sel])}</div></aside></div>`;
+ return `${hd}<div style="margin-bottom:var(--gap)">${treemap(FW<620?380:430)}</div>${filters()}${table()}`}
+
+/* Evidence */
+function steps(){const g=S.sc==='gap';return [['FortiGate logging','unknown','Cannot be observed','FortiLens cannot confirm every flow was logged.'],['Syslog receiver',g?'degraded':'up',g?'Stopped here':'Receiving',g?'Last delivery at 14:13. Check the firewall log destination.':'Last delivery 18 s ago on TCP 1514.'],['Log store',g?'unknown':'up',g?'No new records':'Stored',g?'Nothing to store since 14:13.':'Loki stream uses receipt time.'],['Accounting',g?'unknown':'up',g?'Waiting for logs':'Processing',g?'Lag is 47 min and rising.':'Lag is 18 s. Last poll succeeded.'],['Reports',g?'unknown':'up',g?'Complete through 14:13':'Current',g?'Later traffic is not counted yet.':'Totals run through 14:59.']]}
+function flow(){const L=[['Internet',412883,218],['Local or non-Internet',96120,51],['Policy denied',18244,10],['Unclassified',312,3]];const W=1000;let y=20,mid=[];for(const l of L){mid.push({l,y0:y,h:l[2]});y+=l[2]+6}
+ const rib=(x0,y0,h0,x1,y1,h1,c,o)=>`<path d="M${x0} ${y0}C${(x0+x1)/2} ${y0} ${(x0+x1)/2} ${y1} ${x1} ${y1}L${x1} ${y1+h1}C${(x0+x1)/2} ${y1+h1} ${(x0+x1)/2} ${y0+h0} ${x0} ${y0+h0}Z" fill="${c}" opacity="${o}"/>`;
+ let left=20,p='';for(const m of mid){p+=rib(12,left,m.h,480,m.y0,m.h,'var(--d)',m.l[0]==='Internet'?.5:.22);left+=m.h}
+ p+=rib(492,mid[0].y0,215,986,20,215,'var(--d)',.5)+rib(492,mid[0].y0+215,3,986,247,3,'var(--u)',.9);
+ let oth=262;for(const m of mid.slice(1)){p+=rib(492,m.y0,m.h,986,oth,m.h,'var(--sub)',.22);oth+=m.h}
+ const box=(x,y,h,c)=>`<rect x="${x}" y="${y}" width="5" height="${h}" fill="${c}"/>`;
+ p+=box(7,20,282,'var(--sub)')+mid.map(m=>box(484,m.y0,m.h,'var(--sub)')).join('')+box(986,20,215,'var(--d)')+box(986,247,3,'var(--u)')+box(986,262,64,'var(--sub)');
+ const lb1=(x,y,t,v,al)=>`<div class="sl one" style="left:${x}%;top:${y}px;${al?'transform:translateX(-100%);text-align:right':''}"><b>${v}</b>${t}</div>`;const lb=(x,y,t,v,al)=>`<div class="sl" style="left:${x}%;top:${y}px;${al?'transform:translateX(-100%);text-align:right':''}"><b>${v}</b>${t}</div>`;
+ return `<div class="sk-flow"><svg class="sk-svg" viewBox="0 0 1000 330" preserveAspectRatio="none" aria-hidden="true">${p}</svg>${lb(1.8,120,'Records received','527,559')}${lb(49.5,100,'Internet','412,883')}${lb(49.5,246,'Local or non-Internet','96,120')}${lb1(49.5,296,'Policy denied','18,244')}${lb1(49.5,312,'Unclassified','312')}${lb(97.8,100,'Assigned to devices','409,120',1)}${lb1(97.8,251,'Pending counters','3,763',1)}${lb(97.8,276,'Not Internet usage','114,676',1)}</div>`}
+function evidence(){if(S.sc==='first')return empty('Nothing received yet','This page shows what FortiLens received, processed and could not verify once collection starts.');const t=totals(),S1=steps();
+ const counters=[['Rejected malformed inputs','12',1],['Late arrivals beyond ledger','3',1],['Replay candidates ignored','41',0],['Pending counter candidates',gb(t.pending),1],['Identities without stable MAC',''+t.unv,1],['Segments without metadata','1',1]];
+ const pathH=`<ol class="path ${C==='b'?'b':''}">${S1.map(s=>`<li class="${s[1]==='degraded'?'warn':s[1]==='unknown'?'unk':''}"><strong>${s[0]}</strong>${st(s[1],s[2])}<p>${s[3]}</p></li>`).join('')}</ol>`;
+ const hd=`<div class="pg"><div><h1>Evidence</h1><p>What arrived, what was processed and what cannot be proven. Read this before quoting a usage number.</p></div></div>${S.sc==='gap'?alert():''}`;
+ const count=`<section class="panel"><div class="ph"><h2>Needs a look</h2></div><ul class="kv">${counters.map(c=>`<li><span>${c[0]}</span><span>${c[2]?`<span class="flag">${c[1]}</span>`:c[1]}</span></li>`).join('')}</ul></section>`;
+ const rd=`<section class="panel"><div class="ph"><h2>How to read this</h2></div><ul class="kv"><li><span style="color:var(--ink)">A successful poll proves received records were processed. It cannot prove all traffic was logged.</span></li><li><span style="color:var(--ink)">Shared IPs and changing hostnames never become a verified person.</span></li><li><span style="color:var(--ink)">Gaps are neither outages nor recoveries.</span></li></ul></section>`;
+ if(C==='a')return `${hd}<div class="col"><section class="scope"><div class="scope-h"><h2>Log path</h2><span class="scope-cur">Read left to right to see where evidence stops</span></div>${pathH}</section><div class="grid"><div class="c4">${count}</div><section class="panel c4"><div class="ph"><h2>Received records</h2><span class="sm sub">${PER[S.period].l}</span></div><ul class="kv"><li><span>Internet</span><span>412,883</span></li><li><span>Local or non-Internet</span><span>96,120</span></li><li><span>Policy denied</span><span>18,244</span></li><li><span>Unclassified</span><span>312</span></li></ul></section><div class="c4">${rd}</div></div></div>`;
+ return `${hd}${pathH}<section class="panel" style="padding:20px;margin-bottom:var(--gap)"><div class="ph"><h2>What happened to today’s records</h2><span class="sm sub">Band height follows record count, with a small minimum so tiny flows stay visible.</span></div>${flow()}</section><div class="grid"><div class="c6">${count}</div><div class="c6">${rd}</div></div>`}
+
+/* System */
+function services(){const g=S.sc==='gap',f=S.sc==='first';const sv=[['FortiGate Exporter','Healthy'],['Prometheus','Healthy'],['Grafana','Healthy'],['Loki','Healthy'],['Grafana Alloy',g?'Running, no input':'Healthy'],['Node Exporter','Healthy'],['Accounting Service',g?'Waiting for logs':'Healthy'],['Monitoring Gateway','Healthy'],['Native Syslog Receiver','Disabled']];const sta=s=>f?'unknown':s==='Healthy'?'up':s==='Disabled'?'unknown':'degraded';
+ const stg=`<section class="panel"><div class="ph"><h2>Storage</h2><span class="sm sub">212 of 500 GB used</span></div><div class="bar" style="height:6px" aria-hidden="true"><i class="d" style="width:42.4%"></i></div><p class="sm sub" style="margin-top:8px">At the measured 24-hour growth of 3.1 GB a day, about 92 days remain.</p></section>`;
+ const host=`<section class="panel"><div class="ph"><h2>Host</h2></div><ul class="kv"><li><span>Hostname</span><span>fl-monitor-01</span></li><li><span>Operating system</span><span>Ubuntu 24.04</span></li><li><span>CPU</span><span>8 cores, x86_64</span></li><li><span>RAM</span><span>16 GB</span></li></ul></section>`;
+ const note='<p class="sm sub" style="margin-bottom:8px">Container state only. A healthy service does not prove the firewall is sending data.</p>';
+ return `<div class="grid"><section class="c7">${note}<div class="tw"><table><thead><tr><th>Service</th><th>State</th><th class="r">Last checked</th></tr></thead><tbody>${sv.map((s,i)=>`<tr><td style="font-weight:500">${s[0]}</td><td>${st(sta(s[1]),f?'Not started':s[1])}</td><td class="r sub">${f||s[1]==='Disabled'?'Not checked':(8+i*3)+' s ago'}</td></tr>`).join('')}</tbody></table></div></section><div class="c5 col">${stg}${host}</div></div>`}
+function diagnostics(){const g=S.sc==='gap',ck=[['Docker Engine','up','Engine reachable, Compose v2 available.'],['FortiGate API','up','Read-only status request succeeded.'],['TLS certificate','up','Trusted through the private CA.'],['Metric scrape','up','Last sample 22 s ago.'],['Syslog delivery',g?'degraded':'up',g?'No delivery for 47 min. Check the firewall log destination and port 1514.':'Records arriving from the expected device.'],['Accounting lag',g?'degraded':'up',g?'Waiting for new records.':'18 s behind the newest record.']];
+ return `<div class="bar-f" style="align-items:center"><button class="btn pri" data-act="diag" ${S.diag==='running'?'disabled':''}>${S.diag==='running'?'Running checks':S.diag==='done'?'Run again':'Run read-only diagnostics'}</button><span class="sm sub">No firewall changes and no restarts.</span></div>${S.diag==='idle'?'<div class="panel"><div class="empty"><strong>No diagnostics run in this session</strong>Run the checks to see each collection step and what to do next.</div></div>':S.diag==='running'?`<div class="col" style="gap:6px">${[1,2,3,4].map(()=>'<div class="sk" style="height:38px"></div>').join('')}</div>`:`<section class="panel"><ul class="kv">${ck.map(c=>`<li style="flex-wrap:wrap"><span style="flex:0 0 150px;color:var(--ink);font-weight:500">${c[0]}</span><span class="sm" style="flex:1 1 200px;color:var(--sub)">${c[2]}</span>${st(c[1],c[1]==='up'?'Pass':'Review')}</li>`).join('')}</ul></section>`}`}
+function settingsPane(){const f=(id,l,v,h='',ty='text')=>`<div class="field"><label for="${C}-${id}">${l}</label><input id="${C}-${id}" type="${ty}" value="${esc(v)}" autocomplete="off">${h?`<span>${h}</span>`:''}</div>`;const s=S.sec;
+ if(s==='general')return `<h2 style="margin-bottom:12px">Workspace</h2><div class="fg">${f('site','Company or site name','Alder Street HQ')}${f('inst','Installation name','fl-monitor-01')}${f('tz','Timezone','Africa/Cairo')}${f('df','Date format','YYYY-MM-DD')}</div>`;
+ if(s==='connection')return `<h2>FortiGate connection</h2><p class="sm sub" style="margin-bottom:12px">Read-only API access. FortiLens never changes the firewall.</p><div class="fg">${f('host','FortiGate address','10.20.0.1','Without https://')}${f('port','HTTPS API port','443','','number')}${f('vdom','VDOM','root','Locked once accounting has a source contract.')}<div class="field"><label for="${C}-tok">API token</label><input id="${C}-tok" type="password" placeholder="Stored. Type here to replace it." autocomplete="off"><span>Write-only. The stored token is never shown.</span></div></div><div style="margin-top:14px"><button type="button" class="btn" data-act="toast" data-msg="Sample result: connection succeeded. Nothing was contacted.">Test connection</button></div>`;
+ if(s==='interfaces')return `<h2>Internet interfaces</h2><p class="sm sub" style="margin-bottom:12px">Reported roles are evidence to review, not proof of Internet access.</p><div class="tw" style="background:none"><table><thead><tr><th>WAN</th><th>Interface</th><th>Role</th><th>IP address</th><th>Evidence</th></tr></thead><tbody>${[['wan1','WAN','203.0.113.10','High',1],['wan2','WAN','198.51.100.22','High',1],['port5.10','LAN','10.20.10.1','High',0],['port9','Undefined','Unknown','Needs review',0]].map(r=>`<tr><td><input type="checkbox" aria-label="Use ${r[0]} as WAN" ${r[4]?'checked':''} style="width:18px;height:18px;accent-color:var(--acc)"></td><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]==='High'?st('up','High'):st('degraded',r[3])}</td></tr>`).join('')}</tbody></table></div>`;
+ if(s==='collection')return `<h2 style="margin-bottom:8px">What to collect</h2>${[['WAN and SLA monitoring','One exporter. It stops only when WAN, SLA and interfaces are all off.',1],['Syslog collection','Stopping keeps stored logs.',1],['Device usage accounting','Requires syslog. Stopping keeps the database.',1],['VLAN usage reporting','Requires accounting and exact interface metadata.',1],['Server health','Node Exporter on this host.',0],['Paused alert candidates','WAN and collection rules stay paused until you activate them.',0]].map(t=>`<label class="tog"><input type="checkbox" ${t[2]?'checked':''}><span>${t[0]}<small>${t[1]}</small></span></label>`).join('')}<details style="margin-top:10px"><summary class="sm" style="cursor:pointer">Advanced exporter capabilities</summary><p class="sm sub" style="margin-top:6px">Optional probes stay out of the way until someone needs them.</p></details>`;
+ if(s==='storage')return `<h2 style="margin-bottom:12px">Retention</h2><div class="fg">${f('l','Raw logs, days','30','','number')}${f('p','Metrics, days','90','','number')}${f('le','Accounting ledger, days','90','','number')}${f('su','Daily summaries, days','730','','number')}${f('db','Accounting database limit, GiB','8','Measured growth reaches this limit in about 92 days.','number')}</div>`;
+ if(s==='auth')return `<h2 style="margin-bottom:12px">Administrator password</h2><div class="fg">${f('cp','Current password','','','password')}${f('np','New password','','At least 12 characters. All sessions are revoked.','password')}</div><div style="margin-top:14px"><button type="button" class="btn" data-act="toast" data-msg="Prototype only. No password was stored or changed.">Change password</button></div>`;
+ return `<h2>Review and apply</h2><p class="sm sub" style="margin-bottom:10px">Nothing changes until you approve this plan. Monitoring data is kept.</p><div class="tw" style="background:none;margin-bottom:10px"><table><thead><tr><th>Setting</th><th>Current</th><th>New</th></tr></thead><tbody><tr><td>Raw log retention</td><td>14 days</td><td><b style="font-weight:600">30 days</b></td></tr><tr><td>Accounting database limit</td><td>4 GiB</td><td><b style="font-weight:600">8 GiB</b></td></tr></tbody></table></div><p class="sm sub" style="margin-bottom:8px">Applying restarts loki and fortilens-usage.</p>${S.plan==='applying'?'<div class="sk" style="height:8px;margin-bottom:6px"></div><p class="sm sub">Applying revision 15 and restarting two services.</p>':S.plan==='applied'?`<div class="alert note-bar"><p><strong>Revision 15 applied.</strong> Two services restarted.</p><button type="button" class="btn" data-act="rollback">Restore revision 14</button></div>`:`<label class="tog"><input type="checkbox" class="appr" ${S.approve?'checked':''}><span>I approve these changes and the service restarts</span></label><div style="margin-top:12px"><button type="button" class="btn pri" data-act="apply" ${S.approve?'':'disabled'}>Apply revision 15</button></div>`}`}
+function settings(){const P=S.plan!=='applied'&&S.sc!=='first';return `${P&&S.sec!=='review'?`<div class="alert note-bar"><p><strong>Draft 15 has unapplied changes.</strong> The running configuration is still revision 14.</p><button class="btn" data-sec="review">Review changes</button></div>`:''}<div class="set"><nav aria-label="Settings sections">${[['general','General'],['connection','Connection'],['interfaces','Interfaces'],['collection','Collection'],['storage','Storage'],['auth','Password'],['review','Review and apply']].map(([k,l])=>`<button data-sec="${k}" aria-current="${S.sec===k}">${l}</button>`).join('')}</nav><section class="panel" style="${C==='b'?'padding:20px':''}"><form class="pf" onsubmit="return false">${settingsPane()}</form></section></div>`}
+function system(){const sub=S.sub.system;return `<div class="pg"><div><h1>System</h1><p>The FortiLens installation itself, kept separate from what it observes on the network.</p></div></div><div class="tabs" role="tablist" aria-label="System views">${[['services','Services'],['diagnostics','Diagnostics']].map(([k,l])=>`<button role="tab" data-sub="system:${k}" aria-selected="${sub===k}">${l}</button>`).join('')}</div>${sub==='services'?services():diagnostics()}`}
+const empty=(t,c)=>`<div class="panel"><div class="empty"><strong>${t}</strong>${c}<div style="margin-top:14px"><button class="btn pri" data-setup="1">Continue setup</button></div></div></div>`;
+function firstRun(){const s=[['Create administrator','done'],['Name your workspace','done'],['Connect FortiGate','now'],['Review Internet interfaces',''],['Choose what to collect',''],['Set storage and retention',''],['Review and apply','']];return `<div style="max-width:660px;margin:0 auto;padding-top:${C==='b'?'22px':'8px'}"><div class="pg"><div><h1>${C==='b'?'Connect your FortiGate next.':'Set up FortiLens'}</h1><p>Nothing runs until you review and apply. No firewall settings are changed, and no default password exists.</p></div></div><section class="panel" style="${C==='b'?'padding:20px':''}"><ol>${s.map((x,i)=>`<li class="step"><span><span class="n ${x[1]}">${x[1]==='done'?'✓':i+1}</span>${x[0]}</span>${x[1]==='now'?'<button class="btn pri" data-setup="1">Continue</button>':x[1]==='done'?st('up','Done'):''}</li>`).join('')}</ol></section></div>`}
+function loading(){const k=(h,c)=>`<div class="sk ${c}" style="height:${h}px"></div>`;return `<div class="grid" role="status" aria-label="Loading received evidence">${C==='a'?k(82,'c3')+k(82,'c3')+k(82,'c3')+k(82,'c3')+k(360,'c8')+k(360,'c4')+k(120,'c12'):k(420,'c7')+k(420,'c5')+k(380,'c12')}</div>`}
+const period=()=>`<div class="seg" role="group" aria-label="Report period">${Object.entries(PER).map(([k,p])=>`<button data-per="${k}" aria-pressed="${S.period===k}">${p.l}</button>`).join('')}</div>`;
+function body(){if(S.sc==='loading')return loading();if(S.sc==='first'&&S.view==='overview')return firstRun();return ({overview:C==='a'?overviewA:overviewB,internet,usage,evidence,system,settings:()=>`<div class="pg"><div><h1>Settings</h1><p>Manage this installation without editing configuration files.</p></div></div>${settings()}`}[S.view])()}
+function drawer(){if(S.drawer==null)return '';const d=devices()[S.drawer];return `<button class="scrim" data-close="1" aria-label="Close device details" tabindex="-1"></button><aside class="drawer" role="dialog" aria-modal="true" aria-label="Device details"><div class="dh"><div><h2>${esc(d.name)}</h2><div style="margin-top:3px">${d.mac?st('up','MAC endpoint'):st('degraded','Physical identity unverified')}</div></div><button class="btn dr-x" data-close="1" aria-label="Close device details">${ic('x',15)}</button></div><div class="dbody">${detail(d)}</div></aside>`}
+function palette(){if(!S.pal)return '';const q=S.palq.toLowerCase();const items=[...NAV.map(n=>({t:n[1],s:'Go to',a:`data-nav="${n[0]}"`})),{t:'Diagnostics',s:'System',a:'data-goto="system:diagnostics"'},{t:'Period report',s:'Usage',a:'data-goto="usage:report"'},{t:'Segments',s:'Usage',a:'data-goto="usage:segments"'},...devices().map(d=>({t:d.name,s:'Device '+d.ip,a:`data-dev="${d.i}"`}))].filter(i=>!q||(i.t+i.s).toLowerCase().includes(q)).slice(0,9);S.palN=items.length;
+ return `<button class="scrim" data-pal="0" aria-label="Close search" tabindex="-1" style="z-index:30"></button><div class="pal" role="dialog" aria-modal="true" aria-label="Search FortiLens"><input class="palq" aria-label="Search pages and devices" placeholder="Search pages and devices" value="${esc(S.palq)}"><ul>${items.map((i,x)=>`<li class="${x===S.palIx?'on':''}"><button ${i.a} data-palx="1">${esc(i.t)}<span>${esc(i.s)}</span></button></li>`).join('')||'<li class="empty">No pages or devices match.</li>'}</ul></div>`}
+function shell(){if(S.sc==='signin')return `<div class="auth"><form class="si"><div class="mark" style="padding:0">${mark(26)}<span>FortiLens</span></div><h1>${C==='b'?'Sign in to see your network.':'Sign in'}</h1><div class="field"><label for="${C}-u">Username</label><input id="${C}-u" autocomplete="off" value="admin"></div><div class="field"><label for="${C}-p">Password</label><input id="${C}-p" type="password" autocomplete="off"></div><button class="btn pri" type="submit">Sign in</button><p class="sm sub">Prototype form. It sends and stores nothing.</p></form></div>`;
+ const b=body(),g=S.sc==='gap';
+ if(C==='a'){const t=totals();const grp=(h,ks)=>`<h3>${h}</h3>`+ks.map(k=>{const n=NAV.find(x=>x[0]===k);return `<button class="n" data-nav="${k}" aria-current="${S.view===k?'page':'false'}">${ic(k)}${n[1]}</button>`}).join('');
+  return `<div class="sa"><nav class="side" aria-label="Main navigation"><div class="mark">${mark(20)}<span>FortiLens</span></div>${grp('Network',['overview','internet','usage'])}${grp('Trust',['evidence'])}${grp('Installation',['system','settings'])}<div class="foot"><button class="n" data-act="toast" data-msg="In the product this opens native Grafana at /grafana/.">${ic('ext')}Native Grafana</button></div></nav>
+  <div class="ma"><header class="hd"><div class="ctx"><b>Alder Street HQ</b><span>FG-100F, root</span></div><span class="grow"></span>${S.view==='overview'||S.view==='usage'||S.view==='evidence'?period():''}<button class="btn" data-pal="1" aria-label="Search pages and devices">${ic('srch',15)}<span class="hide-p">Search</span> <span class="kbd hide-p">Ctrl K</span></button></header>
+  <main class="body" tabindex="-1">${b}</main>
+  <footer class="sb" aria-label="Evidence status"><button data-nav="evidence" class="${g?'bad':''}">Logs ${g?'silent for 47 min':'18 s ago'}</button><button data-nav="evidence" class="${g?'bad':''}">Accounting lag ${g?'47 min':'18 s'}</button><button data-nav="internet">Metrics 22 s ago</button><button data-goto="system:services">Services 8 of 8 running, 1 disabled</button><button data-nav="settings">${S.plan==='applied'?'Revision 15 applied':'Revision 14 applied, draft 15 pending'}</button></footer></div>${drawer()}${palette()}</div>`}
+ return `<div class="sb2"><header class="bh"><div class="mark">${mark(26)}<span>FortiLens</span></div><nav class="dock-n" aria-label="Main navigation">${NAV.map(n=>`<button data-nav="${n[0]}" aria-current="${S.view===n[0]?'page':'false'}">${n[2]}</button>`).join('')}</nav><div style="display:flex;gap:12px;align-items:center;justify-self:end">${st(g?'degraded':S.sc==='first'?'unknown':'up',g?'Logs stale':S.sc==='first'?'Not collecting':'Logs on time')}<button class="btn" data-pal="1" aria-label="Search pages and devices" style="border-radius:999px">${ic('srch',15)}</button></div></header>
+ <main class="bb" tabindex="-1"><div class="wrap">${b}</div></main><nav class="dtab" aria-label="Main navigation">${NAV.map(n=>`<button data-nav="${n[0]}" aria-current="${S.view===n[0]?'page':'false'}">${ic(n[0],18)}${n[2]}</button>`).join('')}</nav>${drawer()}${palette()}</div>`}
+const FR=()=>[document.getElementById('fa'),document.getElementById('fb')];
+function render(keep){const[a,b]=FR(),cmp=S.vp==='compare';a.hidden=!(cmp||S.c==='a');b.hidden=!(cmp||S.c==='b');const st=document.getElementById('stage');st.className='stage'+(S.vp==='desktop'?'':' framed '+S.vp);
+ for(const k in store)delete store[k];
+ for(const f of [a,b]){if(f.hidden){f.innerHTML='';continue}const m=f.querySelector('.body,.bb'),top=keep&&m?m.scrollTop:0;C=f.dataset.c;f.dataset.t=S.theme[C];FW=f.clientWidth||1200;f.innerHTML=shell()+(S.toast?`<div class="toast" role="status">${esc(S.toast)}</div>`:'');const n=f.querySelector('.body,.bb');if(n)n.scrollTop=top}
+ S.anim=false;
+ document.querySelectorAll('[data-setc]').forEach(x=>x.setAttribute('aria-pressed',!cmp&&x.dataset.setc===S.c));
+ document.querySelectorAll('[data-vp]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.vp===S.vp));
+ document.querySelectorAll('[data-sett]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.sett===S.theme[S.c]));
+ document.getElementById('scn').value=S.sc;
+ try{const h=[S.c,S.view,S.theme[S.c]].concat(S.sc==='healthy'?[]:[S.sc]).join('-');if(!window.__cap&&location.hash!=='#'+h)history.replaceState(null,'','#'+h)}catch(e){}}
+function readHash(){const p=location.hash.slice(1).split('-');if(p[0]==='a'||p[0]==='b')S.c=p[0];for(const x of p.slice(1)){if(NAV.some(n=>n[0]===x))S.view=x;if(x==='light'||x==='dark')S.theme[S.c]=x;if(['degraded','gap','loading','first','signin'].includes(x))S.sc=x;if(x==='segments'||x==='report')S.sub.usage=x;if(x==='diag'){S.sub.system='diagnostics';S.diag='done'}if(x==='review'){S.view='settings';S.sec='review'}if(x==='drawer')S.drawer=0;if(x==='pal')S.pal=true;if(['desktop','tablet','phone','compare'].includes(x))S.vp=x}}
+let tt;function toast(m){S.toast=m;render(true);clearTimeout(tt);tt=setTimeout(()=>{S.toast='';render(true)},3000)}
+function closeDr(){S.drawer=null;render(true);const b=document.querySelector(`.frame:not([hidden]) [data-dev="${S.last}"]`);if(b)b.focus()}
+document.addEventListener('click',e=>{const t=e.target.closest('button,tr[data-dev]');if(!t)return;const d=t.dataset;if(d.palx)S.pal=false,S.palq='',S.palIx=0;
+ if(d.setc){S.c=d.setc;if(S.vp==='compare')S.vp='desktop';S.anim=true;return render()}
+ if(d.sett){S.theme[S.c]=d.sett;return render(true)}
+ if(d.vp){S.vp=d.vp;return render(true)}
+ if(d.nav){S.view=d.nav;S.drawer=null;S.anim=d.nav==='overview';const r=render();const m=document.querySelector('.frame:not([hidden]) main');if(m)m.focus({preventScroll:true});return r}
+ if(d.goto){const[a,b]=d.goto.split(':');S.view=a;S.sub[a]=b;S.drawer=null;return render()}
+ if(d.sub){const[a,b]=d.sub.split(':');S.sub[a]=b;return render(true)}
+ if(d.per){S.period=d.per;return render(true)}
+ if(d.win){S.win=d.win;return render(true)}
+ if(d.sort){S.sort=d.sort;return render(true)}
+ if(d.seggo){S.seg=d.seggo;S.view='usage';S.sub.usage='devices';return render()}
+ if(d.sec){S.sec=d.sec;S.view='settings';return render(true)}
+ if(d.setup){S.view='settings';S.sec='connection';return render()}
+ if(d.pal){S.pal=d.pal==='1';S.palq='';S.palIx=0;render(true);if(S.pal){const i=document.querySelector('.frame:not([hidden]) .palq');if(i)i.focus()}return}
+ if(d.dev!=null&&d.dev!==''){S.last=d.dev;if(C==='a'&&S.c==='a'&&S.view==='usage'&&S.sub.usage==='devices'&&FR()[0].clientWidth>1180&&S.vp!=='compare'){S.sel=+d.dev;return render(true)}S.drawer=+d.dev;if(S.view==='overview'&&S.c==='a'&&false)return;render(true);const c=document.querySelector('.frame:not([hidden]) .dr-x');if(c)c.focus();return}
+ if(d.close)return closeDr();
+ if(d.act==='toast')return toast(d.msg);
+ if(d.act==='diag'){S.diag='running';render(true);setTimeout(()=>{S.diag='done';render(true)},1000);return}
+ if(d.act==='apply'){S.plan='applying';render(true);setTimeout(()=>{S.plan='applied';S.approve=false;render(true)},1400);return}
+ if(d.act==='rollback'){S.plan='draft';return toast('Sample result: revision 14 restored. Monitoring data was kept.')}
+});
+document.addEventListener('input',e=>{const c=e.target.classList;if(c.contains('fq')){S.q=e.target.value;document.querySelectorAll('.dvb').forEach(b=>b.innerHTML=rows())}if(c.contains('palq')){S.palq=e.target.value;S.palIx=0;const v=e.target.value,s=e.target.selectionStart;render(true);const i=document.querySelector('.frame:not([hidden]) .palq');if(i){i.focus();i.setSelectionRange(s,s)}}});
+document.addEventListener('change',e=>{const c=e.target.classList;if(c.contains('fs')){S.seg=e.target.value;return render(true)}if(c.contains('fi')){S.ident=e.target.value;return render(true)}if(c.contains('appr')){S.approve=e.target.checked;return render(true)}
+ if(e.target.id==='scn'){S.sc=e.target.value;S.drawer=null;S.diag='idle';S.plan='draft';S.approve=false;S.anim=true;return render()}});
+document.addEventListener('submit',e=>{e.preventDefault();if(e.target.classList.contains('si')){S.sc='healthy';S.anim=true;render()}});
+document.addEventListener('keydown',e=>{
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();S.pal=!S.pal;S.palq='';S.palIx=0;render(true);const i=document.querySelector('.frame:not([hidden]) .palq');if(i)i.focus();return}
+ if(e.key==='Escape'){if(S.pal){S.pal=false;return render(true)}if(S.drawer!=null)return closeDr()}
+ if(S.pal&&e.target.classList.contains('palq')){if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();S.palIx=(S.palIx+(e.key==='ArrowDown'?1:-1)+S.palN)%Math.max(S.palN,1);const v=S.palq;render(true);const i=document.querySelector('.frame:not([hidden]) .palq');if(i)i.focus()}if(e.key==='Enter'){const b=document.querySelector('.frame:not([hidden]) .pal li.on button');if(b)b.click()}return}
+ const sv=e.target.closest&&e.target.closest('.dial svg');if(sv&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();const dl=sv.closest('.dial');let v=+sv.getAttribute('aria-valuenow');v=Math.max(0,Math.min(60,v+(e.key==='ArrowRight'?1:-1)));readDial(dl,v)}
+});
+function readDial(dl,i){const s=store[dl.dataset.dial];if(!s)return;const dn=s.b.down[i],up=s.b.up[i];dl.querySelector('[data-dv]').textContent=dn==null?'—':Math.round(dn);dl.querySelector('[data-du]').textContent=dn==null?'No data at this time':`Mbps down, ${Math.round(up)} up`;dl.querySelector('[data-dt]').textContent=s.lab(i);const h=dl.querySelector('.hl');const TAU=Math.PI*2,step=TAU/96,a=i/96*TAU-Math.PI/2;h.setAttribute('d',sect(100,232,a,a+step));const sv=dl.querySelector('svg');sv.setAttribute('aria-valuenow',i);sv.setAttribute('aria-valuetext',`${s.lab(i)}, ${dn==null?'no data':Math.round(dn)+' megabits per second down'}`)}
+function resetDial(dl){const s=store[dl.dataset.dial];if(!s)return;const c=s.b;dl.querySelector('[data-dv]').textContent=Math.round(c.down[60]);dl.querySelector('[data-du]').textContent='Mbps down now';dl.querySelector('[data-dt]').textContent='15:00';dl.querySelector('.hl').setAttribute('d','')}
+let lastScope=null,lastDial=null;
+document.addEventListener('mousemove',e=>{const t=e.target;if(!t.closest)return;
+ const w=t.closest('[data-w]');if(w){lastDial=w.closest('.dial');readDial(lastDial,+w.dataset.w)}else if(lastDial&&!t.closest('.dial svg')){resetDial(lastDial);lastDial=null}
+ const tr=t.closest('.scope[data-scope] .tr');
+ if(tr){const sc=tr.closest('.scope'),reg=store[sc.dataset.scope];if(!reg)return;const r=tr.getBoundingClientRect(),f=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),i=Math.round(f*(reg.n-1));lastScope=sc;
+  sc.querySelectorAll('.tr').forEach(x=>{let h=x.querySelector(':scope > .xh');if(!h){h=document.createElement('div');h.className='xh';x.append(h)}h.style.left=(i/(reg.n-1)*100)+'%'});
+  sc.querySelectorAll('[data-chv]').forEach(v=>{const fn=reg.rows[v.dataset.chv];if(fn)v.innerHTML=fn(i)});sc.querySelector('[data-cur]').textContent='Cursor at '+reg.time(i);}
+ else if(lastScope&&!t.closest('.scope[data-scope]')){const reg=store[lastScope.dataset.scope];lastScope.querySelectorAll('.xh').forEach(x=>x.remove());if(reg){lastScope.querySelectorAll('[data-chv]').forEach(v=>{if(reg.def[v.dataset.chv]!=null)v.innerHTML=reg.def[v.dataset.chv]});lastScope.querySelector('[data-cur]').textContent=(S.period==='today'?'Now, 15:00':'Latest sample')+', '+PER[S.period].r}lastScope=null}
+});
+readHash();render();window.addEventListener('hashchange',()=>{readHash();render()});
+let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>render(true),120)});
+</script>
+</body>
+</html>
