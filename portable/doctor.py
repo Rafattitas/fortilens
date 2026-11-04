@@ -425,7 +425,7 @@ def native_receiver_checks(report, now, freshness):
             result.append(check('native_source_filter', 'WARN',
                 'Datagrams from an unexpected source were rejected; no permitted handoff has been observed.',
                 'native_source_path_review',
-                'Inspect header-only sender evidence, including Docker UDP proxy/NAT. Do not permit a shared gateway or change the API host to bypass filtering. Use the reviewed host relay when the original sender cannot be preserved.',
+                'Inspect header-only sender evidence, including Docker UDP proxy/NAT. Do not permit a shared gateway or change the API host to bypass filtering. Review the Linux host reception profile or a source-preserving host relay.',
                 source_rejections=reasons['source'], authorized_input_loss_verified=False))
     else:
         age = now - stamp

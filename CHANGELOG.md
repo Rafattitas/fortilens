@@ -4,6 +4,12 @@
 
 ### Source collection and diagnostics
 
+- Add explicit source-preserving native UDP reception for rootful Linux Docker
+  Engine, selectable in Web Setup/Settings and portable configuration. Keep the
+  existing bridge default, exact source filter and data identities; use private
+  loopback handoff/health ports without requiring an external rsyslog service.
+  Document host-network isolation tradeoffs and local-only receiver metrics.
+
 - Separate managed Device usage from period Reports: retain device inspection in
   the former and show aggregate totals, top consumers and segment distribution
   in the latter, reusing existing accounting evidence and filters.

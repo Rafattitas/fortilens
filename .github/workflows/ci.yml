@@ -85,6 +85,8 @@ jobs:
           python-version: '3.12'
       - name: Validate pinned applications and synthetic end-to-end accounting
         run: python tests/integration_stack.py
+      - name: Verify source-preserving native reception on Linux host networking
+        run: python tests/integration_native_host.py
 
   management:
     name: Web management / Python 3.12

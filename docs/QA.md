@@ -15,6 +15,16 @@ need actual browser review. Passing API tests alone does not prove these flows.
 
 ## Automated coverage
 
+`python tests/integration_native_host.py` runs only on a disposable rootful Linux
+Docker host. It renders the actual host receiver profile, sends synthetic UDP
+from two distinct bridge containers through the host socket, verifies the exact
+allowed sender/body and rejected sender, checks nonroot low-port binding and
+removes only its own generated project. Existing `integration_stack.py` retains
+the bridge receiver → Alloy → Loki → independently known accounting totals test.
+Unit coverage also checks bridge/host/RFC transitions, unchanged data identities,
+adjacent health-port conflicts and the fixed loopback health route. Neither
+scenario establishes complete production traffic collection.
+
 Portable CLI checks retain Python 3.10+ standard-library compatibility. Management
 uses Python 3.11+ with a separate pinned environment:
 
