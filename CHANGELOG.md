@@ -4,6 +4,11 @@
 
 ### Source collection and diagnostics
 
+- Read accounting reports from committed WAL snapshots independently of the
+  ingestion lock; reuse bounded exact report results and diagnostics, plus recent
+  authenticated device/VLAN navigation results, while preserving accounting math,
+  checkpoints, schemas, authentication and explicit refresh behavior.
+
 - Display and edit the accounting database ceiling in GiB while preserving
   existing integer-byte API/configuration values and exact untouched limits.
 

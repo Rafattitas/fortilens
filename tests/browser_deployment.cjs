@@ -98,6 +98,65 @@ async function usageViewsRegression(browser,baseURL){
   assert.deepEqual(errors,[]);
  }finally{await context.close()}
 }
+async function reportNavigationReuseRegression(browser,baseURL){
+ const context=await browser.newContext({viewport:{width:1280,height:900}}),page=await context.newPage(),errors=[];
+ const network=[];page.on('response',response=>{if(response.url().includes('/api/'))network.push({url:response.url(),status:response.status()})});
+ page.on('pageerror',error=>errors.push(error.message));
+ let reportRequests=0,sessionChecks=0,rejectSessionAt=0;
+ const vlan={key:'root:staff',status:'MAPPED',vlan_id:100,interface:'staff'};
+ const report={devices:[{device_id:'synthetic',hostname:'Cached fixture',ip:'192.0.2.1',mac:'02:00:00:00:00:01',identity_kind:'MAC',vlans:[vlan],upload_bytes:100,download_bytes:900,total_bytes:1000}],
+  vlans:[{vlan,observed_endpoint_identities:1,upload_bytes:100,download_bytes:900,total_bytes:1000}],totals:{upload_bytes:100,download_bytes:900,pending_upload_bytes:0,pending_download_bytes:0},flags:{},processing:{last_poll_ok:true},observed_endpoint_identities:1,unverified_endpoint_identities:0,status:'RECORDED_ONLY',timezone:'UTC',start_utc:'2026-11-03T00:00:00Z',end_utc:'2026-11-03T12:00:00Z'};
+ await page.route(url=>url.origin===baseURL,async route=>{
+  const url=new URL(route.request().url());let payload,status=200;
+  if(url.pathname==='/'){
+   const initial=['devices','vlans','reports'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'devices';
+   const html=fs.readFileSync(path.join(root,'management/static/index.html'),'utf8').replace('id="console-frame"','id="console-frame" data-initial-view="'+initial+'" src="/console/?section='+initial+'#overview"');
+   return route.fulfill({status:200,contentType:'text/html',body:html});
+  }
+  if(url.pathname==='/console/')return route.fulfill({status:200,contentType:'text/html',body:fs.readFileSync(path.join(root,'portable/reporting.html'),'utf8').replaceAll("'/api/","'/console/api/")});
+  if(url.pathname==='/api/bootstrap/status')payload={required:false};
+  else if(url.pathname==='/api/session')payload={username:'synthetic-admin',csrf:'synthetic-csrf'};
+  else if(url.pathname==='/api/settings')payload={...view(),pending_changes:false,applied_revision:7};
+  else if(url.pathname==='/api/system')payload={...system(),latest_job:null,links:{console:true,dashboard:'/grafana/d/fixture/'}};
+  else if(url.pathname==='/api/logout')payload={authenticated:false};
+  else if(url.pathname==='/console/api/portal')payload={enabled:true};
+  else if(url.pathname==='/console/api/session'){sessionChecks++;if(sessionChecks===rejectSessionAt){status=401;payload={error:'authentication_required'}}else payload={authenticated:true}}
+  else if(url.pathname==='/console/api/report'){reportRequests++;await page.waitForFunction(()=>!!window.__fortilensReportCache);payload=report}
+  else return route.continue();
+  return route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
+ });
+ const loaded=(section=null)=>page.waitForFunction(section=>{const f=document.getElementById('console-frame'),d=f?.contentDocument;return (!section||new URL(f.contentWindow.location.href).searchParams.get('section')===section)&&d?.getElementById('refresh')?.disabled===false&&d?.getElementById('range-label')?.textContent.includes('2026-11-03')},section);
+ const frame=()=>page.frames().find(frame=>frame.parentFrame()&&new URL(frame.url()).pathname==='/console/');
+ const navigate=async view=>{await page.locator('#workspace-nav a[data-page="'+view+'"]').click();await loaded(view)};
+ try{
+  await page.goto(baseURL+'/?view=devices#devices');await loaded();assert.equal(reportRequests,1);
+  const originalWindow=await frame().locator('#range-label').textContent();
+  await frame().evaluate(()=>{state.report.devices[0].hostname='Mutated local copy'});
+  await navigate('vlans');assert.equal(reportRequests,1,'Device-to-VLAN navigation repeated the accounting report');
+  assert.equal(await frame().locator('#range-label').textContent(),originalWindow,'Cache relabelled old evidence with a new end time');
+  await navigate('devices');assert.equal(reportRequests,1);assert.ok((await frame().locator('#device-body').innerText()).includes('Cached fixture'),'Cached response shared a mutable object');
+  await frame().locator('#refresh').click();await loaded();assert.equal(reportRequests,2,'Explicit Refresh reused old evidence');
+  await frame().locator('[data-period="week"]').click();await loaded();assert.equal(reportRequests,3,'Period change reused old evidence');
+  await navigate('vlans');assert.equal(reportRequests,4,'Different period selection reused cached evidence');
+  await page.evaluate(()=>window.__fortilensReportCache.entries.forEach(entry=>entry.created-=5001));
+  await navigate('devices');assert.equal(reportRequests,5,'Expired report survived navigation');
+  const selection='period=today&search=&vlan=';
+  assert.equal(await frame().evaluate(selection=>reportCacheCurrent({selection,end:'2026-11-03T23:59:59.500Z',timezone:'UTC'},selection,1000),selection),false,'Cache crossed an accounting date boundary');
+  assert.equal(await frame().evaluate(selection=>reportCacheCurrent({selection,end:'2026-11-03T12:00:00Z',timezone:'UTC'},selection,1000),selection),true);
+  // Reject the cache-hit session validation after the initial iframe session succeeds.
+  rejectSessionAt=sessionChecks+2;
+  await page.locator('#workspace-nav a[data-page="vlans"]').click();
+  await page.waitForFunction(()=>window.__fortilensReportCache.entries.length===0);
+  await page.waitForFunction(()=>document.getElementById('console-frame')?.contentDocument?.getElementById('login')?.hidden===false);
+  assert.equal(reportRequests,5,'Revoked cache session fetched or displayed a report');
+  assert.equal(await page.evaluate(()=>window.__fortilensReportCache.entries.length),0,'Revocation retained private cached data');
+  const oldEpoch=await page.evaluate(()=>window.__fortilensReportCache.epoch);
+  await page.locator('#signout').click();await page.waitForFunction(()=>document.getElementById('workspace').hidden);
+  assert.equal(await page.evaluate(()=>window.__fortilensReportCache),undefined,'Management sign-out retained report cache');
+  await page.reload();await loaded();assert.equal(reportRequests,6);assert.notEqual(await page.evaluate(()=>window.__fortilensReportCache.epoch),oldEpoch);
+  assert.deepEqual(errors,[],'Managed report cache browser errors');
+ }catch(error){console.error(JSON.stringify({errors,network:network.slice(-15),reportRequests,sessionChecks,frames:await Promise.all(page.frames().map(async f=>({url:f.url(),body:(await f.locator('body').innerText().catch(()=>'' )).slice(-1200)})))}));throw error}finally{await context.close()}
+}
 async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice,scopeLocked=false}){
  const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});
  const page=await context.newPage(),errors=[],saved=[],authRequests=[];
@@ -217,6 +276,7 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  try{
  const baseURL='http://127.0.0.1:'+server.address().port;
  await usageViewsRegression(browser,baseURL);
+ await reportNavigationReuseRegression(browser,baseURL);
  for(const offset of [2612,-2612,30])await monitoringClockRegression(browser,baseURL,offset);
  await monitoringClockRegression(browser,baseURL,2612,false);
  await monitoringClockRegression(browser,baseURL,86401,true);
@@ -264,6 +324,6 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  mode='complete';discovery=true;await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile horizontal overflow');
  if(output)await page.screenshot({path:path.join(output,'deployment-complete-mobile.png'),fullPage:true});
  assert.deepEqual(errors,[],'Browser JavaScript errors');
- console.log(JSON.stringify({passed:true,checks:['server clock capability handles forward/backward skew in both consoles','normal clocks preserve initial parser frame','unsupported and excessive skew warn without changing time ranges','first administrator setup ignores hidden autofill','saved source survives sign-in/autofill','locked source rejects DOM mutations','explicit source mismatch and deliberate edits remain enforced','GiB input preserves exact legacy ceilings and converts whole/fractional sizes','invalid capacity and hidden DOM edits cannot change saved settings','collector dependency changes persist','explicit CA clearing ignores hidden pollution','WAN changes clear confirmation until reconfirmed','completed startup/reload/navigation hidden','running restore and duplicate prevention','completion notification and health refresh','failure acknowledgement and recovery history','historical job lookup','discovery gating','unknown outcome no retry','mobile layout'],browser:await browser.version(),screenshots:output||null}));
+ console.log(JSON.stringify({passed:true,checks:['server clock capability handles forward/backward skew in both consoles','normal clocks preserve initial parser frame','unsupported and excessive skew warn without changing time ranges','first administrator setup ignores hidden autofill','saved source survives sign-in/autofill','locked source rejects DOM mutations','explicit source mismatch and deliberate edits remain enforced','GiB input preserves exact legacy ceilings and converts whole/fractional sizes','invalid capacity and hidden DOM edits cannot change saved settings','managed report navigation reuses bounded authenticated snapshots','refresh, period changes, expiry and session revocation bypass report reuse','collector dependency changes persist','explicit CA clearing ignores hidden pollution','WAN changes clear confirmation until reconfirmed','completed startup/reload/navigation hidden','running restore and duplicate prevention','completion notification and health refresh','failure acknowledgement and recovery history','historical job lookup','discovery gating','unknown outcome no retry','mobile layout'],browser:await browser.version(),screenshots:output||null}));
  }finally{await browser.close();server.close()}
 })().catch(error=>{console.error(error.stack);server.close();process.exitCode=1});

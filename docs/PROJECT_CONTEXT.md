@@ -117,6 +117,15 @@ or replace existing release assets.
 
 ## Verification and continuation
 
+File-backed accounting reports read a separate read-only WAL snapshot instead
+of the ingestion connection/lock. Each response keeps report totals, diagnostics
+and optional device histories on one committed snapshot. Bounded result reuse
+uses exact ranges/filters and the persistent reader's database version; no
+schema or accounting algorithm changes are involved. The managed parent page
+can reuse an authenticated report for five seconds across device/VLAN navigation,
+while Refresh, filter changes, expiry, logout and revocation invalidate reuse.
+See [the accounting contract](ACCOUNTING_ENGINE.md#report-reads-during-collection).
+
 Managed Device usage and Reports are distinct presentations of the same received
 accounting evidence. Device usage focuses on the searchable/paginated endpoint
 table and per-device history. Reports shows period totals, a top-five consumer

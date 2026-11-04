@@ -303,6 +303,7 @@ class Store:
             raise ValueError("Accounting requires an explicit IANA timezone")
         tz(config["accounting_timezone"])
         self.config, self.inventory = dict(config), inventory or {"interfaces": []}
+        self.path = None if str(path) == ':memory:' else Path(path).resolve()
         self.db = sqlite3.connect(str(path), timeout=20, check_same_thread=False)
         try:
             self.db.row_factory = sqlite3.Row
@@ -332,6 +333,28 @@ class Store:
 
     def close(self):
         self.db.close()
+
+    def reader(self):
+        """Open an independent, non-migrating reader of the existing WAL store.
+
+        Never call the writer constructor here: reports cannot create tables,
+        update the contract or write state. In-memory callers keep the serialized
+        compatibility path because an ordinary :memory: DB cannot be reopened.
+        """
+        if self.path is None:
+            return None
+        reader = object.__new__(Store)
+        reader.config, reader.inventory, reader.path = dict(self.config), self.inventory, self.path
+        reader.db = sqlite3.connect(self.path.as_uri()+'?mode=ro', uri=True, timeout=2,
+                                    check_same_thread=False)
+        try:
+            reader.db.row_factory = sqlite3.Row
+            reader.db.execute('PRAGMA query_only=ON')
+            reader.db.execute('PRAGMA cache_size=-2048')
+        except Exception:
+            reader.db.close()
+            raise
+        return reader
 
     def state(self, key, default=None):
         row = self.db.execute("SELECT value FROM state WHERE key=?", (key,)).fetchone()
@@ -578,9 +601,12 @@ class Store:
         return result
 
     def diagnostics(self):
-        row = self.db.execute("SELECT MIN(stamp),MAX(stamp) FROM facts WHERE stamp>=?", (self.state("ledger_floor_ns", 0),)).fetchone()
+        # Separate extrema let the existing facts_stamp index stop at its ends.
+        floor = self.state('ledger_floor_ns', 0)
+        first = self.db.execute('SELECT MIN(stamp) FROM facts WHERE stamp>=?', (floor,)).fetchone()[0]
+        last = self.db.execute('SELECT MAX(stamp) FROM facts WHERE stamp>=?', (floor,)).fetchone()[0]
         delivery = self.db.execute("SELECT MAX(stamp) FROM deliveries").fetchone()[0]
-        return {"checkpoint_ns": self.state("checkpoint_ns"), "last_received_event_ns": row[1], "first_retained_event_ns": row[0],
+        return {"checkpoint_ns": self.state("checkpoint_ns"), "last_received_event_ns": last, "first_retained_event_ns": first,
                 "last_delivery_ns": delivery,
                 "replay_candidates": self.state("replay_candidates", 0), "late_rejections": self.state("late_rejections", 0),
                 "parser_rejections": self.state("parser_rejections", 0),

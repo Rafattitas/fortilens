@@ -15,6 +15,14 @@ need actual browser review. Passing API tests alone does not prove these flows.
 
 ## Automated coverage
 
+`tests/test_report_concurrency.py` uses disposable file-backed WAL databases to
+verify reporting while an uncommitted writer holds the ingestion lock, consistent
+checkpoints/history across concurrent commits, rollback isolation, read-only
+enforcement, exact-bound/filter cache keys, pruning/metadata invalidation and
+bounded caches. Browser acceptance also tests report reuse across managed iframe
+navigation, explicit refresh, expiry and session revocation. These checks do not
+replace live ingestion/capacity measurement on the intended host.
+
 Portable CLI checks retain Python 3.10+ standard-library compatibility. Management
 uses Python 3.11+ with a separate pinned environment:
 
