@@ -12,6 +12,36 @@ The new engine complements Loki; it does not replace the raw store or certify un
 - Late records inside the retained ledger recompute affected sessions and replace prior contributions transactionally. Checkpoints commit with ingestion. Older-than-ledger arrivals are explicit rejections; they cannot recount retained summaries. Retention preserves an open-session baseline without contributing its bytes again.
 - Calendar periods use an explicit accounting timezone. Engine intervals are **[start,end)**, with the exact start included and exact end excluded; the legacy Loki tables use their documented different range convention. Week means rolling 168 hours. A timezone/source identity change requires an explicit database rebuild, preventing mixed historical contracts.
 
+## Report reads during collection
+
+File-backed installations use a separate read-only SQLite connection and a short
+WAL snapshot for each report. Devices, VLAN aggregates, processing checkpoints
+and device histories in one response come from the same committed snapshot.
+Readers do not take the ingestion lock or expose unfinished transactions. The
+writer retains its existing atomic ingestion/replay/late-arrival behavior and
+schema. In-memory fixtures retain their single-connection compatibility path.
+
+Repeated identical requests can reuse up to four immutable report results of at
+most 2 MiB each. Keys include the committed database version, exact period bounds,
+filters and history selection; any committed database change invalidates reuse,
+including pruning or metadata updates without checkpoint advancement. Runtime
+failure/lag evidence is refreshed independently. Existing indexes provide separate
+first/last fact lookups; unchanged diagnostics avoid repeated ledger scans.
+The last-delivery timestamp is also maintained as optional derived state in the
+same ingestion/pruning transaction. The writer rebuilds it from retained delivery
+rows on startup, and legacy read-only snapshots fall back to the original query.
+This removes a full delivery-ledger scan from first reports after each commit;
+it adds no table/index and changes no byte contributions or delivery rows.
+
+The managed console may reuse a report for up to five seconds while navigating
+between Device usage and VLAN analytics. This cache lives only in its current
+authenticated parent page, is bounded to two 2 MiB entries, and revalidates the
+session before a hit. Refresh and filter/period changes request new data. Logout,
+revocation and calendar rollover invalidate reuse; displayed bounds remain the
+original report bounds. No browser storage or shared proxy cache is introduced.
+These optimizations do not establish traffic completeness or eliminate the need
+to size the collector for its ingestion rate.
+
 ## Evidence limits
 
 Assigned bytes follow source event timestamps. A delta interval crossing midnight cannot be allocated to exact packet times from a single record; it is flagged. Missing/invalid contributions, source binding, counter discontinuities, pending counters, mapping uncertainty and weak identities are visible alongside totals. Pending values must never be added to assigned totals as if independently verified traffic.

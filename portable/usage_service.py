@@ -2,7 +2,8 @@
 import argparse
 import base64
 import bisect
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hmac
@@ -146,6 +147,64 @@ class Engine:
         self.last_error='not_started'
         self.last_attempt=None
         self.wan_cache={'status':'UNAVAILABLE','interfaces':[]}
+        self._initial_inventory=json.loads(json.dumps(store.inventory))
+        self.read_lock=threading.RLock()
+        self._reader=None
+        self._reader_identity=None
+        self._report_cache=OrderedDict()
+        self._diagnostics_cache=None
+
+    @contextmanager
+    def _read_snapshot(self):
+        if self.store.path is None:
+            # Ordinary in-memory databases are private to their one connection.
+            # This compatibility path is not used by the deployed file store.
+            with self.lock:
+                yield self.store,None
+            return
+        with self.read_lock:
+            info=self.store.path.stat();identity=(info.st_dev,info.st_ino)
+            if self._reader is None or self._reader_identity!=identity:
+                if self._reader is not None:self._reader.close()
+                self._reader=None
+                self._report_cache.clear();self._diagnostics_cache=None
+                self._reader=self.store.reader();self._reader_identity=identity
+            reader=self._reader
+            reader.db.execute('BEGIN')
+            try:
+                # The first SELECT pins the committed snapshot before reading
+                # its connection-local data_version. Never use immutable=1 or
+                # read_uncommitted on this live WAL database.
+                expected={key:self.config.get(key) for key in ('accounting_timezone','source_id','vdom','expected_devid')}
+                if reader.state('contract')!=expected:
+                    raise ValueError('Accounting identity/timezone contract changed; review the existing database')
+                version=(identity,reader.db.execute('PRAGMA data_version').fetchone()[0])
+                reader.inventory=reader.state('inventory',self._initial_inventory)
+                yield reader,version
+            finally:
+                reader.db.rollback()
+
+    def close(self):
+        with self.read_lock:
+            if self._reader is not None:self._reader.close()
+            self._reader=None;self._report_cache.clear();self._diagnostics_cache=None
+
+    def _snapshot_diagnostics(self,store,version):
+        if version is None or self._diagnostics_cache is None or self._diagnostics_cache[0]!=version:
+            details=store.diagnostics()
+            if version is not None:self._diagnostics_cache=(version,details)
+        else:details=self._diagnostics_cache[1]
+        details=dict(details)
+        checkpoint=details.get('checkpoint_ns')
+        details.update(last_poll_ok=self.last_poll_ok,last_error=self.last_error,last_attempt=self.last_attempt,
+            processing_lag_seconds=max(0,time.time()-checkpoint/accounting.NS) if checkpoint else None,
+            inventory_error=store.state('inventory_error'),last_failure_seconds=store.state('last_failure_seconds'),
+            loki_timestamps_at_receipt=self.config.get('loki_receive_timestamps',False))
+        return details
+
+    def inventory(self):
+        with self._read_snapshot() as (store,_version):
+            return json.loads(json.dumps(store.inventory))
 
     def read_device(self,route,params):
         if route not in ('/api/v2/monitor/router/lookup','/api/v2/monitor/system/status'):
@@ -214,25 +273,33 @@ class Engine:
         self.last_poll_ok=True;self.last_error=None;self.last_attempt=now
         return target>=end
 
-    def report(self,period='today',*,at=None,start=None,end=None,vlan=None,device=None,search=''):
+    def report(self,period='today',*,at=None,start=None,end=None,vlan=None,device=None,search='',include_history=False):
         at=at or datetime.now(timezone.utc).isoformat()
         first,last=accounting.period_bounds(period,at,self.config['accounting_timezone'],start=start,end=end)
-        with self.lock:
-            result=self.store.report(first,last,vlan=vlan,device=device,search=search)
-            result['processing']=self.diagnostics()
+        with self._read_snapshot() as (store,version):
+            key=(version,period,first,last,vlan,device,search,include_history)
+            cached=self._report_cache.get(key) if version is not None else None
+            if cached is not None:
+                self._report_cache.move_to_end(key)
+                result=json.loads(cached)
+            else:
+                result=store.report(first,last,vlan=vlan,device=device,search=search)
+                if include_history:
+                    result['daily_history']=store.history(device)
+                    result['monthly_history']=store.history(device,months=True,limit=36)
+                if version is not None:
+                    encoded=json.dumps(result,ensure_ascii=False)
+                    # At most four immutable results, each at most 2 MiB.
+                    if len(encoded.encode('utf-8'))<=2*1024*1024:
+                        self._report_cache[key]=encoded
+                        while len(self._report_cache)>4:self._report_cache.popitem(last=False)
+            result['processing']=self._snapshot_diagnostics(store,version)
         result['period']=period
         return result
 
     def diagnostics(self):
-        with self.lock:
-            details=self.store.diagnostics()
-            checkpoint=details.get('checkpoint_ns')
-            details.update(last_poll_ok=self.last_poll_ok,last_error=self.last_error,last_attempt=self.last_attempt,
-                processing_lag_seconds=max(0,time.time()-checkpoint/accounting.NS) if checkpoint else None,
-                inventory_error=self.store.state('inventory_error'),
-                last_failure_seconds=self.store.state('last_failure_seconds'),
-                loki_timestamps_at_receipt=self.config.get('loki_receive_timestamps',False))
-            return details
+        with self._read_snapshot() as (store,version):
+            return self._snapshot_diagnostics(store,version)
 
     def wan(self,seconds=300):
         if not 60<=seconds<=7*86400:raise ServiceError('wan_history_window_outside_budget')
@@ -419,17 +486,12 @@ def handler(engine,password,root):
                 if parsed.path=='/metrics':return self.send(200,metrics(engine),'text/plain; version=0.0.4; charset=utf-8')
                 if parsed.path=='/api/diagnostics':return self.send(200,engine.diagnostics())
                 if parsed.path=='/api/inventory':
-                    with engine.lock:return self.send(200,engine.store.inventory)
+                    return self.send(200,engine.inventory())
                 if parsed.path=='/api/wan':
                     return self.send(200,engine.wan(int(value('seconds','86400'))))
                 if parsed.path in ('/api/report','/api/device'):
                     result=engine.report(value('period','today'),at=value('at'),start=value('start'),end=value('end'),
-                        vlan=value('vlan') or None,device=value('device') or None,search=value('search',''))
-                    if parsed.path=='/api/device':
-                        device=value('device')
-                        with engine.lock:
-                            result['daily_history']=engine.store.history(device)
-                            result['monthly_history']=engine.store.history(device,months=True,limit=36)
+                        vlan=value('vlan') or None,device=value('device') or None,search=value('search',''),include_history=parsed.path=='/api/device')
                     return self.send(200,result)
                 self.send(404,{'error':'not_found'})
             except ServiceError as exc:
@@ -502,6 +564,10 @@ def main(argv=None):
         if thread is not None and thread.is_alive():
             log_failure('accounting_worker_shutdown_timed_out',warning=False);shutdown_failed=True
         elif store is not None:
+            if engine is not None:
+                try:engine.close()
+                except sqlite3.Error:
+                    log_failure('accounting_reader_close_failed',warning=False);shutdown_failed=True
             try:store.close()
             except sqlite3.Error:
                 log_failure('accounting_store_close_failed',warning=False);shutdown_failed=True

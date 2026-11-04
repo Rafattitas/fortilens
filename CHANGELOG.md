@@ -4,6 +4,21 @@
 
 ### Source collection and diagnostics
 
+- Replace short-window retention extrapolation with explicit next-24-hour
+  additional file-size growth trends from bounded, persisted observations.
+  Withhold accounting forecasts during catch-up, retain observation timestamps
+  across refreshes, and separate applied retention/capacity facts from estimates.
+  Compare additional growth on the measured filesystem; preserve all accounting
+  calculations, retention policies, resource limits and stored records.
+
+- Read accounting reports from committed WAL snapshots independently of the
+  ingestion lock; reuse bounded exact report results and diagnostics, plus recent
+  authenticated device/VLAN navigation results, while preserving accounting math,
+  checkpoints, schemas, authentication and explicit refresh behavior.
+
+- Display and edit the accounting database ceiling in GiB while preserving
+  existing integer-byte API/configuration values and exact untouched limits.
+
 - Add explicit source-preserving native UDP reception for rootful Linux Docker
   Engine, selectable in Web Setup/Settings and portable configuration. Keep the
   existing bridge default, exact source filter and data identities; use private

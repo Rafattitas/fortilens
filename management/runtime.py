@@ -21,7 +21,8 @@ import urllib.request
 import yaml
 from .common import Problem, atomic, load, report_failure, setup
 from .configuration import SERVICES
-from .models import Apply, Change, Console, Job, Revision, Settings
+from .models import Apply, Change, Console, Job, Retention, Revision, Settings
+from .storage import observe
 import doctor
 import interfaces
 import portal
@@ -269,6 +270,7 @@ class Operations:
         self.jobs={};self.jobs_lock=threading.Lock();self.busy=threading.Lock();self.executor=ThreadPoolExecutor(max_workers=1)
         self.gateway_cookie=''
         self.gateway_lock=threading.Lock()
+        self.storage_lock=threading.Lock()
         if not interfaces.NAME.fullmatch(dashboard_uid):raise ValueError('Invalid registered dashboard UID')
         self.dashboard_uid=dashboard_uid
         for p in (self.c.control/'jobs').glob('*.json'):
@@ -422,16 +424,35 @@ class Operations:
                          'grafana_prefix':'/grafana/' if 'fortilens-portal' in (self.c.compose() or {'services':{}})['services'] else '/'}}
 
     def storage(self):
-        # Plan from observed service growth only. Counter resets/compaction or
-        # absent data cannot become a made-up zero-byte storage forecast.
-        result={'available':False,'message':'Insufficient data for storage estimation','components':{}}
+        # Status requests share one persisted observation window. A refresh must
+        # not overwrite another request's baseline or hide a valid trend.
+        with self.storage_lock:
+            return self._storage()
+
+    def _storage(self):
+        result={'available':False,'horizon_seconds':86400,'components':{}}
         now=time.time()
+        history={}
         try:
-            samples=load(self.c.control/'storage-samples.json',{})
-            if not isinstance(samples,dict):raise ValueError('invalid_storage_history')
+            path=self.c.control/'storage-samples.json'
+            if path.exists() and path.stat().st_size>256*1024:raise ValueError('invalid_storage_history')
+            saved=load(path,{})
+            if not isinstance(saved,dict):raise ValueError('invalid_storage_history')
+            if saved.get('version')==2 and isinstance(saved.get('components'),dict):history=saved['components']
         except (OSError,ValueError) as exc:
             report_failure('storage_history_unavailable',exc)
-            return result
+        state=self.c.state()
+        observed=(state.get('applied') if state.get('configured') else None) or state['settings']
+        # First-run settings can have an empty device address. Storage only
+        # needs retention and must remain available before a connection exists.
+        retention=Retention.model_validate(observed.get('retention',{}))
+        poll_seconds=30
+        try:
+            configured_poll=load(self.c.root/state['site_file'],{}).get('accounting_poll_seconds',30)
+            if type(configured_poll) is int and 5<=configured_poll<=3600:poll_seconds=configured_poll
+        except (OSError,ValueError,KeyError,TypeError,AttributeError):pass
+        max_accounting_lag=max(120,poll_seconds*2)
+        updated={};filesystems={};measured_volumes=set()
         for service in ('loki','prometheus','fortilens-usage'):
             try:
                 ids=self.docker.run(self.docker.command()+['ps','--all','-q',service],10).strip().splitlines()
@@ -441,7 +462,8 @@ class Operations:
                 targets=('/loki','/tmp/loki') if service=='loki' else ('/prometheus',) if service=='prometheus' else ('/data',)
                 mounts=[m for m in item['Mounts'] if m['Destination'] in targets and m.get('Type')=='volume']
                 if len(mounts)!=1:continue
-                path=Path(mounts[0]['Source']);total=0;count=0;deadline=time.monotonic()+.25
+                path=Path(mounts[0]['Source']);mount_stat=path.stat();device=mount_stat.st_dev
+                total=0;count=0;deadline=time.monotonic()+.25
                 for base,dirs,files in os.walk(path,followlinks=False):
                     dirs[:]=[d for d in dirs if not (Path(base)/d).is_symlink()]
                     for name in files:
@@ -449,22 +471,54 @@ class Operations:
                         if not p.is_symlink():total+=p.stat().st_size
                         count+=1
                     if count>100000 or time.monotonic()>deadline:raise ValueError()
-                result['components'][service]={'bytes':total,'complete_measurement':True}
-                old=samples.get(service)
-                if old and now-old['at']>=300 and total>old['bytes']:
-                    days=self.c.state()['settings']['retention']['loki_days' if service=='loki' else 'prometheus_days' if service=='prometheus' else 'summary_days']
-                    estimate=int((total-old['bytes'])/(now-old['at'])*86400*days)
-                    result['components'][service]['projection_bytes']=estimate
-                    result.update(available=True,message='Planning estimate from measured filesystem growth. Compaction, compression and future traffic may change actual use.')
-                if not old or now-old['at']>=300:samples[service]={'at':now,'bytes':total}
-            except (Problem,OSError,ValueError,KeyError,TypeError):continue
-        if result['available']:
-            try:
-                if sum(x.get('projection_bytes',0) for x in result['components'].values())>shutil.disk_usage(self.c.control).free:
-                    result['message']+=' Warning: projected growth exceeds currently available storage.'
-            except OSError as exc:report_failure('storage_probe_failed',exc)
-        try:atomic(self.c.control/'storage-samples.json',samples)
-        except (OSError,ValueError) as exc:
+                value={'bytes':total,'complete_measurement':True}
+                context=retention.loki_days if service=='loki' else retention.prometheus_days
+                eligible=item.get('State',{}).get('Running') is True
+                reason=None if eligible else 'The service is not running; a live growth trend is unavailable.'
+                if service=='fortilens-usage':
+                    value.update(capacity_limit_bytes=retention.database_bytes,ledger_days=retention.ledger_days,summary_days=retention.summary_days)
+                    context=[retention.ledger_days,retention.summary_days,retention.database_bytes,*[observed.get(k) for k in ('fortigate_host','vdom','expected_devid','accounting_timezone')]]
+                    if not observed.get('monitoring',{}).get('accounting',True):
+                        eligible=False;reason='Accounting is disabled; a live growth trend is unavailable.'
+                    if eligible:
+                        try:
+                            details=self.accounting_diagnostics({})
+                            health_at=time.time()
+                            context.append(details.get('last_failure_seconds'))
+                            checkpoint=details.get('checkpoint_ns')
+                            if details.get('last_poll_ok') is not True or details.get('last_error') is not None:
+                                eligible=False;reason='Accounting is not processing successfully; its growth trend is unavailable.'
+                            elif type(checkpoint) is not int or not 0<checkpoint<=int(health_at*1e9):
+                                eligible=False;reason='A recent accounting checkpoint has not been verified.'
+                            elif health_at-checkpoint/1e9>max_accounting_lag:
+                                eligible=False;reason='Accounting is processing a backlog; collect a new growth history after it catches up.'
+                        except (Problem,OSError,ValueError,TypeError,AttributeError):
+                            eligible=False;reason='Accounting processing health is unavailable; its growth trend cannot be verified.'
+                identity=hashlib.sha256(json.dumps([self.c.project,str(path),mounts[0].get('Name'),device,mount_stat.st_ino,context]).encode()).hexdigest()
+                trend,updated[service]=observe(history.get(service),identity,now,total,eligible=eligible,reason=reason)
+                value.update(trend);result['components'][service]=value
+                if 'projection_bytes' in value:
+                    result['available']=True
+                    # Existing bytes already occupy the filesystem. Compare only
+                    # additional growth, once per mounted volume, on its device.
+                    volume=str(path.resolve())
+                    if volume not in measured_volumes:
+                        measured_volumes.add(volume)
+                        if device not in filesystems:filesystems[device]=[0,shutil.disk_usage(path).free]
+                        filesystems[device][0]+=value['projection_bytes']
+                    if service=='fortilens-usage' and total+value['projection_bytes']>retention.database_bytes:
+                        value['capacity_warning']='This trend may reach the configured accounting ceiling; the ceiling stops ingestion rather than reducing storage demand.'
+            except (Problem,OSError,ValueError,KeyError,TypeError,IndexError):continue
+        result['partial']=len(result['components'])<3 or any('projection_bytes' not in v for v in result['components'].values())
+        result['message']=('Conditional additional file-size growth over the next 24 hours, based on the observed window. '
+                           'Compaction, retention and future traffic can change actual growth. '
+                           'This is not a full-retention capacity estimate; OS files, backups and other storage are excluded.')
+        if result['partial']:result['message']+=' Some service trends are unavailable; see the individual reasons.'
+        if not result['components']:result['message']='Storage measurements are unavailable. Review service and host storage access.'
+        if any(growth>free for growth,free in filesystems.values()):
+            result['message']+=' Warning: the available trends exceed free space on a measured volume filesystem.'
+        try:atomic(self.c.control/'storage-samples.json',{'version':2,'components':updated})
+        except (Problem,OSError,ValueError) as exc:
             report_failure('storage_history_write_failed',exc)
             result['message']+=' The latest storage sample could not be saved; review host storage.'
         return result

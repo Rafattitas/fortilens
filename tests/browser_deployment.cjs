@@ -98,13 +98,112 @@ async function usageViewsRegression(browser,baseURL){
   assert.deepEqual(errors,[]);
  }finally{await context.close()}
 }
+async function reportNavigationReuseRegression(browser,baseURL){
+ const context=await browser.newContext({viewport:{width:1280,height:900}}),page=await context.newPage(),errors=[];
+ const network=[];page.on('response',response=>{if(response.url().includes('/api/'))network.push({url:response.url(),status:response.status()})});
+ page.on('pageerror',error=>errors.push(error.message));
+ let reportRequests=0,sessionChecks=0,rejectSessionAt=0;
+ const vlan={key:'root:staff',status:'MAPPED',vlan_id:100,interface:'staff'};
+ const report={devices:[{device_id:'synthetic',hostname:'Cached fixture',ip:'192.0.2.1',mac:'02:00:00:00:00:01',identity_kind:'MAC',vlans:[vlan],upload_bytes:100,download_bytes:900,total_bytes:1000}],
+  vlans:[{vlan,observed_endpoint_identities:1,upload_bytes:100,download_bytes:900,total_bytes:1000}],totals:{upload_bytes:100,download_bytes:900,pending_upload_bytes:0,pending_download_bytes:0},flags:{},processing:{last_poll_ok:true},observed_endpoint_identities:1,unverified_endpoint_identities:0,status:'RECORDED_ONLY',timezone:'UTC',start_utc:'2026-11-03T00:00:00Z',end_utc:'2026-11-03T12:00:00Z'};
+ await page.route(url=>url.origin===baseURL,async route=>{
+  const url=new URL(route.request().url());let payload,status=200;
+  if(url.pathname==='/'){
+   const initial=['devices','vlans','reports'].includes(url.searchParams.get('view'))?url.searchParams.get('view'):'devices';
+   const html=fs.readFileSync(path.join(root,'management/static/index.html'),'utf8').replace('id="console-frame"','id="console-frame" data-initial-view="'+initial+'" src="/console/?section='+initial+'#overview"');
+   return route.fulfill({status:200,contentType:'text/html',body:html});
+  }
+  if(url.pathname==='/console/')return route.fulfill({status:200,contentType:'text/html',body:fs.readFileSync(path.join(root,'portable/reporting.html'),'utf8').replaceAll("'/api/","'/console/api/")});
+  if(url.pathname==='/api/bootstrap/status')payload={required:false};
+  else if(url.pathname==='/api/session')payload={username:'synthetic-admin',csrf:'synthetic-csrf'};
+  else if(url.pathname==='/api/settings')payload={...view(),pending_changes:false,applied_revision:7};
+  else if(url.pathname==='/api/system')payload={...system(),latest_job:null,links:{console:true,dashboard:'/grafana/d/fixture/'}};
+  else if(url.pathname==='/api/logout')payload={authenticated:false};
+  else if(url.pathname==='/console/api/portal')payload={enabled:true};
+  else if(url.pathname==='/console/api/session'){sessionChecks++;if(sessionChecks===rejectSessionAt){status=401;payload={error:'authentication_required'}}else payload={authenticated:true}}
+  else if(url.pathname==='/console/api/report'){reportRequests++;await page.waitForFunction(()=>!!window.__fortilensReportCache);payload=report}
+  else return route.continue();
+  return route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
+ });
+ const loaded=(section=null)=>page.waitForFunction(section=>{const f=document.getElementById('console-frame'),d=f?.contentDocument;return (!section||new URL(f.contentWindow.location.href).searchParams.get('section')===section)&&d?.getElementById('refresh')?.disabled===false&&d?.getElementById('range-label')?.textContent.includes('2026-11-03')},section);
+ const frame=()=>page.frames().find(frame=>frame.parentFrame()&&new URL(frame.url()).pathname==='/console/');
+ const navigate=async view=>{await page.locator('#workspace-nav a[data-page="'+view+'"]').click();await loaded(view)};
+ try{
+  await page.goto(baseURL+'/?view=devices#devices');await loaded();assert.equal(reportRequests,1);
+  const originalWindow=await frame().locator('#range-label').textContent();
+  await frame().evaluate(()=>{state.report.devices[0].hostname='Mutated local copy'});
+  await navigate('vlans');assert.equal(reportRequests,1,'Device-to-VLAN navigation repeated the accounting report');
+  assert.equal(await frame().locator('#range-label').textContent(),originalWindow,'Cache relabelled old evidence with a new end time');
+  await navigate('devices');assert.equal(reportRequests,1);assert.ok((await frame().locator('#device-body').innerText()).includes('Cached fixture'),'Cached response shared a mutable object');
+  await frame().locator('#refresh').click();await loaded();assert.equal(reportRequests,2,'Explicit Refresh reused old evidence');
+  await frame().locator('[data-period="week"]').click();await loaded();assert.equal(reportRequests,3,'Period change reused old evidence');
+  await navigate('vlans');assert.equal(reportRequests,4,'Different period selection reused cached evidence');
+  await page.evaluate(()=>window.__fortilensReportCache.entries.forEach(entry=>entry.created-=5001));
+  await navigate('devices');assert.equal(reportRequests,5,'Expired report survived navigation');
+  const selection='period=today&search=&vlan=';
+  assert.equal(await frame().evaluate(selection=>reportCacheCurrent({selection,end:'2026-11-03T23:59:59.500Z',timezone:'UTC'},selection,1000),selection),false,'Cache crossed an accounting date boundary');
+  assert.equal(await frame().evaluate(selection=>reportCacheCurrent({selection,end:'2026-11-03T12:00:00Z',timezone:'UTC'},selection,1000),selection),true);
+  // Reject the cache-hit session validation after the initial iframe session succeeds.
+  rejectSessionAt=sessionChecks+2;
+  await page.locator('#workspace-nav a[data-page="vlans"]').click();
+  await page.waitForFunction(()=>window.__fortilensReportCache.entries.length===0);
+  await page.waitForFunction(()=>document.getElementById('console-frame')?.contentDocument?.getElementById('login')?.hidden===false);
+  assert.equal(reportRequests,5,'Revoked cache session fetched or displayed a report');
+  assert.equal(await page.evaluate(()=>window.__fortilensReportCache.entries.length),0,'Revocation retained private cached data');
+  const oldEpoch=await page.evaluate(()=>window.__fortilensReportCache.epoch);
+  await page.locator('#signout').click();await page.waitForFunction(()=>document.getElementById('workspace').hidden);
+  assert.equal(await page.evaluate(()=>window.__fortilensReportCache),undefined,'Management sign-out retained report cache');
+  await page.reload();await loaded();assert.equal(reportRequests,6);assert.notEqual(await page.evaluate(()=>window.__fortilensReportCache.epoch),oldEpoch);
+  assert.deepEqual(errors,[],'Managed report cache browser errors');
+ }catch(error){console.error(JSON.stringify({errors,network:network.slice(-15),reportRequests,sessionChecks,frames:await Promise.all(page.frames().map(async f=>({url:f.url(),body:(await f.locator('body').innerText().catch(()=>'' )).slice(-1200)})))}));throw error}finally{await context.close()}
+}
+async function storageForecastRegression(browser,baseURL){
+ const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'}),page=await context.newPage(),errors=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ const observedAt=Date.UTC(2026,10,4,12,0,0)/1000;
+ const projection={available:true,message:'Partial 24-hour growth trend. <b>Other storage is not included.</b>',components:{
+  loki:{bytes:512*2**20,forecast_status:'available',horizon_seconds:86400,projection_bytes:2*2**30,observation_seconds:5400,sample_count:5,projection_at_seconds:observedAt},
+  prometheus:{bytes:15.8*2**20,projection_bytes:19788.2*2**30},
+  'fortilens-usage':{bytes:11.2*2**30,forecast_status:'catching_up',forecast_message:'Waiting for accounting catch-up <img src=x onerror="window.storageInjected=true">',horizon_seconds:86400,capacity_limit_bytes:20*2**30,ledger_days:8,summary_days:400}
+ }};
+ await page.route('**/api/**',async route=>{
+  const pathname=new URL(route.request().url()).pathname;let payload,status=200;
+  if(pathname==='/api/bootstrap/status')payload={required:false};
+  else if(pathname==='/api/session')payload={username:'synthetic-admin',csrf:'synthetic-csrf'};
+  else if(pathname==='/api/settings')payload={...view(),settings:{...structuredClone(settings),retention:{...settings.retention,ledger_days:30,summary_days:800,database_bytes:30*2**30}}};
+  else if(pathname==='/api/system')payload={...system(),latest_job:null,storage_projection:projection};
+  else{status=404;payload={error:'not_found'}}
+  await route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
+ });
+ try{
+  await page.goto(baseURL+'/?view=settings#settings');await page.waitForFunction(()=>!document.getElementById('workspace').hidden);await page.locator('[data-section="storage"]').click();
+  const facts=page.locator('#storage-facts');await facts.getByText('Loki estimated additional storage (next 24h)',{exact:true}).waitFor();
+  const values=await facts.evaluate(root=>Object.fromEntries([...root.children].map(row=>[row.querySelector('span').textContent,row.querySelector('strong').textContent])));
+  assert.equal(values['Loki measured size'],'512.0 MiB');assert.equal(values['Loki estimated additional storage (next 24h)'],'2.0 GiB');
+  assert.equal(values['Loki observation window'],'1.5 hours · observed through 2026-11-04 12:00:00 UTC','Observation timestamp was replaced by the browser time');
+  assert.equal(values['Accounting Service configured database ceiling'],'20.0 GiB','Capacity used the unapplied settings draft');
+  assert.equal(values['Accounting Service applied retention'],'8 days ledger · 400 days summaries','Retention used the unapplied settings draft');
+  assert.equal(values['Accounting Service measured size'],'11.2 GiB');assert.match(values['Accounting Service next 24h estimate'],/Waiting for accounting catch-up/);
+  assert.match(values['Prometheus next 24h estimate'],/updated helper/);assert.equal(values['Prometheus estimated additional storage (next 24h)'],undefined,'Legacy retention projection was mislabeled as a 24-hour forecast');
+  assert.equal((await facts.innerText()).includes('19788'),false,'Legacy huge projection leaked into the new trend view');
+  assert.equal(await facts.locator('img').count(),0,'Forecast reason was interpreted as HTML');assert.equal(await page.evaluate(()=>window.storageInjected),undefined);
+  assert.equal(await page.locator('#storage-projection b').count(),0,'Global forecast notice was interpreted as HTML');assert.match(await page.locator('#storage-projection').innerText(),/<b>Other storage/);
+  await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Storage trend facts overflow the mobile viewport');
+  if(output){fs.mkdirSync(output,{recursive:true});await page.screenshot({path:path.join(output,'storage-growth-trends-mobile.png'),fullPage:true})}
+  delete projection.components.loki.projection_at_seconds;await page.setViewportSize({width:1280,height:900});
+  await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);await page.locator('[data-section="storage"]').click();
+  await page.waitForFunction(()=>document.getElementById('storage-facts').textContent.includes('Loki next 24h estimate'));
+  assert.equal(await facts.getByText('Loki estimated additional storage (next 24h)',{exact:true}).count(),0,'Incomplete observation metadata displayed a confident forecast');
+  assert.deepEqual(errors,[],'Storage forecast browser errors');
+ }finally{await context.close()}
+}
 async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice,scopeLocked=false}){
  const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});
  const page=await context.newPage(),errors=[],saved=[],authRequests=[];
  const username='admin',password='synthetic-administrator-password',token='synthetic-read-only-api-token',bootstrapToken='synthetic-one-time-bootstrap-token';
  const device=expectedDevice||'FG-SYNTHETIC-TRUSTED';
  let signedIn=false,bootstrapRequired=bootstrap,revision=scopeLocked?7:0,connectionTests=0,storedToken=false;
- let currentSettings={...structuredClone(settings),fortigate_host:'',wan_interfaces:[],wan_confirmed:false,expected_devid:expectedDevice};
+ let currentSettings={...structuredClone(settings),retention:{...settings.retention,database_bytes:9294967296},fortigate_host:'',wan_interfaces:[],wan_confirmed:false,expected_devid:expectedDevice};
  const currentView=()=>({settings:structuredClone(currentSettings),configured:scopeLocked,revision,applied_revision:scopeLocked?7:null,pending_changes:!scopeLocked||revision!==7,scope_locked:scopeLocked,secret_status:{api_token_present:storedToken,custom_ca_present:false},active_monitoring:currentSettings.monitoring,discovery:{required:false,current:true,changed_fields:[],reason:'Synthetic first-run connection.'}});
  page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/api/**',async route=>{
@@ -177,6 +276,18 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
   const correctedResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/connection/test');await page.locator('#test-connection').click();assert.equal((await correctedResponse).status(),200);assert.equal(saved.at(-1).settings.expected_devid,device);assert.equal(connectionTests,3);
   if(bootstrap){
    const save=async()=>{const response=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/settings'&&r.request().method()==='POST');await page.locator('#save').click();assert.equal((await response).status(),200);await page.waitForFunction(()=>document.getElementById('save').disabled===false);return saved.at(-1)};
+   await page.locator('[data-section="storage"]').click();
+   const capacity=page.locator('#database-gib');
+   assert.equal(await capacity.inputValue(),'8.6566');
+   let capacityBody=await save();assert.equal(capacityBody.settings.retention.database_bytes,9294967296,'Untouched displayed limit rounded stored bytes');
+   await capacity.fill('8.6566');await capacity.press('Tab');capacityBody=await save();assert.equal(capacityBody.settings.retention.database_bytes,9294967296,'Re-entering the displayed value changed exact stored bytes');
+   await capacity.fill('9');await capacity.press('Tab');await page.locator('[data-section="review"]').click();assert.ok((await page.locator('#review-summary').innerText()).includes('9 GiB'));capacityBody=await save();assert.equal(capacityBody.settings.retention.database_bytes,9*2**30);
+   await page.locator('[data-section="storage"]').click();
+   for(const amount of ['9.5','0.0625','1024']){await capacity.fill(amount);await capacity.press('Tab');capacityBody=await save();assert.equal(capacityBody.settings.retention.database_bytes,Math.round(Number(amount)*2**30));assert.equal(await capacity.getAttribute('aria-invalid'),'false')}
+   for(const invalid of ['', '0', '-1', '1025']){await capacity.fill(invalid);const count=saved.length;await page.locator('#save').click();await page.waitForFunction(()=>!document.getElementById('save').disabled);assert.equal(saved.length,count,'Invalid capacity reached settings API');assert.equal(await capacity.getAttribute('aria-invalid'),'true')}
+   await capacity.fill('9.5');await capacity.press('Tab');capacityBody=await save();assert.equal(capacityBody.settings.retention.database_bytes,9.5*2**30);
+   if(output){fs.mkdirSync(output,{recursive:true});await page.screenshot({path:path.join(output,'storage-limit-gib.png'),fullPage:true})}
+   await page.locator('[data-section="connection"]').click();await page.evaluate(()=>{const input=document.getElementById('database-gib');input.value='999';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}))});capacityBody=await save();assert.equal(capacityBody.settings.retention.database_bytes,9.5*2**30,'Hidden capacity DOM mutation changed the byte ceiling');
    await page.locator('[data-section="monitoring"]').click();await page.locator('[data-setting="monitoring.syslog"]').uncheck();
    let body=await save();assert.equal(body.settings.monitoring.syslog,false);assert.equal(body.settings.monitoring.accounting,false);assert.equal(body.settings.monitoring.vlans,false);
    assert.equal(body.settings.optional_exporter_exclusions,undefined,'Untouched legacy policy changed');
@@ -205,6 +316,8 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  try{
  const baseURL='http://127.0.0.1:'+server.address().port;
  await usageViewsRegression(browser,baseURL);
+ await storageForecastRegression(browser,baseURL);
+ await reportNavigationReuseRegression(browser,baseURL);
  for(const offset of [2612,-2612,30])await monitoringClockRegression(browser,baseURL,offset);
  await monitoringClockRegression(browser,baseURL,2612,false);
  await monitoringClockRegression(browser,baseURL,86401,true);
@@ -252,6 +365,6 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  mode='complete';discovery=true;await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);await page.setViewportSize({width:375,height:812});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile horizontal overflow');
  if(output)await page.screenshot({path:path.join(output,'deployment-complete-mobile.png'),fullPage:true});
  assert.deepEqual(errors,[],'Browser JavaScript errors');
- console.log(JSON.stringify({passed:true,checks:['server clock capability handles forward/backward skew in both consoles','normal clocks preserve initial parser frame','unsupported and excessive skew warn without changing time ranges','first administrator setup ignores hidden autofill','saved source survives sign-in/autofill','locked source rejects DOM mutations','explicit source mismatch and deliberate edits remain enforced','collector dependency changes persist','explicit CA clearing ignores hidden pollution','WAN changes clear confirmation until reconfirmed','completed startup/reload/navigation hidden','running restore and duplicate prevention','completion notification and health refresh','failure acknowledgement and recovery history','historical job lookup','discovery gating','unknown outcome no retry','mobile layout'],browser:await browser.version(),screenshots:output||null}));
+ console.log(JSON.stringify({passed:true,checks:['storage trends show 24h additional growth, observation age, applied capacity/retention and safe unavailable reasons','legacy or incomplete forecast metadata is not mislabeled','server clock capability handles forward/backward skew in both consoles','normal clocks preserve initial parser frame','unsupported and excessive skew warn without changing time ranges','first administrator setup ignores hidden autofill','saved source survives sign-in/autofill','locked source rejects DOM mutations','explicit source mismatch and deliberate edits remain enforced','GiB input preserves exact legacy ceilings and converts whole/fractional sizes','invalid capacity and hidden DOM edits cannot change saved settings','managed report navigation reuses bounded authenticated snapshots','refresh, period changes, expiry and session revocation bypass report reuse','collector dependency changes persist','explicit CA clearing ignores hidden pollution','WAN changes clear confirmation until reconfirmed','completed startup/reload/navigation hidden','running restore and duplicate prevention','completion notification and health refresh','failure acknowledgement and recovery history','historical job lookup','discovery gating','unknown outcome no retry','mobile layout'],browser:await browser.version(),screenshots:output||null}));
  }finally{await browser.close();server.close()}
 })().catch(error=>{console.error(error.stack);server.close();process.exitCode=1});

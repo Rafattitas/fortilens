@@ -54,6 +54,21 @@ flowchart LR
 
 ## Deployment identities and defaults
 
+Management edits the accounting database ceiling in GiB, matching storage
+measurements. The browser converts deliberate edits to integer bytes; unchanged
+legacy limits retain their exact bytes. API/configuration formats and the helper's
+data-preservation restriction on reductions remain unchanged.
+
+Storage trends are conditional **next-24-hour additional file-size growth**,
+based on a bounded persisted observation window of at least one hour/four
+samples. They are not full-retention capacity forecasts. Accounting requires a
+healthy, recent processing checkpoint; catch-up invalidates its trend immediately.
+Applied ledger/summary retention and the database ceiling remain separate facts.
+Refreshes retain the original observed-through timestamp, while compaction,
+changed volume/retention, stale history and clock rollback restart sampling.
+Measurements and forecasts remain separate from the unchanged accounting engine,
+database schema, retention policy, Compose resources and persistent data.
+
 The full fresh setup normally has eight Compose services: exporter, Prometheus,
 Grafana, Loki, Alloy, Node Exporter, accounting worker and monitoring gateway.
 Older/opt-out installations can have fewer. Management adds two independent
@@ -122,6 +137,15 @@ or replace existing release assets.
   reviewed host operations, not an automatic bootstrap side effect.
 
 ## Verification and continuation
+
+File-backed accounting reports read a separate read-only WAL snapshot instead
+of the ingestion connection/lock. Each response keeps report totals, diagnostics
+and optional device histories on one committed snapshot. Bounded result reuse
+uses exact ranges/filters and the persistent reader's database version; no
+schema or accounting algorithm changes are involved. The managed parent page
+can reuse an authenticated report for five seconds across device/VLAN navigation,
+while Refresh, filter changes, expiry, logout and revocation invalidate reuse.
+See [the accounting contract](ACCOUNTING_ENGINE.md#report-reads-during-collection).
 
 Managed Device usage and Reports are distinct presentations of the same received
 accounting evidence. Device usage focuses on the searchable/paginated endpoint

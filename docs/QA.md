@@ -15,6 +15,31 @@ need actual browser review. Passing API tests alone does not prove these flows.
 
 ## Automated coverage
 
+`tests/test_storage_projection.py` verifies independently calculated 24-hour
+growth, bounded persisted sampling, refresh/restart stability and invalidation
+after shrinkage, stale/changed history, clock rollback or ineligible processing.
+`tests/test_storage_runtime.py` uses temporary synthetic volumes and a fake
+registered project to check applied versus draft retention, separate accounting
+ceilings, catch-up/disabled/unhealthy states, first-run availability, corrupt
+cache recovery and additional-growth warnings on the volume filesystem.
+Browser acceptance checks explicit horizon/window timestamps, unavailable reasons,
+legacy projection suppression, safe text rendering and compact-screen layout.
+These fixtures do not establish a real site's representative growth rate or
+predict its full-retention capacity. Never insert synthetic forecast history into
+a live installation to make a numeric estimate appear.
+
+`tests/test_report_concurrency.py` uses disposable file-backed WAL databases to
+verify reporting while an uncommitted writer holds the ingestion lock, consistent
+checkpoints/history across concurrent commits, rollback isolation, read-only
+enforcement, exact-bound/filter cache keys, pruning/metadata invalidation and
+bounded caches. Browser acceptance also tests report reuse across managed iframe
+navigation, explicit refresh, expiry and session revocation. These checks do not
+replace live ingestion/capacity measurement on the intended host.
+Delivery-observation regressions compare the derived timestamp with the actual
+retained rows across late/replayed/malformed input, failed transactions, pruning
+and legacy restart recovery; diagnostics must avoid the full scan when the
+derived observation is present.
+
 `python tests/integration_native_host.py` runs only on a disposable rootful Linux
 Docker host. It renders the actual host receiver profile, sends synthetic UDP
 from two distinct bridge containers through the host socket, verifies the exact
