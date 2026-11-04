@@ -16,6 +16,7 @@ import argparse
 import ipaddress
 import json
 import math
+import os
 import queue
 import re
 import select
@@ -181,10 +182,14 @@ class Receiver:
         wait=None,
         peer_closed=None,
         queue_capacity=QUEUE_CAPACITY,
+        udp_address=None,
+        upstream=None,
     ):
         if not sources or not 1 <= queue_capacity <= QUEUE_CAPACITY:
             raise ConfigurationError("Invalid receiver bounds")
         self.sources = frozenset(sources)
+        self.udp_address = udp_address or UDP_ADDRESS
+        self.upstream = upstream or UPSTREAM
         self.queue = queue.Queue(maxsize=queue_capacity)
         self.connector = connector or socket.create_connection
         self.clock = clock or time.time
@@ -253,7 +258,7 @@ class Receiver:
                 try:
                     connection = self.connection
                     if connection is None:
-                        connection = self.connector(UPSTREAM, timeout=CONNECT_TIMEOUT)
+                        connection = self.connector(self.upstream, timeout=CONNECT_TIMEOUT)
                         with self.connection_lock:
                             self.connection = connection
                         connection.settimeout(CONNECT_TIMEOUT)
@@ -312,14 +317,16 @@ class Receiver:
             with self.lock:
                 self.udp_bound = False
 
-    def start(self):
+    def start(self, before_threads=None):
         if self.worker_thread is not None:
             raise RuntimeError("Receiver already started")
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp_socket.settimeout(0.25)
-        self.udp_socket.bind(UDP_ADDRESS)
+        self.udp_socket.bind(self.udp_address)
         with self.lock:
             self.udp_bound = True
+        if before_threads is not None:
+            before_threads()
         self.worker_thread = threading.Thread(target=self._run_forwarder, daemon=True)
         self.receiver_thread = threading.Thread(target=self._run_receiver, daemon=True)
         self.worker_thread.start()
@@ -440,17 +447,63 @@ class _Arguments(argparse.ArgumentParser):
         raise ConfigurationError("Invalid receiver arguments")
 
 
+def host_endpoints(path):
+    """Linux host profile: public UDP, private TCP handoff and health only.
+
+    Never use a caller-selected forwarding host or broaden the source filter.
+    The adjacent health port makes independent installations configurable without
+    relying on Docker DNS or globally reserved auxiliary ports.
+    """
+    try:
+        with Path(path).open('rb') as stream:
+            data = stream.read(256 * 1024 + 1)
+        if len(data) > 256 * 1024:
+            raise ValueError()
+        config = json.loads(data)
+        port = config['syslog_port']
+        bind = str(ipaddress.IPv4Address(config['syslog_bind']))
+        if (config.get('syslog_network') != 'host'
+                or config.get('syslog_format') != 'fortigate'
+                or config.get('syslog_protocol') != 'udp'
+                or type(port) is not int or not 1 <= port < 65535):
+            raise ValueError()
+        return (bind, port), ('127.0.0.1', port), ('127.0.0.1', port + 1)
+    except (OSError, ValueError, KeyError, TypeError):
+        raise ConfigurationError('Invalid host receiver configuration') from None
+
+
+def drop_host_privileges():
+    """Permanently drop the Linux bind bootstrap before handling input."""
+    if sys.platform != 'linux' or os.geteuid() != 0:
+        raise ConfigurationError('Host receiver requires the managed Linux bootstrap')
+    os.setgroups([])
+    os.setgid(10001)
+    os.setuid(10001)
+    status = dict(line.split(':', 1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)
+    if (os.getuid() != 10001 or os.geteuid() != 10001
+            or os.getgid() != 10001 or os.getegid() != 10001 or os.getgroups()
+            or status.get('NoNewPrivs','').strip() != '1'
+            or any(int(status[key].strip(), 16) for key in ('CapInh', 'CapPrm', 'CapEff', 'CapAmb'))):
+        raise ConfigurationError('Host receiver privilege drop failed')
+
+
 def main(argv=None):
     receiver = server = http_thread = None
     old_handlers = {}
     try:
         parser = _Arguments(prog="fortilens-native-syslog", description=__doc__)
         parser.add_argument("--config", required=True, type=Path)
+        parser.add_argument("--host-network", action="store_true")
         args = parser.parse_args(argv)
-        receiver = Receiver(load_config(args.config))
-        server = ThreadingHTTPServer(HTTP_ADDRESS, handler(receiver))
+        options = {}
+        http_address = HTTP_ADDRESS
+        if args.host_network:
+            udp, upstream, http_address = host_endpoints(args.config)
+            options = {'udp_address': udp, 'upstream': upstream}
+        receiver = Receiver(load_config(args.config), **options)
+        server = ThreadingHTTPServer(http_address, handler(receiver))
         server.daemon_threads = True
-        receiver.start()
+        receiver.start(before_threads=drop_host_privileges if args.host_network else None)
         http_thread = threading.Thread(
             target=server.serve_forever, kwargs={"poll_interval": 0.2}, daemon=True
         )

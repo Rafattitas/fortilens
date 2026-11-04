@@ -295,8 +295,23 @@ class Configuration:
             receiver['volumes']=['./'+self.state()['site_file']+':/config/site.json:ro']
             existing=compose['services'].get('fortilens-syslog')
             if existing and existing.get('image')=='fortilens-syslog:local':receiver['image']=existing['image']
-            if existing and ({k:v for k,v in existing.items() if k!='ports'}!={k:v for k,v in receiver.items() if k!='ports'}):
+            # Compare against the old managed profile, not the requested one.
+            # Only these fixed transport fields may change during a transition.
+            expected=deepcopy(receiver)
+            expected.pop('network_mode',None);expected.pop('cap_add',None)
+            expected['user']='10001:10001'
+            expected['command']=[x for x in expected['command'] if x!='--host-network']
+            health_port=8080
+            if was_native and active.get('syslog_network','bridge')=='host':
+                expected['network_mode']='host';expected['user']='0:0'
+                expected['cap_add']=['NET_BIND_SERVICE','SETUID','SETGID']
+                expected['command'].append('--host-network')
+                health_port=active['syslog_port']+1
+            expected['healthcheck']['test'][-1]="import urllib.request; urllib.request.urlopen('http://127.0.0.1:"+str(health_port)+"/health',timeout=3)"
+            if existing and ({k:v for k,v in existing.items() if k!='ports'}!={k:v for k,v in expected.items() if k!='ports'}):
                 raise Problem('custom_syslog_review','Review the existing native receiver service before replacing its runtime.')
+            if existing and was_native and active.get('syslog_network','bridge')=='host' and existing.get('ports'):
+                raise Problem('custom_syslog_review','Review unexpected published ports on the host receiver.')
             compose['services']['fortilens-syslog']=receiver
             for path in (stage/'syslog').iterdir():files['syslog/'+path.name]=path.read_bytes()
         endpoint_changed=setup.target_url(c)!=setup.target_url({**setup.DEFAULTS,**active})
@@ -346,8 +361,8 @@ class Configuration:
         expected_job={'job_name':'fortilens-syslog','static_configs':[{'targets':['fortilens-syslog:8080']}]}
         if native_jobs and native_jobs!=[expected_job]:
             raise Problem('custom_syslog_review','Review the existing native receiver scrape job before changing its collection profile.')
-        if native and not native_jobs:pdata['scrape_configs'].append(expected_job)
-        if not native:pdata['scrape_configs']=[job for job in pdata['scrape_configs'] if job.get('job_name')!='fortilens-syslog']
+        if native and settings.syslog_network=='bridge' and not native_jobs:pdata['scrape_configs'].append(expected_job)
+        if not native or settings.syslog_network=='host':pdata['scrape_configs']=[job for job in pdata['scrape_configs'] if job.get('job_name')!='fortilens-syslog']
         prometheus_policy(pdata,settings.monitoring_interval,update_global=settings.monitoring_interval!=applied.get('monitoring_interval'))
         files[str(prom.relative_to(self.root))] = yaml.safe_dump(pdata, sort_keys=False).encode()
         service = compose['services']['prometheus']
@@ -376,8 +391,11 @@ class Configuration:
             files[str(alloy.relative_to(self.root))]=re.sub(r'(?m)^(\s*use_incoming_timestamp\s*=\s*)true\s*$',lambda m:m[1]+'false',text).encode()
             c['loki_receive_timestamps']=True
         old_port = active.get('syslog_port', 1514)
+        was_host=was_native and active.get('syslog_network','bridge')=='host'
+        host=native and settings.syslog_network=='host'
         port_owner='fortilens-syslog' if was_native else 'alloy'
-        ports = (self.compose()['services'].get(port_owner) or {}).get('ports', [])
+        ports = ([f"{active.get('syslog_bind','0.0.0.0')}:{old_port}:1514/udp"] if was_host else
+                 (self.compose()['services'].get(port_owner) or {}).get('ports', []))
         if ports and not all(isinstance(p, str) for p in ports):
             raise Problem('custom_ports_review', 'Custom published-port syntax requires a host-side review.')
         replaced=[];receiver_found=False
@@ -392,16 +410,30 @@ class Configuration:
         if not receiver_found and (native!=was_native or settings.syslog_port!=old_port or settings.syslog_protocol!=active.get('syslog_protocol','tcp')):
             raise Problem('custom_ports_review','Register the actual syslog target port before changing its listener.')
         if native:
-            compose['services']['fortilens-syslog']['ports']=[binding for binding in replaced if binding.rsplit(':',1)[-1].split('/')[0]=='1514']
+            if host:compose['services']['fortilens-syslog'].pop('ports',None)
+            else:compose['services']['fortilens-syslog']['ports']=[binding for binding in replaced if binding.rsplit(':',1)[-1].split('/')[0]=='1514']
             alloy_ports=compose['services']['alloy'].get('ports',[])
+            if was_host and [p for p in alloy_ports if isinstance(p,str) and p.rsplit(':',1)[-1].split('/')[0]=='1514']!=[f'127.0.0.1:{old_port}:1514/tcp']:
+                raise Problem('custom_ports_review','Review the host receiver loopback handoff before changing profiles.')
             compose['services']['alloy']['ports']=[binding for binding in alloy_ports if isinstance(binding,str) and binding.rsplit(':',1)[-1].split('/')[0]!='1514']
             if any(not isinstance(binding,str) for binding in alloy_ports):raise Problem('custom_ports_review','Review custom Alloy port bindings before changing its receiver.')
+            if host:compose['services']['alloy']['ports'].append(f'127.0.0.1:{settings.syslog_port}:1514/tcp')
         else:
             unrelated=compose['services']['alloy'].get('ports',[]) if was_native else []
+            if was_host:
+                expected_binding=f'127.0.0.1:{old_port}:1514/tcp'
+                if [p for p in unrelated if isinstance(p,str) and p.rsplit(':',1)[-1].split('/')[0]=='1514']!=[expected_binding]:raise Problem('custom_ports_review','Review the host receiver loopback handoff before changing profiles.')
+                unrelated=[binding for binding in unrelated if binding!=expected_binding]
             if was_native and any(not isinstance(binding,str) or binding.rsplit(':',1)[-1].split('/')[0]=='1514' for binding in unrelated):
                 raise Problem('custom_ports_review','Review unexpected Alloy syslog bindings before leaving the native profile.')
             compose['services']['alloy']['ports']=unrelated+replaced
-            if 'fortilens-syslog' in compose['services']:compose['services']['fortilens-syslog']['ports']=[]
+            if 'fortilens-syslog' in compose['services']:
+                disabled=compose['services']['fortilens-syslog']
+                disabled['ports']=[]
+                disabled.pop('network_mode',None);disabled.pop('cap_add',None)
+                disabled['user']='10001:10001'
+                disabled['command']=[x for x in disabled['command'] if x!='--host-network']
+                disabled['healthcheck']['test'][-1]="import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)"
         exporter = compose['services']['fortigate-exporter']
         cmd = exporter.get('command', [])
         destination = next((cmd[i+1] for i,x in enumerate(cmd[:-1]) if x == '-auth-file'), '/config/fortigate-key.yaml')
@@ -547,6 +579,7 @@ class Configuration:
                 'warnings': ['Service restarts may create collection gaps. Existing alert rules are not changed.',
                              *(['Choose an actual SLA check name before relying on Internet health or SLA measurements. A blank selection remains unknown.'] if not plan['settings'].get('sla') else []),
                              *(['Native UDP is best effort. The receiver restricts source addresses but does not authenticate the sender or prove complete delivery.'] if plan['settings'].get('syslog_format')=='fortigate' else []),
+                             *(['The native receiver shares the Linux host network namespace. A bind-only root bootstrap permanently drops to UID/GID 10001 with no usable capabilities before processing. TCP handoff and health remain loopback-only; receiver metrics are local and are not scraped by bridge Prometheus.'] if plan['settings'].get('syslog_network')=='host' else []),
                              'Syslog sender configuration and FortiGate read permissions must be set by its administrator.',
                              'WAN/SLA/interface views share the existing exporter.', 'Missing telemetry remains unknown; a completed deployment does not certify traffic accuracy.']}
 

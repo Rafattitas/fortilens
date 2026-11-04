@@ -32,6 +32,7 @@ DEFAULTS = {
     "confirmed_wan_interfaces": [],
     "syslog_port": 1514, "syslog_protocol": "tcp", "syslog_format": "rfc5424",
     "syslog_bind": "0.0.0.0", "grafana_port": 3001,
+    "syslog_network": "bridge",
     "grafana_bind": "127.0.0.1", "timezone": "browser",
     "accounting_enabled": False, "accounting_timezone": "UTC", "source_id": "dedicated-listener", "expected_devid": "",
     "usage_bind": "127.0.0.1", "usage_port": 3002, "public_usage_url": "",
@@ -131,6 +132,17 @@ def validate_config(raw):
         raise SetupError("Supported syslog: tcp/udp and rfc5424/rfc3164/fortigate")
     if c["syslog_format"] == "fortigate" and c["syslog_protocol"] != "udp":
         raise SetupError("Native FortiGate syslog requires UDP")
+    if c['syslog_network'] not in ('bridge', 'host'):
+        raise SetupError('syslog_network must be bridge or host')
+    if c['syslog_network'] == 'host':
+        if c['syslog_format'] != 'fortigate' or c['syslog_protocol'] != 'udp':
+            raise SetupError('Host networking requires native FortiGate UDP')
+        try:
+            ipaddress.IPv4Address(c['fortigate_host'])
+        except ValueError:
+            raise SetupError('Host reception requires the actual FortiGate IPv4 address') from None
+        if c['syslog_port'] >= 65535 or {c['syslog_port'], c['syslog_port']+1} & {c['grafana_port'], c['usage_port']}:
+            raise SetupError('Native host TCP handoff and adjacent health ports must be free and distinct from UI ports')
     for key in ["grafana_bind", "syslog_bind", "usage_bind"]:
         try:
             ipaddress.IPv4Address(c[key])
@@ -303,6 +315,17 @@ def render(c, output, token, admin_password=None, inventory_report=None):
             "healthcheck":{"test":["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)"],"interval":"30s","timeout":"5s","retries":3},
             "logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}},
         }
+        if c['syslog_network'] == 'host':
+            receiver = compose['services']['fortilens-syslog']
+            receiver.pop('ports')
+            receiver['network_mode'] = 'host'
+            receiver['command'].append('--host-network')
+            receiver['user'] = '0:0'
+            receiver['cap_add'] = ['NET_BIND_SERVICE', 'SETUID', 'SETGID']
+            receiver['healthcheck']['test'][-1] = (
+                "import urllib.request; urllib.request.urlopen('http://127.0.0.1:"
+                + str(c['syslog_port']+1) + "/health',timeout=3)")
+            compose['services']['alloy']['ports'] = [f"127.0.0.1:{c['syslog_port']}:1514/tcp"]
     else:
         compose["services"]["alloy"]["ports"] = [f"{c['syslog_bind']}:{c['syslog_port']}:1514/{c['syslog_protocol']}"]
     exporter = compose["services"]["fortigate-exporter"]
@@ -318,7 +341,8 @@ def render(c, output, token, admin_password=None, inventory_report=None):
     alloy = alloy.replace("__PROTOCOL__", "tcp" if native else c["syslog_protocol"]).replace("__FORMAT__", "rfc5424" if native else c["syslog_format"])
     if native:
         alloy=alloy.replace("    use_incoming_timestamp = true", "    max_message_length     = 65536\n    use_incoming_timestamp = true")
-        prom["scrape_configs"].append({"job_name":"fortilens-syslog","static_configs":[{"targets":["fortilens-syslog:8080"]}]})
+        if c['syslog_network'] == 'bridge':
+            prom["scrape_configs"].append({"job_name":"fortilens-syslog","static_configs":[{"targets":["fortilens-syslog:8080"]}]})
     if c["accounting_enabled"]:
         c={**c,"loki_receive_timestamps":True}
         alloy=alloy.replace("use_incoming_timestamp = true","use_incoming_timestamp = false")
@@ -474,6 +498,14 @@ def import_dashboard(p, c):
 def start(p, c):
     if sys.platform != "linux":
         raise SetupError("Run start on a Linux Docker host; init also works on Windows")
+    if c.get('syslog_network')=='host':
+        try:
+            info=json.loads(subprocess.run(['docker','info','--format','{{json .}}'],check=True,capture_output=True,text=True,timeout=15).stdout)
+            if (info.get('OSType')!='linux' or 'docker desktop' in info.get('OperatingSystem','').lower()
+                    or any('rootless' in item.lower() for item in info.get('SecurityOptions',[]))):
+                raise ValueError()
+        except (OSError,ValueError,subprocess.SubprocessError):
+            raise SetupError('Native host reception requires an available rootful Linux Docker Engine, not Desktop or rootless networking') from None
     run_compose(p, "config", "--quiet", timeout=30)
     run_compose(p, "up", "-d", "--build")
     for _ in range(60):
