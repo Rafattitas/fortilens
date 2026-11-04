@@ -2,6 +2,13 @@
 
 ## Unreleased — unified console and Web Setup & Settings
 
+### A Precision console design
+
+- Replace the console and report styling with the approved A Precision design,
+  in light and dark themes, with IBM Plex Sans served locally.
+- Add an Overview page built from existing APIs, an evidence status bar and a
+  Ctrl K command palette. Existing routes, element IDs and API calls are kept.
+
 ### Source collection and diagnostics
 
 - Replace short-window retention extrapolation with explicit next-24-hour

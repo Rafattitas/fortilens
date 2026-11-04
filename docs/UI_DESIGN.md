@@ -7,9 +7,15 @@ language and login. A setup/settings update must preserve that continuity.
 
 ## Visual system
 
-Use the existing local system font stack, with tabular numerals for measurements.
-All assets are local SVG/code; no font service, CDN, animation library or new build
-toolchain is required. Product text remains English.
+The approved direction is A Precision: a bench instrument with colour reserved for
+state and hatching for missing evidence. See [the approved prototype](design/a-precision-prototype.html),
+which is a design reference only and is never served by the product.
+
+Use IBM Plex Sans from `management/static/fonts/` with the system stack as its fallback,
+and tabular numerals for measurements. All assets are local; no font service, CDN,
+animation library or new build toolchain is required. Product text remains English.
+Controls are compact for a mouse and keep 44px targets for touch and narrow screens.
+The tokens below are superseded by the light and dark tokens at the top of `app.css`.
 
 | Token | Value | Role |
 |---|---|---|
@@ -30,8 +36,8 @@ distinguish pending drafts from the applied configuration.
 
 ## Layout and navigation
 
-Monitoring is the configured default and first network destination. Keep an
-explicitly saved valid route; use Overview if monitoring is disabled and Settings
+Overview is the configured default and first network destination, with live
+monitoring one click away. Keep an explicitly saved valid route; use Settings
 for an unconfigured installation. The real native dashboard is the main content,
 with restrained navigation around it:
 
