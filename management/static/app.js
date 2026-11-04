@@ -48,8 +48,8 @@ function consoleDocumentReady(frame){
   return true;
  }catch(e){return false}
 }
-const titles={overview:['System','Monitoring services, storage and configuration readiness.'],wan:['Internet','Observed health, physical link and route evidence remain separate.'],devices:['Usage','Recorded upload and download, with identity and coverage limits.'],vlans:['Segments','Internet usage grouped by exact interface metadata.'],reports:['Reports','Daily, weekly and monthly reports from the existing accounting engine.'],monitoring:['Live monitoring','Firewall health, Internet links and interface traffic in native Grafana.'],quality:['Evidence','Collection gaps, accounting evidence and identity limits.'],settings:['Settings','Manage your installation without editing configuration files.'],diagnostics:['Diagnostics','Read-only evidence, service readiness and actionable next steps.']};
-const pageGroups={monitoring:'Network',wan:'Network',devices:'Network',vlans:'Usage',reports:'Usage',quality:'Trust',overview:'Installation',diagnostics:'System',settings:'Installation'};
+const titles={home:['Overview','What the links, logs and usage evidence say right now.'],overview:['System','Monitoring services, storage and configuration readiness.'],wan:['Internet','Observed health, physical link and route evidence remain separate.'],devices:['Usage','Recorded upload and download, with identity and coverage limits.'],vlans:['Segments','Internet usage grouped by exact interface metadata.'],reports:['Reports','Daily, weekly and monthly reports from the existing accounting engine.'],monitoring:['Live monitoring','Firewall health, Internet links and interface traffic in native Grafana.'],quality:['Evidence','Collection gaps, accounting evidence and identity limits.'],settings:['Settings','Manage your installation without editing configuration files.'],diagnostics:['Diagnostics','Read-only evidence, service readiness and actionable next steps.']};
+const pageGroups={home:'Network',monitoring:'Overview',wan:'Network',devices:'Network',vlans:'Usage',reports:'Usage',quality:'Trust',overview:'Installation',diagnostics:'System',settings:'Installation'};
 // Theme choice is shared with the same-origin report frame through storage.
 function savedTheme(){try{const value=localStorage.getItem('fortilens.theme');if(value==='light'||value==='dark')return value}catch{}return window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}
 function applyTheme(theme){document.documentElement.dataset.theme=theme;$('theme-toggle').textContent=theme==='dark'?'Light':'Dark';$('theme-toggle').setAttribute('aria-label','Switch to '+(theme==='dark'?'light':'dark')+' theme')}
@@ -209,13 +209,13 @@ function renderSystem(){const s=state.system;const running=s.services.filter(r=>
 function updateSelection(){$('wan-selection').textContent=state.selected.size?'Selected Internet interfaces: '+[...state.selected].join(', '):'No Internet interfaces selected. FortiLens will not guess WAN roles.'}
 function renderInterfaces(){const query=$('interface-search').value.toLowerCase();$('interface-rows').replaceChildren();for(const r of state.inventory.filter(x=>[x.name,x.vdom,x.parent,x.vlan_id].join(' ').toLowerCase().includes(query))){const row=E('tr'),select=E('td'),check=E('input');check.type='checkbox';check.checked=state.selected.has(r.name);check.setAttribute('aria-label','Select '+r.name+' as Internet interface');check.disabled=r.vdom!==state.view.settings.vdom;check.addEventListener('change',()=>{if(check.checked)state.selected.add(r.name);else state.selected.delete(r.name);$('confirm-wans').checked=false;state.draftSettings.wan_confirmed=false;dirty();updateSelection()});select.append(check);row.append(select);for(const value of [r.name,(r.type||'Unknown')+' / '+(r.role||'Review required'),r.ip_address||'Unknown',r.vdom||'Unknown',(r.vlan_id??'—')+' / '+(r.parent||'—'),r.status||'Unknown',r.discovery_confidence||r.review_status||'Review required'])row.append(E('td',String(value)));$('interface-rows').append(row)}}
 function renderReview(){if(!state.view)return;const s=readSettings();$('review-summary').replaceChildren();for(const [name,value]of [['Company / Installation',s.site_name+' / '+s.installation_name],['Timezone / Date format',s.timezone+' / '+s.date_format],['FortiGate',s.fortigate_host+':'+s.api_port+' · VDOM '+s.vdom],['TLS verification',s.api_tls_verify?'Enabled':'Explicitly disabled'],['Expected FortiGate serial',s.expected_devid||'Not bound'],['Confirmed Internet interfaces',s.wan_confirmed?[...state.selected].join(', ')||'None':'Not confirmed'],['Enabled monitoring',Object.entries(s.monitoring).filter(([,v])=>v).map(([k])=>k).join(', ')||'No collectors'],['Syslog',s.syslog_protocol.toUpperCase()+' / '+s.syslog_port+' / '+s.syslog_format+' / '+s.syslog_network],['Retention',s.retention.loki_days+'d logs · '+s.retention.prometheus_days+'d metrics · '+s.retention.ledger_days+'d ledger · '+s.retention.summary_days+'d summaries'],['Accounting database ceiling',state.databaseLimitError?'Review the database limit':databaseGiB(s.retention.database_bytes)+' GiB'],['Native service ports','Grafana '+s.grafana_port+' · Protected reporting '+s.usage_port],['Network access',location.protocol==='https:'?'HTTPS management origin':'Loopback management / SSH tunnel'],['Credentials','Stored privately; raw tokens and passwords are never included in this review.']]){const row=E('div');row.append(E('dt',name),E('dd',value));$('review-summary').append(row)}}
-function defaultPage(){return pageEnabled('monitoring')?'monitoring':'overview'}
+function defaultPage(){return 'home'}
 function pageEnabled(page){const f=state.view?.active_monitoring;if(!f)return true;return page==='wan'?f.wan:['devices','reports','quality'].includes(page)?f.accounting:page==='vlans'?f.vlans:page==='monitoring'?(f.wan||f.sla||f.interfaces||f.server):true}
 function navigate(page){
  if(!titles[page])page=defaultPage();
  if(!state.view)page='diagnostics';else if(!pageEnabled(page))page='overview';
  if(state.view&&!state.view.configured&&!['settings','diagnostics'].includes(page))page='settings';
- const embedded=!['overview','settings','diagnostics'].includes(page);
+ const embedded=!['home','overview','settings','diagnostics'].includes(page);
  const route=new URL('/',location.origin);route.searchParams.set('view',page);route.hash=page;
  // Legacy hash links remain valid. If the server could not know that first
  // destination (including immediately after sign-in), request its initial HTML.
@@ -229,11 +229,11 @@ function navigate(page){
  const menuWasOpen=state.navOpen;setNavigation(false,false);if(menuWasOpen)$('page-title').focus();
  if(!embedded){clearConsoleCheck();$('console-frame').removeAttribute('src');delete $('console-frame').dataset.initialView;$('console-loading').hidden=true}
  for(const a of document.querySelectorAll('[data-page]')){a.classList.toggle('active',a.dataset.page===page);if(a.dataset.page===page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')}
- 
+ state.page=page;clearTimeout(state.homeTimer);$('workspace').classList.toggle('home-mode',page==='home');
  $('page-title').textContent=titles[page][0];$('page-caption').textContent=titles[page][1];
- for(const id of ['overview-page','settings-page','diagnostics-page','console-page'])$(id).hidden=true;
+ for(const id of ['home-page','overview-page','settings-page','diagnostics-page','console-page'])$(id).hidden=true;
  if(!embedded)$(page+'-page').hidden=false;else{$('console-page').hidden=false;loadConsole(page)}
- if(page==='settings')selectSection(state.section);if(page==='diagnostics')runDiagnostics();if(page==='overview')loadSystem();
+ if(page==='settings')selectSection(state.section);if(page==='diagnostics')runDiagnostics();if(page==='overview')loadSystem();if(page==='home')loadHome();
  if(location.hash!=='#'+page)history.pushState(null,'',route);else history.replaceState(null,'',route);
  notice('');
 }
@@ -423,6 +423,99 @@ $('history-rollback').addEventListener('click',()=>action($('history-rollback'),
 $('password-form').addEventListener('submit',e=>{e.preventDefault();action($('password-form').querySelector('button'),async()=>{await api('/api/password',{current:$('current-password').value,password:$('new-password').value,confirmation:$('confirm-password').value});signedOut();$('auth-caption').textContent='Password changed. Sign in with your new password.'})});
 $('refresh-system').addEventListener('click',()=>action($('refresh-system'),loadSystem));$('run-diagnostics').addEventListener('click',()=>action($('run-diagnostics'),runDiagnostics));$('reload-console').addEventListener('click',()=>loadConsole(location.hash.slice(1)));
 window.addEventListener('hashchange',()=>{if(state.csrf)navigate(location.hash.slice(1))});
+// Overview: a plain status line and channels drawn only from received evidence.
+const reportBytes=n=>n===null||n===undefined||!Number.isFinite(Number(n))?'Unknown':Number(n)>=1e12?(Number(n)/1e12).toFixed(2)+' TB':Number(n)>=1e9?(Number(n)/1e9).toFixed(2)+' GB':Number(n)>=1e6?(Number(n)/1e6).toFixed(2)+' MB':Number(n)>=1e3?(Number(n)/1e3).toFixed(2)+' KB':Number(n)+' B';
+const reading=(n,suffix='')=>n===null||n===undefined||!Number.isFinite(Number(n))?'No data':Number(n).toLocaleString(undefined,{maximumFractionDigits:1})+suffix;
+const stateClass=s=>s==='UP'?'up':s==='DOWN'?'down':s==='ERROR'?'degraded':'unknown';
+const stateWord=s=>s==='UP'?'Up':s==='DOWN'?'Down':s==='ERROR'?'Error':'No data';
+function marker(s){return E('span',stateWord(s),'st '+stateClass(s))}
+function segmentName(v){return v?.status==='MAPPED'?'VLAN '+v.vlan_id:v?.status==='NOT_VLAN'?'Interface segment':'Unknown mapping'}
+function clockFormat(seconds,withDate){const tz=state.view?.settings.timezone||'UTC';try{return new Intl.DateTimeFormat('en-GB',{timeZone:tz,hourCycle:'h23',hour:'2-digit',minute:'2-digit',...(withDate?{month:'short',day:'2-digit'}:{})}).format(new Date(seconds*1000))}catch{return 'Time unavailable'}}
+function homeStatus(kind,head,sub,action,label){const root=$('home-status');root.className='stat '+kind;$('home-head').textContent=head;$('home-sub').textContent=sub;const link=$('home-action');link.hidden=!action;if(action){link.href='#'+action;link.textContent=label}}
+function renderHomeStatus(wan,report,links){
+ const wans=wan?.interfaces||[],now=serverNow(),lastLog=state.evidence?.lastLog,accounting=state.view?.active_monitoring?.accounting!==false,age=lastLog?now-lastLog:null;
+ const failing=wans.filter(w=>w.internet_state==='DOWN'),errored=wans.filter(w=>w.internet_state==='ERROR');
+ if(!links?.console)return homeStatus('is-u','This deployment keeps separate service sign-in.','Live evidence opens in the existing services until the unified-console migration is complete. Nothing here is treated as an outage.','diagnostics','Open diagnostics');
+ if(failing.length){const w=failing[0],more=failing.length>1?' '+(failing.length-1)+' more failing.':'';return homeStatus('is-w',w.interface+' is failing its Internet SLA.','Latency '+reading(w.latency_ms,' ms')+', loss '+reading(w.packet_loss_pct,'%')+'. '+(w.physical_state==='UP'?'The physical link is up, so look upstream first.':w.physical_state==='DOWN'?'The physical link is also down.':'Physical link evidence is unavailable.')+more,'wan','Inspect '+w.interface)}
+ if(errored.length)return homeStatus('is-w',errored[0].interface+' reports an SLA error.','The check could not produce a healthy result. Review the observed history before drawing conclusions.','wan','Inspect '+errored[0].interface);
+ if(accounting&&report&&(!lastLog||age>900))return homeStatus('is-u',lastLog?'No logs received for '+agoText(age).replace(' ago','')+'.':'No logs have been received yet.','Usage may read low. That does not prove zero traffic or an outage.','quality','Find where it stopped');
+ if(!wan||!wans.length||wans.some(w=>stateClass(w.internet_state)==='unknown')||(accounting&&!report))return homeStatus('is-u','Some evidence is unavailable.','Missing samples stay unknown. They are not an outage and not zero traffic.','diagnostics','Open diagnostics');
+ homeStatus('is-g','All links pass'+(accounting?' and logs are current.':'.'),wans.map(w=>w.interface+' '+reading(w.latency_ms,' ms')).join(', ')+'.'+(lastLog?' Last log '+agoText(age)+'.':''));
+}
+function drawChannels(wan){
+ const root=$('home-channels'),axis=$('home-axis');root.replaceChildren();axis.replaceChildren();state.home=null;$('home-cursor').textContent='';
+ if(!wan||!wan.interfaces.length){root.append(E('p',wan?'No current WAN evidence. Missing collection is not an outage.':'WAN evidence is unavailable. No outage is inferred.','empty'));return}
+ const end=wan.observed_at,seconds=Number($('home-window').value)||86400,start=end-seconds;state.home={start,end,wans:wan.interfaces};
+ for(const w of wan.interfaces){
+  const row=E('div',undefined,'ch'),label=E('div',undefined,'ch-l'),track=E('div',undefined,'tr'),lane=E('div',undefined,'lane');
+  label.append(E('strong',w.interface),marker(w.internet_state),E('span',reading(w.latency_ms,' ms')+' · '+reading(w.packet_loss_pct,'%')+' loss','ch-v'),E('span','Physical '+stateWord(w.physical_state).toLowerCase(),'ch-v'));
+  lane.setAttribute('role','img');
+  lane.setAttribute('aria-label',w.interface+' observed Internet state. Observed up '+reading(w.history?.availability_percent,'%')+', valid coverage '+reading(w.history?.valid_state_coverage_percent,'%')+'. Uncovered time is unknown.');
+  for(const s of w.history?.segments||[]){
+   const from=Math.max(start,s.start),to=Math.min(end,s.end);if(!(to>from))continue;
+   const part=E('i',undefined,s.degraded?'degraded':stateClass(s.state));part.style.left=(from-start)/seconds*100+'%';part.style.width=(to-from)/seconds*100+'%';lane.append(part);
+  }
+  const hair=E('div',undefined,'xh');hair.hidden=true;track.append(lane,hair);row.append(label,track);root.append(row);
+ }
+ const ticks=E('div',undefined,'xticks');for(let i=0;i<5;i++)ticks.append(E('span',clockFormat(start+seconds*i/4,seconds>86400)));
+ axis.append(E('span','Server timezone','xlab'),ticks);
+}
+function setCrosshair(fraction){
+ const h=state.home;if(!h)return;
+ for(const hair of document.querySelectorAll('#home-channels .xh')){hair.hidden=fraction===null;if(fraction!==null)hair.style.left=fraction*100+'%'}
+ if(fraction===null){$('home-cursor').textContent='';state.homeCursor=null;return}
+ state.homeCursor=fraction;const at=h.start+(h.end-h.start)*fraction;
+ $('home-cursor').textContent=clockFormat(at,h.end-h.start>86400)+' · '+h.wans.map(w=>{const s=(w.history?.segments||[]).find(x=>x.start<=at&&at<x.end);return w.interface+' '+(!s?'no evidence':s.degraded?'degraded':s.state==='UP'?'up':s.state==='DOWN'?'down':'no evidence')}).join(' · ');
+}
+function renderHomeWan(wan){
+ const body=$('home-wan-body');body.replaceChildren();$('home-wan').hidden=!wan?.interfaces?.length;
+ $('home-route').textContent=wan?(wan.route?.status==='OBSERVED'?'Observed route to '+wan.route.destination+': '+wan.route.interface+'.':'Route selection is unknown. Link health alone does not identify the active route.'):'';
+ for(const w of wan?.interfaces||[]){const tr=E('tr'),sla=E('td'),phys=E('td');sla.append(marker(w.internet_state));phys.append(marker(w.physical_state));tr.append(E('td',w.interface),sla,phys,E('td',reading(w.download_mbps)+' / '+reading(w.upload_mbps),'r'),E('td',reading(w.latency_ms)+' / '+reading(w.jitter_ms,' ms'),'r'),E('td',reading(w.packet_loss_pct,'%'),'r'),E('td',reading(w.history?.availability_percent,'%'),'r'));['Link','Internet SLA','Physical','Down / Up Mbps','Latency / Jitter','Loss','Observed up'].forEach((name,i)=>{tr.children[i].dataset.label=name});body.append(tr)}
+}
+function renderHomeUsage(report,failed){
+ const fields=[['Recorded today',report?reportBytes((report.totals.upload_bytes??NaN)+(report.totals.download_bytes??NaN)):'Unknown'],['Identities',report&&report.devices.length?reading(report.observed_endpoint_identities):'Unknown'],['Pending, not added',report?reportBytes((report.totals.pending_upload_bytes||0)+(report.totals.pending_download_bytes||0)):'Unknown']];
+ $('home-fields').replaceChildren(...fields.map(([k,v])=>{const d=E('div');d.append(E('dt',k),E('dd',v));return d}));
+ const consumers=$('home-consumers'),segments=$('home-segments');consumers.replaceChildren();segments.replaceChildren();
+ const none=failed?'Usage evidence is unavailable. No zero is inferred.':'No received accounting evidence for today. This is not proof of zero traffic.';
+ const devices=report?.devices||[],top=Number(devices[0]?.total_bytes)||1;
+ if(!devices.length)consumers.append(E('li',none,'help'));
+ for(const d of devices.slice(0,8)){
+  const li=E('li',undefined,'rank'),line=E('div',undefined,'kv-line'),name=E('a',d.hostname||d.ip||'Unidentified endpoint','ent');name.href='#devices';
+  const who=E('span');who.append(name);if(d.identity_kind!=='MAC')who.append(' ',E('span','Unverified','flag'));
+  line.append(who,E('span',reportBytes(d.total_bytes)));
+  const bar=E('div',undefined,'bar'),down=E('i',undefined,'d'),up=E('i',undefined,'u');bar.style.width=Math.max(3,Number(d.total_bytes)/top*100)+'%';down.style.flexGrow=Number(d.download_bytes)||0;up.style.flexGrow=Number(d.upload_bytes)||0;bar.setAttribute('aria-hidden','true');bar.append(down,up);
+  li.append(line,E('span',(d.vlans||[]).map(v=>segmentName(v)+', '+v.interface).join(' · ')||d.ip||'','ident'),bar);consumers.append(li);
+ }
+ const vlans=report?.vlans||[],big=Math.max(1,...vlans.map(v=>Number(v.total_bytes)||0));
+ if(!vlans.length)segments.append(E('li',failed?'Segment evidence is unavailable.':'No received segment totals are available.','help'));
+ for(const v of vlans){const li=E('li',undefined,'rank'),line=E('div',undefined,'kv-line'),bar=E('div',undefined,'bar'),fill=E('i',undefined,'d');line.append(E('span',segmentName(v.vlan)+', '+v.vlan.interface,'muted'),E('span',reportBytes(v.total_bytes)));fill.style.flexGrow=1;bar.style.width=Math.max(2,Number(v.total_bytes)/big*100)+'%';bar.setAttribute('aria-hidden','true');bar.append(fill);li.append(line,bar);segments.append(li)}
+}
+function renderHomeServices(){
+ const s=state.system,root=$('home-services');root.replaceChildren();
+ if(!s){root.append(E('li','Service state is unavailable. Monitoring may still be running.','help'));return}
+ const add=(k,v)=>{const li=E('li',undefined,'kv-line');li.append(E('span',k,'muted'),E('span',v));root.append(li)};
+ const enabled=s.services.filter(r=>r.status!=='disabled');
+ add('Running services',enabled.filter(r=>r.status==='running').length+' of '+enabled.length);add('Available storage',size(s.disk.available));add('Configuration',state.view?.pending_changes?'Draft '+state.view.revision+' pending':state.view?.configured?'Revision '+state.view.applied_revision:'Not configured');
+}
+async function loadHome(){
+ const sequence=state.homeSequence=(state.homeSequence||0)+1;clearTimeout(state.homeTimer);$('home-refresh').disabled=true;$('home-channels').setAttribute('aria-busy','true');
+ await loadSystem();if(sequence!==state.homeSequence||!state.csrf||state.page!=='home')return;
+ const links=state.system?.links,flags=state.view?.active_monitoring,connected=!!links?.console;
+ const [wanResult,reportResult]=await Promise.allSettled([connected&&flags?.wan!==false?api('/console/api/wan?seconds='+encodeURIComponent($('home-window').value)):null,connected&&flags?.accounting!==false?api('/console/api/report?period=today&search=&vlan='):null]);
+ if(sequence!==state.homeSequence||!state.csrf||state.page!=='home')return;
+ const wan=wanResult.status==='fulfilled'&&Array.isArray(wanResult.value?.interfaces)&&typeof wanResult.value.observed_at==='number'?wanResult.value:null;
+ const usable=r=>r&&typeof r.totals==='object'&&r.totals&&Array.isArray(r.devices)&&Array.isArray(r.vlans);
+ const report=reportResult.status==='fulfilled'&&usable(reportResult.value)?reportResult.value:null;
+ const delivery=Number(report?.processing?.last_delivery_ns);state.evidence={lastLog:delivery>0?delivery/1e9:null,lag:report?.processing?.processing_lag_seconds??NaN};renderEvidenceBar();
+ renderHomeStatus(wan,report,links);drawChannels(wan);renderHomeWan(wan);renderHomeUsage(report,reportResult.status==='rejected');renderHomeServices();
+ if(state.homeCursor!==null&&state.homeCursor!==undefined)setCrosshair(state.homeCursor);
+ $('home-refresh').disabled=false;$('home-channels').removeAttribute('aria-busy');
+ state.homeTimer=setTimeout(()=>{if(state.page==='home'&&state.csrf&&!document.hidden&&!$('workspace').hidden)loadHome()},60000);
+}
+$('home-refresh').addEventListener('click',()=>loadHome());$('home-window').addEventListener('change',()=>{state.homeCursor=null;loadHome()});
+$('home-channels').addEventListener('pointermove',e=>{const track=e.target.closest('.tr');if(!track)return;const box=track.getBoundingClientRect();setCrosshair(Math.min(1,Math.max(0,(e.clientX-box.left)/box.width)))});
+$('home-channels').addEventListener('pointerleave',()=>setCrosshair(null));
+$('home-channels').addEventListener('keydown',e=>{if(!state.home)return;const step=e.key==='ArrowLeft'?-1/48:e.key==='ArrowRight'?1/48:0;if(step){e.preventDefault();setCrosshair(Math.min(1,Math.max(0,(state.homeCursor??1)+step)))}else if(e.key==='Escape')setCrosshair(null)});
 // Evidence status bar: every value is received evidence; absent values stay unknown.
 function serverNow(){const t=state.system?.server_time_seconds;return typeof t==='number'&&Number.isFinite(t)?t+(performance.now()-(state.systemAt||0))/1000:Date.now()/1000}
 function agoText(seconds){if(!Number.isFinite(seconds)||seconds<0)return 'time unknown';if(seconds<90)return Math.round(seconds)+' seconds ago';if(seconds<5400)return Math.round(seconds/60)+' minutes ago';if(seconds<172800)return Math.round(seconds/3600)+' hours ago';return Math.round(seconds/86400)+' days ago'}
@@ -446,5 +539,5 @@ $('palette-open').addEventListener('click',openPalette);$('palette-input').addEv
 $('palette-input').addEventListener('keydown',e=>{const count=state.paletteMatches?.length||0;if(e.key==='ArrowDown'&&count){e.preventDefault();state.paletteIndex=(state.paletteIndex+1)%count;renderPalette()}else if(e.key==='ArrowUp'&&count){e.preventDefault();state.paletteIndex=(state.paletteIndex-1+count)%count;renderPalette()}else if(e.key==='Enter'){e.preventDefault();runPalette(state.paletteIndex)}});
 window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&!e.altKey&&!e.shiftKey){e.preventDefault();openPalette()}});
 // Local SVG navigation icons; no trackers, CDN or external assets.
-for(const node of document.querySelectorAll('.nav-icon')){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d',({monitoring:'M3 12h4l2.500-7 4 14 2.500-7h5',wan:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',devices:'M5 20v-9M12 20V4M19 20v-6',quality:'M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6zM8.500 12l2.500 2.500 4.500-5',overview:'M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01',settings:'M4 7h10M18 7h2M4 17h2M10 17h10M16 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4M8 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4'})[node.parentElement.dataset.page]||'M4 5h16v14H4z');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.6');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');svg.append(p);node.replaceChildren(svg)}
+for(const node of document.querySelectorAll('.nav-icon')){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d',({home:'M3 12h4l2.500-7 4 14 2.500-7h5',wan:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',devices:'M5 20v-9M12 20V4M19 20v-6',quality:'M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6zM8.500 12l2.500 2.500 4.500-5',overview:'M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01',settings:'M4 7h10M18 7h2M4 17h2M10 17h10M16 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4M8 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4'})[node.parentElement.dataset.page]||'M4 5h16v14H4z');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.6');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');svg.append(p);node.replaceChildren(svg)}
 (async()=>{try{const b=await api('/api/bootstrap/status');state.bootstrap=b.required;$('bootstrap-fields').hidden=!b.required;$('confirmation-field').hidden=!b.required;if(b.required){$('auth-title').textContent='Your workspace starts here.';$('auth-caption').textContent='Create the first administrator using the one-time installation token.';$('auth-submit').textContent='Create administrator';$('password').autocomplete='new-password'}else{try{const s=await api('/api/session');state.csrf=s.csrf;await enter()}catch(e){if(e.code!=='authentication_required')$('auth-error').textContent=errorText(e)}}}catch(e){$('auth-error').textContent=errorText(e)}})();
