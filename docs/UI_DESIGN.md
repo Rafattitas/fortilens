@@ -8,8 +8,9 @@ language and login. A setup/settings update must preserve that continuity.
 ## Visual system
 
 The approved direction is A Precision: a bench instrument with colour reserved for
-state and hatching for missing evidence. See [the approved prototype](design/a-precision-prototype.html),
-which is a design reference only and is never served by the product.
+state and hatching for missing evidence. The approved prototype is kept in the source repository at
+`docs/design/a-precision-prototype.html`. It is a design reference only, is not part of
+release packages and is never served by the product.
 
 Use IBM Plex Sans from `management/static/fonts/` with the system stack as its fallback,
 and tabular numerals for measurements. All assets are local; no font service, CDN,
