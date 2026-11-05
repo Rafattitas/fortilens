@@ -33,6 +33,10 @@ def verify(password, stored):
         return False
 
 
+# Verified for an unknown username, so its timing matches a wrong password.
+ABSENT_PASSWORD = 'scrypt$32768$8$1$' + '00' * 16 + '$' + '00' * 64
+
+
 class Auth:
     def __init__(self, directory, bootstrap_file, ttl=28800):
         self.root = Path(directory)
@@ -109,7 +113,9 @@ class Auth:
         self.limit(address)
         with self.lock, self.db:
             row = self.db.execute('SELECT username,password,role FROM admin').fetchone()
-            if not row or username != row[0] or not verify(password, row[1]) or row[2] != 'admin':
+            known = bool(row) and username == row[0]
+            matched = verify(password, row[1] if known else ABSENT_PASSWORD)
+            if not known or not matched or row[2] != 'admin':
                 self.audit('login', 'rejected')
                 raise Problem('login_rejected', 'Username or password was rejected.', 401)
             token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)

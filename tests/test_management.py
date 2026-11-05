@@ -139,6 +139,7 @@ class ManagementTests(unittest.TestCase):
         with patch.object(self.app.state.helper,'call',side_effect=Problem('helper_offline','Synthetic offline helper.')) as helper:
             self.assertNotIn('data-initial-view=',self.client.get('/').text)
             self.administrator()
+            self.assertNotIn('data-initial-view=',self.client.get('/').text)
             response=self.client.get('/?view=devices')
             self.assertEqual(response.status_code,200)
             self.assertIn('data-initial-view="devices" src="/console/initial-view?view=devices"',response.text)
@@ -281,6 +282,9 @@ class ManagementTests(unittest.TestCase):
             self.assertNotIn(attack,response.text)
             self.assertNotIn('#vlan-section{display:none!important}',response.text)
             self.assertEqual(response.headers['x-frame-options'],'SAMEORIGIN')
+            policy=response.headers['content-security-policy']
+            self.assertIn("default-src 'self'",policy)
+            self.assertIn("frame-ancestors 'self'",policy)
 
     def test_grafana_clock_adapter_is_explicit_page_local_and_before_native_boot(self):
         self.administrator()

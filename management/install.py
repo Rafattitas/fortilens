@@ -43,8 +43,14 @@ def put(path,data,mode=0o600,uid=0,gid=0):
     temp=path.with_name('.'+path.name+'.new-'+secrets.token_hex(6))
     fd=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL,mode)
     try:
-        with os.fdopen(fd,'wb') as stream:stream.write(encoded);stream.flush();os.fsync(stream.fileno())
-        os.chown(temp,uid,gid);os.chmod(temp,mode);os.replace(temp,path)
+        # Change the open file, not the path: the web account can write in some of
+        # these directories and could otherwise swap the path for a symlink.
+        with os.fdopen(fd,'wb') as stream:
+            stream.write(encoded);stream.flush();os.fsync(stream.fileno())
+            os.chown(stream.fileno(),uid,gid)
+            if os.chmod in os.supports_fd:os.chmod(stream.fileno(),mode)
+            else:os.chmod(temp,mode)
+        os.replace(temp,path)
     finally:
         try:temp.unlink(missing_ok=True)
         except OSError:pass
@@ -114,6 +120,7 @@ def wait_web(bind,port,origin,tls):
 
 
 def _main():
+    os.umask(os.umask(0)|0o022)
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prefix',type=path_value,default=Path('/opt/fortilens'))
     parser.add_argument('--data',type=path_value,default=Path('/var/lib/fortilens'))

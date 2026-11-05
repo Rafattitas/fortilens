@@ -242,7 +242,9 @@ class Docker:
             running = all(byname.get(n,{}).get('status') == 'running' and byname[n]['health'] not in ('unhealthy','starting') for n in enabled if n in self.c.compose()['services'])
             if running:
                 try:
-                    self.http('grafana',3000,'/grafana/api/health' if self.c.compose()['services']['grafana'].get('environment',{}).get('GF_SERVER_SERVE_FROM_SUB_PATH') == 'true' else '/api/health')
+                    environment=self.c.compose()['services']['grafana'].get('environment') or {}
+                    subpath=environment.get('GF_SERVER_SERVE_FROM_SUB_PATH')=='true' if isinstance(environment,dict) else 'GF_SERVER_SERVE_FROM_SUB_PATH=true' in environment
+                    self.http('grafana',3000,'/grafana/api/health' if subpath else '/api/health')
                     self.http('prometheus',9090,'/api/v1/query?query=up')
                     # Loki ready is text, so its query API confirms readiness here.
                     self.http('loki',3100,'/loki/api/v1/query?'+urllib.parse.urlencode({'query':'sum(count_over_time({job="fortigate-syslog"}[1m]))'}))
@@ -682,7 +684,9 @@ class Operations:
                     setup.import_dashboard(self.c.root,c)
                     if c.get('portal_enabled'):setup.connect_portal(self.c.root,c)
                 self._progress(job,'diagnostics','Checking collection evidence. Missing FortiGate data is not a deployment failure.')
-                diagnostic=self.diagnostics()
+                # Services are already running, so failed evidence must not undo the deployment.
+                try:diagnostic=self.diagnostics()
+                except Exception as exc:report_failure('deployment_diagnostics_failed',exc);diagnostic=None
                 self.c.complete(request.plan_id)
                 self._safe_progress(job,'complete','Configuration applied. Review any collection warnings in Diagnostics.',status='complete',services=services,diagnostics=diagnostic,applied_revision=self.c.state().get('applied_revision'))
         except Exception as e:
@@ -775,6 +779,8 @@ class Operations:
                             if self.gateway_cookie==cookie:self.gateway_cookie=''
                         continue
                     if len(data)>32*1024*1024:raise Problem('console_too_large','This console resource exceeded the proxy limit.')
+                    # A short body must not reach the browser as a complete, cacheable asset.
+                    if isinstance(response.length,int) and response.length>0:raise Problem('console_unavailable','Monitoring is unavailable; Settings and Diagnostics remain accessible.',503)
                     return {'status':response.status,'content_type':response.getheader('Content-Type','application/octet-stream'),
                             'location':response.getheader('Location'),'body':base64.b64encode(data).decode()}
                 finally:conn.close()

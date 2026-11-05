@@ -669,5 +669,7 @@ class Configuration:
             state = self.state();state.update(configured=True, applied_revision=plan['revision'], applied=plan['settings'])
             plan['status'] = 'APPLIED';atomic(folder/'plan.json', plan)
             atomic(self.state_path, state)
-            atomic(self.secret_path, {})
+            # The apply has committed; a failed cleanup must not look like a failed apply.
+            try:atomic(self.secret_path, {})
+            except OSError as exc:report_failure('pending_secret_clear_failed',exc)
             self.audit('configuration_applied', [row['path'] for row in plan['files'] if row['before'] != row['after']])
