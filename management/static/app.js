@@ -178,7 +178,7 @@ function fillSettings(){
 function readSettings(){const settings=structuredClone(state.draftSettings||state.view.settings);settings.wan_interfaces=[...state.selected];return settings}
 async function saveDraft(){if(state.databaseLimitError)throw safeError(state.databaseLimitError,'invalid_fields');const body={revision:state.view.revision,settings:readSettings(),acknowledge_insecure_tls:$('insecure-ack').checked};if(state.apiTokenDraft){body.api_token=state.apiTokenDraft;body.replace_token=$('replace-token').checked}if($('replace-ca').checked){body.custom_ca=state.customCADraft??'';body.replace_ca=true}state.view=await api('/api/settings',body);state.plan=null;$('plan-review').hidden=true;fillSettings();$('save-status').textContent='Draft saved. Active services have not changed.';notice('Configuration draft saved. Review and apply when ready.');return state.view}
 function selectSection(section){state.section=section;renderDraftInputs();if(section==='connection'){$('api-token').value=state.apiTokenDraft??'';$('custom-ca').value=state.customCADraft??''}$('settings-section-picker').value=section;for(const b of document.querySelectorAll('[data-section]')){const active=b.dataset.section===section;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}const auth=section==='authentication';$('configuration-form').hidden=auth;$('authentication-section').hidden=!auth;for(const part of document.querySelectorAll('[data-form-section]'))part.hidden=part.dataset.formSection!==section;const index=sections.indexOf(section);$('step-label').textContent='Step '+(index+2)+' of 7';$('previous-section').hidden=index===0;$('next-section').hidden=index===sections.length-1||auth;$('save').hidden=auth;renderReview()}
-async function loadSystem(){try{rememberSystem(await api('/api/system'));renderSystem();return true}catch(e){notice(errorText(e),true);$('overview-cards').replaceChildren(metric('Management portal','Running','Independent of monitoring'),metric('Monitoring status','Unavailable','Open Diagnostics for recovery'));return false}}
+async function loadSystem(){const sequence=state.systemSequence=(state.systemSequence||0)+1;try{const system=await api('/api/system');if(sequence===state.systemSequence){rememberSystem(system);renderSystem()}return true}catch(e){if(sequence!==state.systemSequence)return false;notice(errorText(e),true);$('overview-cards').replaceChildren(metric('Management portal','Running','Independent of monitoring'),metric('Monitoring status','Unavailable','Open Diagnostics for recovery'));return false}}
 function metric(title,value,caption){const card=E('div',undefined,'metric-card');card.append(E('span',title,'metric-label'),E('div',value,'metric'),E('small',caption));return card}
 function fact(root,title,value){const block=E('div',undefined,'fact');block.append(E('span',title),E('strong',value));root.append(block)}
 function renderStorage(projection,disk){
@@ -212,7 +212,7 @@ function renderReview(){if(!state.view)return;const s=readSettings();$('review-s
 function defaultPage(){return 'home'}
 function pageEnabled(page){const f=state.view?.active_monitoring;if(!f)return true;return page==='wan'?f.wan:['devices','reports','quality'].includes(page)?f.accounting:page==='vlans'?f.vlans:page==='monitoring'?(f.wan||f.sla||f.interfaces||f.server):true}
 function navigate(page){
- if(!titles[page])page=defaultPage();
+ if(!Object.hasOwn(titles,page))page=defaultPage();
  if(!state.view)page='diagnostics';else if(!pageEnabled(page))page='overview';
  if(state.view&&!state.view.configured&&!['settings','diagnostics'].includes(page))page='settings';
  const embedded=!['home','overview','settings','diagnostics'].includes(page);
@@ -242,7 +242,8 @@ function loadConsole(page){
  const previous=$('console-frame');
  $('console-error').hidden=true;$('console-loading').hidden=true;
  $('console-clock-warning').hidden=true;
- if(!state.system?.links?.console){
+ if(!state.system){previous.removeAttribute('src');$('console-error').textContent='Service state could not be read. Reload this view or open Diagnostics.';$('console-error').hidden=false;return}
+ if(!state.system.links?.console){
   previous.removeAttribute('src');$('console-error').hidden=false;
   $('console-error').textContent='This existing deployment retains separate native service authentication. Open the existing service below, or review the unified-console migration guide.';
   if(state.system?.links?.grafana_port){
@@ -275,7 +276,7 @@ async function runDiagnostics(){
   if(!state.view)await reloadSettings();
   const d=await api('/api/diagnostics');
   rememberSystem(d.system);renderSystem();
-  if(d.collection){const seen=Date.parse(d.collection.latest_log_at);state.evidence={lastLog:seen>0?seen/1000:null,lag:d.collection.processing_lag_seconds??NaN};renderEvidenceBar()}
+  if(d.collection){const seen=Date.parse(d.collection.latest_log_at);if(seen>0){state.evidence={lastLog:seen/1000,lag:d.collection.processing_lag_seconds??NaN};renderEvidenceBar()}}
   $('diagnostic-summary').replaceChildren(metric('Console','Available','Settings and diagnostics'),metric('Monitoring evidence',d.monitoring.status,'Missing samples remain unknown'),metric('Available disk',size(d.system.disk.available),'Read-only measurement'));
   if(d.collection){
    $('diagnostic-summary').append(
@@ -418,7 +419,7 @@ $('apply').addEventListener('click',()=>action($('apply'),async()=>{if(!state.pl
 $('rollback').addEventListener('click',()=>action($('rollback'),async()=>{if(!state.job)throw safeError('Choose a deployment with a retained configuration backup.');await beginDeployment('/api/configuration/rollback',{revision:state.view.revision,plan_id:state.job.plan_id,confirm:true})}));
 $('approve-plan').addEventListener('change',updateDeploymentControls);
 $('deployment-acknowledge').addEventListener('click',acknowledgeJob);
-$('deployment-refresh').addEventListener('click',()=>action($('deployment-refresh'),async()=>{await loadSystem();const latest=state.system?.latest_job;if(latest){state.jobUnknown=false;restoreLatestJob(latest)}else notice('No deployment history was returned. Review Diagnostics before retrying.',true)}));
+$('deployment-refresh').addEventListener('click',()=>action($('deployment-refresh'),async()=>{if(!await loadSystem())return;const latest=state.system?.latest_job;if(latest){state.jobUnknown=false;restoreLatestJob(latest)}else notice('No deployment history was returned. Review Diagnostics before retrying.',true)}));
 $('history-lookup-form').addEventListener('submit',e=>{e.preventDefault();action($('history-lookup'),async()=>{const id=$('history-lookup-id').value.trim();if(!/^[a-f0-9]{32}$/.test(id))throw safeError('Enter a recorded 32-character deployment ID.');const job=await api('/api/jobs/'+id);renderJobHistory(job)})});
 $('history-rollback').addEventListener('click',()=>action($('history-rollback'),async()=>{const plan=$('history-rollback').dataset.planId;if(!plan)throw safeError('Choose a deployment with a retained configuration backup.');await beginDeployment('/api/configuration/rollback',{revision:state.view.revision,plan_id:plan,confirm:true})}));
 $('password-form').addEventListener('submit',e=>{e.preventDefault();action($('password-form').querySelector('button'),async()=>{await api('/api/password',{current:$('current-password').value,password:$('new-password').value,confirmation:$('confirm-password').value});signedOut();$('auth-caption').textContent='Password changed. Sign in with your new password.'})});
@@ -436,7 +437,8 @@ function homeStatus(kind,head,sub,action,label){const root=$('home-status');root
 function renderHomeStatus(wan,report,links){
  const wans=wan?.interfaces||[],now=serverNow(),lastLog=state.evidence?.lastLog,accounting=state.view?.active_monitoring?.accounting!==false,age=lastLog?now-lastLog:null;
  const failing=wans.filter(w=>w.internet_state==='DOWN'),errored=wans.filter(w=>w.internet_state==='ERROR');
- if(!links?.console)return homeStatus('is-u','This deployment keeps separate service sign-in.','Live evidence opens in the existing services until the unified-console migration is complete. Nothing here is treated as an outage.','diagnostics','Open diagnostics');
+ if(!links)return homeStatus('is-u','Service state is unavailable.','Monitoring may still be running. Nothing here is treated as an outage.','diagnostics','Open diagnostics');
+ if(!links.console)return homeStatus('is-u','This deployment keeps separate service sign-in.','Live evidence opens in the existing services until the unified-console migration is complete. Nothing here is treated as an outage.','diagnostics','Open diagnostics');
  if(failing.length){const w=failing[0],more=failing.length>1?' '+(failing.length-1)+' more failing.':'';return homeStatus('is-w',w.interface+' is failing its Internet SLA.','Latency '+reading(w.latency_ms,' ms')+', loss '+reading(w.packet_loss_pct,'%')+'. '+(w.physical_state==='UP'?'The physical link is up, so look upstream first.':w.physical_state==='DOWN'?'The physical link is also down.':'Physical link evidence is unavailable.')+more,'wan','Inspect '+w.interface)}
  if(errored.length)return homeStatus('is-w',errored[0].interface+' reports an SLA error.','The check could not produce a healthy result. Review the observed history before drawing conclusions.','wan','Inspect '+errored[0].interface);
  if(accounting&&report&&(!lastLog||age>900))return homeStatus('is-u',lastLog?'No logs received for '+agoText(age).replace(' ago','')+'.':'No logs have been received yet.','Usage may read low. That does not prove zero traffic or an outage.','quality','Find where it stopped');
@@ -474,7 +476,7 @@ function renderHomeWan(wan){
  for(const w of wan?.interfaces||[]){const tr=E('tr'),sla=E('td'),phys=E('td'),route=E('td'),observed=wan.route?.status==='OBSERVED',selected=observed&&wan.route.interface===w.interface;sla.append(marker(w.internet_state));phys.append(marker(w.physical_state));route.append(E('span',observed?(selected?'Selected':'Not selected'):'Unknown','pill '+(observed?(selected?'good':'idle'):'')));tr.append(E('td',w.interface),sla,phys,route,E('td',reading(w.download_mbps)+' / '+reading(w.upload_mbps),'r'),E('td',reading(w.latency_ms)+' / '+reading(w.jitter_ms,' ms'),'r'),E('td',reading(w.packet_loss_pct,'%'),'r'),E('td',reading(w.history?.availability_percent,'%'),'r'));['Link','Internet SLA','Physical','Route','Down / Up Mbps','Latency / Jitter','Loss','Observed up'].forEach((name,i)=>{tr.children[i].dataset.label=name});body.append(tr)}
 }
 function renderHomeUsage(report,failed){
- const fields=[['Recorded today',report?reportBytes((report.totals.upload_bytes??NaN)+(report.totals.download_bytes??NaN)):'Unknown'],['Identities',report&&report.devices.length?reading(report.observed_endpoint_identities):'Unknown'],['Pending, not added',report?reportBytes((report.totals.pending_upload_bytes||0)+(report.totals.pending_download_bytes||0)):'Unknown']];
+ const fields=[['Recorded today',report?reportBytes((report.totals.upload_bytes??NaN)+(report.totals.download_bytes??NaN)):'Unknown'],['Identities',report&&report.devices.length?reading(report.observed_endpoint_identities):'Unknown'],['Pending, not added',report?reportBytes((report.totals.pending_upload_bytes??NaN)+(report.totals.pending_download_bytes??NaN)):'Unknown']];
  $('home-fields').replaceChildren(...fields.map(([k,v])=>{const d=E('div');d.append(E('dt',k),E('dd',v));return d}));
  const consumers=$('home-consumers'),segments=$('home-segments');consumers.replaceChildren();segments.replaceChildren();
  const none=failed?'Usage evidence is unavailable. No zero is inferred.':'No received accounting evidence for today. This is not proof of zero traffic.';
@@ -507,13 +509,13 @@ async function loadHome(){
  const wan=wanResult.status==='fulfilled'&&Array.isArray(wanResult.value?.interfaces)&&typeof wanResult.value.observed_at==='number'?wanResult.value:null;
  const usable=r=>r&&typeof r.totals==='object'&&r.totals&&Array.isArray(r.devices)&&Array.isArray(r.vlans);
  const report=reportResult.status==='fulfilled'&&usable(reportResult.value)?reportResult.value:null;
- const delivery=Number(report?.processing?.last_delivery_ns);state.evidence={lastLog:delivery>0?delivery/1e9:null,lag:report?.processing?.processing_lag_seconds??NaN};renderEvidenceBar();
+ const processing=report?.processing;if(processing){const delivery=Number(processing.last_delivery_ns);state.evidence={lastLog:delivery>0?delivery/1e9:null,lag:processing.processing_lag_seconds??NaN}}else state.evidence=null;renderEvidenceBar();
  renderHomeStatus(wan,report,links);drawChannels(wan);renderHomeWan(wan);renderHomeUsage(report,reportResult.status==='rejected');renderHomeServices();
  if(state.homeCursor!==null&&state.homeCursor!==undefined)setCrosshair(state.homeCursor);
  $('home-refresh').disabled=false;$('home-channels').removeAttribute('aria-busy');
- state.homeTimer=setTimeout(()=>{if(state.page==='home'&&state.csrf&&!document.hidden&&!$('workspace').hidden)loadHome()},60000);
+ state.homeTimer=setTimeout(()=>{if(state.page!=='home'||!state.csrf||$('workspace').hidden)return;if(document.hidden){state.homeDue=true;return}loadHome()},60000);
 }
-$('home-refresh').addEventListener('click',()=>loadHome());$('home-window').addEventListener('change',()=>{state.homeCursor=null;loadHome()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.homeDue){state.homeDue=false;if(state.page==='home'&&state.csrf&&!$('workspace').hidden)loadHome()}});$('home-refresh').addEventListener('click',()=>loadHome());$('home-window').addEventListener('change',()=>{state.homeCursor=null;loadHome()});
 $('home-channels').addEventListener('pointermove',e=>{const track=e.target.closest('.tr');if(!track)return;const box=track.getBoundingClientRect();setCrosshair(Math.min(1,Math.max(0,(e.clientX-box.left)/box.width)))});
 $('home-channels').addEventListener('pointerleave',()=>setCrosshair(null));
 $('home-channels').addEventListener('keydown',e=>{if(!state.home)return;const step=e.key==='ArrowLeft'?-1/48:e.key==='ArrowRight'?1/48:0;if(step){e.preventDefault();setCrosshair(Math.min(1,Math.max(0,(state.homeCursor??1)+step)))}else if(e.key==='Escape')setCrosshair(null)});
