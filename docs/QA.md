@@ -102,6 +102,12 @@ not an installation pass. Record any unavailable environment checks explicitly.
 
 ## Isolated integration environments
 
+For compact storage, follow the measured [validation record](COMPACT_ACCOUNTING.md#validation-record-2026-11-05).
+Test migration destination sidecars and concurrent publication separately from
+accounting equivalence. Partial-day report checks must include a corpus large
+enough to expose decoded-payload accumulation: a successful small full-day
+summary query does not validate memory or latency for a large partial range.
+
 The stack lab also copies its synthetic legacy ledger into compact storage,
 checks every logical table, starts the actual accounting container on that copy,
 checks transport replay and restart, and restores the original fixture database.

@@ -9,6 +9,8 @@
   summaries, checkpoints and accounting calculations. Existing databases and
   fresh-install defaults remain legacy; no automatic conversion or activation.
   Include differential, failure, concurrency and isolated container rollback checks.
+  Stream partial-day report inputs to bound memory, and reject occupied migration
+  sidecars before copying or publishing a candidate.
 
 - Replace short-window retention extrapolation with explicit next-24-hour
   additional file-size growth trends from bounded, persisted observations.

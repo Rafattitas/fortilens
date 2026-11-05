@@ -148,6 +148,13 @@ can reuse an authenticated report for five seconds across device/VLAN navigation
 while Refresh, filter changes, expiry, logout and revocation invalidate reuse.
 See [the accounting contract](ACCOUNTING_ENGINE.md#report-reads-during-collection).
 
+Partial-day report aggregation consumes decoded facts incrementally, keeping
+memory proportional to observed endpoint/segment groups rather than raw ledger
+rows. The legacy direct list-returning `range_rows` method remains available.
+Optional compact storage filters non-Internet facts before payload decoding,
+while retaining all source classification records and exact totals. Large
+partial-period scans still require workload-specific latency validation.
+
 Managed Device usage and Reports are distinct presentations of the same received
 accounting evidence. Device usage focuses on the searchable/paginated endpoint
 table and per-device history. Reports shows period totals, a top-five consumer
