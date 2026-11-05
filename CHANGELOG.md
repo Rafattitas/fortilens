@@ -109,6 +109,10 @@
 
 ### Repository engineering
 
+- Reorganize the README around the questions FortiLens answers, who it suits and
+  how to choose an installation path. Move maintainer guidance to the contribution
+  guide and five historical records to `docs/history/`. Current guide paths and
+  runtime behavior are unchanged.
 - Add an explicitly allowlisted full source distribution beside the compatible
   portable ZIP, with reproducible archive metadata, source provenance,
   SHA256 checksums and extracted-artifact tests. Existing release assets remain

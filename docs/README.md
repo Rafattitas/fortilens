@@ -1,7 +1,8 @@
 # FortiLens documentation
 
-Choose a guide by task. Existing guide paths are retained so external links,
-installer references and the portable workflow continue to work.
+Choose a guide by task. Current guide paths are retained so external links,
+installer references and the portable workflow continue to work; only historical
+records have moved, to `history/`.
 
 ## Installation and configuration
 
@@ -62,18 +63,22 @@ Read [release preparation](RELEASING.md) before choosing or building an archive.
 - A Precision prototype (`docs/design/a-precision-prototype.html` in the source
   checkout): design reference, separate from the shipped interface and its screenshot gallery; never
   served by the product or included in release packages.
-- [Frontend design review](FRONTEND_DESIGN_REVIEW.md): historical draft findings
-  and follow-up evidence, not an open-defect list for every later revision.
 
 ## Engineering records
 
-- [Repository audit](REPOSITORY_AUDIT.md): findings, compatibility risks and safe
-  follow-up recommendations for the inspected source revision.
-- [Cleanup validation](CLEANUP_VALIDATION.md): commands actually executed,
+The [changelog](../CHANGELOG.md) holds implemented changes and release history. These
+records in `history/` describe the revision they inspected and are not current guides:
+
+- [Repository audit](history/REPOSITORY_AUDIT.md): findings, compatibility risks and
+  safe follow-up recommendations for the inspected source revision.
+- [Cleanup validation](history/CLEANUP_VALIDATION.md): commands actually executed,
   measured results and checks that still require a suitable environment.
-- [Reliability release plan](RELIABILITY_RELEASE_PLAN.md): historical accounting
-  design rationale; current future work lives in the roadmap.
-- [Changelog](../CHANGELOG.md): implemented changes and release history.
+- [Repository cleanup PR description](history/PR_PROFESSIONALIZATION.md): motivation,
+  scope and validation of that change.
+- [Reliability release plan](history/RELIABILITY_RELEASE_PLAN.md): accounting design
+  rationale; current future work lives in the roadmap.
+- [Frontend design review](history/FRONTEND_DESIGN_REVIEW.md): draft findings and
+  follow-up evidence, not an open-defect list for every later revision.
 
 Test counts and screenshots describe their recorded source revision. The current
 interface gallery uses synthetic fixtures, not a live installation. Use the exact
