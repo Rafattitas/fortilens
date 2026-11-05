@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import unittest.mock
 import urllib.error
 import urllib.request
 
@@ -37,6 +38,28 @@ class UsageServiceTests(unittest.TestCase):
         with self.assertRaises(u.ServiceError):u.LokiReader('http://fixture',fetch=raw_api([(100,'fixture')]*2500)).read(0,200)
         with self.assertRaises(u.ServiceError):u.LokiReader('http://fixture',requests=1,fetch=raw_api([(x,'fixture') for x in range(2400)])).read(0,2400)
 
+    def test_storage_limit_expires_oldest_raw_days_before_stopping(self):
+        store=a.Store(':memory:',{**CONFIG,'accounting_max_bytes':1000,'accounting_ledger_days':3},INVENTORY,storage_format='compact')
+        self.addCleanup(store.close)
+        store.ingest([record('2026-10-17T12:00:00Z',sessionid='old'),record('2026-10-20T11:00:00Z')])
+        engine=u.Engine(store,fetch=raw_api([]))
+        cursor=a.timestamp_ns('2026-10-20T12:00:00Z')
+        sizes=iter([5000,5000,5000,800,800])
+        calls=[]
+        original=store.prune
+        def prune(now,days,summary):calls.append(days);return original(now,days,summary)
+        with unittest.mock.patch.object(engine,'used_bytes',lambda:next(sizes)),unittest.mock.patch.object(store,'prune',prune):
+            engine.fit_storage(cursor)
+        self.assertEqual(calls,[2,1])
+        report=store.report('2026-10-17T00:00:00Z','2026-10-21T00:00:00Z')
+        self.assertEqual(report['totals']['upload_bytes'],200)
+        with unittest.mock.patch.object(engine,'used_bytes',lambda:5000):
+            with self.assertRaisesRegex(u.ServiceError,'accounting_storage_limit'):engine.fit_storage(cursor)
+        with unittest.mock.patch.object(engine,'used_bytes',lambda:999),unittest.mock.patch.object(store,'prune') as untouched:
+            engine.fit_storage(cursor)
+        untouched.assert_not_called()
+        self.assertGreater(u.Engine(store,fetch=raw_api([])).used_bytes(),0)
+
     def test_failed_poll_does_not_advance_checkpoint(self):
         store=a.Store(':memory:',CONFIG,INVENTORY);self.addCleanup(store.close)
         with store.db:store.set_state('checkpoint_ns',100)
@@ -55,9 +78,14 @@ class UsageServiceTests(unittest.TestCase):
         self.assertIsNone(result['totals']['upload_bytes'])
         self.assertTrue(engine.last_poll_ok)
 
-    def test_fixed_today_month_and_rolling_week_are_explicit(self):
+    def test_fixed_today_month_year_and_calendar_week_are_explicit(self):
         first,last=a.period_bounds('week','2026-10-20T12:01:00Z','UTC')
-        self.assertEqual(last-first,168*3600*a.NS)
+        self.assertEqual(a.iso(first),'2026-10-14T00:00:00+00:00')
+        self.assertEqual(a.iso(last),'2026-10-20T12:01:00+00:00')
+        first,_=a.period_bounds('week','2026-10-20T00:30:00Z','Asia/Riyadh')
+        self.assertEqual(a.iso(first),'2026-10-13T21:00:00+00:00')
+        first,_=a.period_bounds('year','2026-10-20T12:01:00Z','UTC')
+        self.assertEqual(a.iso(first),'2026-01-01T00:00:00+00:00')
         first,_=a.period_bounds('month','2026-10-20T12:01:00Z','UTC')
         self.assertEqual(a.iso(first),'2026-10-01T00:00:00+00:00')
         first,_=a.period_bounds('today','2026-10-20T12:01:00Z','UTC')

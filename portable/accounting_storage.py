@@ -1,17 +1,45 @@
-"""Lossless versioned ledger storage; calculations remain in accounting.py.
+"""Versioned ledger storage; calculations remain in accounting.py.
 
-Existing and newly created databases default to legacy JSON. Compact files are
-selected explicitly or detected on open; no existing file is migrated here.
+The library default for a new database remains legacy JSON; the accounting
+service selects compact storage for new files. Compact version 2 compresses
+record details and keeps unsupported records as small counted markers. A
+version 1 file is upgraded in place by a writer; its older rows stay readable.
 """
 
 import json
 import sqlite3
+import zlib
 from collections import OrderedDict
 from contextlib import contextmanager
 from copy import deepcopy
 from functools import lru_cache
 
-COMPACT_VERSION = 1
+COMPACT_VERSION = 2
+COMPACT_VERSIONS = (1, 2)
+# Frozen preset dictionary for compressed compact records. Never edit it: stored
+# version 2 rows can only be decoded with exactly these bytes.
+ZDICT_V2 = (
+    b'"0000000013","0000000020","0001000014","0000000011","traffic","forward","local",'
+    b'"utm","app-ctrl","webfilter","event","system","lan","wan","dmz","undefined",'
+    b'"root","internal","users","MAPPED","NOT_VLAN","UNKNOWN","AMBIGUOUS",'
+    b'"MAC","IP_SESSION","OBSERVATION","dedicated-listener",'
+    b'"contribution_interval_unknown","calendar_boundary_allocation_uncertain",'
+    b'"source_binding_not_confirmed","source_device_id_missing","source_timestamp_skew",'
+    b'"event_identity_uses_loki_timestamp","physical_device_identity_unverified",'
+    b'"historical_vlan_mapping_not_verified","historical_direction_not_verified",'
+    b'"session_restart_or_counter_reset","session_endpoint_changed","repeated_close_observation",'
+    b'"upload_contribution_missing","download_contribution_missing","upload_baseline_fallback",'
+    b'"download_baseline_fallback","upload_end_only_session","download_end_only_session",'
+    b'"upload_unobserved_counter_bytes","download_unobserved_counter_bytes",'
+    b'"unsupported_record","unscoped_source","unresolved_direction","external_or_transit",'
+    b'"vlan_mapping_unknown","vlan_mapping_ambiguous",'
+    b'"status":"NOT_VLAN","vlan_id":null,"parent":null,"key":"interface:'
+    b'{"network_evidence":{"classification":"INTERNET","vlan":{"status":"MAPPED","vlan_id":'
+    b',"interface":"","parent":"","role":"lan","key":"vlan:'
+    b'},"flags":[]}}]'
+)
+PACKED_V2 = b"\x02"
+MAX_RECORD_BYTES = 1024 * 1024
 FIELD_NAMES = tuple(
     sorted(
         "devid vd logid type subtype sessionid srcip dstip srcport dstport proto srcintf dstintf srcintfrole dstintfrole mastersrcmac srcmac srcname sentdelta rcvddelta sentbyte rcvdbyte duration durationdelta eventtime idseq".split()
@@ -97,6 +125,14 @@ CREATE VIEW events AS SELECT NULL AS uid,NULL AS session,NULL AS stamp,NULL AS p
 CREATE VIEW facts AS SELECT NULL AS uid,NULL AS session,NULL AS stamp,NULL AS payload WHERE 0;
 CREATE VIEW deliveries AS SELECT NULL AS uid,NULL AS event_uid,NULL AS stamp WHERE 0;
 """
+# Unsupported records never contribute bytes. Version 2 keeps only their exact
+# identity, time and classification so replay detection and counts stay exact.
+SKIPPED_SCHEMA = """
+CREATE TABLE IF NOT EXISTS compact_skipped(
+ uid BLOB PRIMARY KEY CHECK(length(uid)=32),stamp INTEGER NOT NULL,classification TEXT NOT NULL) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS compact_skipped_stamp ON compact_skipped(stamp,classification);
+"""
+SKIPPED_COLUMNS = ("uid", "stamp", "classification")
 COMPACT_COLUMNS = {
     "compact_events": (
         "id",
@@ -147,13 +183,25 @@ def _class_value(value):
 
 
 def _pack(value):
-    return json.dumps(value, separators=(",", ":"))
+    text = json.dumps(value, separators=(",", ":")).encode()
+    packer = zlib.compressobj(6, zlib.DEFLATED, -15, 9, zlib.Z_DEFAULT_STRATEGY, ZDICT_V2)
+    return PACKED_V2 + packer.compress(text) + packer.flush()
 
 
 def _unpack(value):
-    if not isinstance(value, str):
+    # Version 1 rows are JSON text; version 2 rows are dictionary-compressed.
+    if isinstance(value, str):
+        return json.loads(value)
+    if not isinstance(value, bytes) or value[:1] != PACKED_V2:
         raise ValueError("Invalid compact record encoding")
-    return json.loads(value)
+    try:
+        unpacker = zlib.decompressobj(-15, ZDICT_V2)
+        text = unpacker.decompress(value[1:], MAX_RECORD_BYTES)
+        if unpacker.unconsumed_tail or not unpacker.eof:
+            raise ValueError("Invalid compact record encoding")
+        return json.loads(text)
+    except (zlib.error, UnicodeDecodeError):
+        raise ValueError("Invalid compact record encoding") from None
 
 
 @lru_cache(maxsize=256)
@@ -207,7 +255,7 @@ def detect_storage_format(db, storage_format=None):
         r[0]: r[1]
         for r in db.execute("SELECT name,type FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'")
     }
-    if version == COMPACT_VERSION:
+    if version in COMPACT_VERSIONS:
         if storage_format == "legacy":
             raise UnsupportedStorageFormatError("The accounting database uses compact storage")
         if not all(objects.get(name) == "table" for name in COMPACT_COLUMNS) or not all(
@@ -219,6 +267,12 @@ def detect_storage_format(db, storage_format=None):
             if columns != expected:
                 raise UnsupportedStorageFormatError("The compact accounting layout is incomplete")
         if objects.get("compact_events_session") != "index":
+            raise UnsupportedStorageFormatError("The compact accounting layout is incomplete")
+        if version >= 2 and (
+            objects.get("compact_skipped") != "table"
+            or tuple(r[1] for r in db.execute("PRAGMA table_info(compact_skipped)"))
+            != SKIPPED_COLUMNS
+        ):
             raise UnsupportedStorageFormatError("The compact accounting layout is incomplete")
         return "compact"
     if version != 0 or any(name.startswith("compact_") for name in objects):
@@ -235,11 +289,25 @@ def detect_storage_format(db, storage_format=None):
 def open_ledger(db, storage_format=None, initialize=True):
     selected = detect_storage_format(db, storage_format)
     if selected == "compact":
-        if db.execute("PRAGMA user_version").fetchone()[0] == COMPACT_VERSION:
+        version = db.execute("PRAGMA user_version").fetchone()[0]
+        if version == COMPACT_VERSION:
+            return CompactLedger(db)
+        if version == 1:
+            if not initialize:
+                return CompactLedger(db, skipped=False)
+            # Additive upgrade: version 1 rows remain valid and readable.
+            _script(db, SKIPPED_SCHEMA + "PRAGMA user_version=" + str(COMPACT_VERSION))
             return CompactLedger(db)
         if not initialize:
             raise UnsupportedStorageFormatError("The compact accounting layout is incomplete")
-        _script(db, COMPACT_SCHEMA + COMMON_SCHEMA + "PRAGMA user_version=" + str(COMPACT_VERSION))
+        _script(
+            db,
+            COMPACT_SCHEMA
+            + SKIPPED_SCHEMA
+            + COMMON_SCHEMA
+            + "PRAGMA user_version="
+            + str(COMPACT_VERSION),
+        )
         return CompactLedger(db)
     if initialize:
         _script(db, LEGACY_SCHEMA + COMMON_SCHEMA)
@@ -260,6 +328,7 @@ def open_ledger(db, storage_format=None, initialize=True):
 
 class LegacyLedger:
     format = "legacy"
+    supports_skipped = False
 
     def __init__(self, db):
         self.db = db
@@ -369,12 +438,15 @@ class LegacyLedger:
 
 class CompactLedger:
     format = "compact"
+    supports_skipped = True
     EVENT_SELECT = "SELECT e.* FROM compact_events e "
     FACT_SELECT = """SELECT f.*,e.uid AS event_uid,e.session AS event_session,e.stamp AS event_stamp
         FROM compact_facts f JOIN compact_events e ON e.id=f.event_id """
 
-    def __init__(self, db):
+    def __init__(self, db, *, skipped=True):
         self.db = db
+        # A read-only reader of a not-yet-upgraded version 1 file has no markers.
+        self.has_skipped = skipped
         self._event_cache = None
         self._fact_cache = None
         self._unfactored_events = None
@@ -470,6 +542,18 @@ class CompactLedger:
 
     def max_delivery_stamp(self):
         return self.db.execute("SELECT MAX(stamp) FROM compact_deliveries").fetchone()[0]
+
+    def insert_skipped(self, uid, stamp, classification):
+        """Count an unsupported record once, including against version 1 rows."""
+        key = _hash(uid)
+        return self.db.execute(
+            """INSERT OR IGNORE INTO compact_skipped SELECT ?,?,?
+            WHERE NOT EXISTS (SELECT 1 FROM compact_events WHERE uid=?)""",
+            (key, stamp, _class_text(classification), key),
+        ).rowcount
+
+    def delete_skipped_before(self, floor):
+        self.db.execute("DELETE FROM compact_skipped WHERE stamp<?", (floor,))
 
     def insert_delivery(self, uid, event_uid, stamp):
         invalid = event_uid == "invalid"
@@ -631,11 +715,17 @@ class CompactLedger:
             yield self._decode_fact(row)
 
     def count_classification(self, start, end, classification):
-        return self.db.execute(
+        count = self.db.execute(
             """SELECT COUNT(*) FROM compact_events e JOIN compact_facts f ON f.event_id=e.id
             WHERE e.stamp>=? AND e.stamp<? AND f.classification=?""",
             (start, end, _class_text(classification)),
         ).fetchone()[0]
+        if self.has_skipped:
+            count += self.db.execute(
+                "SELECT COUNT(*) FROM compact_skipped WHERE stamp>=? AND stamp<? AND classification=?",
+                (start, end, _class_text(classification)),
+            ).fetchone()[0]
+        return count
 
     def fact_extrema(self, floor):
         first = self.db.execute(
@@ -646,4 +736,11 @@ class CompactLedger:
             "SELECT e.stamp FROM compact_events e JOIN compact_facts f ON f.event_id=e.id WHERE e.stamp>=? ORDER BY e.stamp DESC LIMIT 1",
             (floor,),
         ).fetchone()
-        return (first[0] if first else None, last[0] if last else None)
+        first, last = (first[0] if first else None, last[0] if last else None)
+        if self.has_skipped:
+            low, high = self.db.execute(
+                "SELECT MIN(stamp),MAX(stamp) FROM compact_skipped WHERE stamp>=?", (floor,)
+            ).fetchone()
+            first = low if first is None else first if low is None else min(first, low)
+            last = high if last is None else last if high is None else max(last, high)
+        return first, last

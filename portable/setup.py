@@ -38,7 +38,7 @@ DEFAULTS = {
     "usage_bind": "127.0.0.1", "usage_port": 3002, "public_usage_url": "",
     "portal_enabled": False, "portal_secure_cookie": False,
     "accounting_poll_seconds": 30, "accounting_backfill_days": 31, "accounting_step_seconds": 120,
-    "accounting_overlap_seconds": 30, "accounting_settle_seconds": 5, "accounting_ledger_days": 8,
+    "accounting_overlap_seconds": 30, "accounting_settle_seconds": 5, "accounting_ledger_days": 3,
     "accounting_summary_days": 400, "accounting_max_bytes": 4294967296, "accounting_metrics_rows": 5000,
     "loki_receive_timestamps": False, "route_lookup_enabled": True, "route_probe_destination": "1.1.1.1",
     "wan_latency_warning_ms": 150, "wan_loss_warning_pct": 5,
@@ -173,7 +173,7 @@ def validate_config(raw):
     if c["portal_enabled"] and not c["accounting_enabled"]:
         raise SetupError("The unified portal requires accounting_enabled=true")
     limits={"accounting_poll_seconds":(5,3600),"accounting_backfill_days":(1,90),"accounting_step_seconds":(10,3600),
-        "accounting_overlap_seconds":(0,3600),"accounting_settle_seconds":(1,300),"accounting_ledger_days":(8,365),
+        "accounting_overlap_seconds":(0,3600),"accounting_settle_seconds":(1,300),"accounting_ledger_days":(1,365),
         "accounting_summary_days":(31,3650),"accounting_max_bytes":(67108864,1099511627776),"accounting_metrics_rows":(100,50000),
         "wan_latency_warning_ms":(1,60000),"wan_loss_warning_pct":(1,100)}
     for key,(minimum,maximum) in limits.items():

@@ -81,7 +81,7 @@ class Configuration:
             d['wan_interfaces'] = c.get('confirmed_wan_interfaces', [])
             d['wan_confirmed'] = bool(d['wan_interfaces'])
             d['monitoring'] = {'accounting': c.get('accounting_enabled', False), 'vlans': c.get('accounting_enabled', False)}
-            d['retention'] = {'ledger_days': c.get('accounting_ledger_days', 8), 'summary_days': c.get('accounting_summary_days', 400), 'database_bytes': c.get('accounting_max_bytes', 4294967296)}
+            d['retention'] = {'ledger_days': c.get('accounting_ledger_days', 3), 'summary_days': c.get('accounting_summary_days', 400), 'database_bytes': c.get('accounting_max_bytes', 4294967296)}
             # Read actual policies, never assume that template defaults are live.
             compose = self.compose()
             prom=self.bound_file(compose,'prometheus','/etc/prometheus/prometheus.yml')

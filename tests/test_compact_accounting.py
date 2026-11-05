@@ -610,7 +610,11 @@ class CompactDifferentialTests(unittest.TestCase):
             ],
             CHECKPOINT + 1,
         )
-        count = lambda: self.compact.db.execute("SELECT COUNT(*) FROM compact_events").fetchone()[0]
+        # Unsupported records are retained as markers, not events, in version 2.
+        count = lambda: sum(
+            self.compact.db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]
+            for table in ("compact_events", "compact_skipped")
+        )
         before = count()
         for store in (self.legacy, self.compact):
             store.prune("2026-10-29T00:00:00Z")
@@ -861,6 +865,152 @@ class CompactSnapshotTests(unittest.TestCase):
         after = self.engine.report("today", at=AT)
         self.assertEqual(after["totals"]["upload_bytes"], 600)
         self.assertEqual(after["processing"]["checkpoint_ns"], CHECKPOINT + 1)
+
+
+def mixed_records(offset=0):
+    """Forward sessions plus the unsupported kinds observed on real FortiGates.
+
+    Every record carries a source event time, so a later delivery of the same
+    record has the same identity and a different delivery identity.
+    """
+    at = "2026-10-20T12:%02d:00Z"
+
+    def record(when, **fields):
+        seconds = accounting.timestamp_ns(when) // accounting.NS
+        return fixtures.record(when, eventtime=str(seconds), **fields)
+
+    rows = [
+        record(at % (offset + 1), sessionid="s1"),
+        record(at % (offset + 2), sessionid="s1", logid="0000000013", sentdelta="40",
+               rcvddelta="50", sentbyte="140", rcvdbyte="250", duration="120"),
+        record(at % (offset + 3), sessionid="s2", mastersrcmac="02:00:00:00:00:02"),
+    ]
+    for index, (kind, subtype, logid) in enumerate((
+        ("traffic", "local", "0001000014"), ("utm", "app-ctrl", "1059028704"),
+        ("traffic", "forward", "0000000011"), ("utm", "webfilter", "0317013312"),
+        ("event", "system", "0100040704"),
+    )):
+        rows.append(record(at % (offset + 4 + index), sessionid="u" + str(index),
+                           type=kind, subtype=subtype, logid=logid))
+    return rows
+
+
+class CompactVersionTwoTests(unittest.TestCase):
+    """Version 2 must change only storage, never a report, count or diagnostic."""
+
+    setUp = CompactDifferentialTests.setUp
+    ingest = CompactDifferentialTests.ingest
+    compare = CompactDifferentialTests.compare
+
+    def version_one(self, rows, checkpoint):
+        """Build the compact fixture as an older version 1 file with text rows."""
+        storage = accounting.open_ledger.__globals__
+        plain = lambda value: json.dumps(value, separators=(",", ":"))
+        with patch.dict(storage, {"_pack": plain}), \
+                patch.object(storage["CompactLedger"], "supports_skipped", False):
+            self.ingest(rows, checkpoint)
+        self.compact.close()
+        with closing(sqlite3.connect(self.compact_path)) as db:
+            db.executescript("DROP TABLE compact_skipped;PRAGMA user_version=1;")
+
+    def count(self, table, store=None):
+        db = (store or self.compact).db
+        return db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]
+
+    def test_unsupported_records_are_exact_markers_not_stored_rows(self):
+        rows = mixed_records()
+        self.ingest(rows, CHECKPOINT)
+        self.compare()
+        self.assertEqual(self.count("compact_events"), 3)
+        self.assertEqual(self.count("compact_facts"), 3)
+        self.assertEqual(self.count("compact_skipped"), 5)
+        counts = self.compact.report(START, END)["source_record_classifications"]
+        self.assertEqual(counts["UNSUPPORTED_RECORD"], 5)
+        # A repeated delivery and a replay with a new delivery time count once.
+        replay = deepcopy(rows[3:])
+        for item in replay:
+            item["timestamp"] = "2026-10-20T12:30:00Z"
+        self.ingest(deepcopy(rows), CHECKPOINT + 1)
+        self.compare()
+        self.ingest(replay, CHECKPOINT + 2)
+        self.ingest(deepcopy(replay), CHECKPOINT + 3)
+        self.compare()
+        self.assertEqual(self.count("compact_skipped"), 5)
+        self.assertEqual(self.compact.state("replay_candidates"), 5)
+        self.compare("2026-10-20T12:04:00Z", "2026-10-20T12:06:30Z")
+        for store in (self.legacy, self.compact):
+            store.prune("2026-10-29T12:00:00Z", ledger_days=3)
+        self.compare()
+        self.assertEqual(self.count("compact_skipped"), 0)
+
+    def test_new_details_are_compressed_and_roundtrip(self):
+        self.ingest(mixed_records(), CHECKPOINT)
+        kinds = {r[0] for r in self.compact.db.execute(
+            "SELECT typeof(details) FROM compact_events UNION SELECT typeof(details) FROM compact_facts")}
+        self.assertEqual(kinds, {"blob"})
+        for table in ("compact_events", "compact_facts"):
+            for packed, in self.compact.db.execute("SELECT details FROM " + table):
+                text = json.dumps(accounting.open_ledger.__globals__["_unpack"](packed),
+                                  separators=(",", ":"))
+                self.assertLess(len(packed), len(text))
+        self.compare()
+
+    def test_corrupt_compressed_details_fail_closed(self):
+        self.ingest([record()], CHECKPOINT)
+        with self.compact.db:
+            self.compact.db.execute("UPDATE compact_events SET details=?", (b"\x02broken",))
+        with self.assertRaisesRegex(ValueError, "encoding"):
+            self.compact.ingest([record("2026-10-20T12:01:00Z")], checkpoint=CHECKPOINT + 1)
+
+    def test_version_one_file_upgrades_in_place_and_keeps_counting_exactly(self):
+        rows = mixed_records()
+        self.version_one(rows, CHECKPOINT)
+        with closing(accounting.Store.open_readonly(self.compact_path, CONFIG, INVENTORY)) as reader:
+            self.assertEqual(reader.db.execute("PRAGMA user_version").fetchone()[0], 1)
+            self.assertEqual(reader.report(START, END), self.legacy.report(START, END))
+        self.compact = accounting.Store(self.compact_path, CONFIG, deepcopy(INVENTORY))
+        self.assertEqual(self.compact.db.execute("PRAGMA user_version").fetchone()[0], 2)
+        self.assertEqual(self.count("compact_events"), 8)
+        self.compare()
+        # Unsupported rows stored by version 1 are never counted a second time.
+        replay = deepcopy(rows[3:])
+        for item in replay:
+            item["timestamp"] = "2026-10-20T12:40:00Z"
+        self.ingest(replay, CHECKPOINT + 1)
+        self.ingest(mixed_records(20), CHECKPOINT + 2)
+        self.compare()
+        self.assertEqual(self.count("compact_skipped"), 5)
+
+    def test_slim_copy_is_smaller_in_rows_and_keeps_every_report(self):
+        from accounting_migrate import MigrationError, slim
+
+        rows = mixed_records() + mixed_records(20)
+        self.version_one(rows, CHECKPOINT)
+        destination = Path(self.temporary.name) / "slim.sqlite"
+        result = slim(self.compact_path, destination, batch_size=3, min_free_bytes=0)
+        self.assertEqual(result["unsupported_records_counted_not_stored"], 10)
+        self.assertEqual(set(result["verified"]),
+                         {"deliveries", "daily", "quality", "state", "events", "facts", "reports"})
+        with self.assertRaises(MigrationError):
+            slim(self.compact_path, destination, min_free_bytes=0)
+        self.compact = accounting.Store(destination, CONFIG, deepcopy(INVENTORY))
+        self.assertEqual(self.count("compact_events"), 6)
+        self.assertEqual(self.count("compact_skipped"), 10)
+        kinds = {r[0] for r in self.compact.db.execute("SELECT typeof(details) FROM compact_facts")}
+        self.assertEqual(kinds, {"blob"})
+        self.compare()
+        self.compare("2026-10-20T12:04:00Z", "2026-10-20T12:25:30Z")
+        self.ingest(deepcopy(rows), CHECKPOINT + 1)
+        self.compare()
+        leftovers = [p.name for p in Path(self.temporary.name).iterdir() if p.name.startswith(".")]
+        self.assertEqual(leftovers, [])
+
+    def test_slim_refuses_legacy_sources(self):
+        from accounting_migrate import MigrationError, slim
+
+        self.ingest([record()], CHECKPOINT)
+        with self.assertRaises(MigrationError):
+            slim(self.legacy_path, Path(self.temporary.name) / "slim.sqlite", min_free_bytes=0)
 
 
 if __name__ == "__main__":

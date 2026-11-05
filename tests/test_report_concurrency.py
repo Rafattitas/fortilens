@@ -207,13 +207,14 @@ class ReportConcurrencyTests(unittest.TestCase):
         self.assertIsNone(self.report(vlan="no-such-segment")["totals"]["upload_bytes"])
         self.assertIsNone(self.report(device="f" * 64)["totals"]["upload_bytes"])
 
-    def test_rolling_week_boundaries_move_even_without_a_new_commit(self):
-        self.store.ingest([record("2026-10-13T12:00:30Z", sessionid="old", sentdelta="500")])
-        earlier = self.engine.report("week", at="2026-10-20T12:00:00Z")
-        later = self.engine.report("week", at="2026-10-20T12:01:00Z")
-        self.assertEqual(earlier["totals"]["upload_bytes"], 500)
+    def test_calendar_week_boundaries_move_at_midnight_without_a_new_commit(self):
+        self.store.ingest([record("2026-10-14T12:00:30Z", sessionid="old", sentdelta="500")])
+        earlier = self.engine.report("week", at="2026-10-20T23:59:00Z")
+        later = self.engine.report("week", at="2026-10-21T00:01:00Z")
+        self.assertEqual(earlier["start_utc"], "2026-10-14T00:00:00+00:00")
+        self.assertEqual(later["start_utc"], "2026-10-15T00:00:00+00:00")
+        self.assertEqual(earlier["totals"]["upload_bytes"], 600)
         self.assertEqual(later["totals"]["upload_bytes"], 100)
-        self.assertNotEqual(earlier["start_utc"], later["start_utc"])
 
     def test_failed_range_releases_snapshot_and_observes_a_later_commit(self):
         with self.engine._read_snapshot() as (reader, _version):
