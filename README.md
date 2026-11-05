@@ -75,8 +75,7 @@ want link health and device or VLAN usage without sending data to a third party.
 
 - Several firewalls in one installation. Use a separate installation for each.
 - Security-event analytics, or website and application analytics. These are
-  [planned](ROADMAP.md), not shipped. If you need them now, Fortinet's FortiAnalyzer
-  is the usual place to look.
+  [planned](ROADMAP.md), not shipped.
 - Certified billing, or complete traffic capture.
 - High availability or multiple writers.
 - ARM hosts. Deployed monitoring targets Linux/amd64.
@@ -95,12 +94,8 @@ administrator. FortiLens never changes FortiGate settings.
 | **Available from** | `main` only | `main`, or the v0.2.0 ZIP without the console |
 | **Guide** | [Web Setup & Settings](docs/WEB_SETUP.md) | [Portable guide](portable/README.md) |
 
-> [!NOTE]
-> Web setup and the console are not in a published release yet. Installing them runs
-> the current `main` branch, as root for the installer step. The latest release,
-> [v0.2.0](https://github.com/Rafattitas/fortilens/releases/tag/v0.2.0), is portable
-> only. Size resources for your actual traffic and retention; container limits are not
-> a capacity guarantee.
+Size resources for your actual traffic and retention; container limits are not a
+capacity guarantee.
 
 ### Web setup
 
