@@ -144,3 +144,65 @@ accuracy, universal FortiOS compatibility or absence of every regression.
 
 No new GitHub CI run, authenticated live-browser session or disposable root-level
 Ubuntu installer run was available for these changes. No release was published.
+
+## Further storage review before publication
+
+A follow-up compared the deployed format with additional physical layouts and
+version-isolated prototypes. The application runtime, registered installation,
+retention, authentication and source contract were not changed by this review.
+Tests used a private 40,000-record fixture in disposable containers with 0.5 CPU,
+192 MiB memory and networking disabled. Offline SQLite temporary files used the
+private fixture filesystem; these maintenance tests do not certify execution in
+the worker's 16 MiB temporary mount. No timing threshold was added to CI.
+
+| Alternative | Observed storage result | Decision |
+|---|---|---|
+| 8/16/32 KiB SQLite pages | Approximately 1.9/3.2/3.6% smaller before compaction than the 4 KiB control | Keep 4 KiB: selected report reads were slower in the paired trials. |
+| Offline compaction at 4 KiB | 67,514,368 to 63,750,144 bytes (5.6%) in the layout fixture | Optional maintenance of a separate copy, not an automatic writer operation. |
+| Shared frozen-evidence dictionary | Approximately 13.4% smaller in an experimental layout | Defer: mean ingestion time/CPU increased about 2.6/2.8%; this small sample does not establish absence of a regression. A versioned migration and full compatibility testing would also be required. |
+| Order-preserving nested metadata vectors | Approximately 7.3% smaller in an experimental layout | Defer: mean ingestion time/CPU increased about 6.9/7.0%, with slower selected report reads. |
+
+Eight asserted-page-size trials checked all six logical table streams, report
+digests, pruning, SQLite integrity and foreign keys. Four shared-evidence and
+four order-preserving vector trials also passed the unchanged six-table/report
+equality gate. Earlier unordered vector prototypes failed that strict gate and
+were discarded; the verification requirement was not relaxed. All experimental
+formats remained private and were not deployed or added to the runtime.
+
+Two further control/copy comparisons verified compaction before and after 2,000
+new fixture writes each. All logical streams and reports matched. Those short
+write batches took approximately 4–17% longer on the compacted copies. Savings
+and performance vary with fragmentation and workload; neither the 5.6% sample
+saving nor a cost-free write rate should be assumed for a running installation.
+
+`VACUUM INTO` can build a separate compacted copy while retaining the source;
+follow [SQLite's documented behavior](https://www.sqlite.org/lang_vacuum.html).
+Activation still requires a stopped writer, verified logical streams, integrity,
+adequate temporary space and a matched recovery pair. Do not vacuum the active
+writer as an implicit settings or report operation. `WITHOUT ROWID` is also not
+a drop-in change here: the current delivery fingerprint depends on insertion
+order through `rowid`, and event/fact ordinals must remain stable. SQLite itself
+documents workload-dependent tradeoffs in its [layout guidance](https://www.sqlite.org/withoutrowid.html).
+
+Archived recovery files should be measured separately from the active ledger.
+Lossless archive compression is another capacity option, provided decompressed
+content is verified against the original SHA256, source stability is checked,
+recovery instructions retain the original filenames and SQLite sidecar pairing,
+and restoration is tested before any original copy is retired. No recovery
+snapshot was removed or reformatted during this review.
+
+The follow-up added an offline-compaction regression preserving table streams,
+report ordering, restart readability, replay and later arrivals. The complete
+Windows/Python 3.14 suite ran 483 tests with the previously documented Windows
+symlink skip; all 65 compact tests passed in the nonroot Linux/Python 3.12 runtime.
+These results justify retaining format 1 for this change, not a claim that no
+further optimization is possible. Full-corpus sustained measurements remain
+necessary before adopting another format.
+
+A final read-only observation of the authorized test deployment found catch-up
+complete to approximately ten seconds behind server time, with successful polls,
+no current processing error and recorded current-day results. Current day/week/
+month API samples completed in approximately 0.013/0.018/0.075 seconds. The original
+event cohort remained present while new records accumulated, and protected files
+and the seven other running containers retained their previous identities.
+These are observed samples, not a latency SLA or proof of complete source traffic.

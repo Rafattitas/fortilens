@@ -107,6 +107,11 @@ Test migration destination sidecars and concurrent publication separately from
 accounting equivalence. Partial-day report checks must include a corpus large
 enough to expose decoded-payload accumulation: a successful small full-day
 summary query does not validate memory or latency for a large partial range.
+Offline compaction checks compare all six logical streams, stable report ties,
+read-only reopening, replay and subsequent late/new writes. Assert actual SQLite
+page size in layout experiments; a PRAGMA on an uninitialized empty connection
+alone does not establish the next connection's file layout. See the
+[follow-up storage review](COMPACT_ACCOUNTING.md#further-storage-review-before-publication).
 
 The stack lab also copies its synthetic legacy ledger into compact storage,
 checks every logical table, starts the actual accounting container on that copy,
