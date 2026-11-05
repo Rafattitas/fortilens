@@ -159,7 +159,7 @@ traffic reconciliation or production capacity assessment.
   unnecessary. Repository access policies require separate authorization.
 - **Verification:** link/form/YAML checks; compare advertised features with source.
   Observed settings and unavailable protection APIs are distinguished in
-  [REPOSITORY_GOVERNANCE.md](REPOSITORY_GOVERNANCE.md).
+  [REPOSITORY_GOVERNANCE.md](../REPOSITORY_GOVERNANCE.md).
 
 ### A9 — Low: dense modules and implicit portable imports raise maintenance cost
 
@@ -170,7 +170,7 @@ traffic reconciliation or production capacity assessment.
 - **Affected files:** `management/{common,app,configuration,runtime}.py`,
   `portable/{setup,accounting,usage_service,portal,doctor}.py`.
 - **Safest improvement:** document the actual seams, ownership and extraction
-  prerequisites in [MAINTAINABILITY.md](MAINTAINABILITY.md). Preserve code locations
+  prerequisites in [MAINTAINABILITY.md](../MAINTAINABILITY.md). Preserve code locations
   and internal/public entry points in this cleanup.
 - **Compatibility risk:** meaningful for package imports, copied worker files,
   installer/Docker allowlists, errors and transactional accounting. Defer extraction.

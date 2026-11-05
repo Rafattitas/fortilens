@@ -198,7 +198,7 @@ a new commit. Record unsupported cases and current source availability instead
 of asserting universal FortiOS compatibility, billing accuracy or capacity.
 
 Start repository maintenance at the [documentation index](README.md),
-[repository audit](REPOSITORY_AUDIT.md) and [cleanup validation](CLEANUP_VALIDATION.md).
+[repository audit](history/REPOSITORY_AUDIT.md) and [cleanup validation](history/CLEANUP_VALIDATION.md).
 The runtime layout, installer source allowlist, Docker contexts, accounting/auth
 logic and CLI stay in place; [MAINTAINABILITY.md](MAINTAINABILITY.md) records
 prerequisites for separately reviewed refactors. New development tools are

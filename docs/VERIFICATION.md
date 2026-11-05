@@ -20,7 +20,7 @@ doctor boundaries, alert candidates and hash-guarded upgrades/rollback. Manageme
 and repository-tooling checks have their own additional coverage.
 
 Use the [QA procedure](QA.md) for current commands and the exact-head
-[cleanup validation record](CLEANUP_VALIDATION.md) for this maintenance change.
+[cleanup validation record](history/CLEANUP_VALIDATION.md) for this maintenance change.
 Report measured coverage and skips from the executed environment rather than
 copying a historical count.
 

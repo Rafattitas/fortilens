@@ -8,7 +8,7 @@ same instructions directly. Current user instructions and actual environment
 evidence take priority over historical examples in documentation.
 
 For interface work, read [the visual brief](docs/UI_DESIGN.md) and the
-[frontend review](docs/FRONTEND_DESIGN_REVIEW.md). Use the locally installed
+[frontend review](docs/history/FRONTEND_DESIGN_REVIEW.md). Use the locally installed
 `frontend-design` skill when available; its upstream guidance is
 [Anthropic frontend-design](https://github.com/anthropics/skills/tree/main/skills/frontend-design).
 These visual guidelines do not authorize changing deployment/security/accounting
