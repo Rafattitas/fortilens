@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "portable"))
 import accounting as accounting
 import test_accounting as fixtures
 import usage_service as usage
+from accounting_migrate import fingerprint_rows, logical_rows
 
 CONFIG = fixtures.CONFIG
 INVENTORY = fixtures.INVENTORY
@@ -139,6 +140,39 @@ class CompactDifferentialTests(unittest.TestCase):
         self.compact.close()
         self.compact = accounting.Store(self.compact_path, CONFIG, deepcopy(INVENTORY))
         self.assertEqual(self.compact.ledger.format, "compact")
+        self.compare()
+
+    def test_offline_compaction_preserves_evidence_order_and_subsequent_late_writes(self):
+        rows = []
+        first = accounting.timestamp_ns(AT)
+        for index in range(80):
+            item = record(sessionid=str(index % 8), duration=str(60 + index))
+            item.pop("timestamp")
+            item["timestamp_ns"] = first + index
+            item["fields"]["eventtime"] = str(first + index)
+            rows.append(item)
+        self.ingest(rows, CHECKPOINT)
+        names = ("events", "facts", "deliveries", "daily", "quality", "state")
+
+        def fingerprints(store):
+            return {
+                name: fingerprint_rows(logical_rows(store.db, store.ledger, name)) for name in names
+            }
+
+        expected = fingerprints(self.compact)
+        candidate = Path(self.temporary.name) / "offline-compacted.sqlite"
+        self.compact.db.execute("VACUUM INTO ?", (str(candidate),))
+        self.assertEqual(fingerprints(self.compact), expected)
+        with closing(accounting.Store.open_readonly(candidate, CONFIG, INVENTORY)) as reader:
+            self.assertEqual(fingerprints(reader), expected)
+            self.assertEqual(reader.db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+            self.assertEqual(reader.db.execute("PRAGMA foreign_key_check").fetchall(), [])
+        self.compact.close()
+        self.compact = accounting.Store(candidate, CONFIG, deepcopy(INVENTORY))
+        self.compare()
+        late = deepcopy(rows[3])
+        late["fields"]["srcname"] = "late-after-compaction"
+        self.ingest([rows[0], late, record(sessionid="new-after-compaction")], CHECKPOINT + 1)
         self.compare()
 
     def test_partial_day_report_does_not_retain_every_fact_payload(self):
