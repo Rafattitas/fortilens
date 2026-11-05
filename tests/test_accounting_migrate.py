@@ -86,6 +86,56 @@ class AccountingMigrationTests(unittest.TestCase):
             self.run_migration()
         self.assertEqual(self.output.read_bytes(), b"keep-existing")
 
+    def test_existing_destination_sidecars_are_preserved_and_prevent_publication(self):
+        for suffix in ("-wal", "-shm", "-journal"):
+            with self.subTest(suffix=suffix):
+                sidecar = Path(str(self.output) + suffix)
+                sidecar.write_bytes(b"unrelated-existing-evidence")
+                try:
+                    with self.assertRaisesRegex(MigrationError, "sidecars"):
+                        self.run_migration()
+                    self.assertFalse(self.output.exists())
+                    self.assertEqual(sidecar.read_bytes(), b"unrelated-existing-evidence")
+                    self.assertEqual(list(self.root.glob(".*building-*")), [])
+                    self.assertEqual(
+                        hashlib.sha256(self.source.read_bytes()).hexdigest(), self.before
+                    )
+                finally:
+                    sidecar.unlink()
+
+    def test_destination_sidecars_created_during_copy_prevent_publication(self):
+        for suffix in ("-wal", "-shm", "-journal"):
+            with self.subTest(suffix=suffix):
+                sidecar = Path(str(self.output) + suffix)
+
+                def create_sidecar(event):
+                    if event["stage"] == "publish":
+                        sidecar.write_bytes(b"concurrent-unrelated-evidence")
+
+                try:
+                    with self.assertRaisesRegex(MigrationError, "sidecars"):
+                        self.run_migration(progress=create_sidecar)
+                    self.assertFalse(self.output.exists())
+                    self.assertEqual(sidecar.read_bytes(), b"concurrent-unrelated-evidence")
+                    self.assertEqual(list(self.root.glob(".*building-*")), [])
+                    self.assertEqual(
+                        hashlib.sha256(self.source.read_bytes()).hexdigest(), self.before
+                    )
+                finally:
+                    sidecar.unlink(missing_ok=True)
+
+    def test_broken_destination_sidecar_symlink_is_not_ignored_or_removed(self):
+        sidecar = Path(str(self.output) + "-wal")
+        try:
+            sidecar.symlink_to(self.root / "missing-target")
+        except (OSError, NotImplementedError):
+            self.skipTest("This environment does not support symbolic links")
+        with self.assertRaisesRegex(MigrationError, "sidecars"):
+            self.run_migration()
+        self.assertFalse(self.output.exists())
+        self.assertTrue(sidecar.is_symlink())
+        self.assertEqual(list(self.root.glob(".*building-*")), [])
+
     def test_same_file_is_rejected(self):
         with self.assertRaises(MigrationError):
             migrate(self.source, self.source, min_free_bytes=0)

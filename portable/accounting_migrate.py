@@ -17,6 +17,22 @@ class MigrationError(ValueError):
     """A bounded migration diagnostic without customer data or raw exceptions."""
 
 
+def _require_unused_destination(destination):
+    # A stale WAL can be replayed over a different main database. A missing main
+    # file alone therefore does not establish a safe publication destination.
+    for path in (
+        destination,
+        *(Path(str(destination) + suffix) for suffix in ("-wal", "-shm", "-journal")),
+    ):
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            raise MigrationError("The destination safety could not be established") from None
+        raise MigrationError("The destination and its sidecars must be new, separate files")
+
+
 def logical_rows(db, ledger, table):
     """Stream a deterministic logical representation, including legacy row order."""
     if table in ("daily", "quality", "state"):
@@ -75,8 +91,9 @@ def migrate(
         raise MigrationError("Migration paths must not traverse symbolic links")
     if not source.is_file() or not destination.parent.is_dir():
         raise MigrationError("Use an existing source file and destination directory")
-    if source.resolve() == destination.resolve() or destination.exists():
+    if source.resolve() == destination.resolve():
         raise MigrationError("The destination must be a new, separate database file")
+    _require_unused_destination(destination)
     if not verify:
         raise MigrationError("Migration verification cannot be disabled")
     if shutil.disk_usage(destination.parent).free < min_free_bytes + 1024**2:
@@ -183,6 +200,9 @@ def migrate(
         with temporary.open("r+b") as stream:
             os.fsync(stream.fileno())
         notify("publish")
+        # Recheck after copying and verification; another process or a progress
+        # callback may have created destination files while the copy was built.
+        _require_unused_destination(destination)
         # Hard-link publication is atomic and refuses an existing destination.
         # The file remains on the same filesystem and contains no pending WAL.
         os.link(temporary, destination)
