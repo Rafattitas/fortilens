@@ -3,7 +3,7 @@ const http = require('node:http');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const {chromium} = require(process.env.FORTILENS_PLAYWRIGHT_MODULE || 'playwright');
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(__dirname, '..', '..');
 const output = process.env.FORTILENS_BROWSER_OUTPUT;
 const settings = {site_name:'Synthetic site',installation_name:'browser-fixture',timezone:'UTC',date_format:'YYYY-MM-DD',fortigate_host:'192.0.2.1',api_port:443,vdom:'root',sla:'',api_tls_verify:true,wan_interfaces:['wan1'],wan_confirmed:true,syslog_protocol:'tcp',syslog_port:1514,syslog_format:'rfc5424',syslog_network:'bridge',accounting_timezone:'UTC',expected_devid:'',grafana_port:3001,usage_port:3002,monitoring_interval:60,monitoring:{wan:true,sla:true,interfaces:true,syslog:true,accounting:true,vlans:true,server:true},retention:{loki_days:60,prometheus_days:90,ledger_days:8,summary_days:400,database_bytes:4294967296}};
 let mode='complete', discovery=true, applies=0, requests=0;

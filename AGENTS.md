@@ -1,13 +1,13 @@
 # FortiLens agent entry point
 
-Read [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) before changing this project.
+Read [docs/development/PROJECT_CONTEXT.md](docs/development/PROJECT_CONTEXT.md) before changing this project.
 For implementation, deployment or QA work, use the project skill at
 [.agents/skills/fortilens-maintainer/SKILL.md](.agents/skills/fortilens-maintainer/SKILL.md).
 It is stored with the repository so agents without skill discovery can read the
 same instructions directly. Current user instructions and actual environment
 evidence take priority over historical examples in documentation.
 
-For interface work, read [the visual brief](docs/UI_DESIGN.md) and the
+For interface work, read [the visual brief](docs/development/UI_DESIGN.md) and the
 [frontend review](docs/history/FRONTEND_DESIGN_REVIEW.md). Use the locally installed
 `frontend-design` skill when available; its upstream guidance is
 [Anthropic frontend-design](https://github.com/anthropics/skills/tree/main/skills/frontend-design).
@@ -55,4 +55,4 @@ never inject test logs or stop production monitoring to simulate an outage.
 Use the authorized deployment/release scope. Work on a `codex/` branch for changes;
 publish or merge when the user requests it. Inspect current branch heads and CI,
 and never force-push divergent history. Update the project context and validation
-record after meaningful verified changes. See [docs/QA.md](docs/QA.md).
+record after meaningful verified changes. See [docs/development/QA.md](docs/development/QA.md).

@@ -400,6 +400,7 @@ class ManagementTests(unittest.TestCase):
             job=self.wait_job(self.ops.dispatch('apply',{'revision':view['revision'],'plan_id':plan['plan_id'],'confirm':True}))
         self.assertEqual(job['status'],'complete',job)
 
+        sys.path.insert(0,str(ROOT/'tests/integration'))
         import integration_live_fortigate as live
         arguments=['live','--config',str(self.c.root/'site.json'),'--token-file',str(self.c.root/'secrets/fortigate_api_token')]
         with patch('sys.argv',arguments),patch.object(live,'fortigate',fake_device),contextlib.redirect_stdout(io.StringIO()) as capture:

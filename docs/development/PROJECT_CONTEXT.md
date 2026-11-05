@@ -2,8 +2,8 @@
 
 This is the public source-maintenance guide, not a customer deployment snapshot.
 Read actual code, configuration and current diagnostics before claiming live
-state. Start agent work at [AGENTS.md](../AGENTS.md) and the
-[FortiLens skill](../.agents/skills/fortilens-maintainer/SKILL.md).
+state. Start agent work at [AGENTS.md](../../AGENTS.md) and the
+[FortiLens skill](../../.agents/skills/fortilens-maintainer/SKILL.md).
 
 ## What the product does
 
@@ -35,7 +35,7 @@ flowchart LR
 ## Source map
 
 Public presentation follows the shipped frontend, not the historical HTML
-prototype. The [screenshot gallery](design/screenshots/README.md) renders actual
+prototype. The [screenshot gallery](../design/screenshots/README.md) renders actual
 management/hosted-report assets with clearly synthetic fixtures and records
 source/image SHA256 in its manifest. Capture tooling and reviewed PNGs are public
 source-release inputs only; installer and Docker runtime allowlists are unchanged.
@@ -54,7 +54,7 @@ documentation refresh.
 | `portable/interfaces.py`, `doctor.py` | Scoped metadata normalization and reusable read-only diagnostic engine. |
 | `portable/syslog_receiver.py`, `templates/Dockerfile.syslog` | Explicit native/default UDP profile: bounded normalization to internal RFC5424/TCP, source-filter and transport counters; no storage/completeness certification. |
 | `portable/accounting.py`, `usage_service.py` | Accounting ledger/summaries, source/session identity, bounded ingestion and protected report backend. |
-| `portable/accounting_storage.py`, `accounting_migrate.py` | Legacy/optional compact ledger representation and explicit verified offline copy; no automatic conversion or activation. See [compact storage](COMPACT_ACCOUNTING.md). |
+| `portable/accounting_storage.py`, `accounting_migrate.py` | Legacy/optional compact ledger representation and explicit verified offline copy; no automatic conversion or activation. See [compact storage](../architecture/COMPACT_ACCOUNTING.md). |
 | `portable/portal.py`, `reporting.html` | Existing protected native Grafana/report console and allowed read-only query routes. |
 | `portable/wan_health.py` | Observed WAN states/history/coverage and destination-specific route evidence. |
 | `portable/upgrade.py` | Existing reviewed CLI upgrade/rollback; do not run concurrently with management deployment. |
@@ -108,7 +108,7 @@ It binds the configured UDP port directly and uses loopback TCP on that port for
 Alloy and the next port for health. Bridge remains the default. The host profile
 needs an actual FortiGate IPv4 address and omits the bridge-only receiver
 Prometheus scrape; diagnostics and local metrics remain available. See the
-[native reception guide](SYSLOG_NATIVE_UDP.md) for security tradeoffs and migration.
+[native reception guide](../operations/SYSLOG_NATIVE_UDP.md) for security tradeoffs and migration.
 
 Defaults, not assumptions about a company: management loopback port 3030, native Grafana
 3001, protected gateway/reports loopback port 3002, syslog TCP 1514 / RFC5424. LAN management
@@ -128,9 +128,9 @@ and `/etc/fortilens/registry.json` for the fixed installation/project/Compose/UI
 An adopted stack may use `site.json` or `.fortilens/site.json`. Read the registry
 and actual container labels/mounts; never substitute a template project or UID.
 
-Use [WEB_SETUP.md](WEB_SETUP.md) for installation/adoption/HTTPS/recovery,
-[MANAGEMENT_ARCHITECTURE.md](MANAGEMENT_ARCHITECTURE.md) for trust boundaries, and
-[UPGRADE.md](UPGRADE.md) for the separate CLI path. The published v0.2.0 standalone
+Use [WEB_SETUP.md](../getting-started/WEB_SETUP.md) for installation/adoption/HTTPS/recovery,
+[MANAGEMENT_ARCHITECTURE.md](../architecture/MANAGEMENT_ARCHITECTURE.md) for trust boundaries, and
+[UPGRADE.md](../operations/UPGRADE.md) for the separate CLI path. The published v0.2.0 standalone
 ZIP predates web management; management requires current source from a reviewed
 checkout or a validated full distribution. The additive full distribution is
 prepared by [RELEASING.md](RELEASING.md); repository cleanup does not publish it
@@ -164,7 +164,7 @@ uses exact ranges/filters and the persistent reader's database version; no
 schema or accounting algorithm changes are involved. The managed parent page
 can reuse an authenticated report for five seconds across device/VLAN navigation,
 while Refresh, filter changes, expiry, logout and revocation invalidate reuse.
-See [the accounting contract](ACCOUNTING_ENGINE.md#report-reads-during-collection).
+See [the accounting contract](../architecture/ACCOUNTING_ENGINE.md#report-reads-during-collection).
 
 Partial-day report aggregation consumes decoded facts incrementally, keeping
 memory proportional to observed endpoint/segment groups rather than raw ledger
@@ -172,7 +172,7 @@ rows. The legacy direct list-returning `range_rows` method remains available.
 Optional compact storage filters non-Internet facts before payload decoding,
 while retaining all source classification records and exact totals. Large
 partial-period scans still require workload-specific latency validation.
-The [pre-publication storage review](COMPACT_ACCOUNTING.md#further-storage-review-before-publication)
+The [pre-publication storage review](../architecture/COMPACT_ACCOUNTING.md#further-storage-review-before-publication)
 retains the current 4 KiB/format-1 defaults: further tested reductions introduced
 read/write tradeoffs. Compaction remains reviewed offline maintenance rather
 than an automatic settings/report side effect.
@@ -197,8 +197,8 @@ the CI result for the actual head being released; old passing runs do not valida
 a new commit. Record unsupported cases and current source availability instead
 of asserting universal FortiOS compatibility, billing accuracy or capacity.
 
-Start repository maintenance at the [documentation index](README.md),
-[repository audit](history/REPOSITORY_AUDIT.md) and [cleanup validation](history/CLEANUP_VALIDATION.md).
+Start repository maintenance at the [documentation index](../README.md),
+[repository audit](../history/REPOSITORY_AUDIT.md) and [cleanup validation](../history/CLEANUP_VALIDATION.md).
 The runtime layout, installer source allowlist, Docker contexts, accounting/auth
 logic and CLI stay in place; [MAINTAINABILITY.md](MAINTAINABILITY.md) records
 prerequisites for separately reviewed refactors. New development tools are
@@ -236,7 +236,7 @@ The masked API-token field has a separate form association from configuration;
 autocomplete hints supplement the draft boundary. Serial checks and locked
 accounting source contracts remain enforced by the helper.
 
-The [native UDP guide](SYSLOG_NATIVE_UDP.md) describes the explicit managed
+The [native UDP guide](../operations/SYSLOG_NATIVE_UDP.md) describes the explicit managed
 `fortigate`/UDP profile and preserves the separate legacy rsyslog alternative.
 The managed standard-library receiver accepts bounded native logfmt messages,
 retains the source body/eventtime, wraps RFC5424 and forwards to internal Alloy

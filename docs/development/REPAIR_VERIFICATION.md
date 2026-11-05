@@ -19,7 +19,7 @@ Run the existing Python suite and the real browser fixture:
 ```bash
 python -m unittest discover -s tests -v
 npm install --prefix /tmp/fortilens-browser --no-save --ignore-scripts playwright@1.62.1
-FORTILENS_PLAYWRIGHT_MODULE=/tmp/fortilens-browser/node_modules/playwright FORTILENS_BROWSER_EXECUTABLE=/usr/bin/google-chrome node tests/browser_deployment.cjs
+FORTILENS_PLAYWRIGHT_MODULE=/tmp/fortilens-browser/node_modules/playwright FORTILENS_BROWSER_EXECUTABLE=/usr/bin/google-chrome node tests/integration/browser_deployment.cjs
 ```
 
 Use a fresh development-only dependency directory. Chrome/Playwright are not
@@ -80,7 +80,7 @@ and historical reconciliation.
 
 ## Optional native UDP normalization and packaging
 
-The [native UDP adapter guide](SYSLOG_NATIVE_UDP.md) describes an optional,
+The [native UDP adapter guide](../operations/SYSLOG_NATIVE_UDP.md) describes an optional,
 operator-managed rsyslog service for an existing native/default FortiGate sender.
 The dedicated nonroot instance wraps the native body as RFC5424 over local TCP
 for Alloy without changing firewall settings, accounting scope or the system

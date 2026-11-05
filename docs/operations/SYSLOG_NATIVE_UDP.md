@@ -166,7 +166,7 @@ receiver without received datagrams has unknown handoff evidence. `recent_logs`
 and `accounting_delivery` remain separate observations, and successful polling
 does not prove collection or complete usage.
 
-Before live use, run the isolated cases in [QA](QA.md): allowed/disallowed
+Before live use, run the isolated cases in [QA](../development/QA.md): allowed/disallowed
 senders, body preservation, boundaries, reconnect/backpressure, Alloy parsing,
 Loki storage and independently known synthetic accounting totals. Never send
 fixtures to a production listener. During an authorized live change, use bounded
@@ -247,8 +247,8 @@ marks that format experimental and requires an experimental stability flag.
   a bounded verification/rollback window. Existing firewall/network controls
   remain the operator's responsibility; these files do not alter them.
 
-Review [the rsyslog configuration](../examples/rsyslog/fortilens-syslog.conf) and
-[the systemd unit](../examples/rsyslog/fortilens-syslog.service). Replace both
+Review [the rsyslog configuration](../../examples/rsyslog/fortilens-syslog.conf) and
+[the systemd unit](../../examples/rsyslog/fortilens-syslog.service). Replace both
 example IP addresses in a private copy. Keep the source filter as narrow as the
 observed sender permits; do not broaden it to an entire subnet to hide a mismatch.
 

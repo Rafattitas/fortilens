@@ -81,7 +81,7 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn("install.sh", full)
             self.assertIn("tools/check_repository.py", full)
             adapter_files = (
-                "docs/SYSLOG_NATIVE_UDP.md",
+                "docs/operations/SYSLOG_NATIVE_UDP.md",
                 "examples/rsyslog/fortilens-syslog.conf",
                 "examples/rsyslog/fortilens-syslog.service",
             )

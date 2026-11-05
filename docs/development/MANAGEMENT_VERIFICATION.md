@@ -16,7 +16,7 @@ On November1,2026, **154 tests passed on Windows/Python3.12** with the managemen
 dependencies installed: the existing131 tests plus23 management tests. The earlier
 153-test suite also passed on Ubuntu. These are historical results; the current
 suite has grown. Use the actual source head, [QA commands](QA.md), CI result and
-[cleanup validation record](history/CLEANUP_VALIDATION.md) for a new claim. Those tests cover
+[cleanup validation record](../history/CLEANUP_VALIDATION.md) for a new claim. Those tests cover
 first-run bootstrapping, password hashes, one-time closure, sessions, login rate
 limits, CSRF/origin/role checks, private error responses, explicit secret changes,
 revision conflicts/stale plans, file fingerprints, read-only discovery/WAN
@@ -31,7 +31,7 @@ management CI. Production and test dependencies are pinned separately.
 ## Real isolated Docker acceptance
 
 ```bash
-python tests/integration_management.py
+python tests/integration/integration_management.py
 ```
 
 Requires a nonroot Docker-enabled **test user** on Linux, Compose v2 and OpenSSL.
@@ -95,7 +95,7 @@ is available. It requires a trusted TLS connection and reads token/CA contents o
 from private local files; it never writes FortiGate or monitoring configuration:
 
 ```bash
-python tests/integration_live_fortigate.py --config /private/install/site.json \
+python tests/integration/integration_live_fortigate.py --config /private/install/site.json \
   --token-file /private/install/secrets/fortigate_api_token
 ```
 
@@ -111,5 +111,5 @@ Check serial/VDOM/roles/VLAN parent metadata against the firewall console. Have 
 administrator configure traffic logging/syslog, then review doctor freshness,
 receipt timestamps, accounting lag and coverage. Test permitted API failures without
 modifying firewall policies. Do not inject synthetic records into production or
-interpret a successful setup as proof of billing accuracy. See [WEB_SETUP](WEB_SETUP.md)
+interpret a successful setup as proof of billing accuracy. See [WEB_SETUP](../getting-started/WEB_SETUP.md)
 and [accounting verification](VERIFICATION.md).

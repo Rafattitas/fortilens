@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.svg" alt="FortiLens: see your FortiGate clearly" width="100%">
+  <img src="docs/assets/hero.svg" alt="FortiLens: see your FortiGate clearly" width="100%">
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@
 <p align="center">
   <a href="#install">Install</a> ·
   <a href="docs/README.md">Documentation</a> ·
-  <a href="docs/ARCHITECTURE.md">Architecture</a> ·
+  <a href="docs/architecture/ARCHITECTURE.md">Architecture</a> ·
   <a href="ROADMAP.md">Roadmap</a> ·
   <a href="CONTRIBUTING.md">Contribute</a>
 </p>
@@ -92,7 +92,7 @@ administrator. FortiLens never changes FortiGate settings.
 | **Host** | Ubuntu x86-64, Python 3.11+; 24.04+ recommended | Linux x86-64, Python 3.10+ |
 | **Also needs** | systemd, Python venv, Docker Engine, Docker Compose v2 | Docker Compose v2 |
 | **Available from** | `main` only | `main`, or the v0.2.0 ZIP without the console |
-| **Guide** | [Web Setup & Settings](docs/WEB_SETUP.md) | [Portable guide](portable/README.md) |
+| **Guide** | [Web Setup & Settings](docs/getting-started/WEB_SETUP.md) | [Portable guide](portable/README.md) |
 
 Size resources for your actual traffic and retention; container limits are not a
 capacity guarantee.
@@ -118,7 +118,7 @@ monitoring stack. There is no default password.
 
 **Already running FortiLens?** Do not initialize again. Use `--adopt` with the exact
 existing Compose project, as described in the
-[web setup guide](docs/WEB_SETUP.md).
+[web setup guide](docs/getting-started/WEB_SETUP.md).
 
 ### Portable CLI
 
@@ -142,7 +142,7 @@ logging and daily commands. `doctor` is read-only and never restarts anything.
 
 Send forward traffic logs to the monitoring server. The default receiver is
 **TCP 1514 / RFC5424**. For an existing native UDP sender, use the explicit
-[native UDP profile](docs/SYSLOG_NATIVE_UDP.md).
+[native UDP profile](docs/operations/SYSLOG_NATIVE_UDP.md).
 
 Keep browser services on loopback behind an SSH tunnel or a reviewed HTTPS proxy.
 Credentials must not cross an untrusted plain-HTTP network.
@@ -179,32 +179,32 @@ receiver, and accounting also reads FortiGate metadata and Prometheus samples.
 
 The web process has no Docker access. Only the helper operates the one registered
 Compose project, using fixed commands. The portable CLI generates the same stack
-without the two management services. See [architecture](docs/ARCHITECTURE.md) and
-[management architecture](docs/MANAGEMENT_ARCHITECTURE.md).
+without the two management services. See [architecture](docs/architecture/ARCHITECTURE.md) and
+[management architecture](docs/architecture/MANAGEMENT_ARCHITECTURE.md).
 
 ## Honest signals, clear limits
 
 - **Missing data stays missing.** Dropdown fallback choices are configuration, not measurements. No SLA series does not establish a WAN outage.
 - **SLA selection is explicit.** Review fresh names in the intended VDOM and select the check that represents your Internet-health policy. Blank selection stays supported and requires review; a name such as `google` is a site choice, never a new public default.
 - **Collection paths need separate evidence.** Native UDP source filtering is not authentication. Receiver readiness and TCP handoff do not prove Loki storage, complete traffic capture or accurate site totals.
-- **Usage means received-log evidence.** Valid zero deltas stay zero; unsafe cumulative candidates stay pending. Stable event identities prevent replay double counting. Missing MACs remain explicitly unverified. [Read the accounting contract](docs/ACCOUNTING_ENGINE.md).
+- **Usage means received-log evidence.** Valid zero deltas stay zero; unsafe cumulative candidates stay pending. Stable event identities prevent replay double counting. Missing MACs remain explicitly unverified. [Read the accounting contract](docs/architecture/ACCOUNTING_ENGINE.md).
 - **Interface metadata has a scope and time.** VLAN mapping uses exact VDOM/interface keys, never subnets. Current inventory cannot establish an old VLAN assignment. FortiGate settings are never changed automatically.
 - **Early access.** Clean Docker installations and controlled HTTPS/syslog fixtures have been tested. Every FortiOS release, ARM, and new real-device onboarding are not yet validated.
 - **Current scope.** One FortiGate per installation. Optional alerts are paused candidates; production activation and recipient testing are explicit operator actions. Complete topology discovery and per-flow SD-WAN route attribution are not inferred.
 
 ## Also included
 
-- [Optional compact accounting storage](docs/COMPACT_ACCOUNTING.md): a verified offline copy that reduces ledger size. Never automatic.
-- [Optional alert candidates](docs/OPTIONAL_ALERTS.md): paused WAN, performance and collection rules that leave existing notifications alone.
-- [Read-only diagnostics](docs/TROUBLESHOOTING.md): tell failed collection, old samples, missing logs and authentication problems apart.
-- [Upgrades from v0.1.0](docs/UPGRADE.md): a reviewed migration with hash-guarded rollback.
+- [Optional compact accounting storage](docs/architecture/COMPACT_ACCOUNTING.md): a verified offline copy that reduces ledger size. Never automatic.
+- [Optional alert candidates](docs/operations/OPTIONAL_ALERTS.md): paused WAN, performance and collection rules that leave existing notifications alone.
+- [Read-only diagnostics](docs/operations/TROUBLESHOOTING.md): tell failed collection, old samples, missing logs and authentication problems apart.
+- [Upgrades from v0.1.0](docs/operations/UPGRADE.md): a reviewed migration with hash-guarded rollback.
 
 ## Built to be inspectable
 
 The source includes accounting, identity, period, VLAN and WAN tests, a Linux and
 Windows Python matrix, and an isolated Docker pipeline. Synthetic traffic checks the
 full Alloy → Loki → accounting → Prometheus path, including replay and restart. See
-[verification](docs/VERIFICATION.md) for the evidence and its real-device limits.
+[verification](docs/development/VERIFICATION.md) for the evidence and its real-device limits.
 
 ## Contributing
 

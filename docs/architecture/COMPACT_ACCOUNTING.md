@@ -94,8 +94,8 @@ positional dictionary or physical layout requires a new format version and an
 explicit migration. JSON remains the value codec; no pickle, compression library
 or additional runtime dependency is introduced.
 
-See [accounting semantics](ACCOUNTING_ENGINE.md), [QA](QA.md) and
-[deployment verification](VERIFICATION.md).
+See [accounting semantics](ACCOUNTING_ENGINE.md), [QA](../development/QA.md) and
+[deployment verification](../development/VERIFICATION.md).
 
 ## Validation record (2026-11-05)
 

@@ -20,7 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'portable'))
 spec=importlib.util.spec_from_file_location('lab_setup',ROOT/'portable/setup.py')
 s=importlib.util.module_from_spec(spec);spec.loader.exec_module(s)
@@ -249,7 +249,7 @@ def main():
         compose['services']['grafana']['volumes'].append('./grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro')
         compose['services']['fixture-api']={'image':'fortilens-usage:local','entrypoint':['python','/fixture/fixture_api.py'],
             'volumes':[str(temporary)+':/fixture:ro'],'platform':'linux/amd64'}
-        shutil.copyfile(ROOT/'tests/fixture_api.py',temporary/'fixture_api.py')
+        shutil.copyfile(ROOT/'tests/integration/fixture_api.py',temporary/'fixture_api.py')
         for service,port in [('loki',3100),('prometheus',9090)]:
             compose['services'][service]['ports']=[f'127.0.0.1:{free_port()}:{port}']
         (p/'compose.yaml').write_text(s.dumps(compose))
