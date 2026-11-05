@@ -42,7 +42,8 @@ def put(path,data,mode=0o600,uid=0,gid=0):
     temp=path.with_name('.'+path.name+'.new-'+secrets.token_hex(6))
     fd=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL,mode)
     try:
-        with os.fdopen(fd,'w',encoding='utf-8') as stream:stream.write(data);stream.flush();os.fsync(stream.fileno())
+        encoded=data if isinstance(data,bytes) else data.encode('utf-8')
+        with os.fdopen(fd,'wb') as stream:stream.write(encoded);stream.flush();os.fsync(stream.fileno())
         os.chown(temp,uid,gid);os.chmod(temp,mode);os.replace(temp,path)
     finally:
         try:temp.unlink(missing_ok=True)
@@ -206,7 +207,7 @@ def _main():
     if not previous:
         for name in hashes:
             target=args.prefix/'src'/name;target.parent.mkdir(parents=True,exist_ok=True)
-            put(target,(source/name).read_text(encoding='utf-8'),mode=0o644)
+            put(target,(source/name).read_bytes(),mode=0o644)
         run(sys.executable,'-m','venv',str(args.prefix/'venv'))
         run(str(args.prefix/'venv/bin/python'),'-m','pip','install','--disable-pip-version-check','-r',str(args.prefix/'src/management/requirements.txt'))
     key=Path('/etc/fortilens/helper.key')

@@ -34,6 +34,19 @@ SECRET = "PRIVATE_ERROR_FIXTURE_DO_NOT_ECHO"
 
 
 class CliErrorTests(unittest.TestCase):
+    def test_installer_atomic_write_preserves_binary_assets_and_utf8_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "asset"
+            for data in (b"wOF2\x00\xff\xfe\r\n", "source caf\u00e9\n"):
+                with self.subTest(kind=type(data).__name__):
+                    with patch.object(installer.os, "chown", create=True) as owner:
+                        installer.put(target, data, mode=0o640, uid=123, gid=456)
+                    expected = data if isinstance(data, bytes) else data.encode("utf-8")
+                    self.assertEqual(target.read_bytes(), expected)
+                    owner.assert_called_once()
+                    self.assertEqual(owner.call_args.args[1:], (123, 456))
+                    self.assertEqual(list(Path(directory).glob(".asset.new-*")), [])
+
     def test_setup_expected_failures_are_nonzero_and_do_not_echo_private_details(self):
         failures = (
             OSError(SECRET),

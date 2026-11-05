@@ -15,6 +15,8 @@
   distribution inputs, and retain fonts plus the existing clock adapter in the
   Docker build context. Check dependencies referenced by the shipped stylesheet
   so installed and containerized management retain the source checkout's assets.
+  Copy reviewed source files byte-for-byte so binary fonts and source hashes
+  survive installation while preserving atomic writes and existing permissions.
 
 - Add an opt-in compact SQLite ledger and a separately published, fully verified
   offline copy tool. Preserve exact event/fact/delivery evidence, frozen metadata,

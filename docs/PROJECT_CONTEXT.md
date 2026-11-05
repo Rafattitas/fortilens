@@ -81,6 +81,9 @@ vendored font files and license. The management Docker context includes those
 same assets and the existing Grafana clock adapter. Release regressions derive
 font dependencies from the stylesheet and check their presence across all three
 source allowlists; no CDN or browser-selected asset path is introduced.
+The installer copies reviewed sources as bytes, retaining binary assets and exact
+source fingerprints. Text configuration still uses UTF-8, and atomic replacement,
+ownership, permissions and symlink rejection remain in force.
 
 Selecting native `fortigate` format adds a ninth service, `fortilens-syslog`,
 when the other eight are enabled. It replaces only the public syslog leg with
