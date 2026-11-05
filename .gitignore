@@ -32,6 +32,8 @@ portable/site.json
 __pycache__/
 *.py[cod]
 .venv/
+venv/
+node_modules/
 dist/
 *.zip
 *.log

@@ -51,3 +51,13 @@
 !portable/templates/datasources.json
 !portable/templates/dashboard.json
 !portable/templates/Dockerfile.usage
+# Directory rules above re-include their whole folders, so these must stay last.
+portable/local/
+portable/local-*/
+portable/site.json
+**/secrets/
+**/*.sqlite*
+**/*.db*
+**/*.pem
+**/*.key
+**/fortigate-key.yaml

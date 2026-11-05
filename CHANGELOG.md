@@ -2,6 +2,20 @@
 
 ## Unreleased — unified console and Web Setup & Settings
 
+### Reliability and storage maintenance
+
+- Keep accounting retention running when ingestion stops at the storage ceiling, cap
+  the retained SQLite WAL at 128 MiB, and close the database on container stop.
+- Add a delivery timestamp index to legacy accounting databases. It is created on the
+  next service start and does not change stored evidence.
+- Keep reports available when a stored hostname contains invalid Unicode.
+- Report unknown states as unknown when the console cannot read service, log or
+  pending-byte evidence, and resume Overview refresh after a hidden browser tab.
+- Fix paused collection alert candidates that could not fire on probe, poll or lag
+  failures, and stop exporting zero for a native receiver that has not forwarded yet.
+- Tighten deployment, proxy and installer failure handling, the build context and
+  report page content policy, and reduce repeated CI runs.
+
 ### A Precision console design
 
 - Replace the console and report styling with the approved A Precision design,

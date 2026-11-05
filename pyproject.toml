@@ -24,6 +24,7 @@ relative_files = true
 show_missing = true
 skip_empty = false
 precision = 2
+fail_under = 75
 
 [tool.coverage.xml]
 output = "coverage.xml"
