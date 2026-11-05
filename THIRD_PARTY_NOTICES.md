@@ -10,6 +10,7 @@ The MIT license covers FortiLens's source and original assets in this repository
 | Prometheus | https://github.com/prometheus/prometheus |
 | Node Exporter | https://github.com/prometheus/node_exporter |
 | FortiGate Exporter | https://github.com/prometheus-community/fortigate_exporter |
+| IBM Plex Sans (SIL OFL 1.1, bundled in `management/static/fonts/`) | https://github.com/IBM/plex |
 | Python | https://www.python.org/ |
 | Docker / Compose | https://github.com/docker/compose |
 
