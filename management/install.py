@@ -39,10 +39,11 @@ def path_value(value):
 def put(path,data,mode=0o600,uid=0,gid=0):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     if path.is_symlink():raise SystemExit('Refusing to replace an installation symlink')
+    encoded=data if isinstance(data,bytes) else data.encode('utf-8')
     temp=path.with_name('.'+path.name+'.new-'+secrets.token_hex(6))
     fd=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL,mode)
     try:
-        with os.fdopen(fd,'w',encoding='utf-8') as stream:stream.write(data);stream.flush();os.fsync(stream.fileno())
+        with os.fdopen(fd,'wb') as stream:stream.write(encoded);stream.flush();os.fsync(stream.fileno())
         os.chown(temp,uid,gid);os.chmod(temp,mode);os.replace(temp,path)
     finally:
         try:temp.unlink(missing_ok=True)
@@ -69,9 +70,12 @@ def source_files(source):
     names=['management/'+name for name in (
         '__init__.py','app.py','auth.py','common.py','configuration.py','helper.py',
         'install.py','models.py','recovery.py','runtime.py','storage.py','requirements.txt',
-        'requirements-test.txt','Dockerfile','static/app.css','static/app.js','static/grafana-clock.js','static/index.html')]
+        'requirements-test.txt','Dockerfile','static/app.css','static/app.js','static/grafana-clock.js','static/index.html',
+        'static/fonts/IBMPlexSans-Light-Latin1.woff2','static/fonts/IBMPlexSans-Regular-Latin1.woff2',
+        'static/fonts/IBMPlexSans-Medium-Latin1.woff2','static/fonts/IBMPlexSans-SemiBold-Latin1.woff2',
+        'static/fonts/OFL.txt')]
     names+=['portable/'+name for name in (
-        'setup.py','doctor.py','interfaces.py','accounting.py','usage_service.py','portal.py',
+        'setup.py','doctor.py','interfaces.py','accounting.py','accounting_storage.py','accounting_migrate.py','usage_service.py','portal.py',
         'wan_health.py','upgrade.py','usage_quality.py','dashboard_style.py','alerts.py',
         'syslog_receiver.py','reporting.html','site.example.json','README.md','LICENSE',
         'templates/compose.json','templates/prometheus.json','templates/loki.json',
@@ -203,7 +207,7 @@ def _main():
     if not previous:
         for name in hashes:
             target=args.prefix/'src'/name;target.parent.mkdir(parents=True,exist_ok=True)
-            put(target,(source/name).read_text(encoding='utf-8'),mode=0o644)
+            put(target,(source/name).read_bytes(),mode=0o644)
         run(sys.executable,'-m','venv',str(args.prefix/'venv'))
         run(str(args.prefix/'venv/bin/python'),'-m','pip','install','--disable-pip-version-check','-r',str(args.prefix/'src/management/requirements.txt'))
     key=Path('/etc/fortilens/helper.key')

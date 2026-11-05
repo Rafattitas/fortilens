@@ -14,6 +14,7 @@ import sqlite3
 from zoneinfo import ZoneInfo
 
 from interfaces import map_source_interface
+from accounting_storage import detect_storage_format, open_ledger
 
 FIELDS = set("devid vd logid type subtype sessionid srcip dstip srcport dstport proto srcintf dstintf srcintfrole dstintfrole mastersrcmac srcmac srcname sentdelta rcvddelta sentbyte rcvdbyte duration durationdelta eventtime idseq".split())
 UINT64 = 2**64 - 1
@@ -298,7 +299,7 @@ def derive_session(events, inventory, config):
 
 
 class Store:
-    def __init__(self, path, config, inventory=None):
+    def __init__(self, path, config, inventory=None, *, storage_format=None):
         if config["accounting_timezone"] == "browser":
             raise ValueError("Accounting requires an explicit IANA timezone")
         tz(config["accounting_timezone"])
@@ -307,17 +308,10 @@ class Store:
         self.db = sqlite3.connect(str(path), timeout=20, check_same_thread=False)
         try:
             self.db.row_factory = sqlite3.Row
-            self.db.executescript("""PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA cache_size=-2048;
-        CREATE TABLE IF NOT EXISTS events(uid TEXT PRIMARY KEY, session TEXT NOT NULL, stamp INTEGER NOT NULL, payload TEXT NOT NULL);
-        CREATE INDEX IF NOT EXISTS events_session ON events(session,stamp);
-        CREATE TABLE IF NOT EXISTS deliveries(uid TEXT PRIMARY KEY,event_uid TEXT NOT NULL,stamp INTEGER NOT NULL);
-        CREATE TABLE IF NOT EXISTS facts(uid TEXT PRIMARY KEY,session TEXT NOT NULL,stamp INTEGER NOT NULL,payload TEXT NOT NULL);
-        CREATE INDEX IF NOT EXISTS facts_session ON facts(session);
-        CREATE INDEX IF NOT EXISTS facts_stamp ON facts(stamp);
-        CREATE TABLE IF NOT EXISTS daily(day TEXT NOT NULL,device TEXT NOT NULL,vlan TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(day,device,vlan));
-        CREATE TABLE IF NOT EXISTS quality(day TEXT NOT NULL,classification TEXT NOT NULL,records INTEGER NOT NULL,first_stamp INTEGER NOT NULL,last_stamp INTEGER NOT NULL,PRIMARY KEY(day,classification));
-        CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY,value TEXT NOT NULL);
-        """)
+            selected_format = detect_storage_format(self.db, storage_format)
+            self.db.executescript('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA cache_size=-2048; PRAGMA foreign_keys=ON;')
+            self.ledger = open_ledger(self.db, storage_format=selected_format)
+            self.storage_format = self.ledger.format
             contract = {k: config.get(k) for k in ("accounting_timezone", "source_id", "vdom", "expected_devid")}
             existing = self.state("contract")
             if existing is not None and existing != contract:
@@ -326,7 +320,7 @@ class Store:
                 self.set_state("contract", contract)
                 # Rebuild this optional derived observation once on writer open,
                 # including after an older version or an offline DB restore.
-                self.set_state('delivery_max_ns', self.db.execute('SELECT MAX(stamp) FROM deliveries').fetchone()[0])
+                self.set_state('delivery_max_ns', self.ledger.max_delivery_stamp())
         except Exception:
             # Construction did not return a usable Store to its caller. Close
             # its connection, retaining the original failure if close also fails.
@@ -337,6 +331,34 @@ class Store:
     def close(self):
         self.db.close()
 
+    @classmethod
+    def open_readonly(cls, path, config, inventory=None, *, storage_format=None):
+        """Read an existing format without initializing schema or writer state."""
+        if str(path) == ':memory:':
+            raise ValueError('Read-only storage requires an existing file-backed database')
+        if config['accounting_timezone'] == 'browser':
+            raise ValueError('Accounting requires an explicit IANA timezone')
+        tz(config['accounting_timezone'])
+        reader = object.__new__(cls)
+        reader.config, reader.inventory = dict(config), inventory or {'interfaces': []}
+        reader.path = Path(path).resolve()
+        reader.db = sqlite3.connect(reader.path.as_uri()+'?mode=ro', uri=True, timeout=2,
+                                    check_same_thread=False)
+        try:
+            reader.db.row_factory = sqlite3.Row
+            reader.db.execute('PRAGMA query_only=ON')
+            reader.db.execute('PRAGMA cache_size=-2048')
+            reader.ledger = open_ledger(reader.db, storage_format=storage_format, initialize=False)
+            reader.storage_format = reader.ledger.format
+            contract = {key: config.get(key) for key in ('accounting_timezone', 'source_id', 'vdom', 'expected_devid')}
+            existing = reader.state('contract')
+            if existing is not None and existing != contract:
+                raise ValueError('Accounting identity/timezone contract changed; use an explicitly rebuilt database')
+        except Exception:
+            reader.db.close()
+            raise
+        return reader
+
     def reader(self):
         """Open an independent, non-migrating reader of the existing WAL store.
 
@@ -346,18 +368,8 @@ class Store:
         """
         if self.path is None:
             return None
-        reader = object.__new__(Store)
-        reader.config, reader.inventory, reader.path = dict(self.config), self.inventory, self.path
-        reader.db = sqlite3.connect(self.path.as_uri()+'?mode=ro', uri=True, timeout=2,
-                                    check_same_thread=False)
-        try:
-            reader.db.row_factory = sqlite3.Row
-            reader.db.execute('PRAGMA query_only=ON')
-            reader.db.execute('PRAGMA cache_size=-2048')
-        except Exception:
-            reader.db.close()
-            raise
-        return reader
+        return self.open_readonly(self.path, self.config, self.inventory,
+                                  storage_format=self.storage_format)
 
     def state(self, key, default=None):
         row = self.db.execute("SELECT value FROM state WHERE key=?", (key,)).fetchone()
@@ -369,7 +381,7 @@ class Store:
     def delivery_max(self):
         missing = object()
         maximum = self.state('delivery_max_ns', missing)
-        return self.db.execute('SELECT MAX(stamp) FROM deliveries').fetchone()[0] if maximum is missing else maximum
+        return self.ledger.max_delivery_stamp() if maximum is missing else maximum
 
     def _rollup(self, fact, sign):
         if fact['classification']=='BASELINE_ANCHOR':
@@ -410,15 +422,15 @@ class Store:
             except (ValueError, TypeError, KeyError):
                 rejected.append(digest([self.config.get("source_id"), record]))
         affected, inserted, repeated = set(), 0, 0
-        with self.db:
+        with self.db, self.ledger.write_unit():
             maximum = self.delivery_max()
             for uid in rejected:
-                new = self.db.execute("INSERT OR IGNORE INTO deliveries VALUES(?,?,?)", (uid, "invalid", checkpoint or 0)).rowcount
+                new = self.ledger.insert_delivery(uid, "invalid", checkpoint or 0)
                 if new:
                     maximum = max(maximum, checkpoint or 0) if maximum is not None else checkpoint or 0
                     self.set_state("parser_rejections", self.state("parser_rejections", 0)+1)
             for event in normalized:
-                new_delivery = self.db.execute("INSERT OR IGNORE INTO deliveries VALUES(?,?,?)", (event["delivery_uid"], event["uid"], event["record_ns"])).rowcount
+                new_delivery = self.ledger.insert_delivery(event["delivery_uid"], event["uid"], event["record_ns"])
                 if new_delivery:
                     maximum = max(maximum, event['record_ns']) if maximum is not None else event['record_ns']
                 if event["event_ns"] < self.state("ledger_floor_ns", 0):
@@ -437,20 +449,20 @@ class Store:
                     if cls == 'UNRESOLVED_DIRECTION':
                         evidence_flags.append('historical_direction_not_verified')
                 event["network_evidence"] = {"classification": cls, "vlan": vlan, "flags": evidence_flags}
-                new_event = self.db.execute("INSERT OR IGNORE INTO events VALUES(?,?,?,?)", (event["uid"], event["session"], event["event_ns"], json.dumps(event))).rowcount
+                new_event = self.ledger.insert_event(event)
                 inserted += new_event
                 repeated += bool(new_delivery and not new_event)
                 if new_event:
                     affected.add(event["session"])
             for session in affected:
-                rows = self.db.execute("SELECT payload FROM events WHERE session=? ORDER BY stamp,uid LIMIT 10001", (session,)).fetchall()
+                rows = self.ledger.session_events(session, limit=10001)
                 if len(rows) > 10000:
                     raise ValueError("Session exceeds safe recomputation size; checkpoint not advanced")
-                for old in self.db.execute("SELECT payload FROM facts WHERE session=?", (session,)).fetchall():
-                    self._rollup(json.loads(old[0]), -1)
-                self.db.execute("DELETE FROM facts WHERE session=?", (session,))
-                for fact in derive_session([json.loads(x[0]) for x in rows], self.inventory, self.config):
-                    self.db.execute("INSERT INTO facts VALUES(?,?,?,?)", (fact["uid"], session, fact["event_ns"], json.dumps(fact)))
+                for old in self.ledger.session_facts(session):
+                    self._rollup(old, -1)
+                self.ledger.delete_session_facts(session)
+                for fact in derive_session(rows, self.inventory, self.config):
+                    self.ledger.insert_fact(fact, session)
                     self._rollup(fact, 1)
             self.set_state("replay_candidates", self.state("replay_candidates", 0)+repeated)
             self.set_state('delivery_max_ns', maximum)
@@ -462,22 +474,22 @@ class Store:
         if not 8 <= ledger_days <= 365 or not ledger_days <= summary_days <= 3650:
             raise ValueError("Ledger retention must cover the rolling week; summary retention must cover the ledger")
         floor = timestamp_ns(now)-ledger_days*86400*NS
-        with self.db:
-            sessions = self.db.execute("SELECT DISTINCT session FROM events WHERE stamp<?", (floor,)).fetchall()
+        with self.db, self.ledger.write_unit():
+            sessions = self.ledger.sessions_before(floor)
             for session in sessions:
-                same_stamp = self.db.execute('SELECT uid,payload FROM events WHERE session=? AND stamp=(SELECT MAX(stamp) FROM events WHERE session=? AND stamp<?)', (session[0],session[0],floor)).fetchall()
-                last = max(same_stamp,key=lambda row:event_order(json.loads(row[1])))
-                event = json.loads(last[1])
+                same_stamp = self.ledger.latest_session_events_before(session, floor)
+                last = max(same_stamp,key=lambda row:event_order(row[1]))
+                event = last[1]
                 # Keep one baseline for an open session, without contributing its
                 # bytes to a retained daily summary a second time.
                 keep = event["fields"].get("logid") == "0000000020"
-                self.db.execute("DELETE FROM events WHERE session=? AND stamp<? AND uid!=?", (session[0], floor, last[0] if keep else ""))
+                self.ledger.delete_events_before(session, floor, last[0] if keep else "")
                 if keep:
-                    fact = self.db.execute("SELECT payload FROM facts WHERE uid=?", (last[0],)).fetchone()
-                    event.update(anchor=True, generation_seed=json.loads(fact[0])["generation_seed"] if fact else event.get("generation_seed", event["uid"]))
-                    self.db.execute("UPDATE events SET payload=? WHERE uid=?", (json.dumps(event), last[0]))
-            self.db.execute("DELETE FROM facts WHERE stamp<?", (floor,))
-            self.db.execute("DELETE FROM deliveries WHERE stamp<?", (floor,))
+                    fact = self.ledger.event_fact(last[0])
+                    event.update(anchor=True, generation_seed=fact["generation_seed"] if fact else event.get("generation_seed", event["uid"]))
+                    self.ledger.update_event(event)
+            self.ledger.delete_facts_before(floor)
+            self.ledger.delete_deliveries_before(floor)
             maximum = self.delivery_max()
             if maximum is not None and maximum < floor:
                 self.set_state('delivery_max_ns', None)
@@ -488,12 +500,19 @@ class Store:
             self.set_state("summary_floor_day", cutoff)
 
     def range_rows(self, start, end):
+        """Return the historical list interface for direct callers."""
+        return list(self._iter_range_rows(start, end))
+
+    def _iter_range_rows(self, start, end):
+        # A partial day can contain millions of facts. Reports consume each row
+        # immediately rather than keeping a second complete ledger in memory.
         zone = tz(self.config["accounting_timezone"])
         start_local = datetime.fromtimestamp(start//NS, zone)
         end_local = datetime.fromtimestamp(end//NS, zone)
         first_full = start_local.date() + (timedelta(days=1) if (start_local.hour or start_local.minute or start_local.second or start % NS) else timedelta())
         last_full_end = end_local.date()
-        rows = [json.loads(r[0]) for r in self.db.execute("SELECT payload FROM daily WHERE day>=? AND day<?", (first_full.isoformat(), last_full_end.isoformat()))]
+        for row in self.db.execute("SELECT payload FROM daily WHERE day>=? AND day<?", (first_full.isoformat(), last_full_end.isoformat())):
+            yield json.loads(row[0])
         middle_start = timestamp_ns(datetime.combine(first_full, datetime.min.time(), zone).isoformat())
         middle_end = timestamp_ns(datetime.combine(last_full_end, datetime.min.time(), zone).isoformat())
         edges = [(start, min(end, middle_start)), (max(start, middle_end, middle_start), end)]
@@ -508,23 +527,21 @@ class Store:
                 for value in candidates:
                     first, last = value.get("first_event_ns", -1), value["event_ns"]
                     if a <= first and last < b:
-                        rows.append(value)
+                        yield value
                         included.add((value["device_id"], value["vlan"]["key"]))
                     elif last >= a and first < b:
                         partial = True
                 if partial:
-                    for item in self.db.execute("SELECT payload FROM facts WHERE stamp>=? AND stamp<?", (a, b)):
-                        value = json.loads(item[0])
+                    for value in self.ledger.range_facts(a, b, classification="INTERNET"):
                         if value["classification"] == "INTERNET" and (value["device_id"], value["vlan"]["key"]) not in included:
-                            rows.append({**value, "records": 1, "flag_counts": {k: 1 for k in value["flags"]}})
-        return rows
+                            yield {**value, "records": 1, "flag_counts": {k: 1 for k in value["flags"]}}
 
     def report(self, start, end, *, vlan=None, device=None, search=""):
         start, end = timestamp_ns(start), timestamp_ns(end)
         if start >= end:
             raise ValueError("Report start must precede its end")
         grouped, flags = {}, defaultdict(int)
-        for row in self.range_rows(start, end):
+        for row in self._iter_range_rows(start, end):
             if vlan and row["vlan"]["key"] != vlan or device and row["device_id"] != device:
                 continue
             if search and search.casefold() not in " ".join(str(row.get(k, "")) for k in ("ip", "mac", "hostname", "device_id")).casefold():
@@ -588,8 +605,7 @@ class Store:
                 stop=timestamp_ns((datetime.fromisoformat(row[0])+timedelta(days=1)).replace(tzinfo=zone).isoformat())
                 # Expired partial-day selections were already refused by the
                 # main report path. Count retained facts at the exact edges.
-                count=self.db.execute("SELECT COUNT(*) FROM facts WHERE stamp>=? AND stamp<? AND json_extract(payload,'$.classification')=?",
-                    (max(start,boundary),min(end,stop),row[1])).fetchone()[0]
+                count=self.ledger.count_classification(max(start,boundary),min(end,stop),row[1])
                 counts[row[1]]+=count
         return dict(counts)
 
@@ -619,8 +635,7 @@ class Store:
     def diagnostics(self):
         # Separate extrema let the existing facts_stamp index stop at its ends.
         floor = self.state('ledger_floor_ns', 0)
-        first = self.db.execute('SELECT MIN(stamp) FROM facts WHERE stamp>=?', (floor,)).fetchone()[0]
-        last = self.db.execute('SELECT MAX(stamp) FROM facts WHERE stamp>=?', (floor,)).fetchone()[0]
+        first, last = self.ledger.fact_extrema(floor)
         delivery = self.delivery_max()
         return {"checkpoint_ns": self.state("checkpoint_ns"), "last_received_event_ns": last, "first_retained_event_ns": first,
                 "last_delivery_ns": delivery,

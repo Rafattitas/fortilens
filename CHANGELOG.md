@@ -11,6 +11,21 @@
 
 ### Source collection and diagnostics
 
+- Include the vendored management fonts and their license in installer/full
+  distribution inputs, and retain fonts plus the existing clock adapter in the
+  Docker build context. Check dependencies referenced by the shipped stylesheet
+  so installed and containerized management retain the source checkout's assets.
+  Copy reviewed source files byte-for-byte so binary fonts and source hashes
+  survive installation while preserving atomic writes and existing permissions.
+
+- Add an opt-in compact SQLite ledger and a separately published, fully verified
+  offline copy tool. Preserve exact event/fact/delivery evidence, frozen metadata,
+  summaries, checkpoints and accounting calculations. Existing databases and
+  fresh-install defaults remain legacy; no automatic conversion or activation.
+  Include differential, failure, concurrency and isolated container rollback checks.
+  Stream partial-day report inputs to bound memory, and reject occupied migration
+  sidecars before copying or publishing a candidate.
+
 - Replace short-window retention extrapolation with explicit next-24-hour
   additional file-size growth trends from bounded, persisted observations.
   Withhold accounting forecasts during catch-up, retain observation timestamps

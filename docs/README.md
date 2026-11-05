@@ -23,6 +23,7 @@ Read [release preparation](RELEASING.md) before choosing or building an archive.
 | [Management architecture](MANAGEMENT_ARCHITECTURE.md) | Nonroot web process, authenticated helper, fixed Compose identity and configuration transaction boundaries. |
 | [Accounting paths](ACCOUNTING.md) | Choosing persistent reports, legacy Loki diagnostics or offline sample auditing. |
 | [Accounting engine contract](ACCOUNTING_ENGINE.md) | Identity, direction, counters, replay/late-data handling, exact VLAN evidence and calendar periods. |
+| [Compact accounting storage](COMPACT_ACCOUNTING.md) | Optional lossless ledger layout, verified offline copy, acceptance checks and matched runtime/database rollback. |
 | [Legacy usage diagnostics](USAGE_QUALITY.md) | Existing Loki query behavior and bounded offline normalized-sample auditing. |
 | [Project context](PROJECT_CONTEXT.md) | Maintainer source map, supported defaults and invariants; not a deployment snapshot. |
 

@@ -152,7 +152,10 @@ def read_plan(root, identity):
         'secrets/usage_admin_password','secrets/fortigate_api_token',
         *('usage/'+name for name in ('accounting.py','interfaces.py','wan_health.py','usage_service.py','portal.py','reporting.html','Dockerfile'))}
     paths = {x['path'] for x in manifest['files']}
-    if paths not in (allowed, allowed-{'usage/portal.py'}) or len(manifest['files'])!=len(paths):
+    # Prepared older plans remain valid; adding the compact reader does not
+    # implicitly migrate their existing databases or invalidate recovery.
+    current=allowed|{'usage/accounting_storage.py'}
+    if paths not in (allowed, allowed-{'usage/portal.py'}, current, current-{'usage/portal.py'}) or len(manifest['files'])!=len(paths):
         raise UpgradeError('Unexpected migration file list')
     return plan_root, manifest
 

@@ -151,6 +151,59 @@ def native_udp_pipeline(temporary,certificate):
             subprocess.run([*command,'down','--volumes','--remove-orphans'],cwd=root,check=False)
 
 
+def compact_storage_pipeline(command, root, compose, usage, password, expected, replay):
+    """Exercise an explicit copy, container restart and rollback on this lab only."""
+    report_path='/api/report?'+urllib.parse.urlencode({'period':'custom',
+        'start':expected['start_utc'],'end':expected['end_utc']})
+    def docker(*args,**kwargs):
+        return subprocess.run([*command,*args],cwd=root,check=True,**kwargs)
+    worker=docker('ps','-q','fortilens-usage',capture_output=True,text=True).stdout.strip()
+    assert worker
+    image=compose['services']['fortilens-usage']['image']
+    docker('stop','fortilens-usage')
+    oneoff=['docker','run','--rm','--network','none','--volumes-from',worker,
+            '--mount','type=bind,src='+str(ROOT/'portable')+',dst=/tools,readonly',
+            '--entrypoint','python',image]
+    result=subprocess.run([*oneoff,'/tools/accounting_migrate.py','/data/usage.sqlite',
+                           '/data/compact-candidate.sqlite'],capture_output=True,text=True,check=True)
+    manifest=json.loads(result.stdout)
+    assert manifest['destination_format']=='compact' and manifest['verified']['events']['rows']>=2
+    # Sidecars belong to their corresponding DB. Keep the original pair intact;
+    # never apply this fixture-only switch to a registered installation.
+    switch="""from pathlib import Path
+p=Path('/data')
+for suffix in ('','-wal','-shm'):
+ old=p/('usage.sqlite'+suffix)
+ if old.exists():old.rename(p/('compact-qa-legacy.sqlite'+suffix))
+(p/'compact-candidate.sqlite').rename(p/'usage.sqlite')
+"""
+    subprocess.run([*oneoff,'-c',switch],check=True)
+    docker('start','fortilens-usage')
+    wait_for(lambda:request(usage,'/api/diagnostics',password).get('last_poll_ok'))
+    assert request(usage,report_path,password)['totals']==expected['totals']
+    replay()
+    time.sleep(12)
+    assert request(usage,report_path,password)['totals']==expected['totals']
+    docker('restart','fortilens-usage')
+    wait_for(lambda:request(usage,'/api/diagnostics',password).get('last_poll_ok'))
+    assert request(usage,report_path,password)['totals']==expected['totals']
+    docker('stop','fortilens-usage')
+    rollback="""from pathlib import Path
+p=Path('/data')
+for suffix in ('','-wal','-shm'):
+ current=p/('usage.sqlite'+suffix)
+ if current.exists():current.rename(p/('compact-qa-tested.sqlite'+suffix))
+ old=p/('compact-qa-legacy.sqlite'+suffix)
+ if old.exists():old.rename(p/('usage.sqlite'+suffix))
+"""
+    subprocess.run([*oneoff,'-c',rollback],check=True)
+    docker('start','fortilens-usage')
+    wait_for(lambda:request(usage,'/api/diagnostics',password).get('last_poll_ok'))
+    assert request(usage,report_path,password)['totals']==expected['totals']
+    print(json.dumps({'synthetic_only':True,'compact_storage_copy_replay_restart_rollback':'PASS',
+                      'logical_tables_verified':len(manifest['verified'])},sort_keys=True))
+
+
 def main():
     if sys.platform!='linux':raise SystemExit('This isolated Docker check requires Linux')
     temporary=Path(tempfile.mkdtemp(prefix='fortilens-integration-')).resolve()
@@ -275,6 +328,7 @@ def main():
         print(json.dumps({'synthetic_only':True,'services':len(compose['services']),'upload_bytes':1300000000,
             'download_bytes':2700000000,'vlans':[100,200],'replay_and_restart':'PASS','authenticated_prometheus_scrape':'PASS',
             'real_fortigate_numeric_verification':'PENDING'},sort_keys=True))
+        compact_storage_pipeline(command,p,compose,usage,password,report,lambda:send(first))
         native_udp_pipeline(temporary,certificate)
     finally:
         if command:

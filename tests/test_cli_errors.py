@@ -34,6 +34,47 @@ SECRET = "PRIVATE_ERROR_FIXTURE_DO_NOT_ECHO"
 
 
 class CliErrorTests(unittest.TestCase):
+    def test_installer_invalid_text_preserves_target_and_closes_any_new_descriptor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "asset"
+            target.write_bytes(b"preserved")
+            opened = []
+            original_open = installer.os.open
+
+            def track_open(*args, **kwargs):
+                descriptor = original_open(*args, **kwargs)
+                opened.append(descriptor)
+                return descriptor
+
+            try:
+                with patch.object(installer.os, "open", side_effect=track_open):
+                    with self.assertRaises(UnicodeEncodeError):
+                        installer.put(target, "\ud800")
+                self.assertEqual(target.read_bytes(), b"preserved")
+                for descriptor in opened:
+                    with self.assertRaises(OSError):
+                        installer.os.fstat(descriptor)
+                self.assertEqual(list(Path(directory).glob(".asset.new-*")), [])
+            finally:
+                for descriptor in opened:
+                    try:
+                        installer.os.close(descriptor)
+                    except OSError:
+                        pass
+
+    def test_installer_atomic_write_preserves_binary_assets_and_utf8_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "asset"
+            for data in (b"wOF2\x00\xff\xfe\r\n", "source caf\u00e9\n"):
+                with self.subTest(kind=type(data).__name__):
+                    with patch.object(installer.os, "chown", create=True) as owner:
+                        installer.put(target, data, mode=0o640, uid=123, gid=456)
+                    expected = data if isinstance(data, bytes) else data.encode("utf-8")
+                    self.assertEqual(target.read_bytes(), expected)
+                    owner.assert_called_once()
+                    self.assertEqual(owner.call_args.args[1:], (123, 456))
+                    self.assertEqual(list(Path(directory).glob(".asset.new-*")), [])
+
     def test_setup_expected_failures_are_nonzero_and_do_not_echo_private_details(self):
         failures = (
             OSError(SECRET),

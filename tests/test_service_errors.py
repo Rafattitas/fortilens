@@ -59,7 +59,14 @@ class ServiceErrorTests(unittest.TestCase):
                     state = contextlib.nullcontext()
                 else:
                     state = patch.object(accounting.Store, "state", side_effect=failure)
-                with patch.object(accounting.sqlite3, "connect", return_value=connection), state:
+                with (
+                    patch.object(accounting.sqlite3, "connect", return_value=connection),
+                    patch.object(accounting, "detect_storage_format", return_value="legacy"),
+                    patch.object(
+                        accounting, "open_ledger", return_value=MagicMock(format="legacy")
+                    ),
+                    state,
+                ):
                     with self.assertRaises(sqlite3.OperationalError) as caught:
                         accounting.Store("synthetic.db", CONFIG)
                 self.assertIs(caught.exception, failure)

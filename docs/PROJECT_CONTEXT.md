@@ -45,6 +45,7 @@ flowchart LR
 | `portable/interfaces.py`, `doctor.py` | Scoped metadata normalization and reusable read-only diagnostic engine. |
 | `portable/syslog_receiver.py`, `templates/Dockerfile.syslog` | Explicit native/default UDP profile: bounded normalization to internal RFC5424/TCP, source-filter and transport counters; no storage/completeness certification. |
 | `portable/accounting.py`, `usage_service.py` | Accounting ledger/summaries, source/session identity, bounded ingestion and protected report backend. |
+| `portable/accounting_storage.py`, `accounting_migrate.py` | Legacy/optional compact ledger representation and explicit verified offline copy; no automatic conversion or activation. See [compact storage](COMPACT_ACCOUNTING.md). |
 | `portable/portal.py`, `reporting.html` | Existing protected native Grafana/report console and allowed read-only query routes. |
 | `portable/wan_health.py` | Observed WAN states/history/coverage and destination-specific route evidence. |
 | `portable/upgrade.py` | Existing reviewed CLI upgrade/rollback; do not run concurrently with management deployment. |
@@ -74,6 +75,15 @@ Grafana, Loki, Alloy, Node Exporter, accounting worker and monitoring gateway.
 Older/opt-out installations can have fewer. Management adds two independent
 systemd services, `fortilens-web` and `fortilens-helper`; these are not additional
 Compose containers.
+
+Reviewed installer/full-distribution inputs include the management stylesheet's
+vendored font files and license. The management Docker context includes those
+same assets and the existing Grafana clock adapter. Release regressions derive
+font dependencies from the stylesheet and check their presence across all three
+source allowlists; no CDN or browser-selected asset path is introduced.
+The installer copies reviewed sources as bytes, retaining binary assets and exact
+source fingerprints. Text configuration still uses UTF-8, and atomic replacement,
+ownership, permissions and symlink rejection remain in force.
 
 Selecting native `fortigate` format adds a ninth service, `fortilens-syslog`,
 when the other eight are enabled. It replaces only the public syslog leg with
@@ -146,6 +156,17 @@ schema or accounting algorithm changes are involved. The managed parent page
 can reuse an authenticated report for five seconds across device/VLAN navigation,
 while Refresh, filter changes, expiry, logout and revocation invalidate reuse.
 See [the accounting contract](ACCOUNTING_ENGINE.md#report-reads-during-collection).
+
+Partial-day report aggregation consumes decoded facts incrementally, keeping
+memory proportional to observed endpoint/segment groups rather than raw ledger
+rows. The legacy direct list-returning `range_rows` method remains available.
+Optional compact storage filters non-Internet facts before payload decoding,
+while retaining all source classification records and exact totals. Large
+partial-period scans still require workload-specific latency validation.
+The [pre-publication storage review](COMPACT_ACCOUNTING.md#further-storage-review-before-publication)
+retains the current 4 KiB/format-1 defaults: further tested reductions introduced
+read/write tradeoffs. Compaction remains reviewed offline maintenance rather
+than an automatic settings/report side effect.
 
 Managed Device usage and Reports are distinct presentations of the same received
 accounting evidence. Device usage focuses on the searchable/paginated endpoint
