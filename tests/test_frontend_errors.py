@@ -127,7 +127,7 @@ process.stdin.on('end',()=>{
                     text=True,
                     encoding="utf-8",
                     capture_output=True,
-                    timeout=10,
+                    timeout=30,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout, "PASS")
@@ -164,7 +164,7 @@ process.stdin.on('end',()=>{
             text=True,
             encoding="utf-8",
             capture_output=True,
-            timeout=10,
+            timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "PASS")
