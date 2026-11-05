@@ -389,12 +389,13 @@ def metrics(receiver):
         "handed_to_tcp_total": snapshot["handed_to_tcp"],
         "queue_drops_total": snapshot["queue_drops"],
         "tcp_send_errors_total": snapshot["send_errors"],
-        "last_forwarding_seconds": snapshot["last_forwarding_seconds"] or 0,
         "ready": int(snapshot["ready"]),
         "udp_bound": int(snapshot["udp_bound"]),
         "upstream_connected": int(snapshot["upstream_connected"]),
         "queue_depth": snapshot["queue_depth"],
     }
+    if snapshot["last_forwarding_seconds"] is not None:
+        fields["last_forwarding_seconds"] = snapshot["last_forwarding_seconds"]
     output = [prefix + name + " " + str(value) for name, value in fields.items()]
     output.extend(
         prefix + 'rejected_datagrams_total{reason="' + reason + '"} ' + str(value)

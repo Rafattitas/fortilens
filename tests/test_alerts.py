@@ -21,6 +21,13 @@ class AlertTests(unittest.TestCase):
         self.assertNotIn('contact-points',result)
         self.assertFalse(any('syslog' in r['uid'] for r in rules))
 
+    def test_every_failure_signal_can_fire_independently(self):
+        rules=alerts.candidates(self.config())['rules']['groups'][0]['rules']
+        expressions=[r['data'][0]['model']['expr'] for r in rules]
+        # `or` keeps only the left side when labels match, so each branch needs its own label.
+        for branch in ('"probe"','"poll"','"lag"'):
+            self.assertTrue(any('"signal",'+branch in expr for expr in expressions),branch)
+
     def test_notifications_use_environment_references_without_global_policy(self):
         for name in ('email','telegram'):
             result=alerts.candidates(self.config(),notification=name,expected_log_interval=600)

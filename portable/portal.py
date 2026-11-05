@@ -394,7 +394,7 @@ def handler(portal):
                 if self.command == 'POST':
                     # Drain bounded bodies even on rejection. Closing a socket
                     # with unread data can discard the 401/403 response on Windows.
-                    self.request_body = self.body(2097152)
+                    self.request_body = self.body(2097152 if portal.authenticated(self.headers) else 65536)
                 self.dispatch()
             except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):
                 self.close_connection = True

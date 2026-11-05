@@ -29,11 +29,11 @@ def candidates(config, *, expected_log_interval=None, notification=None):
             'Requires a current UP SLA state, successful collection and latency above the configured millisecond threshold.')
         rule('loss','High WAN packet loss','(fortigate_virtual_wan_packet_loss_ratio{'+scope+'} * 100 > bool '+str(c['wan_loss_warning_pct'])+')'+collection+observed,'5m',
             'Requires a current UP SLA state, successful collection and packet loss above the configured percentage threshold.')
-    rule('collection','FortiGate collection unavailable','max((up{'+target+'} == bool 0) or (probe_success{'+target+'} == bool 0) or absent(up{'+target+'}))','5m',
+    rule('collection','FortiGate collection unavailable','max(label_replace(up{'+target+'} == bool 0,"signal","scrape","","") or label_replace(probe_success{'+target+'} == bool 0,"signal","probe","","") or absent(up{'+target+'}))','5m',
         'Collection failure requires investigation; it does not identify the cause as a bad token or Internet outage.')
     if c.get('accounting_enabled'):
         rule('usage-poll','Usage processing needs review',
-            'max((up{job="fortilens-accounting"} == bool 0) or (fortilens_accounting_poll_success == bool 0) or (fortilens_accounting_processing_lag_seconds > bool 300) or absent(up{job="fortilens-accounting"}))',
+            'max(label_replace(up{job="fortilens-accounting"} == bool 0,"signal","scrape","","") or label_replace(fortilens_accounting_poll_success == bool 0,"signal","poll","","") or label_replace(fortilens_accounting_processing_lag_seconds > bool 300,"signal","lag","","") or absent(up{job="fortilens-accounting"}))',
             '15m','Review bounded backfill, storage and Loki access. Catch-up during an initial backfill is expected.')
         if expected_log_interval is not None:
             if type(expected_log_interval) is not int or not 60<=expected_log_interval<=86400:

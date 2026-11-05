@@ -1,6 +1,8 @@
 """Reviewable, hash-guarded config upgrades. No Docker or device mutations."""
+import contextlib
 from copy import deepcopy
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -92,7 +94,10 @@ def prepare(module, installation, config, *, enable_accounting=False, zone=None,
     if draft_config['api_ca_file'] and not Path(draft_config['api_ca_file']).is_absolute():
         draft_config['api_ca_file'] = str(guarded(root, draft_config['api_ca_file']))
     # Draft secrets are private; the existing API/Grafana secrets are not changed.
-    draft = module.render(draft_config, plan_root / 'draft', token)
+    # render() prints start instructions meant for a new site. Following them from
+    # a draft would start a second Compose project, so they stay out of this flow.
+    with contextlib.redirect_stdout(io.StringIO()):
+        draft = module.render(draft_config, plan_root / 'draft', token)
     generated = module.load(draft / 'compose.yaml')
     compose = deepcopy(compose)
     old_image='quay.io/prometheuscommunity/fortigate-exporter@sha256:0880186a3dd69e66dc28be8a4cd37569637170e90c2aa657d2b3172a58551725'

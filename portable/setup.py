@@ -787,7 +787,7 @@ def main(argv=None):
             if args.config and c["api_ca_file"] and not Path(c["api_ca_file"]).is_absolute():
                 c["api_ca_file"] = str((args.config.parent / c["api_ca_file"]).resolve())
             if args.token_file:
-                token = args.token_file.read_text(encoding="utf-8").strip()
+                token = args.token_file.read_text(encoding="utf-8-sig").strip()
             else:
                 with warnings.catch_warnings():
                     warnings.simplefilter("error", getpass.GetPassWarning)
