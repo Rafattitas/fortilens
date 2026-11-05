@@ -8,9 +8,16 @@ language and login. A setup/settings update must preserve that continuity.
 ## Visual system
 
 The approved direction is A Precision: a bench instrument with colour reserved for
-state and hatching for missing evidence. The approved prototype is kept in the source repository at
-`docs/design/a-precision-prototype.html`. It is a design reference only, is not part of
-release packages and is never served by the product.
+state and hatching for missing evidence. The source-only prototype at
+`docs/design/a-precision-prototype.html` records the design direction;
+it is not the application, is not part of release packages and is never served by
+the product.
+
+The [canonical screenshot gallery](design/screenshots/README.md) shows the shipped
+management and reporting interfaces rendered with synthetic fixtures. It is
+separate from the prototype. The gallery records capture provenance and
+regeneration instructions; public screenshots contain no customer data and do
+not establish real-device collection health or accounting completeness.
 
 Use IBM Plex Sans from `management/static/fonts/` with the system stack as its fallback,
 and tabular numerals for measurements. All assets are local; no font service, CDN,
@@ -39,25 +46,30 @@ distinguish pending drafts from the applied configuration.
 
 Overview is the configured default and first network destination, with live
 monitoring one click away. Keep an explicitly saved valid route; use Settings
-for an unconfigured installation. The real native dashboard is the main content,
-with restrained navigation around it:
+for an unconfigured installation. Overview brings link timelines, current
+observations, recorded consumers and collection evidence together. Live monitoring
+opens the real native Grafana dashboard within the same workspace:
 
 ```text
-FortiLens       Site                                      Account
-Monitoring     Network monitoring                     Reload view
-WAN health     +------------------------------------------------+
-Device usage   | Native selectors, firewall state and WAN traffic |
-VLAN analytics |                                                |
-Reports        |               Remaining viewport               |
-Data quality   |                                                |
-Overview       +------------------------------------------------+
-Settings
-Diagnostics
+FortiLens            Site                                  Account
+Network              Overview                         Reload view
+  Overview           +-------------------------------------------+
+    Live monitoring  | Shared link timelines and observed states |
+  Internet           | Current link measurements                 |
+  Usage              | Recorded consumers and segments           |
+    Segments         | Collection and installation evidence      |
+    Reports          +-------------------------------------------+
+Trust
+  Evidence
+Installation
+  System
+    Diagnostics
+  Settings
 ```
 
 - A compact persistent sidebar and 56px header on desktop. One main scroll region
   for overview/settings/diagnostics; consistent content spacing.
-- Monitoring/reports fill the remaining viewport with a borderless document.
+- Live monitoring and hosted reports fill the remaining viewport with a borderless document.
   The shell does not add an outer scrolling page around that embedded viewport.
   Retain native Grafana panels, selectors, query groups and saved layout.
 - Native Grafana remains at `/grafana/`. Never globally replace Grafana URLs,
@@ -67,9 +79,15 @@ Diagnostics
   focus containment, Escape/scrim/close controls and focus restoration. Selecting
   a route, including the current route, closes it. Settings use a native section
   picker on these widths rather than a wall of wrapped tabs.
-- Reports expose their own period controls. Week means rolling 168 hours; month
-  uses the accounting timezone. The direct Data quality navigation reuses the
-  existing accounting evidence page and respects accounting enablement.
+- Usage and Reports expose their own period controls. Week means rolling 168
+  hours; month uses the accounting timezone. Usage offers endpoint search and a
+  docked device-history inspector; Reports summarizes period totals, largest
+  consumers and segment distribution from the same accounting engine. Segments
+  groups exact VLAN/interface mappings. Evidence opens the existing accounting
+  evidence page and respects accounting enablement.
+- System describes service, storage and configuration state separately from
+  source collection. Diagnostics retains the existing read-only checks; Settings
+  preserves the reviewed configuration workflow.
 
 ## Interaction and accessibility
 
@@ -109,7 +127,7 @@ unfingerprinted files and unauthenticated requests retain `no-store` behavior.
 Review actual rendering at 375px, tablet, landscape and desktop widths. Check main
 and frame bounds, document overflow, drawer keyboard order/closure and settings
 section changes. Inspect monitoring selectors and actual day/week/month reports,
-VLAN/WAN/quality pages, masked settings and diagnostic loading/errors. Test first
+Usage/Segments/Internet/Evidence pages, masked settings and diagnostic loading/errors. Test first
 setup/login through the existing isolated scenario; do not save/apply production
 settings or inject fake traffic for visual QA.
 

@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <strong>WAN performance. Device usage. Interface context. One self-hosted view.</strong><br>
-  FortiGate observability built around Grafana, Prometheus, Loki, and a guided setup.
+  <strong>See link health, recorded usage, and the evidence behind them.</strong><br>
+  A self-hosted FortiGate workspace with native Grafana monitoring and guided web setup.
 </p>
 
 <p align="center">
@@ -34,6 +34,7 @@ and portable distribution strategy; a prepared archive is not a published releas
 | Install web management or adopt an existing site | [Web Setup & Settings](docs/WEB_SETUP.md) |
 | Use the dependency-free CLI | [Portable installation and operations](portable/README.md) |
 | Understand usage evidence and limitations | [Accounting contract](docs/ACCOUNTING_ENGINE.md) |
+| Review optional compact database storage | [Compact accounting storage](docs/COMPACT_ACCOUNTING.md) |
 | Troubleshoot missing data | [Read-only diagnostics](docs/TROUBLESHOOTING.md) |
 | Receive FortiGate native/default UDP logs | [Managed native UDP profile](docs/SYSLOG_NATIVE_UDP.md) |
 | Develop, test or prepare a release | [Contributing](CONTRIBUTING.md), [QA](docs/QA.md), [releases](docs/RELEASING.md) |
@@ -41,27 +42,68 @@ and portable distribution strategy; a prepared archive is not a published releas
 
 ## A clearer view of the network you already run
 
-FortiLens brings FortiGate metrics and traffic logs into a practical monitoring stack. Track WAN SLA history, review recorded device usage, inspect VLAN/interface metadata, and find missing collection data without guessing that a quiet interface is down.
+FortiLens brings FortiGate metrics and received traffic logs into one workspace.
+Start with a shared overview of Internet links, collection freshness and recorded
+consumers. Inspect WAN history, search device usage, compare exact VLAN/interface
+segments, or open the native Grafana dashboard for detailed monitoring.
+
+Usage reports show upload and download from received accounting records. Their
+identity, coverage and pending-counter limits stay visible in Evidence; missing
+records do not establish zero traffic or complete billing totals.
 
 Designed for **one FortiGate per independent installation**: your server, your credentials, your data.
 
 <p align="center">
-  <img src="assets/dashboard-preview.svg" alt="Illustrative FortiLens dashboard with synthetic WAN and device usage data" width="100%">
-  <br><sub>Illustrative overview with synthetic data. Actual panels and readings depend on your FortiGate, permissions, and received samples.</sub>
+  <img src="docs/design/screenshots/01-overview-dark.png" alt="FortiLens Overview showing shared Internet-state timelines, link measurements and recorded consumers using synthetic data" width="100%">
+  <br><sub>Overview in the shipped interface, rendered with synthetic fixtures. No customer data is shown.</sub>
 </p>
+
+## Explore the workspace
+
+| View | Use it to |
+|---|---|
+| **Overview** | Read link-state timelines, current observations, recorded consumers and installation readiness together. |
+| **Live monitoring** | Use the existing native Grafana dashboard, selectors and detailed metric panels. |
+| **Internet** | Compare Internet SLA, physical state, route evidence and observed history without treating them as interchangeable signals. |
+| **Usage** | Search endpoint identities, review directional totals and open a device's daily/monthly recorded history. |
+| **Segments** | Compare usage by exact VLAN/interface mappings; unresolved historical mappings remain unknown. |
+| **Reports** | Review period totals, largest consumers and segment distribution for Today, rolling 7 days, this month or a custom range. |
+| **Evidence** | Inspect collection gaps, pending counters, identity limits and source-wide record classifications. |
+| **System, Diagnostics and Settings** | Check service/storage state, investigate collection and review configuration changes before applying them. |
+
+<details>
+<summary>See Usage, Reports and Internet screenshots</summary>
+
+![Usage with a selected device and its recorded history](docs/design/screenshots/04-usage-docked.png)
+
+*Usage: endpoint identities, directional totals and device history. Shipped UI with synthetic fixtures.*
+
+![Reports showing period totals, largest consumers and segment distribution](docs/design/screenshots/05-reports.png)
+
+*Reports: a period summary drawn from the same accounting evidence as Usage. Shipped UI with synthetic fixtures.*
+
+![Internet showing separate link states, measurements and observed history](docs/design/screenshots/07-internet.png)
+
+*Internet: SLA observations, physical state and history with missing evidence marked. Shipped UI with synthetic fixtures.*
+
+</details>
+
+See the [complete synthetic screenshot gallery and capture procedure](docs/design/screenshots/README.md)
+for the remaining views, themes, narrow layouts and source provenance.
 
 ## What you get
 
 | Capability | What it does |
 |---|---|
 | **Web Setup & Settings (current source)** | Independent nonroot management, one-time admin bootstrap, seven-step setup, write-only secrets, revisions, safe Apply/rollback and diagnostics. [Web installation guide](docs/WEB_SETUP.md). |
-| **Unified console (current source)** | One FortiLens sign-in and navigation for native Grafana monitoring and persistent reports; opt in with `init --enable-portal`. See the [console guide](docs/UNIFIED_CONSOLE.md). |
+| **Unified console (current source)** | One FortiLens sign-in for the overview, native Grafana monitoring and protected reports. Web setup includes this workspace; portable setup can opt in with `init --enable-portal`. See the [console guide](docs/UNIFIED_CONSOLE.md). |
 | **WAN SLA visibility** | State, latency, jitter, packet loss, observed availability, and sample coverage. |
 | **A dashboard that adapts** | Chained FortiGate → VDOM → SLA → WAN selectors, with repeating interface cards. |
 | **Persistent device accounting** | Directional upload/download, stable MAC endpoints and explicit unverified fallbacks; replay-safe received-log ledger. |
-| **Fixed-period reports** | Today, rolling 7 days, this calendar month, custom ranges, device search, top consumers and daily/monthly history. |
+| **Fixed-period reports** | Usage offers device search and history; Reports summarizes period totals, top consumers and segment distribution. Both use the same accounting engine and period rules. |
 | **VLAN Internet usage** | Exact VDOM/interface/parent/VLAN mapping, segment totals and drilldown; unknown mappings remain unknown. |
 | **Trust evidence** | Pending counters, source-wide classifications, processing lag, missing telemetry and observed WAN coverage. |
+| **Optional compact accounting storage** | An explicit, verified offline copy reduces repeated ledger representation without changing accounting rules. Legacy storage remains the default; conversion and activation are never automatic. [Procedure and rollback limits](docs/COMPACT_ACCOUNTING.md). |
 | **Interface and VLAN review** | Reuses exporter labels, fills metadata gaps through read-only API requests, and asks you to confirm Internet interfaces. |
 | **Useful readiness checks** | Distinguishes failed collection, old samples, missing logs, and authentication boundaries. |
 | **Safe deployment** | Six base monitoring services, optional constrained accounting/gateway services and an explicit native UDP receiver profile, reviewed configuration changes and preserved dashboards. |

@@ -34,6 +34,15 @@ flowchart LR
 
 ## Source map
 
+Public presentation follows the shipped frontend, not the historical HTML
+prototype. The [screenshot gallery](design/screenshots/README.md) renders actual
+management/hosted-report assets with clearly synthetic fixtures and records
+source/image SHA256 in its manifest. Capture tooling and reviewed PNGs are public
+source-release inputs only; installer and Docker runtime allowlists are unchanged.
+README navigation distinguishes endpoint inspection in Usage from period
+summaries in Reports. No application or accounting behavior accompanies this
+documentation refresh.
+
 | Location | Responsibility |
 |---|---|
 | `management/app.py`, `auth.py` | Independent FastAPI API/UI, bootstrap, sessions, CSRF and admin authentication. |

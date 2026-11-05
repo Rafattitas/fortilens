@@ -55,6 +55,13 @@ Read [release preparation](RELEASING.md) before choosing or building an archive.
 
 - [Console visual contract](UI_DESIGN.md): current presentation, navigation and
   accessibility requirements while preserving native monitoring.
+- [Current interface screenshots](design/screenshots/README.md): canonical
+  gallery of the shipped Overview, Usage, Reports, Internet and installation
+  screens, rendered with synthetic fixtures; capture provenance and regeneration
+  instructions are included.
+- A Precision prototype (`docs/design/a-precision-prototype.html` in the source
+  checkout): design reference, separate from the shipped interface and its screenshot gallery; never
+  served by the product or included in release packages.
 - [Frontend design review](FRONTEND_DESIGN_REVIEW.md): historical draft findings
   and follow-up evidence, not an open-defect list for every later revision.
 
@@ -68,5 +75,7 @@ Read [release preparation](RELEASING.md) before choosing or building an archive.
   design rationale; current future work lives in the roadmap.
 - [Changelog](../CHANGELOG.md): implemented changes and release history.
 
-Historical test counts and screenshots describe their recorded revision. Use
-the exact current source head and executed checks for a new compatibility claim.
+Test counts and screenshots describe their recorded source revision. The current
+interface gallery uses synthetic fixtures, not a live installation. Use the exact
+current source head and executed checks for a new compatibility or collection
+claim.

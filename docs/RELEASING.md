@@ -8,7 +8,7 @@ management and remains available unchanged.
 | Artifact | Layout and purpose |
 |---|---|
 | `fortilens-vX.Y.Z-full.tar.gz` | `fortilens/` source root with web management, Ubuntu installer, portable monitoring/reporting, runtime assets, public documentation and development checks. |
-| `fortilens-vX.Y.Z.zip` | Existing `forti-monitor/` portable layout with its 23 reviewed files; no web management or host installer. |
+| `fortilens-vX.Y.Z.zip` | Existing `forti-monitor/` portable layout with its 27 reviewed files; no web management or host installer. |
 | `SHA256SUMS.txt` | SHA256 checksums for both archives. |
 
 The portable `python portable/setup.py bundle --destination ...` command is
@@ -71,8 +71,11 @@ candidate with uncommitted changes is never represented as a clean tagged build.
 An extracted full archive retains that provenance without requiring Git history.
 
 Generated installations, site-specific configuration, credentials, raw logs,
-SQLite databases, customer exports, screenshots, Git history and unlisted notes
-are excluded. Missing files and symlinks fail the build. Adding a required
+SQLite databases, customer exports, private site screenshots, Git history and
+unlisted notes are excluded. Only the explicitly reviewed synthetic
+[documentation captures](design/screenshots/README.md) are included in the full
+source archive; they are excluded from installer and Docker runtime inputs.
+Missing files and symlinks fail the build. Adding a required
 runtime file requires reviewing the installer, Docker and release allowlists
 together and extending their regression checks; never broaden a directory copy.
 

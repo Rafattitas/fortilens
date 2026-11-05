@@ -1,39 +1,77 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
-  <title id="title">FortiLens illustrative dashboard</title>
-  <desc id="desc">A synthetic overview of WAN performance, device usage and interface review. This is an illustration, not a live dashboard screenshot.</desc>
+  <title id="title">FortiLens Overview — synthetic illustration</title>
+  <desc id="desc">A vector illustration of the FortiLens Overview, using invented demonstration values. It shows a divided evidence summary, two WAN history channels with hatched gaps, received-log usage and segment totals. This is not a screenshot or live telemetry; it does not establish collection completeness.</desc>
   <defs>
-    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101e32"/><stop offset="1" stop-color="#09111e"/></linearGradient>
-    <linearGradient id="fill" x2="0" y2="1"><stop stop-color="#55dfbd" stop-opacity=".28"/><stop offset="1" stop-color="#55dfbd" stop-opacity="0"/></linearGradient>
+    <pattern id="missing" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#161b1f"/><path d="M0 0v7" stroke="#4e5b62" stroke-width="2"/></pattern>
   </defs>
-  <rect width="1280" height="720" rx="24" fill="url(#bg)"/>
-  <g font-family="Segoe UI,Arial,sans-serif">
-    <text x="40" y="52" fill="#e9f3ff" font-size="24" font-weight="700">FortiLens</text>
-    <text x="185" y="52" fill="#9fadc2" font-size="17">Network overview</text>
-    <rect x="964" y="25" width="276" height="36" rx="18" fill="#293143"/>
-    <text x="1102" y="49" fill="#f5c67e" font-size="13" font-weight="700" text-anchor="middle">ILLUSTRATIVE · SYNTHETIC DATA</text>
-    <g fill="#15263c" stroke="#2a3c52"><rect x="40" y="83" width="280" height="48" rx="8"/><rect x="332" y="83" width="200" height="48" rx="8"/><rect x="544" y="83" width="300" height="48" rx="8"/><rect x="856" y="83" width="384" height="48" rx="8"/></g>
-    <g fill="#b8c8da" font-size="14"><text x="56" y="113">FortiGate  /  demo-firewall</text><text x="348" y="113">VDOM  /  root</text><text x="560" y="113">SLA  /  ISP_Check</text><text x="872" y="113">WAN  /  uplink-a, uplink-b</text></g>
-    <g fill="#132239" stroke="#293c53"><rect x="40" y="155" width="288" height="134" rx="12"/><rect x="344" y="155" width="288" height="134" rx="12"/><rect x="648" y="155" width="288" height="134" rx="12"/><rect x="952" y="155" width="288" height="134" rx="12"/></g>
-    <g fill="#a7b8cd" font-size="15"><text x="60" y="184">uplink-a · latency</text><text x="364" y="184">uplink-b · latency</text><text x="668" y="184">Observed availability</text><text x="972" y="184">Sample coverage</text></g>
-    <g font-size="40" font-weight="700"><text x="60" y="237" fill="#63e3bd">18.4<tspan font-size="19" font-weight="400"> ms</tspan></text><text x="364" y="237" fill="#7bbfff">25.1<tspan font-size="19" font-weight="400"> ms</tspan></text><text x="668" y="237" fill="#63e3bd">99.8<tspan font-size="24">%</tspan></text><text x="972" y="237" fill="#f3be75">97.2<tspan font-size="24">%</tspan></text></g>
-    <g fill="#91a5be" font-size="12"><text x="60" y="267">Illustrative received measurement</text><text x="364" y="267">Illustrative received measurement</text><text x="668" y="267">Based on observed samples</text><text x="972" y="267">Missing samples remain visible</text></g>
-    <rect x="40" y="307" width="760" height="210" rx="12" fill="#132239" stroke="#293c53"/>
-    <text x="60" y="339" fill="#d9e8fb" font-size="17" font-weight="600">WAN latency history</text>
-    <g stroke="#27384e"><path d="M80 368H775 M80 413H775 M80 458H775"/></g>
-    <path d="M80 449L115 437L150 445L185 424L220 432L255 425L290 438L325 417L360 425L395 399L430 417L465 413L500 429L535 415L570 430L605 408L640 418L675 402L710 420L745 410L775 417V475H80Z" fill="url(#fill)"/>
-    <path d="M80 449L115 437L150 445L185 424L220 432L255 425L290 438L325 417L360 425L395 399L430 417L465 413L500 429L535 415L570 430L605 408L640 418L675 402L710 420L745 410L775 417" fill="none" stroke="#63e3bd" stroke-width="3"/>
-    <path d="M80 407L115 391L150 405L185 382L220 393L255 375L290 389L325 382L360 401L395 381L430 392L465 376L500 388L535 373L570 393L605 382L640 390L675 369L710 389L745 377L775 387" fill="none" stroke="#7bbfff" stroke-width="2"/>
-    <g fill="#91a5be" font-size="11"><text x="80" y="495">09:00</text><text x="400" y="495">12:00</text><text x="740" y="495">15:00</text></g>
-    <rect x="816" y="307" width="424" height="210" rx="12" fill="#132239" stroke="#293c53"/>
-    <text x="836" y="339" fill="#d9e8fb" font-size="17" font-weight="600">Recorded device usage</text>
-    <g fill="#b5c4d8" font-size="13"><text x="836" y="376">demo-workstation</text><text x="836" y="419">demo-phone</text><text x="836" y="462">demo-laptop</text></g>
-    <g fill="#334965"><rect x="836" y="385" width="310" height="9" rx="4"/><rect x="836" y="428" width="310" height="9" rx="4"/><rect x="836" y="471" width="310" height="9" rx="4"/></g>
-    <g fill="#6fb6fa"><rect x="836" y="385" width="258" height="9" rx="4"/><rect x="836" y="428" width="180" height="9" rx="4"/><rect x="836" y="471" width="112" height="9" rx="4"/></g>
-    <g fill="#c9ddf7" font-size="13" text-anchor="end"><text x="1220" y="391">3.2 GB</text><text x="1220" y="434">2.1 GB</text><text x="1220" y="477">1.4 GB</text></g>
-    <rect x="40" y="535" width="1200" height="139" rx="12" fill="#132239" stroke="#293c53"/>
-    <text x="60" y="568" fill="#d9e8fb" font-size="17" font-weight="600">Interface context</text>
-    <g fill="#91a5be" font-size="12"><text x="60" y="595">INTERFACE</text><text x="330" y="595">TYPE</text><text x="540" y="595">REPORTED ROLE</text><text x="790" y="595">PARENT / VLAN</text><text x="1045" y="595">REVIEW</text></g>
-    <g fill="#c9ddf7" font-size="14"><text x="60" y="625">uplink-a</text><text x="330" y="625">Physical</text><text x="540" y="625">WAN</text><text x="790" y="625">—</text><text x="1045" y="625" fill="#63e3bd">Confirmed</text><text x="60" y="652">staff.20</text><text x="330" y="652">VLAN</text><text x="540" y="652">Undefined</text><text x="790" y="652">trunk / 20</text><text x="1045" y="652" fill="#f3be75">Needs review</text></g>
-    <text x="40" y="702" fill="#8296b0" font-size="12">Concept preview · actual Grafana panels depend on configuration and received data.</text>
+  <rect width="1280" height="720" rx="5" fill="#1a2024"/>
+  <path d="M0 0h186v682H0z" fill="#22292e"/>
+  <path d="M186 0v682M186 56h1094M0 682h1280" fill="none" stroke="#3d484f"/>
+  <g font-family="'Segoe UI',Arial,sans-serif" font-size="13" fill="#e9eff1">
+    <g transform="translate(17 16)" fill="none" stroke="#84c9dc"><path d="M12 3a9 9 0 1 1-8.6 6.3" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="12" r="3.2" stroke-width="1.6"/></g>
+    <text x="51" y="35" font-size="21" font-weight="600" letter-spacing="-.5">FortiLens</text>
+    <text x="210" y="34" font-size="14">Demo workspace</text>
+    <rect x="1003" y="14" width="253" height="28" rx="3" fill="#2c363b" stroke="#3d484f"/>
+    <text x="1129" y="33" font-size="11" font-weight="600" letter-spacing=".6" text-anchor="middle" fill="#a7b5ba">SYNTHETIC ILLUSTRATION</text>
+
+    <g fill="#a7b5ba" font-size="11"><text x="18" y="92">Network</text><text x="18" y="334">Trust</text><text x="18" y="421">Installation</text></g>
+    <rect x="8" y="104" width="170" height="36" rx="3" fill="#24414b"/>
+    <rect x="8" y="110" width="2" height="24" fill="#84c9dc"/>
+    <text x="26" y="127" fill="#84c9dc" font-weight="600">Overview</text>
+    <g fill="#a7b5ba"><text x="38" y="164">Live monitoring</text><text x="26" y="203">Internet</text><text x="26" y="242">Usage</text><text x="38" y="279">Segments</text><text x="38" y="309">Reports</text><text x="26" y="369">Evidence</text><text x="26" y="456">System</text><text x="38" y="492">Diagnostics</text><text x="26" y="531">Settings</text><text x="18" y="652" font-size="12">Native Grafana ↗</text></g>
+
+    <text x="210" y="97" font-size="25" font-weight="500" letter-spacing="-.4">Network overview</text>
+    <text x="210" y="121" fill="#a7b5ba">Internet state, received usage and the evidence behind them.</text>
+    <text x="1256" y="99" text-anchor="end" fill="#84c9dc" font-size="12">Reload view</text>
+    <rect x="210" y="144" width="1046" height="88" rx="5" fill="#22292e"/>
+    <circle cx="231" cy="174" r="5" fill="#6ad5a5"/>
+    <text x="247" y="180" font-size="18" font-weight="600">All links pass and logs are current.</text>
+    <text x="226" y="205" fill="#a7b5ba">primary 12.4 ms, backup 21.6 ms. Last log 8 seconds ago.</text>
+    <path d="M758 160v56M930 160v56M1069 160v56" stroke="#3d484f"/>
+    <g fill="#a7b5ba" font-size="12"><text x="778" y="174">Recorded today</text><text x="950" y="174">Identities</text><text x="1089" y="174">Pending, not added</text></g>
+    <g font-size="21" font-weight="300"><text x="778" y="205">12.8 GB</text><text x="950" y="205">6</text><text x="1089" y="205">18 MB</text></g>
+
+    <rect x="210" y="248" width="680" height="197" rx="5" fill="#161b1f"/>
+    <text x="224" y="275" font-size="15" font-weight="600">Network channels</text>
+    <text x="697" y="275" fill="#a7b5ba" font-size="12">Last 24 hours</text>
+    <rect x="801" y="257" width="76" height="26" rx="3" fill="#22292e" stroke="#3d484f"/>
+    <text x="839" y="275" font-size="12" text-anchor="middle">Refresh</text>
+    <path d="M210 290h680" stroke="#2f393f"/>
+    <text x="224" y="314" font-weight="600">primary</text><text x="224" y="336" fill="#a7b5ba" font-size="11">12.4 ms · 0% loss</text>
+    <rect x="329" y="301" width="33" height="18" rx="3" fill="#1c3a30"/><text x="346" y="314" fill="#6ad5a5" font-size="10" text-anchor="middle">UP</text>
+    <rect x="385" y="301" width="491" height="39" fill="url(#missing)"/>
+    <path d="M408 301h206v39H408zM630 301h246v39H630z" fill="#2f5849"/>
+    <text x="224" y="373" font-weight="600">backup</text><text x="224" y="395" fill="#a7b5ba" font-size="11">21.6 ms · 0% loss</text>
+    <rect x="329" y="360" width="33" height="18" rx="3" fill="#1c3a30"/><text x="346" y="373" fill="#6ad5a5" font-size="10" text-anchor="middle">UP</text>
+    <rect x="385" y="360" width="491" height="39" fill="url(#missing)"/>
+    <path d="M408 360h119v39H408zM551 360h325v39H551z" fill="#2f5849"/>
+    <path d="M527 360h24v39h-24z" fill="#79632e"/>
+    <g fill="#a7b5ba" font-size="10"><text x="224" y="427">Server timezone</text><text x="385" y="427">00:00</text><text x="507" y="427">06:00</text><text x="630" y="427">12:00</text><text x="753" y="427">18:00</text><text x="876" y="427" text-anchor="end">00:00</text></g>
+    <rect x="214" y="459" width="12" height="12" fill="#2f5849"/><text x="233" y="469" fill="#a7b5ba" font-size="11">Observed up</text>
+    <rect x="320" y="459" width="12" height="12" fill="#79632e"/><text x="339" y="469" fill="#a7b5ba" font-size="11">Degraded</text>
+    <rect x="414" y="459" width="12" height="12" fill="url(#missing)"/><text x="433" y="469" fill="#a7b5ba" font-size="11">No evidence</text>
+
+    <path d="M210 494h680M210 529h680M210 568h680M210 607h680" stroke="#3d484f"/>
+    <g fill="#a7b5ba" font-size="11"><text x="222" y="516">Link</text><text x="323" y="516">Internet SLA</text><text x="440" y="516">Physical</text><text x="535" y="516">Route</text><text x="780" y="516" text-anchor="end">Down / Up Mbps</text><text x="878" y="516" text-anchor="end">Loss</text></g>
+    <text x="222" y="553">primary</text><text x="323" y="553" fill="#6ad5a5">UP</text><text x="440" y="553" fill="#6ad5a5">UP</text><text x="535" y="553">Selected</text><text x="780" y="553" text-anchor="end">42.6 / 8.2</text><text x="878" y="553" text-anchor="end">0%</text>
+    <text x="222" y="592">backup</text><text x="323" y="592" fill="#6ad5a5">UP</text><text x="440" y="592" fill="#6ad5a5">UP</text><text x="535" y="592" fill="#a7b5ba">Not selected</text><text x="780" y="592" text-anchor="end">0.8 / 0.2</text><text x="878" y="592" text-anchor="end">0%</text>
+    <text x="210" y="631" fill="#a7b5ba" font-size="11">Hatched time has no evidence. It is not an observed outage.</text>
+
+    <rect x="906" y="248" width="350" height="239" rx="5" fill="#22292e"/>
+    <text x="920" y="275" font-size="15" font-weight="600">Largest recorded consumers</text>
+    <text x="920" y="310" fill="#84c9dc">demo-laptop</text><text x="1242" y="310" text-anchor="end">4.6 GB</text>
+    <text x="920" y="329" fill="#a7b5ba" font-size="11">VLAN 20, staff</text><path d="M920 341h197" stroke="#e9eff1" stroke-width="4"/><path d="M1117 341h77" stroke="#8399a3" stroke-width="4"/>
+    <text x="920" y="370" fill="#84c9dc">demo-workstation</text><text x="1242" y="370" text-anchor="end">2.2 GB</text>
+    <text x="920" y="389" fill="#a7b5ba" font-size="11">VLAN 20, staff</text><path d="M920 401h102" stroke="#e9eff1" stroke-width="4"/><path d="M1022 401h29" stroke="#8399a3" stroke-width="4"/>
+    <text x="920" y="436" fill="#a7b5ba" font-size="11">Device names are not user accounts.</text>
+    <text x="920" y="455" fill="#a7b5ba" font-size="11">Totals cover received logs only.</text>
+    <rect x="906" y="503" width="350" height="138" rx="5" fill="#22292e"/>
+    <text x="920" y="530" font-size="15" font-weight="600">By segment</text>
+    <text x="920" y="562" fill="#a7b5ba">VLAN 20, staff</text><text x="1242" y="562" text-anchor="end">9.2 GB</text><path d="M920 575h294" stroke="#e9eff1" stroke-width="4"/>
+    <text x="920" y="607" fill="#a7b5ba">VLAN 30, guest</text><text x="1242" y="607" text-anchor="end">3.6 GB</text><path d="M920 620h115" stroke="#e9eff1" stroke-width="4"/>
+
+    <text x="24" y="706" fill="#a7b5ba" font-size="12">Vector product illustration · Invented demonstration values · Not a live dashboard screenshot</text>
+    <text x="1256" y="706" text-anchor="end" fill="#a7b5ba" font-size="12">One FortiGate per installation</text>
   </g>
+  <rect x=".5" y=".5" width="1279" height="719" rx="5" fill="none" stroke="#3d484f"/>
 </svg>
