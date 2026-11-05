@@ -228,5 +228,13 @@ class AccountingTests(unittest.TestCase):
             with self.assertRaises(ValueError):a.Store(path, {**CONFIG, "accounting_timezone": "Europe/London"}, INVENTORY)
 
 
+class StorageMaintenanceTests(unittest.TestCase):
+    def test_writer_caps_retained_wal_and_indexes_delivery_time(self):
+        store = a.Store(":memory:", CONFIG, INVENTORY)
+        self.addCleanup(store.close)
+        self.assertEqual(store.db.execute("PRAGMA journal_size_limit").fetchone()[0], 134217728)
+        self.assertIsNotNone(store.db.execute("SELECT 1 FROM sqlite_master WHERE name='deliveries_stamp'").fetchone())
+
+
 if __name__ == "__main__":
     unittest.main()
