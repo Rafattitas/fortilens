@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import re
 import secrets
 import subprocess
 import sys
@@ -23,6 +24,27 @@ SPEC.loader.exec_module(release)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_management_static_dependencies_are_in_installer_release_and_docker_context(self):
+        stylesheet = (ROOT / "management/static/app.css").read_text(encoding="utf-8")
+        fonts = re.findall(r'url\(["\']?(fonts/[^"\'()\s]+)', stylesheet)
+        self.assertTrue(fonts, "The vendored management fonts must be discoverable")
+        required = {"management/static/" + name for name in fonts}
+        required.update({"management/static/fonts/OFL.txt", "management/static/grafana-clock.js"})
+        spec = importlib.util.spec_from_file_location(
+            "fortilens_asset_installer", ROOT / "management/install.py"
+        )
+        installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(installer)
+        installed = installer.source_files(ROOT)
+        packaged = release.full_sources(ROOT)
+        context_rules = set((ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines())
+        for name in sorted(required):
+            with self.subTest(resource=name):
+                self.assertIn(name, installed)
+                self.assertIn(name, packaged)
+                self.assertEqual(packaged[name], (ROOT / name).read_bytes())
+                self.assertIn("!" + name, context_rules)
+
     def test_versions_are_semantic_and_cannot_inject_paths(self):
         for value in ("v0.3.0", "v1.2.3-rc.1", "v1.0.0+build.2"):
             self.assertEqual(release.version_value(value), value)

@@ -11,6 +11,11 @@
 
 ### Source collection and diagnostics
 
+- Include the vendored management fonts and their license in installer/full
+  distribution inputs, and retain fonts plus the existing clock adapter in the
+  Docker build context. Check dependencies referenced by the shipped stylesheet
+  so installed and containerized management retain the source checkout's assets.
+
 - Add an opt-in compact SQLite ledger and a separately published, fully verified
   offline copy tool. Preserve exact event/fact/delivery evidence, frozen metadata,
   summaries, checkpoints and accounting calculations. Existing databases and

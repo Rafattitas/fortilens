@@ -18,6 +18,13 @@
 !management/static/app.css
 !management/static/app.js
 !management/static/index.html
+!management/static/grafana-clock.js
+!management/static/fonts/
+!management/static/fonts/IBMPlexSans-Light-Latin1.woff2
+!management/static/fonts/IBMPlexSans-Regular-Latin1.woff2
+!management/static/fonts/IBMPlexSans-Medium-Latin1.woff2
+!management/static/fonts/IBMPlexSans-SemiBold-Latin1.woff2
+!management/static/fonts/OFL.txt
 !portable/
 !portable/templates/
 !portable/setup.py

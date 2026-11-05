@@ -76,6 +76,12 @@ Older/opt-out installations can have fewer. Management adds two independent
 systemd services, `fortilens-web` and `fortilens-helper`; these are not additional
 Compose containers.
 
+Reviewed installer/full-distribution inputs include the management stylesheet's
+vendored font files and license. The management Docker context includes those
+same assets and the existing Grafana clock adapter. Release regressions derive
+font dependencies from the stylesheet and check their presence across all three
+source allowlists; no CDN or browser-selected asset path is introduced.
+
 Selecting native `fortigate` format adds a ninth service, `fortilens-syslog`,
 when the other eight are enabled. It replaces only the public syslog leg with
 the configured UDP binding; Alloy remains internal RFC5424/TCP. It is an explicit
