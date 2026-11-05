@@ -1,6 +1,6 @@
 # Device usage: choose the accounting path
 
-FortiLens 0.2 provides an optional persistent received-log engine and protected reporting portal. Use it for directional device usage, fixed day/week/month periods, VLAN totals and retained history. Read the [accounting contract](ACCOUNTING_ENGINE.md), [installation guide](../portable/README.md), and [safe upgrade procedure](UPGRADE.md).
+FortiLens 0.2 provides an optional persistent received-log engine and protected reporting portal. Use it for directional device usage, fixed day/week/month periods, VLAN totals and retained history. Read the [accounting contract](ACCOUNTING_ENGINE.md), [installation guide](../../portable/README.md), and [safe upgrade procedure](../operations/UPGRADE.md).
 
 | Path | Purpose | Limits |
 |---|---|---|

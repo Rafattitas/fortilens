@@ -4,7 +4,7 @@ Thank you for helping make FortiGate observability easier to deploy and understa
 
 Useful first contributions include documentation fixes, FortiOS compatibility reports, sanitized inventory fixtures, and accounting edge cases. Discuss broad architecture or new service dependencies in an issue before implementing them.
 
-Start with the [documentation index](docs/README.md), [source map](docs/PROJECT_CONTEXT.md)
+Start with the [documentation index](docs/README.md), [source map](docs/development/PROJECT_CONTEXT.md)
 and [maintainer instructions](AGENTS.md). The [roadmap](ROADMAP.md) distinguishes
 existing capabilities from planned work. Use the issue forms for bugs,
 documentation and sanitized FortiOS compatibility reports; sensitive findings
@@ -12,11 +12,11 @@ follow [SECURITY.md](SECURITY.md).
 
 ## Working with AI agents
 
-Start with [AGENTS.md](AGENTS.md) and the maintained [project context](docs/PROJECT_CONTEXT.md).
+Start with [AGENTS.md](AGENTS.md) and the maintained [project context](docs/development/PROJECT_CONTEXT.md).
 The repository includes a [FortiLens Maintainer skill](.agents/skills/fortilens-maintainer/SKILL.md)
 for code, deployment, accounting-evidence and QA work. Codex can discover it under
 `.agents/skills`; other assistants can read the same Markdown entry point.
-See [QA and release checks](docs/QA.md) before changing a running installation.
+See [QA and release checks](docs/development/QA.md) before changing a running installation.
 These files describe the project and its boundaries; live operations still follow
 the current user's authorization and the installation's actual state.
 
@@ -79,8 +79,8 @@ python tests/integration_management.py
 
 CI also tests the real Ubuntu/systemd installer twice on an ephemeral VM. Never
 run root `--installed` integration mode against a personal or company installation;
-it is restricted to a disposable CI VM. Review [management verification](docs/MANAGEMENT_VERIFICATION.md)
-and the full [QA procedure](docs/QA.md).
+it is restricted to a disposable CI VM. Review [management verification](docs/development/MANAGEMENT_VERIFICATION.md)
+and the full [QA procedure](docs/development/QA.md).
 
 Use synthetic fixtures and separate directories, ports, Compose projects, and volumes for integration work. Never use a client's production environment as a test fixture. Include meaningful regression coverage for behavior changes and document what you actually verified.
 
@@ -93,7 +93,7 @@ python portable/setup.py bundle --destination dist/fortilens-single-device.zip
 ```
 
 For a full/portable release-candidate pair, use a fresh output directory and
-follow [release preparation](docs/RELEASING.md). The example version below is not
+follow [release preparation](docs/development/RELEASING.md). The example version below is not
 an announcement or authorization to tag/publish:
 
 ```bash
@@ -133,5 +133,5 @@ Open a focused pull request explaining the trigger, resulting behavior, tests, a
 - Publication, production rollout, policy changes and merging require their own
   authorized maintainer action. Repository cleanup does not authorize them.
 
-See [repository governance](docs/REPOSITORY_GOVERNANCE.md) for recommended labels,
+See [repository governance](docs/development/REPOSITORY_GOVERNANCE.md) for recommended labels,
 protection and community channels; these recommendations do not change settings.

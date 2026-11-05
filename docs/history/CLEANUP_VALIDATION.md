@@ -114,7 +114,7 @@ The two new Python tools are development-only. Broad formatting, shared auth
 helpers, dynamic-import restructuring, migrations, CodeQL and whole-runtime type
 checking are deferred to independently scoped changes. Current static/dependency/
 boundary checks are not substitutes for those reviews. See
-[MAINTAINABILITY.md](../MAINTAINABILITY.md).
+[MAINTAINABILITY.md](../development/MAINTAINABILITY.md).
 
 ## Changed files and reasons
 
@@ -173,7 +173,7 @@ fortilens/
 1. Review focused local commits and the [PR description](PR_PROFESSIONALIZATION.md).
    Push/create a PR only after authorization; run final-head CI and packaged Linux
    acceptance before deciding to merge or publish.
-2. Apply chosen [governance recommendations](../REPOSITORY_GOVERNANCE.md) only through
+2. Apply chosen [governance recommendations](../development/REPOSITORY_GOVERNANCE.md) only through
    separately authorized settings changes. Classic protection is unknown to the
    connector; private reporting needs maintainer verification.
 3. Prioritize measured test gaps and staged formatting/types before structural

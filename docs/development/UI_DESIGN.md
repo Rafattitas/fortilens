@@ -13,7 +13,7 @@ state and hatching for missing evidence. The source-only prototype at
 it is not the application, is not part of release packages and is never served by
 the product.
 
-The [canonical screenshot gallery](design/screenshots/README.md) shows the shipped
+The [canonical screenshot gallery](../design/screenshots/README.md) shows the shipped
 management and reporting interfaces rendered with synthetic fixtures. It is
 separate from the prototype. The gallery records capture provenance and
 regeneration instructions; public screenshots contain no customer data and do

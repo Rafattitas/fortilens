@@ -79,11 +79,11 @@ were:
 After the remaining corrections, rerun the relevant behavior tests and inspect
 monitoring, reports, data quality, settings, sign-in/out, keyboard and responsive
 layouts on the final source. Preserve production state as required by
-[QA.md](../QA.md). Do not infer final release readiness from this draft review.
+[QA.md](../development/QA.md). Do not infer final release readiness from this draft review.
 
 Private browser evidence remains outside public Git, in the operational
 workspace's output directory. Live FortiGate numeric/source completeness remains
-pending. See [UI_DESIGN.md](../UI_DESIGN.md) for the target design contract.
+pending. See [UI_DESIGN.md](../development/UI_DESIGN.md) for the target design contract.
 
 ## Follow-up implementation
 

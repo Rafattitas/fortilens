@@ -25,7 +25,7 @@ document every compatibility-impacting change explicitly; a minor version is
 not permission to migrate accounting identity, databases or installation data.
 Use patch releases for compatible fixes and a minor release for compatible new
 capabilities. A breaking change requires a reviewed migration plan and a clearly
-identified release boundary. Keep meaningful changes in [the changelog](../CHANGELOG.md).
+identified release boundary. Keep meaningful changes in [the changelog](../../CHANGELOG.md).
 
 Tag only an explicitly approved, final, committed revision after all required
 checks succeed. Do not retag or force-push. Release publication is a maintainer
@@ -73,7 +73,7 @@ An extracted full archive retains that provenance without requiring Git history.
 Generated installations, site-specific configuration, credentials, raw logs,
 SQLite databases, customer exports, private site screenshots, Git history and
 unlisted notes are excluded. Only the explicitly reviewed synthetic
-[documentation captures](design/screenshots/README.md) are included in the full
+[documentation captures](../design/screenshots/README.md) are included in the full
 source archive; they are excluded from installer and Docker runtime inputs.
 Missing files and symlinks fail the build. Adding a required
 runtime file requires reviewing the installer, Docker and release allowlists
@@ -142,5 +142,5 @@ properties from archive, unit or synthetic Docker checks.
 A company rollout remains a separate authorized operational change. Existing
 installations need explicit adoption with their original Compose project, or a
 reviewed update procedure; extracting an archive or rerunning bootstrap does
-not authorize changing a live installation. See [web setup](WEB_SETUP.md) and
-[upgrades](UPGRADE.md).
+not authorize changing a live installation. See [web setup](../getting-started/WEB_SETUP.md) and
+[upgrades](../operations/UPGRADE.md).

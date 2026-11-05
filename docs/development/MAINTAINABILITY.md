@@ -29,7 +29,7 @@ insufficient reason to introduce a shared runtime package.
 
 ## Development standards
 
-Use the commands in [CONTRIBUTING.md](../CONTRIBUTING.md). Correctness lint applies
+Use the commands in [CONTRIBUTING.md](../../CONTRIBUTING.md). Correctness lint applies
 across the repository; new development tools have conventional formatting/import
 ordering. Existing dense runtime formatting is intentionally deferred to a
 dedicated mechanical change with source/AST and behavior validation. No broad

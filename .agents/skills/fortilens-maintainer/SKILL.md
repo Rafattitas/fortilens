@@ -6,7 +6,7 @@ description: "Understand, modify, deploy and verify the FortiLens single-FortiGa
 # FortiLens Maintainer
 
 Read [AGENTS.md](../../../AGENTS.md) and
-[project context](../../../docs/PROJECT_CONTEXT.md) first. Locate the source root
+[project context](../../../docs/development/PROJECT_CONTEXT.md) first. Locate the source root
 containing `management/` and `portable/`; a generated company installation is a
 different directory. These files guide implementation, not permission to deploy,
 publish, change credentials or modify a firewall. Follow the current user's scope.
@@ -16,14 +16,14 @@ publish, change credentials or modify a firewall. Follow the current user's scop
 - **Code or UI:** use the source map in project context. Read existing behavior and
   tests before editing. Reuse `setup`, `interfaces`, `doctor`, accounting and the
   native Grafana/report gateway; avoid introducing a replacement collector or UI.
-- **Installation/adoption:** read [Web Setup](../../../docs/WEB_SETUP.md) and
-  [management architecture](../../../docs/MANAGEMENT_ARCHITECTURE.md).
-- **Accounting/WAN accuracy:** read [accounting](../../../docs/ACCOUNTING.md),
-  [engine](../../../docs/ACCOUNTING_ENGINE.md) and
-  [verification](../../../docs/VERIFICATION.md). Distinguish received records from
+- **Installation/adoption:** read [Web Setup](../../../docs/getting-started/WEB_SETUP.md) and
+  [management architecture](../../../docs/architecture/MANAGEMENT_ARCHITECTURE.md).
+- **Accounting/WAN accuracy:** read [accounting](../../../docs/architecture/ACCOUNTING.md),
+  [engine](../../../docs/architecture/ACCOUNTING_ENGINE.md) and
+  [verification](../../../docs/development/VERIFICATION.md). Distinguish received records from
   complete source traffic and physical link from Internet/route evidence.
-- **QA/release:** read [QA](../../../docs/QA.md) and
-  [management verification](../../../docs/MANAGEMENT_VERIFICATION.md). Use actual
+- **QA/release:** read [QA](../../../docs/development/QA.md) and
+  [management verification](../../../docs/development/MANAGEMENT_VERIFICATION.md). Use actual
   head-specific checks, not a historical passing count.
 
 ## Maintain the architecture

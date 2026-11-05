@@ -2,7 +2,7 @@
 
 For the unified FortiLens interface in current source, use `python3 setup.py init --enable-portal`.
 This enables accounting and one console for reports and embedded Grafana. Read the
-[unified console guide](../docs/UNIFIED_CONSOLE.md) for authentication, existing-site
+[unified console guide](../docs/getting-started/UNIFIED_CONSOLE.md) for authentication, existing-site
 migration and rollback. Published v0.2.0 ZIPs retain the separate reporting interface.
 
 For one FortiGate per independent company installation. Requires **Linux x86-64, Docker Compose v2 and Python 3.10+**. Windows supports configuration and tests; deployment and host monitoring target Linux. No third-party Python packages are required. All product text is English.
@@ -147,6 +147,6 @@ python3 setup.py bundle --destination ../fortilens-single-device.zip
 
 The 23-file source allowlist includes setup/doctor/inventory/quality/style/accounting/WAN/service/upgrade/alerts/UI, example config, guide/license/gitignore and 7 templates. It excludes local installs, private plans, original site exports, client logs, handover files and screenshots. The command does not publish to GitHub. Container images are pinned separately; ARM and every FortiOS version are not certified.
 
-Source guides: [accounting](https://github.com/Rafattitas/fortilens/blob/main/docs/ACCOUNTING_ENGINE.md), [upgrade](https://github.com/Rafattitas/fortilens/blob/main/docs/UPGRADE.md), [troubleshooting](https://github.com/Rafattitas/fortilens/blob/main/docs/TROUBLESHOOTING.md), [optional alerts](https://github.com/Rafattitas/fortilens/blob/main/docs/OPTIONAL_ALERTS.md), [verification](https://github.com/Rafattitas/fortilens/blob/main/docs/VERIFICATION.md).
+Source guides: [accounting](https://github.com/Rafattitas/fortilens/blob/main/docs/architecture/ACCOUNTING_ENGINE.md), [upgrade](https://github.com/Rafattitas/fortilens/blob/main/docs/operations/UPGRADE.md), [troubleshooting](https://github.com/Rafattitas/fortilens/blob/main/docs/operations/TROUBLESHOOTING.md), [optional alerts](https://github.com/Rafattitas/fortilens/blob/main/docs/operations/OPTIONAL_ALERTS.md), [verification](https://github.com/Rafattitas/fortilens/blob/main/docs/development/VERIFICATION.md).
 
 Primary references: [FortiGate Exporter](https://github.com/prometheus-community/fortigate_exporter), [Fortinet syslog CLI](https://docs.fortinet.com/document/fortigate/7.2.7/cli-reference/401620), [Grafana provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), [Alloy syslog](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.syslog/).

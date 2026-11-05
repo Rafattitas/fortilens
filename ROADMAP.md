@@ -20,7 +20,7 @@ Linux/amd64 installation.
 - Read-only diagnostics and optional paused alert candidates.
 
 The published v0.2.0 portable distribution predates web management and the unified
-console. See [release preparation](docs/RELEASING.md) and the
+console. See [release preparation](docs/development/RELEASING.md) and the
 [changelog](CHANGELOG.md) for distribution boundaries.
 
 ## Milestone 1 — Repository professionalization
@@ -93,6 +93,6 @@ Status: planned; existing resource bounds are not a capacity guarantee.
 
 Open a focused [issue](https://github.com/Rafattitas/fortilens/issues/new/choose)
 with the use case and sanitized evidence. Follow [CONTRIBUTING.md](CONTRIBUTING.md)
-and preserve the [accounting contract](docs/ACCOUNTING_ENGINE.md), existing API/CLI
+and preserve the [accounting contract](docs/architecture/ACCOUNTING_ENGINE.md), existing API/CLI
 interfaces and [security boundaries](SECURITY.md). Broad runtime refactoring,
 database migrations and new collectors need their own reviewed changes.

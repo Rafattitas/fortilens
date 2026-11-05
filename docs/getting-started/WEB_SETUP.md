@@ -4,7 +4,7 @@ The current source includes an independent administrative web application. The
 published v0.2.0 ZIP does not include it. Use a reviewed source checkout containing
 `install.sh`; the dependency-free portable CLI continues to work separately.
 
-A full source archive prepared by the [release tooling](RELEASING.md) contains
+A full source archive prepared by the [release tooling](../development/RELEASING.md) contains
 the same installer/runtime inputs. Verify its checksum and extracted contents
 before using it, then run the commands below from its `fortilens/` directory.
 This archive strategy does not modify or replace an existing published release.
@@ -136,7 +136,7 @@ enter its actual destination port. This explicit profile adds the managed
 `fortilens-syslog` adapter and retains internal RFC5424/TCP delivery to Alloy.
 It does not change the sender or silently select UDP 514. Check port ownership
 and the configured FortiGate host's IPv4 source before applying. Read the
-[native UDP guide](SYSLOG_NATIVE_UDP.md) for format bounds, source filtering,
+[native UDP guide](../operations/SYSLOG_NATIVE_UDP.md) for format bounds, source filtering,
 delivery limits and the separate legacy rsyslog alternative.
 
 Review the actual SLA names in the selected VDOM before selecting an Internet
@@ -207,7 +207,7 @@ protocol/format and forward-traffic logging. The receiver defaults to TCP1514 /
 RFC5424; native/default UDP uses the explicit profile above. Both bind the
 configured host syslog address and need appropriate network/host restrictions.
 The managed native IPv4 source filter and a matching device ID do not authenticate
-a syslog sender. Review [accounting limits](ACCOUNTING.md)
+a syslog sender. Review [accounting limits](../architecture/ACCOUNTING.md)
 and synchronize both clocks. No received logs means unknown usage, not zero.
 
 ## Existing installations: explicit adoption
@@ -295,5 +295,5 @@ reinitialize the stack. Certificate renewal updates `/etc/fortilens/tls.crt` and
 `tls.key` with the existing root/fortilens ownership and restarts only the web unit.
 Do not rerun a different source checkout as an automatic upgrader.
 
-See [management architecture and compatibility](MANAGEMENT_ARCHITECTURE.md) and
-[management verification](MANAGEMENT_VERIFICATION.md).
+See [management architecture and compatibility](../architecture/MANAGEMENT_ARCHITECTURE.md) and
+[management verification](../development/MANAGEMENT_VERIFICATION.md).

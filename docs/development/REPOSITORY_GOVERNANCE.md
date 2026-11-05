@@ -84,7 +84,7 @@ Vulnerability details belong in private reporting, not a public issue carrying a
   require customers to publish a network topology, address, serial number,
   credential or raw traffic capture to ask for help.
 - Verify and enable private vulnerability reporting if the repository's policy
-  permits it. Until confirmed, follow [SECURITY.md](../SECURITY.md): request a
+  permits it. Until confirmed, follow [SECURITY.md](../../SECURITY.md): request a
   private contact route without disclosing exploit or customer details publicly.
 
 This guide recommends policy; applying it requires a separate authorized

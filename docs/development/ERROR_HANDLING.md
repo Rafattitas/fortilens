@@ -30,7 +30,7 @@ primary operation's result. Service diagnostics likewise use fixed error codes.
 Inspect private host logs and diagnostics through the operator's normal trusted
 access. Do not paste raw service output or private configuration into a public
 issue. Supply the source revision, safe error code, affected operation and a
-synthetic reproduction following [SECURITY.md](../SECURITY.md).
+synthetic reproduction following [SECURITY.md](../../SECURITY.md).
 
 The private configuration audit append follows state commits. If that append
 fails, the management diagnostic logger records the storage failure; it must not

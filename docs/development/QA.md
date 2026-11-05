@@ -15,7 +15,7 @@ need actual browser review. Passing API tests alone does not prove these flows.
 
 ## Automated coverage
 
-For public interface images, use the [synthetic screenshot procedure](design/screenshots/README.md).
+For public interface images, use the [synthetic screenshot procedure](../design/screenshots/README.md).
 It renders the shipped management and hosted-report frontend without a live
 installation. The current fourteen-image set was captured twice with matching
 PNG hashes, no JavaScript errors, external requests or outer-page horizontal
@@ -118,7 +118,7 @@ not an installation pass. Record any unavailable environment checks explicitly.
 
 ## Isolated integration environments
 
-For compact storage, follow the measured [validation record](COMPACT_ACCOUNTING.md#validation-record-2026-11-05).
+For compact storage, follow the measured [validation record](../architecture/COMPACT_ACCOUNTING.md#validation-record-2026-11-05).
 Test migration destination sidecars and concurrent publication separately from
 accounting equivalence. Partial-day report checks must include a corpus large
 enough to expose decoded-payload accumulation: a successful small full-day
@@ -127,7 +127,7 @@ Offline compaction checks compare all six logical streams, stable report ties,
 read-only reopening, replay and subsequent late/new writes. Assert actual SQLite
 page size in layout experiments; a PRAGMA on an uninitialized empty connection
 alone does not establish the next connection's file layout. See the
-[follow-up storage review](COMPACT_ACCOUNTING.md#further-storage-review-before-publication).
+[follow-up storage review](../architecture/COMPACT_ACCOUNTING.md#further-storage-review-before-publication).
 
 The stack lab also copies its synthetic legacy ledger into compact storage,
 checks every logical table, starts the actual accounting container on that copy,
