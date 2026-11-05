@@ -15,6 +15,22 @@ need actual browser review. Passing API tests alone does not prove these flows.
 
 ## Automated coverage
 
+For public interface images, use the [synthetic screenshot procedure](design/screenshots/README.md).
+It renders the shipped management and hosted-report frontend without a live
+installation. The current fourteen-image set was captured twice with matching
+PNG hashes, no JavaScript errors, external requests or outer-page horizontal
+overflow, and visually reviewed in desktop/light/degraded/mobile states.
+The manifest ties images to source hashes. This is presentation evidence, not
+authentication, ingestion, native Grafana or real-device accounting acceptance.
+
+The 2026-11-05 presentation refresh passed twelve release tests and six
+repository-check tests locally, including extracted-artifact link checks and
+reproducible payload checks. Grammar, Markdown links/anchors, workflow YAML,
+Ruff lint/style and frontend/capture-script syntax checks passed. A local
+candidate full archive contained 169 files and its portable archive retained
+27 files. Runtime source, installer inputs and Docker allowlists were unchanged;
+no server deployment or live-device test was performed for this refresh.
+
 `tests/test_storage_projection.py` verifies independently calculated 24-hour
 growth, bounded persisted sampling, refresh/restart stability and invalidation
 after shrinkage, stale/changed history, clock rollback or ineligible processing.
