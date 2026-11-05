@@ -1,8 +1,18 @@
 # FortiLens documentation
 
-Choose a guide by task. Current guide paths are retained so external links,
-installer references and the portable workflow continue to work; only historical
-records have moved, to `history/`.
+Choose a guide by task. Guides are grouped by purpose:
+
+| Folder | Holds |
+|---|---|
+| `getting-started/` | Choosing and completing an installation. |
+| `operations/` | Running, troubleshooting and upgrading a site. |
+| `architecture/` | How the system and its accounting work. |
+| `development/` | Testing, releasing and maintaining the source. |
+| `design/`, `assets/` | Interface reference, screenshots and README artwork. |
+| `history/` | Records of past work, not current guides. |
+
+The short pages left directly in this folder are pointers. The published v0.2.0
+package links to those addresses, so keep them.
 
 ## Installation and configuration
 

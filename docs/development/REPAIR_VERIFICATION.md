@@ -19,7 +19,7 @@ Run the existing Python suite and the real browser fixture:
 ```bash
 python -m unittest discover -s tests -v
 npm install --prefix /tmp/fortilens-browser --no-save --ignore-scripts playwright@1.62.1
-FORTILENS_PLAYWRIGHT_MODULE=/tmp/fortilens-browser/node_modules/playwright FORTILENS_BROWSER_EXECUTABLE=/usr/bin/google-chrome node tests/browser_deployment.cjs
+FORTILENS_PLAYWRIGHT_MODULE=/tmp/fortilens-browser/node_modules/playwright FORTILENS_BROWSER_EXECUTABLE=/usr/bin/google-chrome node tests/integration/browser_deployment.cjs
 ```
 
 Use a fresh development-only dependency directory. Chrome/Playwright are not

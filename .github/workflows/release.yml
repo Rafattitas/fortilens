@@ -97,15 +97,15 @@ jobs:
         run: |
           cd "$PACKAGED_SOURCE"
           python -m unittest discover -s tests -v
-          python tests/check_frontend.py
-          python tests/integration_stack.py
-          python tests/integration_native_host.py
+          python tests/support/check_frontend.py
+          python tests/integration/integration_stack.py
+          python tests/integration/integration_native_host.py
       - name: Run packaged nonroot web/helper and Docker acceptance
         if: matrix.scenario == 'management'
         shell: bash
         run: |
           cd "$PACKAGED_SOURCE"
-          python tests/integration_management.py
+          python tests/integration/integration_management.py
       - name: Install explicit ephemeral-VM prerequisites
         if: matrix.scenario == 'ubuntu-installer'
         run: |
@@ -121,7 +121,7 @@ jobs:
           sudo ./install.sh > "$RUNNER_TEMP/fortilens-packaged-repeat.log"
           sudo systemctl is-active --quiet fortilens-helper fortilens-web
           test "$(id -nG fortilens | tr ' ' '\n' | grep -c '^docker$')" = 0
-          sudo env GITHUB_ACTIONS=true /opt/fortilens/venv/bin/python tests/integration_management.py --installed
+          sudo env GITHUB_ACTIONS=true /opt/fortilens/venv/bin/python tests/integration/integration_management.py --installed
       - name: Stop only this disposable VM's management services
         if: always() && matrix.scenario == 'ubuntu-installer'
         run: sudo systemctl stop fortilens-web fortilens-helper || true

@@ -15,7 +15,8 @@ import tempfile
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "portable"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "portable"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import accounting
 from test_accounting import CONFIG, INVENTORY, record
 

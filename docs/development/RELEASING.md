@@ -42,7 +42,7 @@ python -m venv .venv
 . .venv/bin/activate
 python -m pip install -r management/requirements-test.txt -r requirements-dev.txt
 python -m unittest discover -s tests -v
-python tests/check_frontend.py
+python tests/support/check_frontend.py
 python tools/check_repository.py
 python tools/release.py build --version v0.3.0-rc.1 --output dist
 python tools/release.py verify --version v0.3.0-rc.1 --directory dist

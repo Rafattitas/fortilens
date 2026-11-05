@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
 from management.common import atomic,load,setup
 from management.configuration import Configuration

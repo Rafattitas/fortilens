@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import sys
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 from management.common import Problem,setup
 from management.models import Settings
 from management.runtime import fortigate

@@ -6,7 +6,7 @@ import sys
 import tempfile
 import time
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'portable'))
 import accounting as a
 import usage_service as u

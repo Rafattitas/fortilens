@@ -12,7 +12,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "portable"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "portable"))
 import setup
 
 
@@ -51,7 +51,7 @@ def main():
         compose = setup.load(root / "compose.yaml")
         native = compose["services"]["fortilens-syslog"]
         image = (
-            (Path(__file__).resolve().parents[1] / "portable/templates/Dockerfile.syslog")
+            (Path(__file__).resolve().parents[2] / "portable/templates/Dockerfile.syslog")
             .read_text()
             .splitlines()[0]
             .split()[1]

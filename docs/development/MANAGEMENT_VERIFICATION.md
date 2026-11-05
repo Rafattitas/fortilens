@@ -31,7 +31,7 @@ management CI. Production and test dependencies are pinned separately.
 ## Real isolated Docker acceptance
 
 ```bash
-python tests/integration_management.py
+python tests/integration/integration_management.py
 ```
 
 Requires a nonroot Docker-enabled **test user** on Linux, Compose v2 and OpenSSL.
@@ -95,7 +95,7 @@ is available. It requires a trusted TLS connection and reads token/CA contents o
 from private local files; it never writes FortiGate or monitoring configuration:
 
 ```bash
-python tests/integration_live_fortigate.py --config /private/install/site.json \
+python tests/integration/integration_live_fortigate.py --config /private/install/site.json \
   --token-file /private/install/secrets/fortigate_api_token
 ```
 

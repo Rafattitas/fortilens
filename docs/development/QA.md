@@ -56,7 +56,7 @@ retained rows across late/replayed/malformed input, failed transactions, pruning
 and legacy restart recovery; diagnostics must avoid the full scan when the
 derived observation is present.
 
-`python tests/integration_native_host.py` runs only on a disposable rootful Linux
+`python tests/integration/integration_native_host.py` runs only on a disposable rootful Linux
 Docker host. It renders the actual host receiver profile, sends synthetic UDP
 from two distinct bridge containers through the host socket, verifies the exact
 allowed sender/body and rejected sender, checks nonroot low-port binding and
@@ -74,7 +74,7 @@ python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r management/requirements-test.txt
 python -m unittest discover -s tests -v
-python tests/check_frontend.py
+python tests/support/check_frontend.py
 python portable/setup.py bundle --destination dist/fortilens-single-device.zip
 ```
 
@@ -138,7 +138,7 @@ read snapshots. The migration tests cover space and verification failures.
 These checks do not replace a full real-data comparison and resource-limited
 performance measurements before an operator activates a migrated installation.
 
-Run `python tests/benchmark_accounting.py --rows 40000 --repeats 2` for an
+Run `python tests/support/benchmark_accounting.py --rows 40000 --repeats 2` for an
 informational synthetic comparison. It creates and removes only its own temporary
 databases, verifies report hashes and SQLite integrity, and reports wall/CPU time,
 report latency, pruning and checkpointed file size. `--legacy-source` accepts a
@@ -149,8 +149,8 @@ Performance varies by workload; the benchmark has no CI timing threshold.
 On a disposable Linux Docker-enabled test account:
 
 ```bash
-python tests/integration_management.py
-python tests/integration_stack.py
+python tests/integration/integration_management.py
+python tests/integration/integration_stack.py
 ```
 
 The management scenario runs an actual nonroot web container, authenticated local

@@ -7,7 +7,7 @@ Verification separates source tests, synthetic integration and real deployment e
 ```bash
 python3 -m unittest discover -s tests -v
 python3 portable/setup.py bundle --destination dist/fortilens-single-device.zip
-python3 tests/integration_stack.py
+python3 tests/integration/integration_stack.py
 ```
 
 The earlier portable verification record covered 118 cases. The suite has since

@@ -10,6 +10,24 @@ existing capabilities from planned work. Use the issue forms for bugs,
 documentation and sanitized FortiOS compatibility reports; sensitive findings
 follow [SECURITY.md](SECURITY.md).
 
+## Repository layout
+
+| Path | Holds |
+|---|---|
+| `management/` | Web management: FastAPI app, helper, installer and browser console. |
+| `portable/` | The core product: setup CLI, accounting engine, reports, gateway and service templates. |
+| `docs/` | All guides, grouped by purpose. See the [documentation index](docs/README.md). |
+| `tests/` | Unit tests, named `test_*.py`. |
+| `tests/integration/` | Docker, systemd, browser and live-device scenarios. |
+| `tests/support/` | Syntax checks, a synthetic report preview and a benchmark. |
+| `tools/` | Release packaging, repository checks and screenshot capture. |
+| `examples/` | Optional sample configuration. |
+
+`management/` and `portable/` keep their names and flat layout on purpose. Installed
+sites, `install.sh`, the installer's source allowlist, Docker build contexts and the
+published portable commands all depend on them. See
+[maintainability](docs/development/MAINTAINABILITY.md) before moving anything there.
+
 ## Working with AI agents
 
 Start with [AGENTS.md](AGENTS.md) and the maintained [project context](docs/development/PROJECT_CONTEXT.md).
@@ -50,7 +68,7 @@ python -m ruff check .
 python -m ruff check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py --extend-select I
 python -m ruff format --check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py
 python tools/check_repository.py
-python tests/check_frontend.py
+python tests/support/check_frontend.py
 python -m coverage run -m unittest discover -s tests -v
 python -m coverage report -m
 python -m coverage xml
@@ -73,8 +91,8 @@ Run the existing integration scenarios only as a nonroot test user on a
 verified disposable Linux host with Docker Compose v2 and OpenSSL:
 
 ```bash
-python tests/integration_stack.py
-python tests/integration_management.py
+python tests/integration/integration_stack.py
+python tests/integration/integration_management.py
 ```
 
 CI also tests the real Ubuntu/systemd installer twice on an ephemeral VM. Never
