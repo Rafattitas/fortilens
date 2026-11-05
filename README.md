@@ -155,36 +155,32 @@ Credentials must not cross an untrusted plain-HTTP network.
 ## How it fits together
 
 ```mermaid
-flowchart LR
-  Admin[Administrator browser] --> WEB
-
-  subgraph Management["Web management (systemd, optional)"]
-    WEB[fortilens-web, nonroot] -->|Authenticated Unix socket| HP[fortilens-helper]
-  end
-
+flowchart TD
   FG[FortiGate]
 
   subgraph Stack["Monitoring stack (Docker Compose)"]
     EX[FortiGate Exporter] --> PR[Prometheus]
-    NE[Node Exporter] --> PR
-    PR --> GR[Grafana]
     AL[Alloy] --> LO[Loki]
+    PR --> GR[Grafana]
     LO --> GR
-    LO -->|Bounded incremental reads| US[Python + SQLite accounting, optional]
-    PR --> US
-    US -->|Authenticated scrape| PR
-    GW[Report and monitoring gateway, optional] --> GR
-    GW --> US
+    LO --> US[Accounting: Python + SQLite]
+    GR --> GW[Report and monitoring gateway]
+    US --> GW
+  end
+
+  subgraph Management["Web management (systemd)"]
+    HP[fortilens-helper] --> WEB[fortilens-web]
   end
 
   FG -->|HTTPS API| EX
   FG -->|Syslog| AL
-  FG -->|Optional native UDP, via managed receiver| AL
-  FG -. Read-only metadata .-> US
-  HP -->|Fixed Compose operations| Stack
-  HP -->|Protected queries| GW
-  HP -. Read-only checks .-> FG
+  GW -->|Protected read-only access| HP
+  WEB --> Admin[Administrator browser]
 ```
+
+Arrows show how data reaches you. Accounting and the gateway are optional, and Node
+Exporter adds host metrics to Prometheus. Native UDP logs reach Alloy through a managed
+receiver, and accounting also reads FortiGate metadata and Prometheus samples.
 
 The web process has no Docker access. Only the helper operates the one registered
 Compose project, using fixed commands. The portable CLI generates the same stack
