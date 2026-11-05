@@ -45,6 +45,7 @@ PUBLIC_FILES = (
     ".github/ISSUE_TEMPLATE/documentation.yml",
     ".github/ISSUE_TEMPLATE/feature_request.yml",
     ".github/ISSUE_TEMPLATE/fortios_compatibility.yml",
+    ".github/workflows/audit.yml",
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
     "AGENTS.md",

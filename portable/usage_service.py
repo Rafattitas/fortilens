@@ -11,6 +11,7 @@ import json
 import logging
 import math
 from pathlib import Path
+import signal
 import sqlite3
 import ssl
 import threading
@@ -290,7 +291,7 @@ class Engine:
                 if version is not None:
                     encoded=json.dumps(result,ensure_ascii=False)
                     # At most four immutable results, each at most 2 MiB.
-                    if len(encoded.encode('utf-8'))<=2*1024*1024:
+                    if len(encoded.encode('utf-8','surrogatepass'))<=2*1024*1024:
                         self._report_cache[key]=encoded
                         while len(self._report_cache)>4:self._report_cache.popitem(last=False)
             result['processing']=self._snapshot_diagnostics(store,version)
@@ -373,6 +374,16 @@ class Engine:
         while not self.stop.is_set():
             now=time.time();caught_up=True
             try:
+                if now-last_prune>=3600:
+                    # Retention must keep running when ingestion stops at the
+                    # storage ceiling, so a failed poll cannot skip it.
+                    try:
+                        with self.lock:
+                            cursor=self.store.state('checkpoint_ns')
+                            if cursor:self.store.prune(cursor,self.config.get('accounting_ledger_days',8),self.config.get('accounting_summary_days',400))
+                        last_prune=now
+                    except Exception as exc:
+                        log_failure('accounting_prune_failed',safe_error(exc))
                 metadata_interval=3600 if self.store.inventory.get('interfaces') and not self.store.state('inventory_error') else 60
                 if now-last_metadata>=metadata_interval:
                     self.refresh_inventory();last_metadata=now
@@ -381,11 +392,6 @@ class Engine:
                     try:self.wan_cache=self.wan()
                     except Exception as exc:self.wan_cache={'status':'UNAVAILABLE','interfaces':[],'reason':safe_error(exc)}
                     last_wan=now
-                if now-last_prune>=3600:
-                    with self.lock:
-                        cursor=self.store.state('checkpoint_ns')
-                        if cursor:self.store.prune(cursor,self.config.get('accounting_ledger_days',8),self.config.get('accounting_summary_days',400))
-                    last_prune=now
             except Exception as exc:
                 self.last_poll_ok=False;self.last_error=safe_error(exc);self.last_attempt=now
                 log_failure('accounting_poll_failed',self.last_error)
@@ -450,7 +456,7 @@ def handler(engine,password,root):
             super().setup();self.connection.settimeout(30)
         def log_message(self,*args):pass
         def send(self,status,payload,kind='application/json; charset=utf-8'):
-            data=payload.encode() if isinstance(payload,str) else json.dumps(payload,ensure_ascii=False).encode()
+            data=(payload if isinstance(payload,str) else json.dumps(payload,ensure_ascii=False)).encode('utf-8','backslashreplace')
             self.response_started=True
             self.send_response(status)
             self.send_header('Content-Type',kind);self.send_header('Content-Length',str(len(data)))
@@ -549,6 +555,7 @@ def main(argv=None):
         # running after startup has already failed.
         server=ThreadingHTTPServer((args.listen,args.port),handler(engine,password,Path(__file__).parent))
         thread=threading.Thread(target=engine.run,daemon=True);thread.start()
+        if threading.current_thread() is threading.main_thread():signal.signal(signal.SIGTERM,stop_on_terminate)
         server.serve_forever()
     except KeyboardInterrupt:
         pass
@@ -572,6 +579,11 @@ def main(argv=None):
             except sqlite3.Error:
                 log_failure('accounting_store_close_failed',warning=False);shutdown_failed=True
     return 1 if shutdown_failed else 0
+
+
+def stop_on_terminate(*_):
+    # Container stop sends SIGTERM to PID 1. Close the database cleanly.
+    raise KeyboardInterrupt
 
 
 if __name__=='__main__':raise SystemExit(main())

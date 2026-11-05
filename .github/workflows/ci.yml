@@ -2,11 +2,16 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
@@ -46,6 +51,7 @@ jobs:
   test:
     name: Python ${{ matrix.python }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -118,11 +124,18 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/fortilens-browser" --no-save --ignore-scripts playwright@1.62.1
           FORTILENS_PLAYWRIGHT_MODULE="$RUNNER_TEMP/fortilens-browser/node_modules/playwright" FORTILENS_BROWSER_EXECUTABLE="$(command -v google-chrome)" node tests/integration/browser_deployment.cjs
       - name: Run all tests with branch coverage
-        run: python -m coverage run -m unittest discover -s tests -v
+        shell: bash
+        run: |
+          python -m coverage run -m unittest discover -s tests -v 2>&1 | tee "$RUNNER_TEMP/unit.log"
+          # Dependencies are installed here, so a skip means a test module failed to import.
+          if grep -E '^(OK|FAILED) \(.*skipped=' "$RUNNER_TEMP/unit.log"; then
+            echo "::error::Tests were skipped in the job that installs every dependency."
+            exit 1
+          fi
       - name: Report measured coverage
         run: |
+          python -m coverage xml --fail-under=0
           python -m coverage report -m
-          python -m coverage xml
       - name: Upload coverage report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -131,6 +144,24 @@ jobs:
           if-no-files-found: error
       - name: Run actual nonroot web / helper / Docker integration
         run: python tests/integration/integration_management.py
+
+  management-minimum:
+    name: Web management / Python 3.11
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Install management test dependencies
+        run: python -m pip install -r management/requirements-test.txt
+      - name: Run tests on the oldest supported management Python
+        run: python -m unittest discover -s tests -v
 
   ubuntu-installer:
     name: Real Ubuntu systemd installer

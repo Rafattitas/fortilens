@@ -33,6 +33,11 @@ def free_port():
         sock.bind(('127.0.0.1',0));return sock.getsockname()[1]
 
 
+def replay_processed(usage,password,sent):
+    # Unchanged totals prove nothing until accounting has polled past the replay.
+    wait_for(lambda:(request(usage,'/api/diagnostics',password).get('checkpoint_ns') or 0)>sent+5*10**9)
+
+
 def wait_for(action,seconds=150):
     deadline=time.monotonic()+seconds
     while True:
@@ -133,8 +138,8 @@ def native_udp_pipeline(temporary,certificate):
         counters=receiver_request('/metrics')
         assert 'fortilens_native_syslog_handed_to_tcp_total' in counters
         assert 'fortilens_native_syslog_tcp_send_errors_total' in counters
-        send(first)
-        time.sleep(12)
+        sent=time.time_ns();send(first)
+        replay_processed(usage,password,sent)
         assert request(usage,'/api/report?period=today',password)['totals']==report['totals']
         docker('restart','fortilens-usage')
         wait_for(lambda:request(usage,'/api/diagnostics',password).get('last_poll_ok'))
@@ -181,8 +186,8 @@ for suffix in ('','-wal','-shm'):
     docker('start','fortilens-usage')
     wait_for(lambda:request(usage,'/api/diagnostics',password).get('last_poll_ok'))
     assert request(usage,report_path,password)['totals']==expected['totals']
-    replay()
-    time.sleep(12)
+    sent=time.time_ns();replay()
+    replay_processed(usage,password,sent)
     assert request(usage,report_path,password)['totals']==expected['totals']
     docker('restart','fortilens-usage')
     wait_for(lambda:request(usage,'/api/diagnostics',password).get('last_poll_ok'))
@@ -308,8 +313,8 @@ def main():
         device=report['devices'][0]['device_id']
         history=request(usage,'/api/device?period=today&device='+device,password)
         assert history['daily_history'] and history['monthly_history']
-        send(first) # A transport replay with unchanged FortiGate eventtime.
-        time.sleep(12)
+        sent=time.time_ns();send(first) # A transport replay with unchanged FortiGate eventtime.
+        replay_processed(usage,password,sent)
         assert request(usage,'/api/report?period=today',password)['totals']==report['totals']
         docker('restart','fortilens-usage')
         wait_for(lambda:request(usage,'/api/diagnostics',password).get('last_poll_ok'))

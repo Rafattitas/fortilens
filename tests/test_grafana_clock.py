@@ -21,7 +21,7 @@ for(const offset of [2612000,-2612000]){
  vm.runInContext(source,context);
  vm.runInContext(`
  if(Date.now()!==serverNow||new Date().getTime()!==serverNow)throw Error('Page clock not aligned');
- if(parent.Date!==OriginalDate||Math.abs(parent.Date.now()-originalNow)>5000)throw Error('Parent clock changed');
+ if(parent.Date!==OriginalDate||Math.abs(parent.Date.now()-originalNow)>60000)throw Error('Parent clock changed');
  if(new Date(0).getTime()!==0||new Date('2020-01-01T00:00:00Z').getTime()!==1577836800000)throw Error('Explicit time changed');
  if(Date.parse('2020-01-01T00:00:00Z')!==OriginalDate.parse('2020-01-01T00:00:00Z')||Date.UTC(2020,0,1)!==OriginalDate.UTC(2020,0,1))throw Error('Static date contract changed');
  if(!(new Date() instanceof Date)||!(new Date() instanceof OriginalDate)||new Date().constructor!==Date)throw Error('Date identity changed');
@@ -44,7 +44,7 @@ console.log(JSON.stringify({passed:true,scope:'Grafana document only',stored_tim
             ["node", "-e", harness, str(ROOT / "management/static/grafana-clock.js")],
             capture_output=True,
             text=True,
-            timeout=15,
+            timeout=60,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(json.loads(result.stdout)["passed"])

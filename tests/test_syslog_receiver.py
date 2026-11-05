@@ -359,6 +359,34 @@ class HealthAndStartupTests(unittest.TestCase):
             self.assertNotIn("synthetic-private", output.getvalue())
             self.assertNotIn(directory, output.getvalue())
 
+    def test_metrics_omit_forwarding_time_until_a_message_is_forwarded(self):
+        snapshot = {
+            "received_datagrams": 0,
+            "handed_to_tcp": 0,
+            "queue_drops": 0,
+            "send_errors": 0,
+            "last_forwarding_seconds": None,
+            "ready": False,
+            "udp_bound": True,
+            "upstream_connected": False,
+            "queue_depth": 0,
+            "rejected_reasons": {},
+        }
+
+        class Snapshot:
+            def __init__(self, values):
+                self.values = values
+
+            def snapshot(self):
+                return self.values
+
+        self.assertNotIn("last_forwarding_seconds", receiver.metrics(Snapshot(snapshot)))
+        snapshot["last_forwarding_seconds"] = 1700000000.5
+        self.assertIn(
+            "fortilens_native_syslog_last_forwarding_seconds 1700000000.5",
+            receiver.metrics(Snapshot(snapshot)),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -70,6 +70,7 @@ LEGACY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS events(uid TEXT PRIMARY KEY,session TEXT NOT NULL,stamp INTEGER NOT NULL,payload TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS events_session ON events(session,stamp);
 CREATE TABLE IF NOT EXISTS deliveries(uid TEXT PRIMARY KEY,event_uid TEXT NOT NULL,stamp INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS deliveries_stamp ON deliveries(stamp);
 CREATE TABLE IF NOT EXISTS facts(uid TEXT PRIMARY KEY,session TEXT NOT NULL,stamp INTEGER NOT NULL,payload TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS facts_session ON facts(session);
 CREATE INDEX IF NOT EXISTS facts_stamp ON facts(stamp);

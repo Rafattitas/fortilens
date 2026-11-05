@@ -191,9 +191,13 @@ def migrate(
             raise MigrationError("Destination database integrity verification failed")
         if dst.execute("PRAGMA foreign_key_check").fetchone() is not None:
             raise MigrationError("Destination evidence references are inconsistent")
-        dst.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        if dst.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0]:
+            raise MigrationError("The verified copy could not be checkpointed")
         dst.close()
         dst = None
+        wal = Path(str(temporary) + "-wal")
+        if wal.exists() and wal.stat().st_size:
+            raise MigrationError("The verified copy still has pending changes")
         src.rollback()
         src.close()
         src = None
@@ -208,6 +212,12 @@ def migrate(
         os.link(temporary, destination)
         published = True
         temporary.unlink()
+        if os.name == "posix":
+            directory = os.open(destination.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
         result = {
             "source_format": "legacy",
             "destination_format": "compact",

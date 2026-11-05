@@ -187,7 +187,8 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
         response.headers['X-Content-Type-Options']='nosniff'
         response.headers['Referrer-Policy']='same-origin'
         embedded=request.url.path.startswith(('/console/','/grafana/'))
-        response.headers['Content-Security-Policy']=("frame-ancestors 'self'" if embedded else "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+        hosted_page=request.url.path.startswith('/console/') and not request.url.path.startswith('/console/grafana/')
+        response.headers['Content-Security-Policy']=("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'" if hosted_page else "frame-ancestors 'self'" if embedded else "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
         response.headers['X-Frame-Options']='SAMEORIGIN' if embedded else 'DENY'
         return response
 
@@ -197,7 +198,7 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
         # document independent of the helper/monitoring stack and never include
         # session credentials or settings in its HTML.
         text=(STATIC/'index.html').read_text(encoding='utf-8')
-        page=request.query_params.get('view','monitoring')
+        page=request.query_params.get('view','')
         if page in EMBEDDED_VIEWS:
             try:auth.session(request.cookies.get(COOKIE,''))
             except Problem:pass

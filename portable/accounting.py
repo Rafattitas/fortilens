@@ -309,7 +309,7 @@ class Store:
         try:
             self.db.row_factory = sqlite3.Row
             selected_format = detect_storage_format(self.db, storage_format)
-            self.db.executescript('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA cache_size=-2048; PRAGMA foreign_keys=ON;')
+            self.db.executescript('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA journal_size_limit=134217728; PRAGMA cache_size=-2048; PRAGMA foreign_keys=ON;')
             self.ledger = open_ledger(self.db, storage_format=selected_format)
             self.storage_format = self.ledger.format
             contract = {k: config.get(k) for k in ("accounting_timezone", "source_id", "vdom", "expected_devid")}
@@ -484,7 +484,7 @@ class Store:
                 # bytes to a retained daily summary a second time.
                 keep = event["fields"].get("logid") == "0000000020"
                 self.ledger.delete_events_before(session, floor, last[0] if keep else "")
-                if keep:
+                if keep and not event.get("anchor"):
                     fact = self.ledger.event_fact(last[0])
                     event.update(anchor=True, generation_seed=fact["generation_seed"] if fact else event.get("generation_seed", event["uid"]))
                     self.ledger.update_event(event)
