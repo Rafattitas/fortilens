@@ -39,10 +39,10 @@ def path_value(value):
 def put(path,data,mode=0o600,uid=0,gid=0):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     if path.is_symlink():raise SystemExit('Refusing to replace an installation symlink')
+    encoded=data if isinstance(data,bytes) else data.encode('utf-8')
     temp=path.with_name('.'+path.name+'.new-'+secrets.token_hex(6))
     fd=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL,mode)
     try:
-        encoded=data if isinstance(data,bytes) else data.encode('utf-8')
         with os.fdopen(fd,'wb') as stream:stream.write(encoded);stream.flush();os.fsync(stream.fileno())
         os.chown(temp,uid,gid);os.chmod(temp,mode);os.replace(temp,path)
     finally:

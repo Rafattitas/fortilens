@@ -34,6 +34,34 @@ SECRET = "PRIVATE_ERROR_FIXTURE_DO_NOT_ECHO"
 
 
 class CliErrorTests(unittest.TestCase):
+    def test_installer_invalid_text_preserves_target_and_closes_any_new_descriptor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "asset"
+            target.write_bytes(b"preserved")
+            opened = []
+            original_open = installer.os.open
+
+            def track_open(*args, **kwargs):
+                descriptor = original_open(*args, **kwargs)
+                opened.append(descriptor)
+                return descriptor
+
+            try:
+                with patch.object(installer.os, "open", side_effect=track_open):
+                    with self.assertRaises(UnicodeEncodeError):
+                        installer.put(target, "\ud800")
+                self.assertEqual(target.read_bytes(), b"preserved")
+                for descriptor in opened:
+                    with self.assertRaises(OSError):
+                        installer.os.fstat(descriptor)
+                self.assertEqual(list(Path(directory).glob(".asset.new-*")), [])
+            finally:
+                for descriptor in opened:
+                    try:
+                        installer.os.close(descriptor)
+                    except OSError:
+                        pass
+
     def test_installer_atomic_write_preserves_binary_assets_and_utf8_text(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "asset"
