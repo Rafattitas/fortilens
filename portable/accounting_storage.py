@@ -85,6 +85,8 @@ CREATE INDEX compact_events_stamp ON compact_events(stamp);
 CREATE TABLE compact_facts(
  id INTEGER PRIMARY KEY,event_id INTEGER NOT NULL UNIQUE REFERENCES compact_events(id) ON DELETE CASCADE,
  classification TEXT NOT NULL,details TEXT NOT NULL);
+-- Keep the original event_id uniqueness; this extra index covers count lookups.
+CREATE UNIQUE INDEX compact_facts_event_class ON compact_facts(event_id,classification);
 CREATE TABLE compact_deliveries(
  uid BLOB PRIMARY KEY CHECK(length(uid)=32),event_hash BLOB CHECK(event_hash IS NULL OR length(event_hash)=32),
  invalid INTEGER NOT NULL CHECK(invalid IN (0,1)),stamp INTEGER NOT NULL,
@@ -340,11 +342,13 @@ class LegacyLedger:
     def delete_deliveries_before(self, floor):
         self.db.execute("DELETE FROM deliveries WHERE stamp<?", (floor,))
 
-    def range_facts(self, start, end):
+    def range_facts(self, start, end, *, classification=None):
         for row in self.db.execute(
             "SELECT payload FROM facts WHERE stamp>=? AND stamp<?", (start, end)
         ):
-            yield json.loads(row[0])
+            fact = json.loads(row[0])
+            if classification is None or fact["classification"] == classification:
+                yield fact
 
     def count_classification(self, start, end, classification):
         return self.db.execute(
@@ -611,9 +615,17 @@ class CompactLedger:
     def delete_deliveries_before(self, floor):
         self.db.execute("DELETE FROM compact_deliveries WHERE stamp<?", (floor,))
 
-    def range_facts(self, start, end):
+    def range_facts(self, start, end, *, classification=None):
+        predicate = "" if classification is None else " AND f.classification=?"
+        params = (
+            (start, end) if classification is None else (start, end, _class_text(classification))
+        )
         for row in self.db.execute(
-            self.FACT_SELECT + " WHERE e.stamp>=? AND e.stamp<? ORDER BY e.stamp,f.id", (start, end)
+            self.FACT_SELECT
+            + " WHERE e.stamp>=? AND e.stamp<?"
+            + predicate
+            + " ORDER BY e.stamp,f.id",
+            params,
         ):
             yield self._decode_fact(row)
 

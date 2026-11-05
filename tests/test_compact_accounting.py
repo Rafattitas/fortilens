@@ -12,6 +12,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import weakref
 from contextlib import closing
 from copy import deepcopy
 from pathlib import Path
@@ -138,6 +139,151 @@ class CompactDifferentialTests(unittest.TestCase):
         self.compact.close()
         self.compact = accounting.Store(self.compact_path, CONFIG, deepcopy(INVENTORY))
         self.assertEqual(self.compact.ledger.format, "compact")
+        self.compare()
+
+    def test_partial_day_report_does_not_retain_every_fact_payload(self):
+        self.ingest([record(), record("2026-10-20T12:01:00Z", duration="120")], CHECKPOINT)
+        start = accounting.timestamp_ns("2026-10-20T12:00:00Z")
+        end = accounting.timestamp_ns("2026-10-20T12:01:00Z")
+        count = 2000
+
+        class TrackedFlags(list):
+            """Weak references expose retained payloads without an RSS threshold."""
+
+        for store in (self.legacy, self.compact):
+            with self.subTest(storage=store.storage_format):
+                original = list(store.ledger.range_facts(start, end))[0]
+                active = weakref.WeakValueDictionary()
+                maximum_active = 0
+
+                def many_facts(actual_start, actual_end, *, classification=None):
+                    nonlocal maximum_active
+                    self.assertEqual((actual_start, actual_end), (start, end))
+                    self.assertEqual(classification, "INTERNET")
+                    for index in range(count):
+                        flags = TrackedFlags(["fixture-even" if index % 2 == 0 else "fixture-odd"])
+                        active[index] = flags
+                        maximum_active = max(maximum_active, len(active))
+                        yield {
+                            **original,
+                            "flags": flags,
+                            "future-property": "fixture-" + str(index) + "x" * 4096,
+                        }
+
+                with patch.object(store.ledger, "range_facts", side_effect=many_facts):
+                    result = store.report(start, end)
+                self.assertLessEqual(maximum_active, 5)
+                self.assertEqual(result["totals"]["upload_bytes"], count * 100)
+                self.assertEqual(result["totals"]["download_bytes"], count * 200)
+                self.assertEqual(result["rows"][0]["records"], count)
+                self.assertEqual(result["observed_endpoint_identities"], 1)
+                self.assertEqual(
+                    result["flags"], {"fixture-even": count // 2, "fixture-odd": count // 2}
+                )
+                self.assertEqual(result["source_record_classifications"], {"INTERNET": 1})
+
+    def test_range_rows_keeps_list_interface_and_partial_day_tie_order(self):
+        self.ingest(
+            [
+                record(srcname="partial-first"),
+                record("2026-10-20T12:01:00Z", srcname="end-exclusive", duration="120"),
+                record(
+                    sessionid="included",
+                    mastersrcmac="02:00:00:00:00:02",
+                    srcname="included",
+                ),
+            ],
+            CHECKPOINT,
+        )
+        start = accounting.timestamp_ns("2026-10-20T12:00:00Z")
+        end = accounting.timestamp_ns("2026-10-20T12:01:00Z")
+        selected = []
+        reports = []
+        for store in (self.legacy, self.compact):
+            rows = store.range_rows(start, end)
+            self.assertIsInstance(rows, list)
+            self.assertEqual([row["hostname"] for row in rows], ["included", "partial-first"])
+            result = store.report(start, end)
+            self.assertEqual(
+                [row["hostname"] for row in result["rows"]], ["included", "partial-first"]
+            )
+            self.assertEqual(result["totals"]["upload_bytes"], 200)
+            self.assertEqual(result["source_record_classifications"], {"INTERNET": 2})
+            selected.append(rows)
+            reports.append(result)
+        self.assertEqual(selected[1], selected[0])
+        self.assertEqual(reports[1], reports[0])
+
+    def test_classification_filtered_fact_range_matches_exact_python_selection(self):
+        start = accounting.timestamp_ns("2026-10-20T12:00:00Z")
+        end = start + 4
+        cases = [
+            (-1, "INTERNET"),
+            (0, "INTERNET"),
+            (0, "INTERNAL"),
+            (0, "FUTURE_CUSTOM"),
+            (1, "UNSUPPORTED_RECORD"),
+            (1, "FUTURE_CUSTOM\x00"),
+            (1, "FUTURE_CUSTOM\x00tail"),
+            (2, "FUTURE_CUSTOM\ud800"),
+            (2, "FUTURE_CUSTOM\u00e9"),
+            (3, ""),
+            (4, "INTERNET"),
+        ]
+        selected = []
+        for store in (self.legacy, self.compact):
+            with store.db, store.ledger.write_unit():
+                for index, (offset, classification) in enumerate(cases):
+                    item = record(sessionid="classification-" + str(index))
+                    item.pop("timestamp")
+                    item["timestamp_ns"] = start + offset
+                    item["fields"]["eventtime"] = str(start + offset)
+                    event = accounting.normalize(item, CONFIG["source_id"])
+                    store.ledger.insert_event(event)
+                    fact = accounting.derive_session([event], INVENTORY, CONFIG)[0]
+                    fact["classification"] = classification
+                    store.ledger.insert_fact(fact, event["session"])
+            default = list(store.ledger.range_facts(start, end))
+            self.assertEqual(
+                [fact["classification"] for fact in default],
+                [classification for _, classification in cases[1:-1]],
+            )
+            self.assertEqual(
+                list(store.ledger.range_facts(start, end, classification=None)), default
+            )
+            for classification in [value for _, value in cases] + ["MISSING_CUSTOM"]:
+                with self.subTest(
+                    storage=store.storage_format, classification=repr(classification)
+                ):
+                    self.assertEqual(
+                        list(store.ledger.range_facts(start, end, classification=classification)),
+                        [fact for fact in default if fact["classification"] == classification],
+                    )
+            selected.append(default)
+        self.assertEqual(selected[1], selected[0])
+
+    def test_classification_count_uses_covering_lookup_without_reading_fact_payloads(self):
+        self.ingest([record()], CHECKPOINT)
+        start, end = accounting.timestamp_ns(START), accounting.timestamp_ns(END)
+        plan = self.compact.db.execute(
+            "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM compact_events e "
+            "JOIN compact_facts f ON f.event_id=e.id "
+            "WHERE e.stamp>=? AND e.stamp<? AND f.classification=?",
+            (start, end, json.dumps("INTERNET")),
+        ).fetchall()
+        self.assertTrue(
+            any("COVERING INDEX compact_facts_event_class" in row[3] for row in plan), plan
+        )
+        self.assertEqual(self.compact.ledger.count_classification(start, end, "INTERNET"), 1)
+
+    def test_covering_index_cannot_allow_two_classifications_for_one_event(self):
+        self.ingest([record()], CHECKPOINT)
+        row = self.compact.db.execute("SELECT * FROM compact_facts LIMIT 1").fetchone()
+        with self.compact.db, self.assertRaises(sqlite3.IntegrityError):
+            self.compact.db.execute(
+                "INSERT INTO compact_facts VALUES(?,?,?,?)",
+                (None, row[1], json.dumps("SYNTHETIC_OTHER_CLASS"), row[3]),
+            )
         self.compare()
 
     def test_incompatible_column_order_or_extension_fails_before_writer_initialization(self):

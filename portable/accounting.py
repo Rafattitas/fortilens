@@ -500,12 +500,19 @@ class Store:
             self.set_state("summary_floor_day", cutoff)
 
     def range_rows(self, start, end):
+        """Return the historical list interface for direct callers."""
+        return list(self._iter_range_rows(start, end))
+
+    def _iter_range_rows(self, start, end):
+        # A partial day can contain millions of facts. Reports consume each row
+        # immediately rather than keeping a second complete ledger in memory.
         zone = tz(self.config["accounting_timezone"])
         start_local = datetime.fromtimestamp(start//NS, zone)
         end_local = datetime.fromtimestamp(end//NS, zone)
         first_full = start_local.date() + (timedelta(days=1) if (start_local.hour or start_local.minute or start_local.second or start % NS) else timedelta())
         last_full_end = end_local.date()
-        rows = [json.loads(r[0]) for r in self.db.execute("SELECT payload FROM daily WHERE day>=? AND day<?", (first_full.isoformat(), last_full_end.isoformat()))]
+        for row in self.db.execute("SELECT payload FROM daily WHERE day>=? AND day<?", (first_full.isoformat(), last_full_end.isoformat())):
+            yield json.loads(row[0])
         middle_start = timestamp_ns(datetime.combine(first_full, datetime.min.time(), zone).isoformat())
         middle_end = timestamp_ns(datetime.combine(last_full_end, datetime.min.time(), zone).isoformat())
         edges = [(start, min(end, middle_start)), (max(start, middle_end, middle_start), end)]
@@ -520,22 +527,21 @@ class Store:
                 for value in candidates:
                     first, last = value.get("first_event_ns", -1), value["event_ns"]
                     if a <= first and last < b:
-                        rows.append(value)
+                        yield value
                         included.add((value["device_id"], value["vlan"]["key"]))
                     elif last >= a and first < b:
                         partial = True
                 if partial:
-                    for value in self.ledger.range_facts(a, b):
+                    for value in self.ledger.range_facts(a, b, classification="INTERNET"):
                         if value["classification"] == "INTERNET" and (value["device_id"], value["vlan"]["key"]) not in included:
-                            rows.append({**value, "records": 1, "flag_counts": {k: 1 for k in value["flags"]}})
-        return rows
+                            yield {**value, "records": 1, "flag_counts": {k: 1 for k in value["flags"]}}
 
     def report(self, start, end, *, vlan=None, device=None, search=""):
         start, end = timestamp_ns(start), timestamp_ns(end)
         if start >= end:
             raise ValueError("Report start must precede its end")
         grouped, flags = {}, defaultdict(int)
-        for row in self.range_rows(start, end):
+        for row in self._iter_range_rows(start, end):
             if vlan and row["vlan"]["key"] != vlan or device and row["device_id"] != device:
                 continue
             if search and search.casefold() not in " ".join(str(row.get(k, "")) for k in ("ip", "mac", "hostname", "device_id")).casefold():
