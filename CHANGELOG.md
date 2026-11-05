@@ -4,6 +4,12 @@
 
 ### Source collection and diagnostics
 
+- Add an opt-in compact SQLite ledger and a separately published, fully verified
+  offline copy tool. Preserve exact event/fact/delivery evidence, frozen metadata,
+  summaries, checkpoints and accounting calculations. Existing databases and
+  fresh-install defaults remain legacy; no automatic conversion or activation.
+  Include differential, failure, concurrency and isolated container rollback checks.
+
 - Replace short-window retention extrapolation with explicit next-24-hour
   additional file-size growth trends from bounded, persisted observations.
   Withhold accounting forecasts during catch-up, retain observation timestamps

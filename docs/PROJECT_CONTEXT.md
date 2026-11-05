@@ -45,6 +45,7 @@ flowchart LR
 | `portable/interfaces.py`, `doctor.py` | Scoped metadata normalization and reusable read-only diagnostic engine. |
 | `portable/syslog_receiver.py`, `templates/Dockerfile.syslog` | Explicit native/default UDP profile: bounded normalization to internal RFC5424/TCP, source-filter and transport counters; no storage/completeness certification. |
 | `portable/accounting.py`, `usage_service.py` | Accounting ledger/summaries, source/session identity, bounded ingestion and protected report backend. |
+| `portable/accounting_storage.py`, `accounting_migrate.py` | Legacy/optional compact ledger representation and explicit verified offline copy; no automatic conversion or activation. See [compact storage](COMPACT_ACCOUNTING.md). |
 | `portable/portal.py`, `reporting.html` | Existing protected native Grafana/report console and allowed read-only query routes. |
 | `portable/wan_health.py` | Observed WAN states/history/coverage and destination-specific route evidence. |
 | `portable/upgrade.py` | Existing reviewed CLI upgrade/rollback; do not run concurrently with management deployment. |

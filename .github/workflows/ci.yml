@@ -30,6 +30,10 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
       - name: Check Python correctness
         run: python -m ruff check .
+      - name: Check compact ledger and migration style
+        run: |
+          python -m ruff check portable/accounting_storage.py portable/accounting_migrate.py tests/test_compact_accounting.py tests/test_accounting_migrate.py tests/benchmark_accounting.py --extend-select I
+          python -m ruff format --check portable/accounting_storage.py portable/accounting_migrate.py tests/test_compact_accounting.py tests/test_accounting_migrate.py tests/benchmark_accounting.py
       - name: Check tooling and failure-regression test style
         run: |
           python -m ruff check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py --extend-select I

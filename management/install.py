@@ -71,7 +71,7 @@ def source_files(source):
         'install.py','models.py','recovery.py','runtime.py','storage.py','requirements.txt',
         'requirements-test.txt','Dockerfile','static/app.css','static/app.js','static/grafana-clock.js','static/index.html')]
     names+=['portable/'+name for name in (
-        'setup.py','doctor.py','interfaces.py','accounting.py','usage_service.py','portal.py',
+        'setup.py','doctor.py','interfaces.py','accounting.py','accounting_storage.py','accounting_migrate.py','usage_service.py','portal.py',
         'wan_health.py','upgrade.py','usage_quality.py','dashboard_style.py','alerts.py',
         'syslog_receiver.py','reporting.html','site.example.json','README.md','LICENSE',
         'templates/compose.json','templates/prometheus.json','templates/loki.json',

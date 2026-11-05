@@ -18,8 +18,10 @@ File-backed installations use a separate read-only SQLite connection and a short
 WAL snapshot for each report. Devices, VLAN aggregates, processing checkpoints
 and device histories in one response come from the same committed snapshot.
 Readers do not take the ingestion lock or expose unfinished transactions. The
-writer retains its existing atomic ingestion/replay/late-arrival behavior and
-schema. In-memory fixtures retain their single-connection compatibility path.
+writer retains its existing atomic ingestion/replay/late-arrival behavior.
+Legacy databases keep their schema; an explicit verified offline copy can select
+the [optional compact representation](COMPACT_ACCOUNTING.md). In-memory fixtures
+retain their single-connection compatibility path.
 
 Repeated identical requests can reuse up to four immutable report results of at
 most 2 MiB each. Keys include the committed database version, exact period bounds,

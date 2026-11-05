@@ -102,6 +102,23 @@ not an installation pass. Record any unavailable environment checks explicitly.
 
 ## Isolated integration environments
 
+The stack lab also copies its synthetic legacy ledger into compact storage,
+checks every logical table, starts the actual accounting container on that copy,
+checks transport replay and restart, and restores the original fixture database.
+It uses only its generated project/volume. The compact differential tests cover
+late arrivals, exact large integers, pruning, rollback, process death and parallel
+read snapshots. The migration tests cover space and verification failures.
+These checks do not replace a full real-data comparison and resource-limited
+performance measurements before an operator activates a migrated installation.
+
+Run `python tests/benchmark_accounting.py --rows 40000 --repeats 2` for an
+informational synthetic comparison. It creates and removes only its own temporary
+databases, verifies report hashes and SQLite integrity, and reports wall/CPU time,
+report latency, pruning and checkpointed file size. `--legacy-source` accepts a
+trusted older `accounting.py` for an exact historical comparison; it executes that
+code. Use identical Python, CPU/memory limits and an otherwise quiet test host.
+Performance varies by workload; the benchmark has no CI timing threshold.
+
 On a disposable Linux Docker-enabled test account:
 
 ```bash

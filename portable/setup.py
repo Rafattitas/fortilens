@@ -381,7 +381,7 @@ def render(c, output, token, admin_password=None, inventory_report=None):
     if c["accounting_enabled"]:
         files["secrets/usage_admin_password"]=secrets.token_urlsafe(24)+"\n"
         files["secrets/fortigate_api_token"]=token+"\n"
-        for name in ("accounting.py","interfaces.py","wan_health.py","usage_service.py","portal.py","reporting.html"):
+        for name in ("accounting.py","accounting_storage.py","interfaces.py","wan_health.py","usage_service.py","portal.py","reporting.html"):
             files["usage/"+name]=(ROOT/name).read_text(encoding="utf-8")
         files["usage/Dockerfile"]=(ROOT/"templates/Dockerfile.usage").read_text(encoding="utf-8")
     if native:
@@ -698,7 +698,7 @@ def bundle(destination):
     # Deliberate allowlist: never zip the workspace, local installations, exports,
     # handover documents, screenshots or credentials.
     import zipfile
-    allowed = [ROOT / name for name in ("setup.py","doctor.py","interfaces.py","usage_quality.py","dashboard_style.py","accounting.py","wan_health.py","usage_service.py","portal.py","upgrade.py","alerts.py","syslog_receiver.py","reporting.html","site.example.json","README.md",".gitignore","LICENSE")]
+    allowed = [ROOT / name for name in ("setup.py","doctor.py","interfaces.py","usage_quality.py","dashboard_style.py","accounting.py","accounting_storage.py","accounting_migrate.py","wan_health.py","usage_service.py","portal.py","upgrade.py","alerts.py","syslog_receiver.py","reporting.html","site.example.json","README.md",".gitignore","LICENSE")]
     allowed.extend(ROOT / "templates" / name for name in [
         "dashboard.json", "compose.json", "prometheus.json", "loki.json", "datasources.json", "config.alloy", "Dockerfile.usage", "Dockerfile.syslog"])
     destination = Path(destination).resolve()

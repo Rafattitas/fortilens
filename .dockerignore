@@ -24,6 +24,8 @@
 !portable/doctor.py
 !portable/interfaces.py
 !portable/accounting.py
+!portable/accounting_storage.py
+!portable/accounting_migrate.py
 !portable/usage_service.py
 !portable/portal.py
 !portable/wan_health.py
