@@ -24,12 +24,43 @@ arithmetic and tie handling remain compatible. Arbitrary large partial-day
 selections can still be expensive; bounded memory does not imply constant query
 time.
 
-Existing databases continue to use the legacy JSON layout. New databases also
-default to that layout until explicitly selected by a maintainer. Opening an
-existing database never converts it. A compact database has a version marker and
-guard views that cause an older writer to fail during initialization. An older
-binary cannot safely read or write a compact database; retain a matched runtime
-and database rollback pair.
+Existing legacy databases continue to use the legacy JSON layout. The accounting
+service creates new databases in compact storage; the library default for a new
+file remains legacy. Opening an existing legacy database never converts it. A
+compact database has a version marker and guard views that cause an older writer to
+fail during initialization. An older binary cannot safely read or write a compact
+database; retain a matched runtime and database rollback pair.
+
+## Version 2
+
+Version 2 is an additive change for usage monitoring:
+
+- Records outside forward-traffic accounting (`type`, `subtype` or `logid` other
+  than forward traffic 13/20) are stored in `compact_skipped` as their 32-byte
+  identity, event time and classification. Normalization already gives each such
+  record its own session and a zero contribution, so this changes no total. Replay
+  detection, `UNSUPPORTED_RECORD` counts at exact partial-period boundaries and
+  diagnostics remain exact, including against rows written by version 1.
+- Event and fact details are JSON compressed with raw DEFLATE and a frozen preset
+  dictionary, marked by a leading `0x02` byte. Version 1 JSON text rows remain
+  readable; decoding is bounded to 1 MiB and fails closed on corrupt input.
+- A writer upgrades a version 1 file in place by adding `compact_skipped` and
+  setting `user_version=2`. Readers of a version 1 file need no upgrade. Older
+  releases refuse version 2 files.
+
+On a production FortiGate sample, unsupported records were 53% of all received
+records. Existing version 1 rows age out with ledger retention. To shrink a file
+immediately, stop the writer and build a verified copy:
+
+```bash
+python3 accounting_migrate.py --slim /path/usage.sqlite /path/usage.slim.sqlite --progress
+```
+
+`--slim` copies one consistent snapshot, converts unsupported rows to markers,
+compresses the remaining details, runs `VACUUM INTO` and publishes only after the
+deliveries, daily, quality, state, remaining events/facts and every whole-day,
+six-hour partial-window and whole-span report match the source. The source file is
+never changed. Keep the original until the new file has been validated in service.
 
 ## Explicit offline copy
 

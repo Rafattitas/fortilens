@@ -2,6 +2,23 @@
 
 ## Unreleased — unified console and Web Setup & Settings
 
+### Smaller accounting storage for usage monitoring
+
+- Unsupported records (local traffic, UTM, other log IDs) are stored as exact counted
+  markers instead of full event and fact rows. They never contributed bytes.
+- Compact storage version 2 compresses record details. Version 1 files upgrade in
+  place on the next writer start; older rows stay readable. An older release cannot
+  open a version 2 file, so keep a database backup with any rollback.
+- New databases created by the accounting service use compact storage.
+- Raw ledger retention defaults to 3 days (minimum 1). Existing installations keep
+  their saved value until it is changed in Settings.
+- Last 7 days now means today plus the six previous whole calendar days, and a This
+  year period is added. Both read whole days from daily summaries.
+- Near the database limit the worker expires the oldest raw days instead of stopping
+  ingestion. Daily summaries are kept.
+- `accounting_migrate.py --slim` builds a verified, vacuumed version 2 copy of an
+  existing compact database without changing the source.
+
 ### Reliability and storage maintenance
 
 - Keep accounting retention running when ingestion stops at the storage ceiling, cap
