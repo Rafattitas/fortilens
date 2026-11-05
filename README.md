@@ -149,38 +149,16 @@ Credentials must not cross an untrusted plain-HTTP network.
 
 ## How it fits together
 
-```mermaid
-flowchart TD
-  FG[FortiGate]
+<p align="center">
+  <img src="docs/assets/architecture.svg" alt="FortiGate sends metrics through the Exporter to Prometheus and logs through Alloy to Loki. Grafana and optional accounting feed an optional gateway, which reaches your browser through fortilens-helper and fortilens-web." width="100%">
+</p>
 
-  subgraph Stack["Monitoring stack (Docker Compose)"]
-    EX[FortiGate Exporter] --> PR[Prometheus]
-    AL[Alloy] --> LO[Loki]
-    PR --> GR[Grafana]
-    LO --> GR
-    LO --> US[Accounting: Python + SQLite]
-    GR --> GW[Report and monitoring gateway]
-    US --> GW
-  end
-
-  subgraph Management["Web management (systemd)"]
-    HP[fortilens-helper] --> WEB[fortilens-web]
-  end
-
-  FG -->|HTTPS API| EX
-  FG -->|Syslog| AL
-  GW -->|Protected read-only access| HP
-  WEB --> Admin[Administrator browser]
-```
-
-Arrows show how data reaches you. Accounting and the gateway are optional, and Node
-Exporter adds host metrics to Prometheus. Native UDP logs reach Alloy through a managed
-receiver, and accounting also reads FortiGate metadata and Prometheus samples.
+Node Exporter also adds host metrics to Prometheus. Native UDP logs reach Alloy through a
+managed receiver, and accounting also reads FortiGate metadata and Prometheus samples.
 
 The web process has no Docker access. Only the helper operates the one registered
-Compose project, using fixed commands. The portable CLI generates the same stack
-without the two management services. See [architecture](docs/architecture/ARCHITECTURE.md) and
-[management architecture](docs/architecture/MANAGEMENT_ARCHITECTURE.md).
+Compose project, using fixed commands. See [architecture](docs/architecture/ARCHITECTURE.md)
+and [management architecture](docs/architecture/MANAGEMENT_ARCHITECTURE.md).
 
 ## Honest signals, clear limits
 

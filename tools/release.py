@@ -61,6 +61,7 @@ PUBLIC_FILES = (
     "portable/.gitignore",
     ".agents/skills/fortilens-maintainer/SKILL.md",
     ".agents/skills/fortilens-maintainer/agents/openai.yaml",
+    "docs/assets/architecture.svg",
     "docs/assets/hero.svg",
     "docs/assets/dashboard-preview.svg",
     "examples/usage-audit.sample.json",
