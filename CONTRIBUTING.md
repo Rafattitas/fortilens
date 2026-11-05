@@ -10,6 +10,16 @@ existing capabilities from planned work. Use the issue forms for bugs,
 documentation and sanitized FortiOS compatibility reports; sensitive findings
 follow [SECURITY.md](SECURITY.md).
 
+## Working with AI agents
+
+Start with [AGENTS.md](AGENTS.md) and the maintained [project context](docs/PROJECT_CONTEXT.md).
+The repository includes a [FortiLens Maintainer skill](.agents/skills/fortilens-maintainer/SKILL.md)
+for code, deployment, accounting-evidence and QA work. Codex can discover it under
+`.agents/skills`; other assistants can read the same Markdown entry point.
+See [QA and release checks](docs/QA.md) before changing a running installation.
+These files describe the project and its boundaries; live operations still follow
+the current user's authorization and the installation's actual state.
+
 ## Development environment
 
 Python 3.10+ is enough for the portable CLI tests; those remain dependency-free.
