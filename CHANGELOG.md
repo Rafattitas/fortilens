@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### In-place upgrades
+
+- `sudo ./install.sh --upgrade`, run from new reviewed source, upgrades a
+  web-managed installation. It saves the management source, metadata and any
+  service code it replaces, and tags the current accounting and syslog images.
+  It rebuilds the management environment only when its requirements change and
+  restarts and health-checks the management units. It then refreshes code in the
+  accounting and native syslog services that already exist and rebuilds only
+  those images.
+- Any failed step restores the previous source, environment, service code and
+  images and starts the previous version again. `--rollback-upgrade` returns to
+  it after a completed upgrade. Settings, secrets and data volumes are never
+  changed, and no service is added.
+- Running the installer from changed source now points to `--upgrade` instead of
+  a manual procedure.
+
 ## v0.3.0 — 2026-11-06 — unified console, Web Setup & Settings and application usage
 
 ### Applications view
