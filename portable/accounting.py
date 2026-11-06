@@ -1100,7 +1100,12 @@ class Store:
         floor = self.state('ledger_floor_ns', 0)
         first, last = self.ledger.fact_extrema(floor)
         delivery = self.delivery_max()
-        return {"checkpoint_ns": self.state("checkpoint_ns"), "last_received_event_ns": last, "first_retained_event_ns": first,
+        try:
+            # Application Control IDs learned from logs; none means Live shows IDs, not names.
+            app_ids = self.db.execute("SELECT count(*) FROM app_catalog").fetchone()[0]
+        except sqlite3.OperationalError:
+            app_ids = None
+        return {"app_ids_seen": app_ids, "checkpoint_ns":self.state("checkpoint_ns"), "last_received_event_ns": last, "first_retained_event_ns": first,
                 "last_delivery_ns": delivery,
                 "replay_candidates": self.state("replay_candidates", 0), "late_rejections": self.state("late_rejections", 0),
                 "parser_rejections": self.state("parser_rejections", 0),

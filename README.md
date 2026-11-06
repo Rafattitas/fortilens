@@ -186,7 +186,7 @@ and [management architecture](docs/architecture/MANAGEMENT_ARCHITECTURE.md).
 - **Collection paths need separate evidence.** Native UDP source filtering is not authentication. Receiver readiness and TCP handoff do not prove Loki storage, complete traffic capture or accurate site totals.
 - **Usage means received-log evidence.** Valid zero deltas stay zero; unsafe cumulative candidates stay pending. Stable event identities prevent replay double counting. Missing MACs remain explicitly unverified. [Read the accounting contract](docs/architecture/ACCOUNTING_ENGINE.md).
 - **Interface metadata has a scope and time.** VLAN mapping uses exact VDOM/interface keys, never subnets. Current inventory cannot establish an old VLAN assignment. FortiGate settings are never changed automatically.
-- **Early access.** Clean Docker installations and controlled HTTPS/syslog fixtures have been tested. Every FortiOS release, ARM, and new real-device onboarding are not yet validated.
+- **Early access.** Clean Docker installations and controlled HTTPS/syslog fixtures have been tested. Only FortiOS 7.2.14 has been checked on a real device; Diagnostics shows how well your version is covered (see [FortiOS compatibility](docs/operations/COMPATIBILITY.md)). ARM and new real-device onboarding are not yet validated.
 - **Current scope.** One FortiGate per installation. Optional alerts are paused candidates; production activation and recipient testing are explicit operator actions. Complete topology discovery and per-flow SD-WAN route attribution are not inferred.
 
 ## Also included

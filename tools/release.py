@@ -87,6 +87,7 @@ PUBLIC_FILES = (
     "docs/architecture/MANAGEMENT_ARCHITECTURE.md",
     "docs/development/MANAGEMENT_VERIFICATION.md",
     "docs/operations/CAPACITY.md",
+    "docs/operations/COMPATIBILITY.md",
     "docs/operations/OPTIONAL_ALERTS.md",
     "docs/history/PR_PROFESSIONALIZATION.md",
     "docs/development/PROJECT_CONTEXT.md",
