@@ -10,7 +10,7 @@ state. Start agent work at [AGENTS.md](../../AGENTS.md) and the
 One self-hosted workspace for one FortiGate: native Grafana WAN/device/interface
 monitoring, received-log device/VLAN usage, WAN history/coverage, and a web setup
 and settings layer. Device usage reports answer fixed periods independently of a
-Grafana dashboard's global time range. A week means rolling 168 hours; a month means
+Grafana dashboard's global time range. A week means today plus the six previous whole calendar days; a month means
 the accounting timezone's calendar month. Internet state, physical link and
 destination-specific route evidence are separate observations.
 

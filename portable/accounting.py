@@ -38,11 +38,15 @@ def period_bounds(period, at, zone, *, start=None, end=None):
     if period == "today":
         first = timestamp_ns(local.replace(hour=0, minute=0, second=0, microsecond=0).isoformat())
     elif period == "week":
-        first = at_ns-168*3600*NS
+        # Today plus the six previous whole calendar days. Whole days come from
+        # retained daily summaries, so the week never depends on old raw records.
+        first = timestamp_ns(datetime.combine(local.date()-timedelta(days=6), datetime.min.time(), tz(zone)).isoformat())
     elif period == "recent":
         first = at_ns-300*NS
     elif period == "month":
         first = timestamp_ns(local.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat())
+    elif period == "year":
+        first = timestamp_ns(local.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0).isoformat())
     elif period == "custom":
         first, at_ns = timestamp_ns(start), timestamp_ns(end)
     else:
@@ -50,6 +54,12 @@ def period_bounds(period, at, zone, *, start=None, end=None):
     if first >= at_ns:
         raise ValueError("Report start must precede its end")
     return first, at_ns
+
+
+def unsupported(fields):
+    """Records outside forward-traffic accounting never contribute bytes."""
+    return (fields.get("type") != "traffic" or fields.get("subtype") != "forward"
+            or fields.get("logid") not in {"0000000013", "0000000020"})
 
 
 def number(value):
@@ -148,7 +158,7 @@ def normalize(record, source_id):
                *[fields.get(k, "") for k in ("srcintf", "srcip", "srcport", "dstip", "dstport", "proto")]]
     if not fields.get("sessionid"):
         session.append(uid)
-    if fields.get("type") != "traffic" or fields.get("subtype") != "forward" or fields.get("logid") not in {"0000000013", "0000000020"}:
+    if unsupported(fields):
         session.append(uid)
     return {"uid": uid, "delivery_uid": digest([source_id, stamp, fields]), "source": source_id,
             "event_ns": event_ns, "record_ns": stamp, "fields": fields,
@@ -228,7 +238,7 @@ def derive_session(events, inventory, config):
             flags.extend(evidence.get("flags", []))
         if f.get("vd") != config.get("vdom") or (config.get("expected_devid") and f.get("devid") != config["expected_devid"]):
             cls = "UNSCOPED_SOURCE"
-        if f.get("type") != "traffic" or f.get("subtype") != "forward" or f.get("logid") not in {"0000000013", "0000000020"}:
+        if unsupported(f):
             cls = "UNSUPPORTED_RECORD"
         if not f.get("devid"):
             flags.append("source_device_id_missing")
@@ -421,7 +431,7 @@ class Store:
                 normalized.append(normalize(record, self.config.get("source_id", "dedicated-listener")))
             except (ValueError, TypeError, KeyError):
                 rejected.append(digest([self.config.get("source_id"), record]))
-        affected, inserted, repeated = set(), 0, 0
+        affected, inserted, repeated, singletons = set(), 0, 0, 0
         with self.db, self.ledger.write_unit():
             maximum = self.delivery_max()
             for uid in rejected:
@@ -436,6 +446,17 @@ class Store:
                 if event["event_ns"] < self.state("ledger_floor_ns", 0):
                     if new_delivery:
                         self.set_state("late_rejections", self.state("late_rejections", 0)+1)
+                    continue
+                if self.ledger.supports_skipped and unsupported(event["fields"]):
+                    # Normalization gives each unsupported record its own session,
+                    # so its only effect is one source-wide classification count.
+                    new_event = self.ledger.insert_skipped(event["uid"], event["event_ns"], "UNSUPPORTED_RECORD")
+                    inserted += new_event
+                    repeated += bool(new_delivery and not new_event)
+                    if new_event:
+                        singletons += 1
+                        day = datetime.fromtimestamp(event["event_ns"]//NS, tz(self.config["accounting_timezone"])).date().isoformat()
+                        self._rollup({"day": day, "classification": "UNSUPPORTED_RECORD", "event_ns": event["event_ns"]}, 1)
                     continue
                 cls, vlan = direction(event["fields"], self.inventory, self.config)
                 evidence_flags = []
@@ -454,7 +475,9 @@ class Store:
                 repeated += bool(new_delivery and not new_event)
                 if new_event:
                     affected.add(event["session"])
-            for session in affected:
+            # Sorted: a set's order varies between processes, and the first fact of a
+            # daily row supplies its representative identifiers.
+            for session in sorted(affected):
                 rows = self.ledger.session_events(session, limit=10001)
                 if len(rows) > 10000:
                     raise ValueError("Session exceeds safe recomputation size; checkpoint not advanced")
@@ -468,11 +491,11 @@ class Store:
             self.set_state('delivery_max_ns', maximum)
             if checkpoint is not None:
                 self.set_state("checkpoint_ns", checkpoint)
-        return {"new_events": inserted, "new_replay_candidates": repeated, "rejected_input_records": len(rejected), "affected_sessions": len(affected)}
+        return {"new_events": inserted, "new_replay_candidates": repeated, "rejected_input_records": len(rejected), "affected_sessions": len(affected)+singletons}
 
-    def prune(self, now, ledger_days=8, summary_days=400):
-        if not 8 <= ledger_days <= 365 or not ledger_days <= summary_days <= 3650:
-            raise ValueError("Ledger retention must cover the rolling week; summary retention must cover the ledger")
+    def prune(self, now, ledger_days=3, summary_days=400):
+        if not 1 <= ledger_days <= 365 or not ledger_days <= summary_days <= 3650:
+            raise ValueError("Ledger retention must cover at least one day; summary retention must cover the ledger")
         floor = timestamp_ns(now)-ledger_days*86400*NS
         with self.db, self.ledger.write_unit():
             sessions = self.ledger.sessions_before(floor)
@@ -490,6 +513,8 @@ class Store:
                     self.ledger.update_event(event)
             self.ledger.delete_facts_before(floor)
             self.ledger.delete_deliveries_before(floor)
+            if self.ledger.supports_skipped:
+                self.ledger.delete_skipped_before(floor)
             maximum = self.delivery_max()
             if maximum is not None and maximum < floor:
                 self.set_state('delivery_max_ns', None)

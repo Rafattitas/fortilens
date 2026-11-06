@@ -11,7 +11,7 @@ Linux/amd64 installation.
   Alloy and Node Exporter.
 - Optional persistent Python/SQLite received-log accounting: directional bytes,
   replay handling, exact VLAN metadata, device search and retained history.
-- Today, rolling 168-hour week, calendar month and custom-range reports, plus
+- Today, calendar week, month, year and custom-range reports, plus
   retained daily/monthly device history. These are existing capabilities.
 - Observed WAN health/history/coverage with separate physical, SLA and
   destination-specific route evidence.

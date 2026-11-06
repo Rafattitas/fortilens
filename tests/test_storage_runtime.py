@@ -118,7 +118,7 @@ class StorageRuntimeTests(unittest.TestCase):
         self.assertEqual(accounting["projection_bytes"], 7200)
         self.assertEqual(accounting["horizon_seconds"], 86400)
         self.assertEqual(accounting["bytes"], 1300)
-        self.assertEqual(accounting["ledger_days"], 8)
+        self.assertEqual(accounting["ledger_days"], 3)
         self.assertEqual(accounting["summary_days"], 400)
         self.assertEqual(accounting["capacity_limit_bytes"], 4 * 1024**3)
         self.assertFalse(result["partial"])
@@ -167,7 +167,7 @@ class StorageRuntimeTests(unittest.TestCase):
         )
         value = self.sample(3660, 1400)["components"]["fortilens-usage"]
         self.assertEqual(value["projection_bytes"], 7200)
-        self.assertEqual(value["ledger_days"], 8)
+        self.assertEqual(value["ledger_days"], 3)
         self.assertEqual(value["summary_days"], 400)
         self.assertEqual(value["capacity_limit_bytes"], 4 * 1024**3)
         self.applied["retention"]["summary_days"] = 401

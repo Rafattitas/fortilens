@@ -22,7 +22,7 @@ class Monitoring(Strict):
 class Retention(Strict):
     loki_days: int = Field(default=60, ge=1, le=3650)
     prometheus_days: int = Field(default=90, ge=1, le=3650)
-    ledger_days: int = Field(default=8, ge=8, le=365)
+    ledger_days: int = Field(default=3, ge=1, le=365)
     summary_days: int = Field(default=400, ge=31, le=3650)
     database_bytes: int = Field(default=4294967296, ge=67108864, le=1099511627776)
 

@@ -239,6 +239,32 @@ class Engine:
             except (sqlite3.Error,OSError):
                 log_failure('accounting_inventory_state_unavailable')
 
+    def used_bytes(self):
+        """Live pages plus WAL. Freed pages are reused, so they are not counted."""
+        db=self.store.db
+        page=db.execute('PRAGMA page_size').fetchone()[0]
+        live=(db.execute('PRAGMA page_count').fetchone()[0]-db.execute('PRAGMA freelist_count').fetchone()[0])*page
+        path=db.execute('PRAGMA database_list').fetchone()[2]
+        wal=Path(path+'-wal') if path else None
+        return live+(wal.stat().st_size if wal and wal.exists() else 0)
+
+    def fit_storage(self,cursor):
+        """Near the limit, expire the oldest raw records instead of stopping.
+
+        Daily summaries are kept. Only when even one day of raw records exceeds
+        the limit does ingestion stop with the storage-limit error.
+        """
+        limit=self.config.get('accounting_max_bytes',4*1024**3)
+        with self.lock:
+            if self.used_bytes()<=limit:return
+            days=self.config.get('accounting_ledger_days',3)
+            summary=self.config.get('accounting_summary_days',400)
+            while days>1 and self.used_bytes()>limit*0.9:
+                days-=1
+                self.store.prune(cursor,days,max(days,summary))
+                log_failure('accounting_storage_pruned',str(days))
+            if self.used_bytes()>limit:raise ServiceError('accounting_storage_limit')
+
     def poll(self,now=None):
         now=time.time() if now is None else now
         end=int((now-self.config.get('accounting_settle_seconds',5))*accounting.NS)
@@ -259,9 +285,7 @@ class Engine:
             # stream without rescanning a whole raw-log day every poll.
             start=max(self.store.state('scan_start_ns',0),checkpoint-self.config.get('accounting_overlap_seconds',30)*accounting.NS)
             records,budget=self.loki.read(start,target)
-            path=self.store.db.execute('PRAGMA database_list').fetchone()[2]
-            size=sum(p.stat().st_size for p in (Path(path),Path(path+'-wal')) if path and p.exists())
-            if size>self.config.get('accounting_max_bytes',4*1024**3):raise ServiceError('accounting_storage_limit')
+            self.fit_storage(target)
             with self.lock:
                 result=self.store.ingest(records,checkpoint=target)
                 with self.store.db:
@@ -380,7 +404,7 @@ class Engine:
                     try:
                         with self.lock:
                             cursor=self.store.state('checkpoint_ns')
-                            if cursor:self.store.prune(cursor,self.config.get('accounting_ledger_days',8),self.config.get('accounting_summary_days',400))
+                            if cursor:self.store.prune(cursor,self.config.get('accounting_ledger_days',3),self.config.get('accounting_summary_days',400))
                         last_prune=now
                     except Exception as exc:
                         log_failure('accounting_prune_failed',safe_error(exc))
@@ -548,7 +572,9 @@ def main(argv=None):
         args.database.parent.mkdir(parents=True,exist_ok=True)
         password=args.password_file.read_text().strip()
         if len(password)<16:raise ValueError('Usage reporting password must have at least 16 characters')
-        store=accounting.Store(args.database,config)
+        # New files use compact storage; an existing file keeps its detected format.
+        fresh=not args.database.exists() or args.database.stat().st_size==0
+        store=accounting.Store(args.database,config,storage_format='compact' if fresh else None)
         store.inventory=store.state('inventory',{'interfaces':[]})
         engine=Engine(store,loki=args.loki_url,prometheus=args.prometheus_url,token_file=args.token_file,config_root=args.config.parent)
         # Bind before starting ingestion: a port failure must not leave a writer
