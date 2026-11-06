@@ -728,12 +728,18 @@ class CompactLedger:
     def range_facts_labels(self, start, end):
         """Internet facts in [start,end) with their record's descriptive labels."""
         for row in self.db.execute(
-            self.FACT_SELECT.replace(" FROM compact_facts", ",e.details AS event_details FROM compact_facts", 1)
+            self.FACT_SELECT.replace(
+                " FROM compact_facts", ",e.details AS event_details FROM compact_facts", 1
+            )
             + " WHERE e.stamp>=? AND e.stamp<? AND f.classification=? ORDER BY e.stamp,f.id",
             (start, end, _class_text("INTERNET")),
         ):
             details = _unpack(row["event_details"])
-            if not isinstance(details, list) or len(details) != 3 or not isinstance(details[2], dict):
+            if (
+                not isinstance(details, list)
+                or len(details) != 3
+                or not isinstance(details[2], dict)
+            ):
                 raise ValueError("Invalid compact event details")
             yield self._decode_fact(row), details[2].get("meta") or {}
 
