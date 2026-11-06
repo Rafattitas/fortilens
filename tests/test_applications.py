@@ -285,6 +285,14 @@ class ApplicationViewTests(unittest.TestCase):
         # A window ending inside a row's events still reads the retained records.
         self.store.applications("2026-10-20T00:00:00Z", "2026-10-20T12:00:30Z")
         self.assertEqual(len(calls), 1)
+        # The day application rows began: part of its records predate them, so the
+        # retained facts stay the source and totals still equal device totals.
+        with self.store.db:
+            self.store.db.execute("DELETE FROM app_daily WHERE app='Zoom'")
+        self.assertFalse(self.store._app_day_complete("2026-10-20"))
+        window = ("2026-10-20T00:00:00Z", "2026-10-20T18:00:00Z")
+        self.assertEqual(self.store.applications(*window)["totals"], self.store.report(*window)["totals"])
+        self.assertEqual(len(calls), 2)
 
 
 class InventoryMappingTests(unittest.TestCase):

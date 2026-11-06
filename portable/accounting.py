@@ -574,6 +574,18 @@ class Store:
             result.append(value)
         return result
 
+    def _app_day_complete(self, day):
+        """True when every Internet fact of `day` is also in `app_daily`.
+
+        Both tables count the same facts, so equal record counts show the day was
+        maintained by application rollups from its start.
+        """
+        if not self._app_table():
+            return False
+        count = "SELECT COALESCE(SUM(json_extract(payload,'$.records')),0) FROM {} WHERE day=?"
+        return self.db.execute(count.format("daily"), (day,)).fetchone()[0] == \
+            self.db.execute(count.format("app_daily"), (day,)).fetchone()[0]
+
     def _iter_app_rows(self, start, end):
         """Whole days from `app_daily`; partial edges from retained facts and labels."""
         zone = tz(self.config["accounting_timezone"])
@@ -597,9 +609,12 @@ class Store:
                 # "today so far" does not decode every record of the day.
                 day_local = datetime.fromtimestamp(a//NS, zone).date()
                 day_start = timestamp_ns(datetime.combine(day_local, datetime.min.time(), zone).isoformat())
-                included, partial = set(), False
+                # A day that began before application rows were kept has only part
+                # of its records in `app_daily`; it is rebuilt from retained facts.
+                complete = self._app_day_complete(day_local.isoformat())
+                included, partial = set(), not complete
                 rows = self.db.execute("SELECT device,vlan,app,category,payload FROM app_daily WHERE day=?",
-                                       (day_local.isoformat(),)) if self._app_table() else ()
+                                       (day_local.isoformat(),)) if complete else ()
                 for device, vlan_key, app, category, payload in rows:
                     value = json.loads(payload)
                     first, last = value.get("first_event_ns", day_start), value["event_ns"]
