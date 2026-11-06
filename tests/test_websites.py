@@ -147,10 +147,13 @@ class WebsiteTests(unittest.TestCase):
 
 class WebsiteSettingsTests(unittest.TestCase):
     def test_switch_is_off_by_default_and_needs_accounting(self):
-        from management.models import Settings
         self.assertFalse(setup.DEFAULTS["accounting_websites"])
         with self.assertRaises(setup.SetupError):
             setup.validate_config({"accounting_websites": True, "accounting_enabled": False})
+        try:
+            from management.models import Settings
+        except ImportError:
+            self.skipTest("management dependencies are not installed")
         settings = Settings.model_validate({"fortigate_host": "192.0.2.1", "vdom": "root", "sla": "", "wan_interfaces": [],
                                             "timezone": "UTC", "accounting_timezone": "UTC"})
         self.assertFalse(settings.monitoring.websites)
