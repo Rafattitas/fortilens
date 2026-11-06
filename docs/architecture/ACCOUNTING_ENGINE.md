@@ -84,6 +84,16 @@ named from the latest two days of `daily` rows by MAC, then by IP, segments come
 from the interface inventory, and application IDs are named from `app_catalog`.
 Results are cached for 5 seconds.
 
+Both FortiView requests use `sort_by=bandwidth`: without it FortiView returns rows
+in session order, so a bounded page could omit the largest consumers. Pages hold
+at most 500 rows; `truncated` reports when the limit was reached. Download and
+upload totals and per-link rates come from two readings of
+`/api/v2/monitor/system/interface` counters on the WAN interfaces
+(`totals_source: INTERFACE_COUNTERS`), so they cover every session. They also
+include traffic that no LAN device owns, such as FortiGate updates, SLA probes
+and VPN tunnels, so they are usually higher than `listed`, the sum of the
+listed devices. A counter that goes backwards gives no rate rather than a guess.
+
 Live figures are FortiGate's estimate of current sessions. They are never added
 to recorded totals, never stored, and an unreadable response is an error, not
 zero traffic.
