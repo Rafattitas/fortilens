@@ -53,6 +53,8 @@ class Settings(Strict):
     expected_devid: str = ''
     monitoring: Monitoring = Field(default_factory=Monitoring)
     retention: Retention = Field(default_factory=Retention)
+    # Compose CPU limit of the single accounting writer; see docs/operations/CAPACITY.md.
+    accounting_cpus: Literal['0.5', '1', '2'] = '0.5'
 
     @model_validator(mode='after')
     def supported(self):

@@ -121,6 +121,7 @@ PUBLIC_FILES = (
     "docs/design/screenshots/14-overview-narrow.png",
     "docs/design/screenshots/15-usage-narrow.png",
     "docs/design/screenshots/16-applications.png",
+    "docs/design/screenshots/17-live.png",
     "tools/release.py",
     "tools/check_repository.py",
     "tools/capture_screenshots.cjs",

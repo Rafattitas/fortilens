@@ -22,6 +22,29 @@ from .models import Change, Settings
 SERVICES = ('fortigate-exporter', 'prometheus', 'grafana', 'loki', 'alloy', 'node-exporter', 'fortilens-usage', 'fortilens-portal', 'fortilens-syslog')
 
 
+ACCOUNTING_CPUS = ('0.5', '1', '2')
+
+
+def accounting_cpus(compose):
+    """The accounting writer's current CPU limit as a supported choice.
+
+    An existing limit is read, not assumed, so a reviewed manual value is kept
+    when it is one of the choices. Anything else shows the template default and
+    is only replaced by an explicit Apply.
+    """
+    service = (compose or {}).get('services', {}).get('fortilens-usage') or {}
+    try:
+        value = '%g' % float(service.get('cpus', '0.5'))
+    except (TypeError, ValueError):
+        return '0.5'
+    return value if value in ACCOUNTING_CPUS else '0.5'
+
+
+def set_accounting_cpus(compose, value):
+    if 'fortilens-usage' in compose.get('services', {}):
+        compose['services']['fortilens-usage']['cpus'] = value
+
+
 def optional_probe_policy(record, selected):
     """Replace only explicitly reviewed optional omissions, retaining custom rules."""
     try:
@@ -84,6 +107,7 @@ class Configuration:
             d['retention'] = {'ledger_days': c.get('accounting_ledger_days', 3), 'summary_days': c.get('accounting_summary_days', 400), 'database_bytes': c.get('accounting_max_bytes', 4294967296)}
             # Read actual policies, never assume that template defaults are live.
             compose = self.compose()
+            d['accounting_cpus'] = accounting_cpus(compose)
             prom=self.bound_file(compose,'prometheus','/etc/prometheus/prometheus.yml')
             global_config=(yaml.safe_load(prom.read_text()) or {}).get('global',{})
             interval=re.fullmatch(r'(\d+)([smh])',str(global_config.get('scrape_interval','1m')))
@@ -367,6 +391,7 @@ class Configuration:
         files[str(prom.relative_to(self.root))] = yaml.safe_dump(pdata, sort_keys=False).encode()
         service = compose['services']['prometheus']
         service['command'] = [('--storage.tsdb.retention.time=' + str(settings.retention.prometheus_days) + 'd') if str(arg).startswith('--storage.tsdb.retention.time=') else arg for arg in service['command']]
+        set_accounting_cpus(compose, settings.accounting_cpus)
         loki = self.bound_file(compose, 'loki', '/etc/loki/local-config.yaml')
         ldata = yaml.safe_load(loki.read_text())
         ldata.setdefault('limits_config', {})['retention_period'] = str(settings.retention.loki_days) + 'd'
@@ -549,6 +574,7 @@ class Configuration:
                 for name in ('fortilens-usage','fortilens-portal'):
                     if name in comp['services']:comp['services'][name]['image']='fortilens-usage:'+self.project
                 comp['services']['prometheus']['command'] = [('--storage.tsdb.retention.time=' + str(settings.retention.prometheus_days) + 'd') if x.startswith('--storage.tsdb.retention.time=') else x for x in comp['services']['prometheus']['command']]
+                set_accounting_cpus(comp, settings.accounting_cpus)
                 files[self.compose_name] = setup.dumps(comp).encode()
                 if settings.optional_exporter_exclusions is not None:
                     auth=json.loads(files['secrets/fortigate-key.yaml'])

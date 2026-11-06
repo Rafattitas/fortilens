@@ -21,6 +21,11 @@
   `tests/support/benchmark_scale.py` reproduces the measurement with synthetic data.
 - An application name whose write was rolled back with a failed batch is now
   written again by the next batch.
+- Settings → Storage has an Accounting Processing CPU choice (0.5, 1 or 2 cores)
+  applied to the accounting service's Compose limit with the usual reviewed
+  Apply and rollback. An existing installation shows its current limit.
+- The README and screenshot gallery include Live usage; the roadmap marks Live
+  usage and the performance work.
 
 ### Live usage
 
