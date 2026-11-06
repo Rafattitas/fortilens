@@ -71,6 +71,80 @@ def fetch_json(base, route, params=None, *, timeout=25, headers=None, context=No
     return result
 
 
+LIVE_ROUTE='/api/v2/monitor/fortiview/statistics'
+LIVE_ROWS=500
+LIVE_CACHE_SECONDS=5
+
+
+def fv_rows(response):
+    """FortiView realtime rows; anything else is rejected, never read as zero."""
+    results=response.get('results') if isinstance(response,dict) else None
+    rows=results.get('details') if isinstance(results,dict) else results
+    if not isinstance(rows,list) or any(not isinstance(row,dict) for row in rows):
+        raise ServiceError('invalid_response')
+    return rows
+
+
+def _rate(row,key):
+    value=row.get(key,0)
+    return value if isinstance(value,(int,float)) and not isinstance(value,bool) and value>=0 else 0
+
+
+def build_live(sources,applications,wan,inventory,vdom,by_mac,by_ip,catalog,now):
+    """Group FortiView rows that leave through a WAN interface.
+
+    FortiView reports bits per second from the source's side: tx is what the
+    source sends (upload) and rx what it receives (download).
+    """
+    wan=set(wan)
+    def app_label(entry):
+        appid=str(entry.get('id',''))
+        known=catalog.get(appid)
+        if known:return {'appid':appid,'app':known['app'],'category':known.get('category') or None,'risk':known.get('risk') or None}
+        if appid in ('','0'):return {'appid':None,'app':str(entry.get('name') or 'Unidentified'),'category':None,'risk':None}
+        return {'appid':appid,'app':None,'category':None,'risk':None}
+    totals={'download_bps':0,'upload_bps':0,'sessions':0}
+    links,devices,segments,apps={}, {}, {}, {}
+    for row in sources:
+        out=str(row.get('dstintf',''))
+        if out not in wan:continue
+        down,up,sessions=_rate(row,'rx_bandwidth'),_rate(row,'tx_bandwidth'),int(_rate(row,'sessions'))
+        totals['download_bps']+=down;totals['upload_bps']+=up;totals['sessions']+=sessions
+        link=links.setdefault(out,{'interface':out,'download_bps':0,'upload_bps':0,'sessions':0})
+        link['download_bps']+=down;link['upload_bps']+=up;link['sessions']+=sessions
+        mac=str(row.get('srcmac') or '').lower();ip=str(row.get('srcaddr') or '')
+        known=by_mac.get(mac) if mac else None
+        known=known or by_ip.get(ip)
+        vlan=interfaces.map_source_interface(inventory,vdom,str(row.get('srcintf','')))
+        key=mac or ip
+        device=devices.setdefault(key,{'device_id':known and known['device_id'],'hostname':(known or {}).get('hostname',''),
+            'ip':ip,'mac':mac,'profile':(known or {}).get('profile'),'vlan':vlan,'download_bps':0,'upload_bps':0,'sessions':0,'apps':{}})
+        device['download_bps']+=down;device['upload_bps']+=up;device['sessions']+=sessions
+        for entry in row.get('apps') or []:
+            if isinstance(entry,dict):
+                label=app_label(entry);name=label['app'] or 'Application '+str(label['appid'])
+                device['apps'][name]=device['apps'].get(name,0)+int(_rate(entry,'count'))
+        segment=segments.setdefault(vlan['key'],{'vlan':vlan,'download_bps':0,'upload_bps':0,'devices':set()})
+        segment['download_bps']+=down;segment['upload_bps']+=up;segment['devices'].add(key)
+    for row in applications:
+        if str(row.get('dstintf','')) not in wan:continue
+        entries=[e for e in row.get('apps') or [] if isinstance(e,dict)]
+        label=app_label(entries[0]) if entries else {'appid':None,'app':'Unidentified','category':None,'risk':None}
+        key=label['appid'] or label['app']
+        app=apps.setdefault(key,{**label,'download_bps':0,'upload_bps':0,'sessions':0})
+        app['download_bps']+=_rate(row,'rx_bandwidth');app['upload_bps']+=_rate(row,'tx_bandwidth');app['sessions']+=int(_rate(row,'sessions'))
+    def ordered(values):
+        return sorted(values,key=lambda x:-(x['download_bps']+x['upload_bps']))
+    for device in devices.values():
+        device['top_apps']=[name for name,_ in sorted(device.pop('apps').items(),key=lambda x:-x[1])[:3]]
+    for segment in segments.values():
+        segment['devices']=len(segment['devices'])
+    return {'observed_at':now,'source':'FORTIVIEW_REALTIME','unit':'bits_per_second','totals':{**totals,'devices':len(devices)},
+            'links':ordered(links.values()),'devices':ordered(devices.values()),'vlans':ordered(segments.values()),
+            'applications':ordered(apps.values()),'wan_interfaces':sorted(wan),
+            'note':'Live estimates from FortiGate realtime session statistics for traffic leaving through WAN interfaces. They are not recorded usage totals.'}
+
+
 def loki_rows(response):
     """Reject malformed pages before a caller can advance its checkpoint."""
     data = response.get('data') if isinstance(response, dict) else None
@@ -154,6 +228,8 @@ class Engine:
         self._reader_identity=None
         self._report_cache=OrderedDict()
         self._diagnostics_cache=None
+        self.live_lock=threading.Lock()
+        self._live_cache=None
 
     @contextmanager
     def _read_snapshot(self):
@@ -207,8 +283,32 @@ class Engine:
         with self._read_snapshot() as (store,_version):
             return json.loads(json.dumps(store.inventory))
 
+    def live(self,now=None):
+        """Current Internet bandwidth from FortiGate's realtime FortiView session view.
+
+        Read-only and cached for a few seconds so several open pages share one
+        pair of requests. These are FortiGate estimates of current sessions, not
+        recorded accounting totals.
+        """
+        now=time.time() if now is None else now
+        with self.live_lock:
+            if self._live_cache and now-self._live_cache[0]<LIVE_CACHE_SECONDS:
+                return json.loads(self._live_cache[1])
+            fixed={'realtime':'true','count':str(LIVE_ROWS)}
+            sources=self.read_device(LIVE_ROUTE,{**fixed,'report_by':'source'})
+            applications=self.read_device(LIVE_ROUTE,{**fixed,'report_by':'application'})
+            with self._read_snapshot() as (store,_version):
+                by_mac,by_ip=store.recent_identities()
+                ids={str(a.get('id')) for row in fv_rows(applications)+fv_rows(sources) for a in row.get('apps') or [] if isinstance(a,dict)}
+                catalog=store.app_catalog(ids)
+                inventory=store.inventory
+            wan=self.config.get('confirmed_wan_interfaces') or self.config.get('wan_interfaces') or []
+            result=build_live(fv_rows(sources),fv_rows(applications),wan,inventory,self.config.get('vdom',''),by_mac,by_ip,catalog,now)
+            self._live_cache=(now,json.dumps(result))
+            return result
+
     def read_device(self,route,params):
-        if route not in ('/api/v2/monitor/router/lookup','/api/v2/monitor/system/status'):
+        if route not in ('/api/v2/monitor/router/lookup','/api/v2/monitor/system/status',LIVE_ROUTE):
             raise ServiceError('device_endpoint_not_allowlisted')
         c=self.config
         token=Path(self.token_file).read_text().strip()
@@ -547,6 +647,8 @@ def handler(engine,password,root):
                     result=engine.report(value('period','today'),at=value('at'),start=value('start'),end=value('end'),
                         vlan=value('vlan') or None,device=value('device') or None,search=value('search',''),include_history=parsed.path=='/api/device')
                     return self.send(200,result)
+                if parsed.path=='/api/live':
+                    return self.send(200,engine.live())
                 if parsed.path=='/api/applications':
                     # An empty app or category selects unidentified records; absent means no filter.
                     result=engine.applications(value('period','today'),at=value('at'),start=value('start'),end=value('end'),

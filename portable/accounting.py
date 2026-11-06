@@ -20,12 +20,14 @@ FIELDS = set("devid vd logid type subtype sessionid srcip dstip srcport dstport 
 # Descriptive labels kept beside a record. They never enter event or delivery
 # identities, so a record re-read across an upgrade keeps its identity and is
 # never counted twice. They never change byte arithmetic either.
-META_FIELDS = frozenset("app appcat apprisk dstcountry osname srchwvendor devtype".split())
+META_FIELDS = frozenset("app appid appcat apprisk dstcountry osname srchwvendor devtype".split())
 APP_SCHEMA = """CREATE TABLE IF NOT EXISTS app_daily(day TEXT NOT NULL,device TEXT NOT NULL,vlan TEXT NOT NULL,
 app TEXT NOT NULL,category TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(day,device,vlan,app,category))"""
 # Latest FortiGate device-detection labels per endpoint identity. Descriptive
 # only: they never merge identities or change any byte value.
 PROFILE_SCHEMA = "CREATE TABLE IF NOT EXISTS device_profile(device TEXT PRIMARY KEY,payload TEXT NOT NULL)"
+# Application Control IDs seen in records, so live FortiView rows (IDs only) get names.
+APP_CATALOG_SCHEMA = "CREATE TABLE IF NOT EXISTS app_catalog(appid TEXT PRIMARY KEY,payload TEXT NOT NULL)"
 APP_INDEXES = ("CREATE INDEX IF NOT EXISTS app_daily_app ON app_daily(app,category,day)",
                "CREATE INDEX IF NOT EXISTS app_daily_category ON app_daily(category,day)")
 PROFILE_LABELS = {"osname": "os", "srchwvendor": "vendor", "devtype": "type"}
@@ -373,6 +375,7 @@ class Store:
             with self.db:
                 self.db.execute(APP_SCHEMA)
                 self.db.execute(PROFILE_SCHEMA)
+                self.db.execute(APP_CATALOG_SCHEMA)
                 for statement in APP_INDEXES:
                     self.db.execute(statement)
                 self.set_state("contract", contract)
@@ -507,6 +510,15 @@ class Store:
         first = self.state("applications_first_ns")
         if first is None or fact["event_ns"] < first:
             self.set_state("applications_first_ns", fact["event_ns"])
+        appid = labels.get("appid", "")
+        if appid.isdigit() and appid != "0" and labels.get("app"):
+            entry = {"app": labels["app"], "category": labels.get("appcat", ""), "risk": labels.get("apprisk", "")}
+            known = getattr(self, "_catalog_seen", None)
+            if known is None:
+                known = self._catalog_seen = {}
+            if known.get(appid) != entry:
+                self.db.execute("INSERT OR REPLACE INTO app_catalog VALUES(?,?)", (appid, json.dumps(entry)))
+                known[appid] = entry
         profile = {name: labels[key] for key, name in PROFILE_LABELS.items() if labels.get(key)}
         if not profile:
             return
@@ -528,6 +540,44 @@ class Store:
         for row in rows:
             row["profile"] = found.get(row["device_id"])
         return rows
+
+    def app_catalog(self, ids):
+        """Names for Application Control IDs seen in received records."""
+        ids = [str(i) for i in ids if str(i).isdigit()]
+        if not ids or not self._has_table("app_catalog"):
+            return {}
+        result = {}
+        for index in range(0, len(ids), 500):
+            page = ids[index:index+500]
+            for appid, payload in self.db.execute(
+                    "SELECT appid,payload FROM app_catalog WHERE appid IN (" + ",".join("?"*len(page)) + ")", page):
+                result[appid] = json.loads(payload)
+        return result
+
+    def recent_identities(self, days=2):
+        """Endpoint identities from the latest daily rows, keyed by MAC and by IP.
+
+        Live FortiView rows carry only addresses; this names them with what the
+        accounting engine already recorded. Newer rows win.
+        """
+        start = self.db.execute("SELECT MAX(day) FROM daily").fetchone()[0]
+        if not start:
+            return {}, {}
+        first = (datetime.fromisoformat(start).date() - timedelta(days=days-1)).isoformat()
+        rows = sorted((json.loads(p) for (p,) in self.db.execute("SELECT payload FROM daily WHERE day>=?", (first,))),
+                      key=lambda r: r["event_ns"])
+        by_mac, by_ip = {}, {}
+        for row in rows:
+            identity = {"device_id": row["device_id"], "hostname": row.get("hostname", ""), "ip": row.get("ip", ""),
+                        "mac": row.get("mac", ""), "identity_kind": row.get("identity_kind", "")}
+            if identity["mac"]:
+                by_mac[identity["mac"].lower()] = identity
+            if identity["ip"]:
+                by_ip[identity["ip"]] = identity
+        profiles = self.profiles({x["device_id"] for x in (*by_mac.values(), *by_ip.values())})
+        for identity in (*by_mac.values(), *by_ip.values()):
+            identity["profile"] = profiles.get(identity["device_id"])
+        return by_mac, by_ip
 
     def profiles(self, devices):
         """Latest FortiGate OS/vendor/type labels for the given endpoint identities."""
