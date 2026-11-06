@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Live usage
+
+- A Live usage view shows who is using the Internet right now: download and
+  upload per device, what each device is doing, applications, segments and WAN
+  links. It refreshes every 10 seconds, pauses when hidden or on request, and
+  keeps the last good update if a refresh fails.
+- Figures come from FortiGate realtime FortiView statistics through the existing
+  read-only API token, limited to traffic leaving through WAN interfaces and
+  cached for 5 seconds. They are live estimates, not recorded usage totals.
+- Devices are named from recent accounting records (MAC, then IP) with their
+  FortiGate profile. Application Control IDs (`appid`) are now kept as a
+  descriptive label so live rows show application names; identities and totals
+  are unchanged.
+
 ## v0.3.1 — 2026-11-06 — in-place upgrades
 
 ### Fixes
