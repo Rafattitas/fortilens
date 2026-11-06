@@ -27,6 +27,7 @@ release archives. The captures here use `management/static/` and the actual
 | [Sign in](12-sign-in.png) | Signed-out form with a synthetic username. |
 | [Narrow Overview](14-overview-narrow.png) | 375px viewport. |
 | [Narrow Usage](15-usage-narrow.png) | 375px viewport scrolled to the first endpoint. |
+| [Applications](16-applications.png) | Labelled usage, largest named applications and filters, with generic example application names. |
 
 ## Regenerate
 

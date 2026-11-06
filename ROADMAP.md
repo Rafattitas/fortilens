@@ -18,6 +18,9 @@ Linux/amd64 installation.
 - Current-source Web Setup & Settings, independent management/helper services,
   reviewed configuration apply/rollback and protected native monitoring/reports.
 - Read-only diagnostics and optional paused alert candidates.
+- Application usage from FortiGate Application Control labels.
+- Compact accounting storage with a three-day raw ledger by default, and pruning
+  of the oldest raw days instead of stopping at the storage limit.
 
 The published v0.2.0 portable distribution predates web management and the unified
 console. See [release preparation](docs/development/RELEASING.md) and the
@@ -25,8 +28,9 @@ console. See [release preparation](docs/development/RELEASING.md) and the
 
 ## Milestone 1 — Repository professionalization
 
-Status: prepared for review; publication and repository-policy changes remain
-maintainer actions.
+Status: in place. `main` is protected (pull requests, all CI checks, no force
+push or deletion), Dependabot security updates are on, and merged branches are
+deleted. Publishing releases remains a maintainer action.
 
 - Clear contribution/documentation navigation and sanitized issue/PR templates.
 - Reproducible lint, incremental formatting, coverage and dependency checks.
@@ -62,12 +66,15 @@ Status: planned extensions; day/week/month/custom reports already exist.
 
 ## Milestone 4 — Website and application analytics
 
-Status: planned; not currently a shipped analytics capability.
+Status: application usage shipped on `main`; website and domain analytics planned.
 
-- Evaluate available log fields and lawful, minimized retention requirements.
-- Design top-domain/application and per-device breakdowns with source coverage
-  and identity limits visible.
-- Measure storage/query cost before adding historical analytics.
+- Shipped: usage by FortiGate Application Control label and category, the devices
+  that used each application, GenAI and risk filters, daily history, and
+  protocol-only labels (QUIC, SSL/TLS) kept apart from named applications. Labels
+  never enter event identities, so accounting totals are unchanged.
+- Planned: top-domain breakdowns from web-filter or DNS fields, with lawful,
+  minimized retention and visible source coverage.
+- Planned: measure storage and query cost before keeping per-domain history.
 
 ## Milestone 5 — Security analytics
 

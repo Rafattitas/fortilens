@@ -37,8 +37,9 @@ your own server, with your own credentials and data.
 |---|---|
 | Are my Internet links healthy, and were they healthy earlier? | **Overview** and **Internet** show SLA state, latency, jitter, packet loss, physical state and observed history. |
 | Which device used the most, in which direction? | **Usage** searches endpoints and opens each device's daily and monthly history. |
-| How much did each VLAN use? | **Segments** compares exact VLAN and interface mappings. |
-| What was the total for a period? | **Reports** covers Today, rolling 7 days, this month, recent 5 minutes or a custom range. |
+| How much did each VLAN use? | **Segments** compares exact VLAN and interface mappings, and names VLANs with no received records. |
+| Which applications used the Internet, and which devices used them? | **Applications** groups recorded usage by FortiGate Application Control label and category, with GenAI and risk filters. |
+| What was the total for a period? | **Reports** covers Today, rolling 7 days, this month, this year, recent 5 minutes or a custom range. |
 | Can I trust these numbers? | **Evidence** shows collection gaps, pending counters and identity limits. |
 | What is happening right now, in detail? | **Live monitoring** opens the native Grafana dashboard. |
 | Is the installation itself working? | **System**, **Diagnostics** and **Settings** cover services, collection and reviewed configuration changes. |
@@ -47,7 +48,11 @@ Usage figures come from received accounting records. Missing records never becom
 zero traffic or a confirmed outage, and totals are not complete billing figures.
 
 <details>
-<summary>See Usage, Reports and Internet screenshots</summary>
+<summary>See Applications, Usage, Reports and Internet screenshots</summary>
+
+![Applications showing labelled usage, the largest named applications and filters](docs/design/screenshots/16-applications.png)
+
+*Applications: usage by Application Control label, with protocol-only traffic kept apart. Shipped UI with synthetic fixtures.*
 
 ![Usage with a selected device and its recorded history](docs/design/screenshots/04-usage-docked.png)
 
@@ -74,8 +79,9 @@ want link health and device or VLAN usage without sending data to a third party.
 **Not a fit today:**
 
 - Several firewalls in one installation. Use a separate installation for each.
-- Security-event analytics, or website and application analytics. These are
-  [planned](ROADMAP.md), not shipped.
+- Security-event analytics, or website and domain analytics. These are
+  [planned](ROADMAP.md), not shipped. Application usage is shipped and relies on
+  FortiGate Application Control labels in the traffic logs.
 - Certified billing, or complete traffic capture.
 - High availability or multiple writers.
 - ARM hosts. Deployed monitoring targets Linux/amd64.
@@ -172,7 +178,7 @@ and [management architecture](docs/architecture/MANAGEMENT_ARCHITECTURE.md).
 
 ## Also included
 
-- [Optional compact accounting storage](docs/architecture/COMPACT_ACCOUNTING.md): a verified offline copy that reduces ledger size. Never automatic.
+- [Compact accounting storage](docs/architecture/COMPACT_ACCOUNTING.md): new databases use compact storage; existing ones can be converted as a verified offline copy, never automatically.
 - [Optional alert candidates](docs/operations/OPTIONAL_ALERTS.md): paused WAN, performance and collection rules that leave existing notifications alone.
 - [Read-only diagnostics](docs/operations/TROUBLESHOOTING.md): tell failed collection, old samples, missing logs and authentication problems apart.
 - [Upgrades from v0.1.0](docs/operations/UPGRADE.md): a reviewed migration with hash-guarded rollback.
@@ -189,7 +195,8 @@ full Alloy → Loki → accounting → Prometheus path, including replay and res
 FortiOS compatibility reports, sanitized API fixtures, accounting edge cases and
 documentation fixes are especially useful. Read the
 [contribution guide](CONTRIBUTING.md) or
-[open an issue](https://github.com/Rafattitas/fortilens/issues/new/choose). If
+[open an issue](https://github.com/Rafattitas/fortilens/issues/new/choose), and
+follow the [code of conduct](CODE_OF_CONDUCT.md). If
 FortiLens helps you, a star makes it easier for other network engineers to find.
 
 ## Security and license

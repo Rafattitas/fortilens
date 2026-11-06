@@ -36,6 +36,15 @@
 - The VLAN filter lists every VLAN the FortiGate reports, and the segment table
   names VLANs with no received records, with a hint to check policy logging.
 - Summary cards are centred, and the application filters align on one row.
+- A failed Applications request shows its error message again; the error path
+  referred to a panel that no longer exists.
+
+### Repository
+
+- README, roadmap and screenshots describe the Applications view. Screenshot
+  fixtures cover Applications and the interface inventory, and use the VLAN key
+  format the accounting engine produces.
+- Added a code of conduct.
 
 ### Smaller accounting storage for usage monitoring
 
