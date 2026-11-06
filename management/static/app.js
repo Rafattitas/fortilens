@@ -49,7 +49,7 @@ function consoleDocumentReady(frame){
  }catch(e){return false}
 }
 const titles={home:['Overview','What the links, logs and usage evidence say right now.'],overview:['System','Monitoring services, storage and configuration readiness.'],wan:['Internet','Observed health, physical link and route evidence remain separate.'],devices:['Usage','Recorded upload and download, with identity and coverage limits.'],vlans:['Segments','Internet usage grouped by exact interface metadata.'],reports:['Reports','Daily, weekly and monthly reports from the existing accounting engine.'],applications:['Applications','Recorded Internet usage by application and category, and the devices that used them.'],monitoring:['Live monitoring','Firewall health, Internet links and interface traffic in native Grafana.'],quality:['Evidence','Collection gaps, accounting evidence and identity limits.'],settings:['Settings','Manage your installation without editing configuration files.'],diagnostics:['Diagnostics','Read-only evidence, service readiness and actionable next steps.']};
-const pageGroups={home:'Network',monitoring:'Overview',wan:'Network',devices:'Network',vlans:'Usage',reports:'Usage',quality:'Trust',overview:'Installation',diagnostics:'System',settings:'Installation'};
+const pageGroups={home:'Network',monitoring:'Overview',wan:'Network',devices:'Network',vlans:'Usage',reports:'Usage',applications:'Usage',quality:'Trust',overview:'Installation',diagnostics:'System',settings:'Installation'};
 // Theme choice is shared with the same-origin report frame through storage.
 function savedTheme(){try{const value=localStorage.getItem('fortilens.theme');if(value==='light'||value==='dark')return value}catch{}return window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}
 function applyTheme(theme){document.documentElement.dataset.theme=theme;try{const doc=$('console-frame').contentDocument;if(doc?.location.pathname.startsWith('/console/'))doc.documentElement.dataset.theme=theme}catch{}$('theme-toggle').textContent=theme==='dark'?'Light':'Dark';$('theme-toggle').setAttribute('aria-label','Switch to '+(theme==='dark'?'light':'dark')+' theme')}
@@ -253,7 +253,7 @@ function loadConsole(page){
   }
   return;
  }
- const urls={quality:'/console/#quality',wan:'/console/#wan',devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/?section=reports#reports',monitoring:state.system.links.dashboard};
+ const urls={quality:'/console/#quality',wan:'/console/#wan',devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/?section=reports#reports',applications:'/console/?section=applications#applications',monitoring:state.system.links.dashboard};
  const original=urls[page]||urls.reports;
  const launch=page==='monitoring'?monitoringLaunch(original,state.monitoringTimeOffset,state.system.server_clock_supported):{path:original,aligned:false};
  const destination=launch.path,compensated=launch.aligned;

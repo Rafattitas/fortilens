@@ -196,6 +196,8 @@ class ApplicationTests(unittest.TestCase):
         self.assertIn('href="#applications" data-page="applications"', index)
         self.assertIn("applications:['Applications'", script)
         self.assertIn("'applications','quality'].includes(page)?f.accounting", script)
+        # Without its own frame URL the console falls back to the Reports view.
+        self.assertIn("applications:'/console/?section=applications#applications'", script)
         self.assertIn("'applications'", server.split("EMBEDDED_VIEWS=", 1)[1].split("\n", 1)[0])
         self.assertIn("'applications':'/console/?section=applications#applications'", server)
         self.assertIn("section in ('devices','vlans','reports','applications')", server)
