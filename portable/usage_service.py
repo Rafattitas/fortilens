@@ -229,6 +229,9 @@ class Engine:
                 return self.fetch(self.prometheus,'/api/v1/query',{'query':params['query'][0]},timeout=15)
             report=interfaces.collect(self.config,token,installation=self.config_root,use_api=True,request=exporter_request)
             with self.lock,self.store.db:
+                # An unchanged mapping keeps its original verification time, so
+                # an hourly refresh does not mark recent records as unmapped.
+                report=accounting.carry_mapping_since(self.store.inventory,report)
                 self.store.inventory=report
                 self.store.set_state('inventory',report)
                 reason=next((note.split(':',1)[0] for note in report.get('notes',[]) if note.startswith('api_http_')),'inventory_unavailable')

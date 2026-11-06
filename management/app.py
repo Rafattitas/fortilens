@@ -65,8 +65,7 @@ main{padding:0 2px 24px!important;max-width:none!important}
 .card,.section,.toolbar,.chart{background:transparent;border:0;border-radius:0;box-shadow:none}
 .toolbar{padding:0 0 18px;margin:0}.filters{margin-top:18px}
 .stats{gap:0;margin:0 0 24px;padding:18px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-.stats .card{padding:0 20px;border-left:1px solid var(--border)}
-.stats .card:first-child{padding-left:0;border-left:0}
+.stats .card{text-align:center}
 .metric-value{font-size:27px;font-variant-numeric:tabular-nums}.metric-label{font-size:12px}
 .section-head{padding:18px 0;border-bottom:1px solid var(--border)}
 .section-head h2{font-size:16px}.section-head p{font-size:12px}
@@ -75,8 +74,7 @@ main{padding:0 2px 24px!important;max-width:none!important}
 input,select{border-color:#63728b}.notice{border-radius:0;border-width:0 0 0 2px}
 .quality-grid>.card{padding:18px 0}.quality-grid{column-gap:32px}
 .pager{padding:14px 0}.chart{padding:18px 0}
-@media(max-width:1050px){.stats .card:nth-child(2n+1){padding-left:0;border-left:0}}
-@media(max-width:700px){main{padding:0 0 20px!important}.toolbar{padding:0 0 16px}.stats{row-gap:22px}.stats .card{padding:0 12px}.stats .card:nth-child(2n+1){border-left:0;padding-left:0}.metric-value{font-size:23px}.periods{gap:4px}.periods button{font-size:12px;padding:8px 10px}input,select{font-size:16px}.filters{gap:14px}.section-head{padding:18px 0}.context{font-size:11px}.quality-grid>.card{padding:16px 0}}
+@media(max-width:700px){main{padding:0 0 20px!important}.toolbar{padding:0 0 16px}.stats{row-gap:22px}.metric-value{font-size:23px}.periods{gap:4px}.periods button{font-size:12px;padding:8px 10px}input,select{font-size:16px}.filters{gap:14px}.section-head{padding:18px 0}.context{font-size:11px}.quality-grid>.card{padding:16px 0}}
 '''
 
 HOSTED_REPORT_STATUS='''<section id="managed-report-status" role="status"><p id="managed-report-message">Connecting to reports…</p><a id="managed-report-recovery" href="/#diagnostics" target="_top" hidden>Open diagnostics</a></section>'''

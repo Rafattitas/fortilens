@@ -215,6 +215,32 @@ def direction(fields, inventory, config):
     return ("INTERNET" if internal and external else "UNRESOLVED_DIRECTION"), source
 
 
+MAPPING_FIELDS = ("name", "vdom", "vlan_id", "parent", "role", "type")
+
+
+def mapping_signature(inventory):
+    """What a VLAN/direction mapping depends on; refresh time and counters excluded."""
+    return sorted(tuple(str(item.get(k)) for k in MAPPING_FIELDS) for item in (inventory or {}).get("interfaces", []))
+
+
+def carry_mapping_since(previous, current):
+    """Keep the time from which the current interface mapping is known unchanged.
+
+    Inventory is refreshed periodically and each refresh gets a new
+    `collected_at`. Records older than a refresh are still correctly mapped when
+    the mapping itself did not change, so only a changed (or first) mapping
+    moves `mapping_verified_since` forward.
+    """
+    current = dict(current)
+    if not current.get("interfaces"):
+        return current
+    if previous and previous.get("interfaces") and mapping_signature(previous) == mapping_signature(current):
+        current["mapping_verified_since"] = previous.get("mapping_verified_since") or previous.get("collected_at") or current.get("collected_at")
+    else:
+        current["mapping_verified_since"] = current.get("collected_at")
+    return current
+
+
 def event_order(event):
     f=event['fields']
     return (event['event_ns'],f.get('logid')=='0000000013',number(f.get('duration')) or 0,
@@ -458,10 +484,15 @@ class Store:
         old = self.db.execute("SELECT payload FROM app_daily WHERE day=? AND device=? AND vlan=? AND app=? AND category=?", key).fetchone()
         value = json.loads(old[0]) if old else {"vlan": fact["vlan"], "records": 0, "upload_bytes": 0, "download_bytes": 0,
             "pending_upload_bytes": 0, "pending_download_bytes": 0, "risk": "", "event_ns": fact["event_ns"],
-            "hostname": fact["hostname"], "ip": fact["ip"], "mac": fact["mac"], "identity_kind": fact["identity_kind"]}
+            "hostname": fact["hostname"], "ip": fact["ip"], "mac": fact["mac"], "identity_kind": fact["identity_kind"],
+            "first_event_ns": fact["event_ns"]}
         for column in ("upload_bytes", "download_bytes", "pending_upload_bytes", "pending_download_bytes"):
             value[column] += sign*fact[column]
         value["records"] += sign
+        if sign > 0 and "first_event_ns" in value:
+            # Lower bound of the row's events; rows written before this field
+            # existed fall back to the start of their own day when read.
+            value["first_event_ns"] = min(value["first_event_ns"], fact["event_ns"])
         if sign > 0 and fact["event_ns"] >= value["event_ns"]:
             for column in ("event_ns", "hostname", "ip", "mac", "identity_kind"):
                 value[column] = fact[column]
@@ -543,6 +574,18 @@ class Store:
             result.append(value)
         return result
 
+    def _app_day_complete(self, day):
+        """True when every Internet fact of `day` is also in `app_daily`.
+
+        Both tables count the same facts, so equal record counts show the day was
+        maintained by application rollups from its start.
+        """
+        if not self._app_table():
+            return False
+        count = "SELECT COALESCE(SUM(json_extract(payload,'$.records')),0) FROM {} WHERE day=?"
+        return self.db.execute(count.format("daily"), (day,)).fetchone()[0] == \
+            self.db.execute(count.format("app_daily"), (day,)).fetchone()[0]
+
     def _iter_app_rows(self, start, end):
         """Whole days from `app_daily`; partial edges from retained facts and labels."""
         zone = tz(self.config["accounting_timezone"])
@@ -561,10 +604,34 @@ class Store:
             if a < b:
                 if a < self.state("ledger_floor_ns", 0):
                     raise ValueError("Partial-day detail expired; request whole calendar days or increase ledger retention before collection")
+                # Like reports: a day row whose events all lie inside the edge is
+                # used as is. Only the rest is rebuilt from retained facts, so
+                # "today so far" does not decode every record of the day.
+                day_local = datetime.fromtimestamp(a//NS, zone).date()
+                day_start = timestamp_ns(datetime.combine(day_local, datetime.min.time(), zone).isoformat())
+                # A day that began before application rows were kept has only part
+                # of its records in `app_daily`; it is rebuilt from retained facts.
+                complete = self._app_day_complete(day_local.isoformat())
+                included, partial = set(), not complete
+                rows = self.db.execute("SELECT device,vlan,app,category,payload FROM app_daily WHERE day=?",
+                                       (day_local.isoformat(),)) if complete else ()
+                for device, vlan_key, app, category, payload in rows:
+                    value = json.loads(payload)
+                    first, last = value.get("first_event_ns", day_start), value["event_ns"]
+                    if a <= first and last < b:
+                        included.add((device, vlan_key, app, category))
+                        yield {**value, "day": day_local.isoformat(), "device_id": device, "app": app, "category": category}
+                    elif last >= a and first < b:
+                        partial = True
+                if not partial:
+                    continue
                 for fact, labels in self.ledger.range_facts_labels(a, b):
-                    if fact["classification"] == "INTERNET":
-                        yield {**fact, "records": 1, "app": labels.get("app", ""), "category": labels.get("appcat", ""),
-                               "risk": labels.get("apprisk", "")}
+                    if fact["classification"] != "INTERNET":
+                        continue
+                    app, category = labels.get("app", ""), labels.get("appcat", "")
+                    if (fact["device_id"], fact["vlan"]["key"], app, category) in included:
+                        continue
+                    yield {**fact, "records": 1, "app": app, "category": category, "risk": labels.get("apprisk", "")}
 
     def applications(self, start, end, *, app=None, category=None, device=None, vlan=None, history=False):
         """Recorded Internet bytes by application and category for [start,end).
@@ -696,7 +763,7 @@ class Store:
                     continue
                 cls, vlan = direction(event["fields"], self.inventory, self.config)
                 evidence_flags = []
-                collected = self.inventory.get("collected_at")
+                collected = self.inventory.get("mapping_verified_since") or self.inventory.get("collected_at")
                 if collected and event["event_ns"] < timestamp_ns(collected):
                     evidence_flags.append("historical_vlan_mapping_not_verified")
                     vlan = {**vlan, "status": "UNKNOWN", "vlan_id": None, "key": "unknown:"+vlan["interface"]}
