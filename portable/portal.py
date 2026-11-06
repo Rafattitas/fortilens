@@ -47,7 +47,7 @@ REPORT_FAILURE_MESSAGE = 'Required evidence is unavailable; no outage or zero us
 class UpstreamError(ValueError):
     """A trusted service returned unusable data; never include its contents."""
 
-REPORT_ROUTES = {'/api/report', '/api/device', '/api/applications', '/api/live', '/api/diagnostics', '/api/inventory', '/api/wan'}
+REPORT_ROUTES = {'/api/report', '/api/device', '/api/applications', '/api/websites', '/api/live', '/api/diagnostics', '/api/inventory', '/api/wan'}
 QUERY_ROUTES = {
     '/grafana/api/ds/query', '/grafana/api/frontend-metrics',
     '/grafana/api/user/auth-tokens/rotate',

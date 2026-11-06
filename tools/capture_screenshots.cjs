@@ -44,7 +44,7 @@ nodes = [n for n in tree.body if (isinstance(n, ast.Assign) and any(isinstance(t
 namespace = {}
 exec(compile(ast.Module(body=nodes, type_ignores=[]), str(source), 'exec'), namespace)
 page = (root / 'portable/reporting.html').read_text(encoding='utf-8')
-print(json.dumps({section: namespace['hosted_report'](page, section) for section in ['devices', 'vlans', 'reports', 'applications', 'live', 'wan', 'quality']}))
+print(json.dumps({section: namespace['hosted_report'](page, section) for section in ['devices', 'vlans', 'reports', 'applications', 'websites', 'live', 'wan', 'quality']}))
 `], {cwd:root, encoding:'utf8', maxBuffer:4*1024*1024}));
 
 const settings = {
@@ -55,7 +55,7 @@ const settings = {
   syslog_protocol:'udp', syslog_port:1514, syslog_format:'fortigate', syslog_network:'bridge',
   accounting_timezone:'UTC', expected_devid:'SYNTHETIC-FIXTURE',
   grafana_port:3001, usage_port:3002, monitoring_interval:60,
-  monitoring:{wan:true,sla:true,interfaces:true,syslog:true,accounting:true,vlans:true,server:true},
+  monitoring:{wan:true,sla:true,interfaces:true,syslog:true,accounting:true,vlans:true,server:true,websites:true},
   retention:{loki_days:60,prometheus_days:90,ledger_days:8,summary_days:400,database_bytes:9*GiB},
 };
 const vlans = [
@@ -144,6 +144,19 @@ function live() {
     devices:rows,vlans:segmentRows,applications:apps,wan_interfaces:['uplink-a','uplink-b'],
     note:'Synthetic live estimates.'};
 }
+// Synthetic website rows: generic example names only, one site selected.
+function websites(url) {
+  const sites=[['video.example',9.6,0.42,6],['cloud-storage.example',3.1,2.6,4],['office.example',4.2,1.1,8],['news.example',1.2,0.08,7],['ai-assistant.example',0.9,0.21,3],['software-updates.example',0.8,0.02,8],['maps.example',0.31,0.04,5],['mail.example',0.22,0.09,8]]
+    .map(([site,d,u,n])=>({site,download_bytes:Math.round(d*1e9),upload_bytes:Math.round(u*1e9),total_bytes:Math.round((d+u)*1e9),records:200,devices:n}));
+  const selected=url.searchParams.get('site')||'video.example',total=sum(sites,'total_bytes');
+  const share=[0.46,0.21,0.14,0.09,0.06,0.04];
+  const rows=selected?devices.slice(0,6).map((d,i)=>({device_id:d.device_id,hostname:d.hostname,ip:d.ip,mac:d.mac,identity_kind:'MAC',vlans:d.vlans,profile:null,
+    download_bytes:Math.round(9.6e9*share[i]),upload_bytes:Math.round(0.42e9*share[i]),total_bytes:Math.round(10.02e9*share[i]),records:40})):[];
+  return {start_utc:new Date((seconds-6*day)*1000).toISOString(),end_utc:new Date(now).toISOString(),first_day:'2026-10-30',last_day:'2026-11-05',timezone:'UTC',
+    enabled:true,since_ns:(seconds-40*day)*1e9,retention_days:90,site:selected,sites,devices:rows,truncated:false,
+    summary:{total_bytes:total,sites:sites.length,top_site:sites[0].site,internet_bytes:Math.round(total/0.82),coverage:0.82},
+    note:'Synthetic website rows.',period:url.searchParams.get('period')||'week'};
+}
 const inventory = () => ({schema_version:1,collected_at:new Date(now-600000).toISOString(),interfaces:[
   ...vlans.filter(v=>v.vlan_id).map(v=>({name:v.interface,vdom:'root',type:'vlan',vlan_id:v.vlan_id,parent:'internal',role:'lan'})),
   {name:'printers',vdom:'root',type:'vlan',vlan_id:300,parent:'internal',role:'lan'},
@@ -197,8 +210,8 @@ const server=http.createServer((req,res)=>{
   if(url.pathname==='/') {
     body=fs.readFileSync(path.join(root,'management/static/index.html'),'utf8');
     const initial=url.searchParams.get('view');
-    if(['devices','vlans','reports','applications','live','wan','quality'].includes(initial)) {
-      const target={devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/?section=reports#reports',applications:'/console/?section=applications#applications',live:'/console/?section=live#live',wan:'/console/#wan',quality:'/console/#quality'}[initial];
+    if(['devices','vlans','reports','applications','websites','live','wan','quality'].includes(initial)) {
+      const target={devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/?section=reports#reports',applications:'/console/?section=applications#applications',websites:'/console/?section=websites#websites',live:'/console/?section=live#live',wan:'/console/#wan',quality:'/console/#quality'}[initial];
       body=body.replace('id="console-frame"','id="console-frame" data-initial-view="'+initial+'" src="'+target+'"');
     }
   } else if(url.pathname==='/console/') body=hostedPages[url.searchParams.get('section')||'wan'];
@@ -247,6 +260,7 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
       else if(url.pathname==='/console/api/applications') payload=applications(url);
       else if(url.pathname==='/console/api/inventory') payload=inventory();
       else if(url.pathname==='/console/api/live') payload=live();
+      else if(url.pathname==='/console/api/websites') payload=websites(url);
       else {unhandled.push(url.pathname);status=404;payload={error:'not_found'};}
       await route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
     });
@@ -256,12 +270,13 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
     if(auth==='signed-in') {
       await page.waitForFunction(()=>!document.getElementById('workspace').hidden);
       if(pageName==='home') await page.waitForFunction(()=>!document.getElementById('home-refresh').disabled);
-      else if(['devices','reports','applications','live','quality','wan'].includes(pageName)) {
+      else if(['devices','reports','applications','websites','live','quality','wan'].includes(pageName)) {
         const frame=page.frameLocator('#console-frame');
         await frame.locator('#application').waitFor({state:'visible'});
         if(pageName==='wan') await frame.locator('#wan-body tr').first().waitFor();
         else if(pageName==='applications') await frame.locator('#apps-body tr').first().waitFor();
         else if(pageName==='live') await frame.locator('#live-devices tr').first().waitFor();
+        else if(pageName==='websites') {await frame.locator('#sites-body .entity').first().click();await frame.locator('#sites-devices tr').first().waitFor();}
         else await frame.locator('#refresh:not([disabled])').waitFor({state:'attached'});
         if(inspector) {await frame.locator('#device-body .entity').first().click();await frame.locator('#details-title').filter({hasText:'Design workstation'}).waitFor();}
         if(mobile&&pageName==='devices') await frame.locator('#device-body tr').first().scrollIntoViewIfNeeded();
@@ -299,6 +314,7 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
       {name:'14-overview-narrow',mobile:true}, {name:'15-usage-narrow',pageName:'devices',mobile:true},
       {name:'16-applications',pageName:'applications'},
       {name:'17-live',pageName:'live'},
+      {name:'18-websites',pageName:'websites'},
     ]) await capture(browser,options);
     const sheet=await browser.newPage({viewport:{width:1600,height:1200}});
     try {await sheet.goto(baseURL+'/qa/contact-sheet');await sheet.evaluate(()=>Promise.all([...document.images].map(img=>img.decode())));await sheet.screenshot({path:path.join(privateDir,'contact-sheet.png'),fullPage:true});} finally {await sheet.close();}

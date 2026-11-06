@@ -29,6 +29,7 @@ release archives. The captures here use `management/static/` and the actual
 | [Narrow Usage](15-usage-narrow.png) | 375px viewport scrolled to the first endpoint. |
 | [Applications](16-applications.png) | Labelled usage, largest named applications and filters, with generic example application names. |
 | [Live usage](17-live.png) | Current download and upload per device, application, segment and link, refreshed every 10 seconds. |
+| [Websites](18-websites.png) | Opt-in: recorded usage by website and the devices that used a selected site (synthetic data). |
 
 ## Regenerate
 
