@@ -49,7 +49,11 @@ Usage figures come from received accounting records. Missing records never becom
 zero traffic or a confirmed outage, and totals are not complete billing figures.
 
 <details>
-<summary>See Applications, Usage, Reports and Internet screenshots</summary>
+<summary>See Live usage, Applications, Usage, Reports and Internet screenshots</summary>
+
+![Live usage showing current download and upload per device, application, segment and link](docs/design/screenshots/17-live.png)
+
+*Live usage: who is using the Internet right now, from FortiGate realtime sessions and WAN interface counters. Shipped UI with synthetic fixtures.*
 
 ![Applications showing labelled usage, the largest named applications and filters](docs/design/screenshots/16-applications.png)
 

@@ -446,6 +446,23 @@ class ManagementTests(unittest.TestCase):
         c.restore(plan['plan_id'])
         for name,data in original.items():self.assertEqual((c.root/name).read_bytes(),data,name)
 
+    def test_accounting_cpu_choice_is_read_applied_and_bounded(self):
+        c=self.existing()
+        self.assertEqual(c.view()['settings']['accounting_cpus'],'0.5')
+        value=c.view();value['settings']['accounting_cpus']='1'
+        c.save({'revision':value['revision'],'settings':value['settings']})
+        plan=c.prepare(c.state()['revision']);c.install_files(plan['plan_id']);c.complete(plan['plan_id'])
+        self.assertEqual(c.compose()['services']['fortilens-usage']['cpus'],'1')
+        # A reviewed manual limit on an existing stack is read back, not reset.
+        compose=c.compose();compose['services']['fortilens-usage']['cpus']=2.0
+        (c.root/'compose.yaml').write_text(yaml.safe_dump(compose,sort_keys=False))
+        adopted=Configuration(c.root,self.base/'adopt-control-2',project='existing-original-project')
+        self.assertEqual(adopted.view()['settings']['accounting_cpus'],'2')
+        settings=deepcopy(c.view()['settings']);settings['accounting_cpus']='8'
+        with self.assertRaises(Exception):c.save({'revision':c.view()['revision'],'settings':settings})
+        page=(ROOT/'management/static/index.html').read_text(encoding='utf-8')
+        self.assertIn('data-setting="accounting_cpus"',page)
+
     def test_identity_and_retention_reductions_require_explicit_migration(self):
         c=self.existing();view=c.view()
         for field,value in [('accounting_timezone','Africa/Cairo'),('vdom','other'),('expected_devid','DIFFERENT')]:

@@ -49,8 +49,10 @@ Processing that falls behind shows as processing lag in Diagnostics. Recorded
 totals are still exact once processing catches up; they are later, not lost,
 while the records remain in Loki.
 
-For more than about 1,500 devices, give the accounting service a 1.0 CPU limit
-and confirm with your own record rate before relying on near-real-time reports.
+For more than about 1,500 devices, choose **Settings → Storage → Accounting
+Processing CPU → 1 core** and Apply (or 2 cores to keep reports responsive while
+processing catches up; one writer uses about one core), then confirm with your
+own record rate before relying on near-real-time reports.
 
 ## Storage
 

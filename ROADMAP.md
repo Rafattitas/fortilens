@@ -19,6 +19,7 @@ Linux/amd64 installation.
   reviewed configuration apply/rollback and protected native monitoring/reports.
 - Read-only diagnostics and optional paused alert candidates.
 - Application usage from FortiGate Application Control labels.
+- Live usage from FortiGate realtime sessions and WAN interface counters.
 - Compact accounting storage with a three-day raw ledger by default, and pruning
   of the oldest raw days instead of stopping at the storage limit.
 
@@ -88,11 +89,16 @@ by repository cleanup.
 
 ## Milestone 6 — Performance and scalability
 
-Status: planned; existing resource bounds are not a capacity guarantee.
+Status: in progress. Measured figures are in [capacity and sizing](docs/operations/CAPACITY.md);
+they are not a capacity guarantee.
 
-- Publish reproducible ingestion/query/load benchmarks using synthetic data.
-- Measure SQLite growth, retention cleanup, backups and recovery at real log rates.
-- Evaluate indexing/storage improvements with accounting-preservation tests.
+- Done: reproducible synthetic benchmark for 2,000+ endpoints
+  (`tests/support/benchmark_scale.py`) and an old-versus-new comparison of every
+  stored result (`tests/support/compare_engines.py`).
+- Done: adaptive Loki read window, batched summary writes (about 35% faster with
+  identical results) and a configurable accounting CPU limit.
+- Planned: measure Loki storage, retention cleanup, backups and recovery at real
+  rates for large sites.
 - Validate larger single-device networks before considering a separate
   multi-writer, multi-device or high-availability design.
 

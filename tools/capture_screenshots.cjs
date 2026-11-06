@@ -44,7 +44,7 @@ nodes = [n for n in tree.body if (isinstance(n, ast.Assign) and any(isinstance(t
 namespace = {}
 exec(compile(ast.Module(body=nodes, type_ignores=[]), str(source), 'exec'), namespace)
 page = (root / 'portable/reporting.html').read_text(encoding='utf-8')
-print(json.dumps({section: namespace['hosted_report'](page, section) for section in ['devices', 'vlans', 'reports', 'applications', 'wan', 'quality']}))
+print(json.dumps({section: namespace['hosted_report'](page, section) for section in ['devices', 'vlans', 'reports', 'applications', 'live', 'wan', 'quality']}))
 `], {cwd:root, encoding:'utf8', maxBuffer:4*1024*1024}));
 
 const settings = {
@@ -128,6 +128,22 @@ function applications(url) {
     unidentified_bytes:unidentified,untracked:null,tracking_started_ns:(seconds-30*day)*1e9,applications_since:'2026-10-06',
     traffic_coverage:'UNKNOWN',status:'RECORDED_ONLY',period:url.searchParams.get('period')||'today',processing:report(url).processing};
 }
+// Synthetic FortiView-style live rates in bits per second; generic example names only.
+function live() {
+  const doing=[['Microsoft Teams','Web Mail'],['Software Update'],['Video streaming','Cloud Storage'],['Video streaming'],['AI Assistant','Code Hosting'],['Remote Desktop'],['Web Mail'],['Video streaming']];
+  const rows=devices.map((d,i)=>({device_id:d.device_id,hostname:d.hostname,ip:d.ip,mac:d.mac,profile:i%3?{vendor:'Example',os:'Windows',type:'Computer'}:{os:'Android',type:'Mobile'},
+    vlan:d.vlans[0],download_bps:Math.round([18.4,9.6,7.2,4.1,2.6,1.2,0.6,0.3][i]*1e6),upload_bps:Math.round([2.1,6.8,0.9,0.4,0.5,0.9,0.1,0.05][i]*1e6),sessions:[42,18,25,12,9,6,4,3][i],top_apps:doing[i]}));
+  const download=sum(rows,'download_bps'),upload=sum(rows,'upload_bps');
+  const apps=[['Video streaming','Video/Audio',14.1,0.9],['Microsoft Teams','Collaboration',6.2,1.8],['Software Update','Update',5.9,3.1],['Cloud Storage','Storage.Backup',3.4,4.2],['AI Assistant','GenAI',1.9,0.4],['Web Mail','Email',1.1,0.3]]
+    .map(([app,category,d,u],i)=>({appid:String(41000+i),app,category,risk:'medium',download_bps:Math.round(d*1e6),upload_bps:Math.round(u*1e6),sessions:10+i}));
+  const segmentRows=vlans.map(vlan=>{const r=rows.filter(d=>d.vlan.key===vlan.key);return {vlan,download_bps:sum(r,'download_bps'),upload_bps:sum(r,'upload_bps'),devices:r.length}}).filter(x=>x.devices);
+  return {observed_at:seconds,source:'FORTIVIEW_REALTIME',unit:'bits_per_second',totals_source:'INTERFACE_COUNTERS',
+    totals:{download_bps:Math.round(download*1.08),upload_bps:Math.round(upload*1.12),sessions:sum(rows,'sessions'),devices:rows.length},
+    listed:{download_bps:download,upload_bps:upload},listed_sources:rows.length,truncated:false,
+    links:[{interface:'uplink-a',download_bps:Math.round(download*0.78),upload_bps:Math.round(upload*0.8),measured_seconds:5},{interface:'uplink-b',download_bps:Math.round(download*0.3),upload_bps:Math.round(upload*0.32),measured_seconds:5}],
+    devices:rows,vlans:segmentRows,applications:apps,wan_interfaces:['uplink-a','uplink-b'],
+    note:'Synthetic live estimates.'};
+}
 const inventory = () => ({schema_version:1,collected_at:new Date(now-600000).toISOString(),interfaces:[
   ...vlans.filter(v=>v.vlan_id).map(v=>({name:v.interface,vdom:'root',type:'vlan',vlan_id:v.vlan_id,parent:'internal',role:'lan'})),
   {name:'printers',vdom:'root',type:'vlan',vlan_id:300,parent:'internal',role:'lan'},
@@ -181,8 +197,8 @@ const server=http.createServer((req,res)=>{
   if(url.pathname==='/') {
     body=fs.readFileSync(path.join(root,'management/static/index.html'),'utf8');
     const initial=url.searchParams.get('view');
-    if(['devices','vlans','reports','applications','wan','quality'].includes(initial)) {
-      const target={devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/?section=reports#reports',applications:'/console/?section=applications#applications',wan:'/console/#wan',quality:'/console/#quality'}[initial];
+    if(['devices','vlans','reports','applications','live','wan','quality'].includes(initial)) {
+      const target={devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/?section=reports#reports',applications:'/console/?section=applications#applications',live:'/console/?section=live#live',wan:'/console/#wan',quality:'/console/#quality'}[initial];
       body=body.replace('id="console-frame"','id="console-frame" data-initial-view="'+initial+'" src="'+target+'"');
     }
   } else if(url.pathname==='/console/') body=hostedPages[url.searchParams.get('section')||'wan'];
@@ -230,6 +246,7 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
       else if(url.pathname==='/console/api/wan') payload=wan(degraded);
       else if(url.pathname==='/console/api/applications') payload=applications(url);
       else if(url.pathname==='/console/api/inventory') payload=inventory();
+      else if(url.pathname==='/console/api/live') payload=live();
       else {unhandled.push(url.pathname);status=404;payload={error:'not_found'};}
       await route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
     });
@@ -239,11 +256,12 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
     if(auth==='signed-in') {
       await page.waitForFunction(()=>!document.getElementById('workspace').hidden);
       if(pageName==='home') await page.waitForFunction(()=>!document.getElementById('home-refresh').disabled);
-      else if(['devices','reports','applications','quality','wan'].includes(pageName)) {
+      else if(['devices','reports','applications','live','quality','wan'].includes(pageName)) {
         const frame=page.frameLocator('#console-frame');
         await frame.locator('#application').waitFor({state:'visible'});
         if(pageName==='wan') await frame.locator('#wan-body tr').first().waitFor();
         else if(pageName==='applications') await frame.locator('#apps-body tr').first().waitFor();
+        else if(pageName==='live') await frame.locator('#live-devices tr').first().waitFor();
         else await frame.locator('#refresh:not([disabled])').waitFor({state:'attached'});
         if(inspector) {await frame.locator('#device-body .entity').first().click();await frame.locator('#details-title').filter({hasText:'Design workstation'}).waitFor();}
         if(mobile&&pageName==='devices') await frame.locator('#device-body tr').first().scrollIntoViewIfNeeded();
@@ -280,6 +298,7 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
       {name:'11-first-run',auth:'first-run'}, {name:'12-sign-in',auth:'signed-out'},
       {name:'14-overview-narrow',mobile:true}, {name:'15-usage-narrow',pageName:'devices',mobile:true},
       {name:'16-applications',pageName:'applications'},
+      {name:'17-live',pageName:'live'},
     ]) await capture(browser,options);
     const sheet=await browser.newPage({viewport:{width:1600,height:1200}});
     try {await sheet.goto(baseURL+'/qa/contact-sheet');await sheet.evaluate(()=>Promise.all([...document.images].map(img=>img.decode())));await sheet.screenshot({path:path.join(privateDir,'contact-sheet.png'),fullPage:true});} finally {await sheet.close();}
