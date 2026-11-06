@@ -1,7 +1,7 @@
 # Web Setup & Settings
 
 FortiLens includes an independent administrative web application. It ships in
-the v0.3.0 full archive and in current source; portable ZIPs do not include it.
+full archives from v0.3.0 and in current source; portable ZIPs do not include it.
 Use a reviewed checkout or full archive containing `install.sh`; the
 dependency-free portable CLI continues to work separately.
 
