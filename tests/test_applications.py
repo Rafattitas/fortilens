@@ -268,6 +268,54 @@ class ApplicationViewTests(unittest.TestCase):
         rich = a.normalize(labelled(osname="Android", srchwvendor="Samsung", devtype="Mobile"), "src")
         self.assertEqual(plain["uid"], rich["uid"])
 
+    def test_today_so_far_uses_day_rows_without_decoding_every_record(self):
+        rows = mixed() + [labelled("2026-10-20T15:00:00Z", sessionid="9", app="Zoom", appcat="Collaboration",
+                                   mastersrcmac="02:00:00:00:00:09", sentdelta="20", rcvddelta="40")]
+        self.store.ingest(rows)
+        for start, end in (("2026-10-20T00:00:00Z", "2026-10-20T18:00:00Z"), ("2026-10-20T00:00:00Z", "2026-10-20T12:00:30Z"),
+                           ("2026-10-20T12:00:30Z", "2026-10-21T00:00:00Z"), ("2026-10-20T11:59:00Z", "2026-10-20T15:30:00Z")):
+            with self.subTest(start=start, end=end):
+                self.assertEqual(self.store.applications(start, end)["totals"], self.store.report(start, end)["totals"])
+        calls = []
+        original = self.store.ledger.range_facts_labels
+        self.store.ledger.range_facts_labels = lambda *args: calls.append(args) or original(*args)
+        apps = self.store.applications("2026-10-20T00:00:00Z", "2026-10-20T18:00:00Z")
+        self.assertEqual(calls, [])
+        self.assertEqual({x["app"] for x in apps["applications"]}, {"YouTube", "ChatGPT", None, "Zoom"})
+        # A window ending inside a row's events still reads the retained records.
+        self.store.applications("2026-10-20T00:00:00Z", "2026-10-20T12:00:30Z")
+        self.assertEqual(len(calls), 1)
+
+
+class InventoryMappingTests(unittest.TestCase):
+    def test_unchanged_mapping_keeps_its_first_verification_time(self):
+        first = a.carry_mapping_since({"interfaces": []}, {**INVENTORY, "collected_at": "2026-10-20T00:00:00Z"})
+        self.assertEqual(first["mapping_verified_since"], "2026-10-20T00:00:00Z")
+        later = a.carry_mapping_since(first, {**deepcopy(INVENTORY), "collected_at": "2026-10-20T05:00:00Z"})
+        self.assertEqual(later["mapping_verified_since"], "2026-10-20T00:00:00Z")
+        changed = deepcopy(INVENTORY)
+        changed["interfaces"][0]["vlan_id"] = 999
+        moved = a.carry_mapping_since(later, {**changed, "collected_at": "2026-10-20T06:00:00Z"})
+        self.assertEqual(moved["mapping_verified_since"], "2026-10-20T06:00:00Z")
+        # Without an earlier verification the saved inventory's own time is the bound.
+        legacy = a.carry_mapping_since({**INVENTORY, "collected_at": "2026-10-19T00:00:00Z"},
+                                       {**INVENTORY, "collected_at": "2026-10-20T00:00:00Z"})
+        self.assertEqual(legacy["mapping_verified_since"], "2026-10-19T00:00:00Z")
+
+    def test_records_after_an_unchanged_refresh_keep_their_vlan(self):
+        store = a.Store(":memory:", CONFIG, INVENTORY, storage_format="compact")
+        self.addCleanup(store.close)
+        store.inventory = a.carry_mapping_since({"interfaces": []}, {**INVENTORY, "collected_at": "2026-10-20T00:00:00Z"})
+        store.inventory = a.carry_mapping_since(store.inventory, {**INVENTORY, "collected_at": "2026-10-20T13:00:00Z"})
+        store.ingest([labelled(sessionid="r1")])
+        vlan = store.report(*DAY)["rows"][0]["vlan"]
+        self.assertEqual(vlan["status"], "MAPPED")
+        stale = a.Store(":memory:", CONFIG, INVENTORY, storage_format="compact")
+        self.addCleanup(stale.close)
+        stale.inventory = {**INVENTORY, "collected_at": "2026-10-20T13:00:00Z"}
+        stale.ingest([labelled(sessionid="r1")])
+        self.assertEqual(stale.report(*DAY)["rows"][0]["vlan"]["status"], "UNKNOWN")
+
 
 if __name__ == "__main__":
     unittest.main()

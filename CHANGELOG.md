@@ -24,6 +24,18 @@
 - FortiGate device detection (`osname`, `srchwvendor`, `devtype`) is kept as the
   latest profile per endpoint and shown beside device identities. It never merges
   identities.
+- "Today" and other periods ending now no longer decode every retained record of
+  the current day: day rows whose events all lie inside the window are used as is,
+  as reports already did (about 6 s to well under a second on a real site).
+
+### VLAN mapping and segment list
+
+- Records received after an hourly interface refresh were marked "VLAN not
+  verified" even when the mapping had not changed, splitting one VLAN into two
+  rows. The time a mapping was first verified is now kept while it stays the same.
+- The VLAN filter lists every VLAN the FortiGate reports, and the segment table
+  names VLANs with no received records, with a hint to check policy logging.
+- Summary cards are centred, and the application filters align on one row.
 
 ### Smaller accounting storage for usage monitoring
 
