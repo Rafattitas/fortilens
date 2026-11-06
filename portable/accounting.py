@@ -5,6 +5,8 @@ Traffic completeness and exact packet-time allocation are never inferred.
 """
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from contextlib import contextmanager
+import functools
 import hashlib
 import ipaddress
 import json
@@ -20,12 +22,14 @@ FIELDS = set("devid vd logid type subtype sessionid srcip dstip srcport dstport 
 # Descriptive labels kept beside a record. They never enter event or delivery
 # identities, so a record re-read across an upgrade keeps its identity and is
 # never counted twice. They never change byte arithmetic either.
-META_FIELDS = frozenset("app appcat apprisk dstcountry osname srchwvendor devtype".split())
+META_FIELDS = frozenset("app appid appcat apprisk dstcountry osname srchwvendor devtype".split())
 APP_SCHEMA = """CREATE TABLE IF NOT EXISTS app_daily(day TEXT NOT NULL,device TEXT NOT NULL,vlan TEXT NOT NULL,
 app TEXT NOT NULL,category TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(day,device,vlan,app,category))"""
 # Latest FortiGate device-detection labels per endpoint identity. Descriptive
 # only: they never merge identities or change any byte value.
 PROFILE_SCHEMA = "CREATE TABLE IF NOT EXISTS device_profile(device TEXT PRIMARY KEY,payload TEXT NOT NULL)"
+# Application Control IDs seen in records, so live FortiView rows (IDs only) get names.
+APP_CATALOG_SCHEMA = "CREATE TABLE IF NOT EXISTS app_catalog(appid TEXT PRIMARY KEY,payload TEXT NOT NULL)"
 APP_INDEXES = ("CREATE INDEX IF NOT EXISTS app_daily_app ON app_daily(app,category,day)",
                "CREATE INDEX IF NOT EXISTS app_daily_category ON app_daily(category,day)")
 PROFILE_LABELS = {"osname": "os", "srchwvendor": "vendor", "devtype": "type"}
@@ -183,17 +187,30 @@ def normalize(record, source_id):
     return event
 
 
+@functools.lru_cache(maxsize=65536)
+def endpoint_digest(key):
+    """digest() of a MAC endpoint key; one device repeats it in every record."""
+    return digest(list(key))
+
+
+@functools.lru_cache(maxsize=65536)
+def canonical_ip(text):
+    """Canonical address text, or "" when it is not an IP; the same address
+    repeats in many records, so the parse is cached."""
+    try:
+        return str(ipaddress.ip_address(text))
+    except ValueError:
+        return ""
+
+
 def identity(event, generation):
     f = event["fields"]
     mac = next((f[k].lower() for k in ("mastersrcmac", "srcmac") if re.fullmatch(r"(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", f.get(k, "")) and f[k].lower() not in {"00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"} and not int(f[k][:2],16)&1), "")
-    try:
-        ip = str(ipaddress.ip_address(f.get("srcip", "")))
-    except ValueError:
-        ip = ""
+    ip = canonical_ip(f.get("srcip", ""))
     kind = "MAC" if mac else "IP_SESSION" if ip and f.get("sessionid") and number(f.get("duration")) is not None else "OBSERVATION"
     scope = [event["source"], f.get("devid", ""), f.get("vd", "")]
     key = scope + (["mac", mac] if mac else ["session", event["session"], generation] if kind == "IP_SESSION" else ["observation", event["uid"]])
-    return {"device_id": digest(key), "identity_kind": kind, "mac": mac, "ip": ip,
+    return {"device_id": endpoint_digest(tuple(key)) if mac else digest(key), "identity_kind": kind, "mac": mac, "ip": ip,
             "hostname": f.get("srcname", ""), "source_interface": f.get("srcintf", ""), "vdom": f.get("vd", "")}
 
 
@@ -373,6 +390,7 @@ class Store:
             with self.db:
                 self.db.execute(APP_SCHEMA)
                 self.db.execute(PROFILE_SCHEMA)
+                self.db.execute(APP_CATALOG_SCHEMA)
                 for statement in APP_INDEXES:
                     self.db.execute(statement)
                 self.set_state("contract", contract)
@@ -441,19 +459,82 @@ class Store:
         maximum = self.state('delivery_max_ns', missing)
         return self.ledger.max_delivery_stamp() if maximum is missing else maximum
 
+    @contextmanager
+    def _rollup_batch(self):
+        """Summary rows touched by one ingest live here until its transaction
+        ends; a failed batch rolls back and its cache is discarded."""
+        self._batch = {"quality": {}, "daily": {}, "app_daily": {}, "device_profile": {}, "dirty": set(), "first": None}
+        try:
+            yield
+        finally:
+            self._batch = None
+
+    _ROW_SELECT = {
+        "quality": "SELECT records,first_stamp,last_stamp FROM quality WHERE day=? AND classification=?",
+        "daily": "SELECT payload FROM daily WHERE day=? AND device=? AND vlan=?",
+        "app_daily": "SELECT payload FROM app_daily WHERE day=? AND device=? AND vlan=? AND app=? AND category=?",
+        "device_profile": "SELECT payload FROM device_profile WHERE device=?",
+    }
+
+    def _row(self, table, key):
+        """A summary row as this batch currently sees it; None when absent.
+
+        Each row is read at most once per batch and written once by
+        `_flush_rollups`, instead of a read, decode, encode and write for every
+        fact. The steps applied to it are unchanged, so the stored rows are the
+        same as applying each fact directly.
+        """
+        rows = self._batch[table]
+        if key not in rows:
+            found = self.db.execute(self._ROW_SELECT[table], key).fetchone()
+            rows[key] = None if found is None else list(found) if table == "quality" else json.loads(found[0])
+        return rows[key]
+
+    def _put(self, table, key, value):
+        self._batch[table][key] = value
+        self._batch["dirty"].add((table, key))
+
+    def _flush_rollups(self):
+        batch = self._batch
+        for table, key in sorted(batch["dirty"], key=lambda item: (item[0], item[1])):
+            value = batch[table][key]
+            if table == "quality":
+                if value is None:
+                    self.db.execute("DELETE FROM quality WHERE day=? AND classification=?", key)
+                else:
+                    self.db.execute("INSERT OR REPLACE INTO quality VALUES(?,?,?,?,?)", (*key, *value))
+            elif table == "device_profile":
+                self.db.execute("INSERT OR REPLACE INTO device_profile VALUES(?,?)", (*key, json.dumps(value)))
+            elif value is None:
+                where = " AND ".join(c+"=?" for c in (("day", "device", "vlan") if table == "daily" else ("day", "device", "vlan", "app", "category")))
+                self.db.execute("DELETE FROM "+table+" WHERE "+where, key)
+            else:
+                self.db.execute("INSERT OR REPLACE INTO "+table+" VALUES("+",".join("?"*(len(key)+1))+")", (*key, json.dumps(value)))
+        if batch["first"] is not None and batch["first"] != self.state("applications_first_ns"):
+            self.set_state("applications_first_ns", batch["first"])
+        for appid, entry in sorted(batch.get("catalog", {}).items()):
+            self.db.execute("INSERT OR REPLACE INTO app_catalog VALUES(?,?)", (appid, json.dumps(entry)))
+        self._catalog_pending = batch.get("catalog", {})
+        self._batch = None
+
     def _rollup(self, fact, sign):
         if fact['classification']=='BASELINE_ANCHOR':
             return
-        self.db.execute('''INSERT INTO quality VALUES(?,?,?,?,?) ON CONFLICT(day,classification)
-            DO UPDATE SET records=records+excluded.records,first_stamp=MIN(first_stamp,excluded.first_stamp),last_stamp=MAX(last_stamp,excluded.last_stamp)''',
-            (fact['day'],fact['classification'],sign,fact['event_ns'],fact['event_ns']))
-        self.db.execute('DELETE FROM quality WHERE day=? AND classification=? AND records<=0',(fact['day'],fact['classification']))
+        qkey = (fact['day'], fact['classification'])
+        current = self._row("quality", qkey)
+        if current is None:
+            current = [sign, fact['event_ns'], fact['event_ns']]
+        else:
+            current = [current[0]+sign, min(current[1], fact['event_ns']), max(current[2], fact['event_ns'])]
+        self._put("quality", qkey, current if current[0] > 0 else None)
         if fact["classification"] != "INTERNET":
             return
         key = (fact["day"], fact["device_id"], fact["vlan"]["key"])
-        old = self.db.execute("SELECT payload FROM daily WHERE day=? AND device=? AND vlan=?", key).fetchone()
-        value = json.loads(old[0]) if old else {**fact, "records": 0, "upload_bytes": 0, "download_bytes": 0,
-            "pending_upload_bytes": 0, "pending_download_bytes": 0, "flag_counts": {}, "first_event_ns": fact["event_ns"]}
+        value = self._row("daily", key)
+        if value is None:
+            # A JSON round trip gives the same independent copy a stored row would.
+            value = json.loads(json.dumps({**fact, "records": 0, "upload_bytes": 0, "download_bytes": 0,
+                "pending_upload_bytes": 0, "pending_download_bytes": 0, "flag_counts": {}, "first_event_ns": fact["event_ns"]}))
         for column in ("upload_bytes", "download_bytes", "pending_upload_bytes", "pending_download_bytes"):
             value[column] += sign*fact[column]
         value["records"] += sign
@@ -465,10 +546,7 @@ class Store:
         if sign > 0 and fact["event_ns"] >= value["event_ns"]:
             for column in ("event_ns", "hostname", "ip", "mac", "source_interface", "identity_kind"):
                 value[column] = fact[column]
-        if value["records"] <= 0:
-            self.db.execute("DELETE FROM daily WHERE day=? AND device=? AND vlan=?", key)
-        else:
-            self.db.execute("INSERT OR REPLACE INTO daily VALUES(?,?,?,?)", (*key, json.dumps(value)))
+        self._put("daily", key, value if value["records"] > 0 else None)
 
     def _app_rollup(self, fact, labels, sign):
         """Maintain day × device × VLAN × application totals beside `daily`.
@@ -481,11 +559,12 @@ class Store:
         if sign > 0 and labels:
             self._remember_labels(fact, labels)
         key = (fact["day"], fact["device_id"], fact["vlan"]["key"], labels.get("app", ""), labels.get("appcat", ""))
-        old = self.db.execute("SELECT payload FROM app_daily WHERE day=? AND device=? AND vlan=? AND app=? AND category=?", key).fetchone()
-        value = json.loads(old[0]) if old else {"vlan": fact["vlan"], "records": 0, "upload_bytes": 0, "download_bytes": 0,
-            "pending_upload_bytes": 0, "pending_download_bytes": 0, "risk": "", "event_ns": fact["event_ns"],
-            "hostname": fact["hostname"], "ip": fact["ip"], "mac": fact["mac"], "identity_kind": fact["identity_kind"],
-            "first_event_ns": fact["event_ns"]}
+        value = self._row("app_daily", key)
+        if value is None:
+            value = json.loads(json.dumps({"vlan": fact["vlan"], "records": 0, "upload_bytes": 0, "download_bytes": 0,
+                "pending_upload_bytes": 0, "pending_download_bytes": 0, "risk": "", "event_ns": fact["event_ns"],
+                "hostname": fact["hostname"], "ip": fact["ip"], "mac": fact["mac"], "identity_kind": fact["identity_kind"],
+                "first_event_ns": fact["event_ns"]}))
         for column in ("upload_bytes", "download_bytes", "pending_upload_bytes", "pending_download_bytes"):
             value[column] += sign*fact[column]
         value["records"] += sign
@@ -497,24 +576,33 @@ class Store:
             for column in ("event_ns", "hostname", "ip", "mac", "identity_kind"):
                 value[column] = fact[column]
             value["risk"] = labels.get("apprisk", value["risk"])
-        if value["records"] <= 0:
-            self.db.execute("DELETE FROM app_daily WHERE day=? AND device=? AND vlan=? AND app=? AND category=?", key)
-        else:
-            self.db.execute("INSERT OR REPLACE INTO app_daily VALUES(?,?,?,?,?,?)", (*key, json.dumps(value)))
+        self._put("app_daily", key, value if value["records"] > 0 else None)
 
     def _remember_labels(self, fact, labels):
         """Record when labelled evidence starts and each endpoint's latest profile."""
-        first = self.state("applications_first_ns")
+        batch = self._batch
+        first = batch["first"] if batch["first"] is not None else self.state("applications_first_ns")
         if first is None or fact["event_ns"] < first:
-            self.set_state("applications_first_ns", fact["event_ns"])
+            first = fact["event_ns"]
+        batch["first"] = first
+        appid = labels.get("appid", "")
+        if appid.isdigit() and appid != "0" and labels.get("app"):
+            entry = {"app": labels["app"], "category": labels.get("appcat", ""), "risk": labels.get("apprisk", "")}
+            known = getattr(self, "_catalog_seen", None)
+            if known is None:
+                known = self._catalog_seen = {}
+            pending = batch.setdefault("catalog", {})
+            if pending.get(appid, known.get(appid)) != entry:
+                # Remembered as written only after the batch commits (see ingest).
+                pending[appid] = entry
         profile = {name: labels[key] for key, name in PROFILE_LABELS.items() if labels.get(key)}
         if not profile:
             return
-        old = self.db.execute("SELECT payload FROM device_profile WHERE device=?", (fact["device_id"],)).fetchone()
-        if old and json.loads(old[0])["event_ns"] > fact["event_ns"]:
+        key = (fact["device_id"],)
+        old = self._row("device_profile", key)
+        if old and old["event_ns"] > fact["event_ns"]:
             return
-        self.db.execute("INSERT OR REPLACE INTO device_profile VALUES(?,?)",
-                        (fact["device_id"], json.dumps({**profile, "event_ns": fact["event_ns"]})))
+        self._put("device_profile", key, {**profile, "event_ns": fact["event_ns"]})
 
     def _has_table(self, name):
         # A reader of a file not yet opened by this version has no such table.
@@ -528,6 +616,44 @@ class Store:
         for row in rows:
             row["profile"] = found.get(row["device_id"])
         return rows
+
+    def app_catalog(self, ids):
+        """Names for Application Control IDs seen in received records."""
+        ids = [str(i) for i in ids if str(i).isdigit()]
+        if not ids or not self._has_table("app_catalog"):
+            return {}
+        result = {}
+        for index in range(0, len(ids), 500):
+            page = ids[index:index+500]
+            for appid, payload in self.db.execute(
+                    "SELECT appid,payload FROM app_catalog WHERE appid IN (" + ",".join("?"*len(page)) + ")", page):
+                result[appid] = json.loads(payload)
+        return result
+
+    def recent_identities(self, days=2):
+        """Endpoint identities from the latest daily rows, keyed by MAC and by IP.
+
+        Live FortiView rows carry only addresses; this names them with what the
+        accounting engine already recorded. Newer rows win.
+        """
+        start = self.db.execute("SELECT MAX(day) FROM daily").fetchone()[0]
+        if not start:
+            return {}, {}
+        first = (datetime.fromisoformat(start).date() - timedelta(days=days-1)).isoformat()
+        rows = sorted((json.loads(p) for (p,) in self.db.execute("SELECT payload FROM daily WHERE day>=?", (first,))),
+                      key=lambda r: r["event_ns"])
+        by_mac, by_ip = {}, {}
+        for row in rows:
+            identity = {"device_id": row["device_id"], "hostname": row.get("hostname", ""), "ip": row.get("ip", ""),
+                        "mac": row.get("mac", ""), "identity_kind": row.get("identity_kind", "")}
+            if identity["mac"]:
+                by_mac[identity["mac"].lower()] = identity
+            if identity["ip"]:
+                by_ip[identity["ip"]] = identity
+        profiles = self.profiles({x["device_id"] for x in (*by_mac.values(), *by_ip.values())})
+        for identity in (*by_mac.values(), *by_ip.values()):
+            identity["profile"] = profiles.get(identity["device_id"])
+        return by_mac, by_ip
 
     def profiles(self, devices):
         """Latest FortiGate OS/vendor/type labels for the given endpoint identities."""
@@ -735,7 +861,7 @@ class Store:
             except (ValueError, TypeError, KeyError):
                 rejected.append(digest([self.config.get("source_id"), record]))
         affected, inserted, repeated, singletons = set(), 0, 0, 0
-        with self.db, self.ledger.write_unit():
+        with self.db, self.ledger.write_unit(), self._rollup_batch():
             maximum = self.delivery_max()
             for uid in rejected:
                 new = self.ledger.insert_delivery(uid, "invalid", checkpoint or 0)
@@ -793,10 +919,15 @@ class Store:
                     self.ledger.insert_fact(fact, session)
                     self._rollup(fact, 1)
                     self._app_rollup(fact, labels.get(fact["uid"], {}), 1)
+            self._flush_rollups()
             self.set_state("replay_candidates", self.state("replay_candidates", 0)+repeated)
             self.set_state('delivery_max_ns', maximum)
             if checkpoint is not None:
                 self.set_state("checkpoint_ns", checkpoint)
+        # Committed: application names written by this batch need no rewrite.
+        if getattr(self, "_catalog_pending", None):
+            self._catalog_seen.update(self._catalog_pending)
+            self._catalog_pending = {}
         return {"new_events": inserted, "new_replay_candidates": repeated, "rejected_input_records": len(rejected), "affected_sessions": len(affected)+singletons}
 
     def prune(self, now, ledger_days=3, summary_days=400):

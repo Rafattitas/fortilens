@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased
+
+### Busy sites and capacity
+
+- Accounting no longer stalls on busy sites. Each Loki read is bounded to 30,000
+  records; when the 120-second window holds more, it halves until a read fits
+  and grows back when traffic drops. Before, a full window stopped processing,
+  which capped a site at about 200 records per second.
+- Accounting is about 35% faster. Daily, application, quality and profile
+  summary rows are updated in memory and written once per batch instead of
+  being read, decoded, re-encoded and written for every fact, and repeated IP
+  parsing and endpoint digests are cached. Results are unchanged:
+  `tests/support/compare_engines.py` found every summary table and all 231,371
+  ledger facts identical to the previous code on 510,000 real records, and on
+  synthetic data with large and small batches.
+- New capacity guide with measured figures: about 1,600 records per second at
+  the production limits (0.5 CPU, 192 MiB) and 2,700 with 1.0 CPU, about 730
+  bytes per raw record, and sizing for 100 to 3,000 devices.
+  `tests/support/benchmark_scale.py` reproduces the measurement with synthetic data.
+- An application name whose write was rolled back with a failed batch is now
+  written again by the next batch.
+
+### Live usage
+
+- A Live usage view shows who is using the Internet right now: download and
+  upload per device, what each device is doing, applications, segments and WAN
+  links. It refreshes every 10 seconds, pauses when hidden or on request, and
+  keeps the last good update if a refresh fails.
+- Figures come from FortiGate realtime FortiView statistics through the existing
+  read-only API token, limited to traffic leaving through WAN interfaces and
+  cached for 5 seconds. They are live estimates, not recorded usage totals.
+- FortiView pages are sorted by bandwidth, so the 500-row page holds the
+  busiest sources. Link totals come from WAN interface counters and include
+  every session, including FortiGate's own traffic and VPN; the page shows them
+  beside the share attributed to listed devices.
+- Devices are named from recent accounting records (MAC, then IP) with their
+  FortiGate profile. Application Control IDs (`appid`) are now kept as a
+  descriptive label so live rows show application names; identities and totals
+  are unchanged.
+
 ## v0.3.1 — 2026-11-06 — in-place upgrades
 
 ### Fixes

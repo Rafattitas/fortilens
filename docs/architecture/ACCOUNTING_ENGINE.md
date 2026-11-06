@@ -68,6 +68,36 @@ it never merges identities or changes a byte value.
 The view shows which device used which application; organizations may need an
 employee notice before enabling it.
 
+`appid` is kept with the other labels, and `app_catalog` maps each Application
+Control ID seen in a labelled Internet record to its latest name, category and
+risk. It only names IDs; it never changes totals.
+
+## Live usage
+
+`/api/live` reads FortiGate realtime FortiView statistics by source and by
+application through the allowlisted read-only API route
+`/api/v2/monitor/fortiview/statistics` (fixed `realtime=true`, bounded row count,
+registered VDOM). Rows are kept only when their destination interface is a
+confirmed WAN interface. `tx_bandwidth` and `rx_bandwidth` are bits per second
+from the source's side, so they are reported as upload and download. Devices are
+named from the latest two days of `daily` rows by MAC, then by IP, segments come
+from the interface inventory, and application IDs are named from `app_catalog`.
+Results are cached for 5 seconds.
+
+Both FortiView requests use `sort_by=bandwidth`: without it FortiView returns rows
+in session order, so a bounded page could omit the largest consumers. Pages hold
+at most 500 rows; `truncated` reports when the limit was reached. Download and
+upload totals and per-link rates come from two readings of
+`/api/v2/monitor/system/interface` counters on the WAN interfaces
+(`totals_source: INTERFACE_COUNTERS`), so they cover every session. They also
+include traffic that no LAN device owns, such as FortiGate updates, SLA probes
+and VPN tunnels, so they are usually higher than `listed`, the sum of the
+listed devices. A counter that goes backwards gives no rate rather than a guess.
+
+Live figures are FortiGate's estimate of current sessions. They are never added
+to recorded totals, never stored, and an unreadable response is an error, not
+zero traffic.
+
 ## Evidence limits
 
 Assigned bytes follow source event timestamps. A delta interval crossing midnight cannot be allocated to exact packet times from a single record; it is flagged. Missing/invalid contributions, source binding, counter discontinuities, pending counters, mapping uncertainty and weak identities are visible alongside totals. Pending values must never be added to assigned totals as if independently verified traffic.

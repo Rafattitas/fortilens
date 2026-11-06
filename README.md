@@ -39,6 +39,7 @@ your own server, with your own credentials and data.
 | Which device used the most, in which direction? | **Usage** searches endpoints and opens each device's daily and monthly history. |
 | How much did each VLAN use? | **Segments** compares exact VLAN and interface mappings, and names VLANs with no received records. |
 | Which applications used the Internet, and which devices used them? | **Applications** groups recorded usage by FortiGate Application Control label and category, with GenAI and risk filters. |
+| Who is using the Internet right now? | **Live usage** shows current download and upload per device, application, segment and WAN link from FortiGate realtime sessions, refreshed every 10 seconds. |
 | What was the total for a period? | **Reports** covers Today, rolling 7 days, this month, this year, recent 5 minutes or a custom range. |
 | Can I trust these numbers? | **Evidence** shows collection gaps, pending counters and identity limits. |
 | What is happening right now, in detail? | **Live monitoring** opens the native Grafana dashboard. |
@@ -84,6 +85,8 @@ want link health and device or VLAN usage without sending data to a third party.
   FortiGate Application Control labels in the traffic logs.
 - Certified billing, or complete traffic capture.
 - High availability or multiple writers.
+- Sites far above about 2,000 devices without extra CPU for accounting. See
+  [capacity and sizing](docs/operations/CAPACITY.md) for measured rates and storage.
 - ARM hosts. Deployed monitoring targets Linux/amd64.
 
 ## Install
