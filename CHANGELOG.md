@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — unified console and Web Setup & Settings
+## v0.3.0 — 2026-11-06 — unified console, Web Setup & Settings and application usage
 
 ### Applications view
 

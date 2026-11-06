@@ -1,7 +1,7 @@
 # One FortiLens console
 
-The unified console is an opt-in source feature after v0.2.0. Published v0.2.0 ZIPs
-retain the standalone reporting interface. Do not expect the new flag in those ZIPs.
+The unified console is part of v0.3.0 and later. The earlier v0.2.0 ZIP
+retains the standalone reporting interface and does not have the new flag.
 
 FortiLens provides one browser origin, one sign-in and shared navigation:
 
