@@ -17,6 +17,12 @@ from interfaces import map_source_interface
 from accounting_storage import detect_storage_format, open_ledger
 
 FIELDS = set("devid vd logid type subtype sessionid srcip dstip srcport dstport proto srcintf dstintf srcintfrole dstintfrole mastersrcmac srcmac srcname sentdelta rcvddelta sentbyte rcvdbyte duration durationdelta eventtime idseq".split())
+# Descriptive labels kept beside a record. They never enter event or delivery
+# identities, so a record re-read across an upgrade keeps its identity and is
+# never counted twice. They never change byte arithmetic either.
+META_FIELDS = frozenset("app appcat apprisk dstcountry".split())
+APP_SCHEMA = """CREATE TABLE IF NOT EXISTS app_daily(day TEXT NOT NULL,device TEXT NOT NULL,vlan TEXT NOT NULL,
+app TEXT NOT NULL,category TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(day,device,vlan,app,category))"""
 UINT64 = 2**64 - 1
 NS = 1000000000
 
@@ -135,7 +141,7 @@ def parse_line(line):
         if key in fields:
             raise ValueError("Duplicate log keys require review")
         fields[key] = value
-    return {k: v for k, v in fields.items() if k in FIELDS}
+    return {k: v for k, v in fields.items() if k in FIELDS or k in META_FIELDS}
 
 
 def normalize(record, source_id):
@@ -146,6 +152,7 @@ def normalize(record, source_id):
     fields = parse_line(record["line"]) if raw is None else raw
     if not isinstance(fields, dict) or not all(isinstance(k, str) and isinstance(v, str) and len(v) <= 4096 for k, v in fields.items()):
         raise ValueError("Normalized fields must be bounded strings")
+    meta = {k: v for k, v in fields.items() if k in META_FIELDS and v}
     fields = {k: v for k, v in fields.items() if k in FIELDS}
     eventtime = fields.get("eventtime", "")
     event_ns = number(eventtime)
@@ -160,9 +167,12 @@ def normalize(record, source_id):
         session.append(uid)
     if unsupported(fields):
         session.append(uid)
-    return {"uid": uid, "delivery_uid": digest([source_id, stamp, fields]), "source": source_id,
-            "event_ns": event_ns, "record_ns": stamp, "fields": fields,
-            "session": digest(session), "strong_event_time": strong}
+    event = {"uid": uid, "delivery_uid": digest([source_id, stamp, fields]), "source": source_id,
+             "event_ns": event_ns, "record_ns": stamp, "fields": fields,
+             "session": digest(session), "strong_event_time": strong}
+    if meta and not unsupported(fields):
+        event["meta"] = meta
+    return event
 
 
 def identity(event, generation):
@@ -327,6 +337,7 @@ class Store:
             if existing is not None and existing != contract:
                 raise ValueError("Accounting identity/timezone contract changed; use an explicitly rebuilt database")
             with self.db:
+                self.db.execute(APP_SCHEMA)
                 self.set_state("contract", contract)
                 # Rebuild this optional derived observation once on writer open,
                 # including after an older version or an offline DB restore.
@@ -422,6 +433,121 @@ class Store:
         else:
             self.db.execute("INSERT OR REPLACE INTO daily VALUES(?,?,?,?)", (*key, json.dumps(value)))
 
+    def _app_rollup(self, fact, labels, sign):
+        """Maintain day × device × VLAN × application totals beside `daily`.
+
+        Labels come from the fact's own record. Bytes are exactly the fact's, so
+        application totals add up to device totals for the days they cover.
+        """
+        if fact["classification"] != "INTERNET":
+            return
+        key = (fact["day"], fact["device_id"], fact["vlan"]["key"], labels.get("app", ""), labels.get("appcat", ""))
+        old = self.db.execute("SELECT payload FROM app_daily WHERE day=? AND device=? AND vlan=? AND app=? AND category=?", key).fetchone()
+        value = json.loads(old[0]) if old else {"vlan": fact["vlan"], "records": 0, "upload_bytes": 0, "download_bytes": 0,
+            "pending_upload_bytes": 0, "pending_download_bytes": 0, "risk": "", "event_ns": fact["event_ns"],
+            "hostname": fact["hostname"], "ip": fact["ip"], "mac": fact["mac"], "identity_kind": fact["identity_kind"]}
+        for column in ("upload_bytes", "download_bytes", "pending_upload_bytes", "pending_download_bytes"):
+            value[column] += sign*fact[column]
+        value["records"] += sign
+        if sign > 0 and fact["event_ns"] >= value["event_ns"]:
+            for column in ("event_ns", "hostname", "ip", "mac", "identity_kind"):
+                value[column] = fact[column]
+            value["risk"] = labels.get("apprisk", value["risk"])
+        if value["records"] <= 0:
+            self.db.execute("DELETE FROM app_daily WHERE day=? AND device=? AND vlan=? AND app=? AND category=?", key)
+        else:
+            self.db.execute("INSERT OR REPLACE INTO app_daily VALUES(?,?,?,?,?,?)", (*key, json.dumps(value)))
+
+    def _app_table(self):
+        # A reader of a file not yet opened by this version has no summaries.
+        return self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_daily'").fetchone() is not None
+
+    def _iter_app_rows(self, start, end):
+        """Whole days from `app_daily`; partial edges from retained facts and labels."""
+        zone = tz(self.config["accounting_timezone"])
+        start_local = datetime.fromtimestamp(start//NS, zone)
+        end_local = datetime.fromtimestamp(end//NS, zone)
+        first_full = start_local.date() + (timedelta(days=1) if (start_local.hour or start_local.minute or start_local.second or start % NS) else timedelta())
+        last_full_end = end_local.date()
+        whole = self.db.execute(
+            "SELECT day,device,app,category,payload FROM app_daily WHERE day>=? AND day<?",
+            (first_full.isoformat(), last_full_end.isoformat())) if self._app_table() else ()
+        for day, device, app, category, payload in whole:
+            yield {**json.loads(payload), "day": day, "device_id": device, "app": app, "category": category}
+        middle_start = timestamp_ns(datetime.combine(first_full, datetime.min.time(), zone).isoformat())
+        middle_end = timestamp_ns(datetime.combine(last_full_end, datetime.min.time(), zone).isoformat())
+        for a, b in ((start, min(end, middle_start)), (max(start, middle_end, middle_start), end)):
+            if a < b:
+                if a < self.state("ledger_floor_ns", 0):
+                    raise ValueError("Partial-day detail expired; request whole calendar days or increase ledger retention before collection")
+                for fact, labels in self.ledger.range_facts_labels(a, b):
+                    if fact["classification"] == "INTERNET":
+                        yield {**fact, "records": 1, "app": labels.get("app", ""), "category": labels.get("appcat", ""),
+                               "risk": labels.get("apprisk", "")}
+
+    def applications(self, start, end, *, app=None, category=None, device=None, vlan=None):
+        """Recorded Internet bytes by application and category for [start,end).
+
+        `app`/`category` select one application or category ("" = unidentified)
+        and add its devices. Days before application summaries began are absent,
+        not unidentified: `applications_since` says where the evidence starts.
+        """
+        start, end = timestamp_ns(start), timestamp_ns(end)
+        if start >= end:
+            raise ValueError("Report start must precede its end")
+        columns = ("upload_bytes", "download_bytes", "pending_upload_bytes", "pending_download_bytes", "records")
+        apps, categories, devices = {}, {}, {}
+
+        def add(target, row):
+            for column in columns:
+                target[column] += row[column]
+
+        for row in self._iter_app_rows(start, end):
+            if vlan and row["vlan"]["key"] != vlan or device and row["device_id"] != device:
+                continue
+            key = (row["app"], row["category"])
+            entry = apps.setdefault(key, {"app": row["app"] or None, "category": row["category"] or None, "risk": None,
+                                          "event_ns": -1, "devices": set(), **{c: 0 for c in columns}})
+            add(entry, row)
+            entry["devices"].add(row["device_id"])
+            if row["event_ns"] >= entry["event_ns"]:
+                entry["event_ns"], entry["risk"] = row["event_ns"], row.get("risk") or entry["risk"]
+            group = categories.setdefault(row["category"], {"category": row["category"] or None, "apps": set(),
+                                                             "devices": set(), **{c: 0 for c in columns}})
+            add(group, row)
+            group["apps"].add(row["app"])
+            group["devices"].add(row["device_id"])
+            if (app is not None and row["app"] == app and (category is None or row["category"] == category)) or \
+                    (app is None and category is not None and row["category"] == category):
+                target = devices.setdefault((row["device_id"], row["vlan"]["key"]), {"device_id": row["device_id"], "vlan": row["vlan"],
+                    "event_ns": -1, "hostname": "", "ip": "", "mac": "", "identity_kind": "", **{c: 0 for c in columns}})
+                add(target, row)
+                if row["event_ns"] >= target["event_ns"]:
+                    for column in ("event_ns", "hostname", "ip", "mac", "identity_kind"):
+                        target[column] = row[column]
+
+        def finish(values, *sets):
+            result = []
+            for value in values:
+                value = dict(value)
+                for name in sets:
+                    value[name] = len(value[name])
+                value.pop("event_ns", None)
+                value["total_bytes"] = value["upload_bytes"]+value["download_bytes"]
+                result.append(value)
+            return sorted(result, key=lambda x: (-x["total_bytes"], str(x.get("app") or x.get("category") or x.get("device_id"))))
+
+        rows = finish(apps.values(), "devices")
+        totals = {c: sum(x[c] for x in rows) if rows else None for c in ("upload_bytes", "download_bytes", "pending_upload_bytes", "pending_download_bytes")}
+        unidentified = sum(x["total_bytes"] for x in rows if x["app"] is None)
+        since = self.db.execute("SELECT MIN(day) FROM app_daily").fetchone()[0] if self._app_table() else None
+        return {"start_utc": iso(start), "end_utc": iso(end), "boundary": "[start,end)", "timezone": self.config["accounting_timezone"],
+                "applications": rows, "categories": finish(categories.values(), "apps", "devices"),
+                "devices": finish(devices.values()) if (app is not None or category is not None) else [],
+                "totals": totals, "unidentified_bytes": unidentified if rows else None, "applications_since": since,
+                "traffic_coverage": "UNKNOWN", "status": "RECORDED_ONLY" if rows else "UNAVAILABLE",
+                "note": "Application labels come from FortiGate Application Control on each record. Records without a label are unidentified. Device names are not authenticated user accounts."}
+
     def ingest(self, records, *, checkpoint=None):
         if len(records) > 30000:
             raise ValueError("Batch exceeds bounded ingestion size")
@@ -481,12 +607,15 @@ class Store:
                 rows = self.ledger.session_events(session, limit=10001)
                 if len(rows) > 10000:
                     raise ValueError("Session exceeds safe recomputation size; checkpoint not advanced")
+                labels = {row["uid"]: row.get("meta") or {} for row in rows}
                 for old in self.ledger.session_facts(session):
                     self._rollup(old, -1)
+                    self._app_rollup(old, labels.get(old["uid"], {}), -1)
                 self.ledger.delete_session_facts(session)
                 for fact in derive_session(rows, self.inventory, self.config):
                     self.ledger.insert_fact(fact, session)
                     self._rollup(fact, 1)
+                    self._app_rollup(fact, labels.get(fact["uid"], {}), 1)
             self.set_state("replay_candidates", self.state("replay_candidates", 0)+repeated)
             self.set_state('delivery_max_ns', maximum)
             if checkpoint is not None:
@@ -520,6 +649,7 @@ class Store:
                 self.set_state('delivery_max_ns', None)
             cutoff = datetime.fromtimestamp((timestamp_ns(now)-summary_days*86400*NS)//NS, tz(self.config["accounting_timezone"])).date().isoformat()
             self.db.execute("DELETE FROM daily WHERE day<?", (cutoff,))
+            self.db.execute("DELETE FROM app_daily WHERE day<?", (cutoff,))
             self.db.execute('DELETE FROM quality WHERE day<?',(cutoff,))
             self.set_state("ledger_floor_ns", max(floor, self.state("ledger_floor_ns", 0)))
             self.set_state("summary_floor_day", cutoff)

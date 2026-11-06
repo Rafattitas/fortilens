@@ -420,6 +420,17 @@ class LegacyLedger:
             if classification is None or fact["classification"] == classification:
                 yield fact
 
+    def range_facts_labels(self, start, end):
+        """Internet facts in [start,end) with their record's descriptive labels."""
+        for fact_payload, event_payload in self.db.execute(
+            "SELECT f.payload,e.payload FROM facts f JOIN events e ON e.uid=f.uid "
+            "WHERE f.stamp>=? AND f.stamp<? ORDER BY f.stamp,f.rowid",
+            (start, end),
+        ):
+            fact = json.loads(fact_payload)
+            if fact["classification"] == "INTERNET":
+                yield fact, json.loads(event_payload).get("meta") or {}
+
     def count_classification(self, start, end, classification):
         return self.db.execute(
             "SELECT COUNT(*) FROM facts WHERE stamp>=? AND stamp<? AND json_extract(payload,'$.classification')=?",
@@ -713,6 +724,24 @@ class CompactLedger:
             params,
         ):
             yield self._decode_fact(row)
+
+    def range_facts_labels(self, start, end):
+        """Internet facts in [start,end) with their record's descriptive labels."""
+        for row in self.db.execute(
+            self.FACT_SELECT.replace(
+                " FROM compact_facts", ",e.details AS event_details FROM compact_facts", 1
+            )
+            + " WHERE e.stamp>=? AND e.stamp<? AND f.classification=? ORDER BY e.stamp,f.id",
+            (start, end, _class_text("INTERNET")),
+        ):
+            details = _unpack(row["event_details"])
+            if (
+                not isinstance(details, list)
+                or len(details) != 3
+                or not isinstance(details[2], dict)
+            ):
+                raise ValueError("Invalid compact event details")
+            yield self._decode_fact(row), details[2].get("meta") or {}
 
     def count_classification(self, start, end, classification):
         count = self.db.execute(

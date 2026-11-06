@@ -322,6 +322,26 @@ class Engine:
         result['period']=period
         return result
 
+    def applications(self,period='today',*,at=None,start=None,end=None,app=None,category=None,device=None,vlan=None):
+        at=at or datetime.now(timezone.utc).isoformat()
+        first,last=accounting.period_bounds(period,at,self.config['accounting_timezone'],start=start,end=end)
+        with self._read_snapshot() as (store,version):
+            key=('applications',version,period,first,last,app,category,device,vlan)
+            cached=self._report_cache.get(key) if version is not None else None
+            if cached is not None:
+                self._report_cache.move_to_end(key)
+                result=json.loads(cached)
+            else:
+                result=store.applications(first,last,app=app,category=category,device=device,vlan=vlan)
+                if version is not None:
+                    encoded=json.dumps(result,ensure_ascii=False)
+                    if len(encoded.encode('utf-8','surrogatepass'))<=2*1024*1024:
+                        self._report_cache[key]=encoded
+                        while len(self._report_cache)>4:self._report_cache.popitem(last=False)
+            result['processing']=self._snapshot_diagnostics(store,version)
+        result['period']=period
+        return result
+
     def diagnostics(self):
         with self._read_snapshot() as (store,version):
             return self._snapshot_diagnostics(store,version)
@@ -522,6 +542,11 @@ def handler(engine,password,root):
                 if parsed.path in ('/api/report','/api/device'):
                     result=engine.report(value('period','today'),at=value('at'),start=value('start'),end=value('end'),
                         vlan=value('vlan') or None,device=value('device') or None,search=value('search',''),include_history=parsed.path=='/api/device')
+                    return self.send(200,result)
+                if parsed.path=='/api/applications':
+                    # An empty app or category selects unidentified records; absent means no filter.
+                    result=engine.applications(value('period','today'),at=value('at'),start=value('start'),end=value('end'),
+                        app=value('app'),category=value('category'),device=value('device') or None,vlan=value('vlan') or None)
                     return self.send(200,result)
                 self.send(404,{'error':'not_found'})
             except ServiceError as exc:
