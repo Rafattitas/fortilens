@@ -20,9 +20,17 @@ FIELDS = set("devid vd logid type subtype sessionid srcip dstip srcport dstport 
 # Descriptive labels kept beside a record. They never enter event or delivery
 # identities, so a record re-read across an upgrade keeps its identity and is
 # never counted twice. They never change byte arithmetic either.
-META_FIELDS = frozenset("app appcat apprisk dstcountry".split())
+META_FIELDS = frozenset("app appcat apprisk dstcountry osname srchwvendor devtype".split())
 APP_SCHEMA = """CREATE TABLE IF NOT EXISTS app_daily(day TEXT NOT NULL,device TEXT NOT NULL,vlan TEXT NOT NULL,
 app TEXT NOT NULL,category TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(day,device,vlan,app,category))"""
+# Latest FortiGate device-detection labels per endpoint identity. Descriptive
+# only: they never merge identities or change any byte value.
+PROFILE_SCHEMA = "CREATE TABLE IF NOT EXISTS device_profile(device TEXT PRIMARY KEY,payload TEXT NOT NULL)"
+APP_INDEXES = ("CREATE INDEX IF NOT EXISTS app_daily_app ON app_daily(app,category,day)",
+               "CREATE INDEX IF NOT EXISTS app_daily_category ON app_daily(category,day)")
+PROFILE_LABELS = {"osname": "os", "srchwvendor": "vendor", "devtype": "type"}
+# FortiGate reports these when it saw only the protocol, not the application.
+GENERIC_APP = re.compile(r"(?:QUIC|SSL(?:[._].*)?|TLS(?:[._v].*)?|HTTPS?\.BROWSER)", re.IGNORECASE)
 UINT64 = 2**64 - 1
 NS = 1000000000
 
@@ -338,6 +346,9 @@ class Store:
                 raise ValueError("Accounting identity/timezone contract changed; use an explicitly rebuilt database")
             with self.db:
                 self.db.execute(APP_SCHEMA)
+                self.db.execute(PROFILE_SCHEMA)
+                for statement in APP_INDEXES:
+                    self.db.execute(statement)
                 self.set_state("contract", contract)
                 # Rebuild this optional derived observation once on writer open,
                 # including after an older version or an offline DB restore.
@@ -441,6 +452,8 @@ class Store:
         """
         if fact["classification"] != "INTERNET":
             return
+        if sign > 0 and labels:
+            self._remember_labels(fact, labels)
         key = (fact["day"], fact["device_id"], fact["vlan"]["key"], labels.get("app", ""), labels.get("appcat", ""))
         old = self.db.execute("SELECT payload FROM app_daily WHERE day=? AND device=? AND vlan=? AND app=? AND category=?", key).fetchone()
         value = json.loads(old[0]) if old else {"vlan": fact["vlan"], "records": 0, "upload_bytes": 0, "download_bytes": 0,
@@ -458,9 +471,77 @@ class Store:
         else:
             self.db.execute("INSERT OR REPLACE INTO app_daily VALUES(?,?,?,?,?,?)", (*key, json.dumps(value)))
 
+    def _remember_labels(self, fact, labels):
+        """Record when labelled evidence starts and each endpoint's latest profile."""
+        first = self.state("applications_first_ns")
+        if first is None or fact["event_ns"] < first:
+            self.set_state("applications_first_ns", fact["event_ns"])
+        profile = {name: labels[key] for key, name in PROFILE_LABELS.items() if labels.get(key)}
+        if not profile:
+            return
+        old = self.db.execute("SELECT payload FROM device_profile WHERE device=?", (fact["device_id"],)).fetchone()
+        if old and json.loads(old[0])["event_ns"] > fact["event_ns"]:
+            return
+        self.db.execute("INSERT OR REPLACE INTO device_profile VALUES(?,?)",
+                        (fact["device_id"], json.dumps({**profile, "event_ns": fact["event_ns"]})))
+
+    def _has_table(self, name):
+        # A reader of a file not yet opened by this version has no such table.
+        return self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone() is not None
+
     def _app_table(self):
-        # A reader of a file not yet opened by this version has no summaries.
-        return self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_daily'").fetchone() is not None
+        return self._has_table("app_daily")
+
+    def _with_profiles(self, rows):
+        found = self.profiles(row["device_id"] for row in rows)
+        for row in rows:
+            row["profile"] = found.get(row["device_id"])
+        return rows
+
+    def profiles(self, devices):
+        """Latest FortiGate OS/vendor/type labels for the given endpoint identities."""
+        if not devices or not self._has_table("device_profile"):
+            return {}
+        result, devices = {}, list(devices)
+        for index in range(0, len(devices), 500):
+            page = devices[index:index+500]
+            for device, payload in self.db.execute(
+                    "SELECT device,payload FROM device_profile WHERE device IN (" + ",".join("?"*len(page)) + ")", page):
+                value = json.loads(payload)
+                value.pop("event_ns", None)
+                result[device] = value
+        return result
+
+    def app_history(self, app=None, category=None, *, device=None, vlan=None, months=False, limit=400):
+        """Whole-day (or month) recorded bytes for one application or category."""
+        if not self._app_table() or app is None and category is None:
+            return []
+        values = {}
+        if app is not None:
+            query, params = "app=?" + (" AND category=?" if category is not None else ""), (app,) + ((category,) if category is not None else ())
+        else:
+            query, params = "category=?", (category,)
+        for day, row_device, row_app, row_category, payload in self.db.execute(
+                "SELECT day,device,app,category,payload FROM app_daily WHERE " + query + " ORDER BY day", params):
+            if app is not None and row_app != app or category is not None and row_category != category:
+                continue
+            if row_app == "" and row_category == "" or device and row_device != device:
+                continue
+            row = json.loads(payload)
+            if vlan and row["vlan"]["key"] != vlan:
+                continue
+            key = day[:7] if months else day
+            value = values.setdefault(key, {"period": key, "upload_bytes": 0, "download_bytes": 0,
+                                            "pending_upload_bytes": 0, "pending_download_bytes": 0, "observed_days": set()})
+            for column in ("upload_bytes", "download_bytes", "pending_upload_bytes", "pending_download_bytes"):
+                value[column] += row[column]
+            value["observed_days"].add(day)
+        result = []
+        for key in sorted(values)[-limit:]:
+            value = values[key]
+            value["observed_days"] = len(value["observed_days"])
+            result.append(value)
+        return result
 
     def _iter_app_rows(self, start, end):
         """Whole days from `app_daily`; partial edges from retained facts and labels."""
@@ -485,18 +566,21 @@ class Store:
                         yield {**fact, "records": 1, "app": labels.get("app", ""), "category": labels.get("appcat", ""),
                                "risk": labels.get("apprisk", "")}
 
-    def applications(self, start, end, *, app=None, category=None, device=None, vlan=None):
+    def applications(self, start, end, *, app=None, category=None, device=None, vlan=None, history=False):
         """Recorded Internet bytes by application and category for [start,end).
 
         `app`/`category` select one application or category ("" = unidentified)
-        and add its devices. Days before application summaries began are absent,
-        not unidentified: `applications_since` says where the evidence starts.
+        and add its devices. Bytes recorded before labels were kept carry no
+        labels at all; they are reported apart as `untracked`, never as
+        unidentified, and `tracking_started_ns` says when labels begin.
         """
         start, end = timestamp_ns(start), timestamp_ns(end)
         if start >= end:
             raise ValueError("Report start must precede its end")
-        columns = ("upload_bytes", "download_bytes", "pending_upload_bytes", "pending_download_bytes", "records")
+        amounts = ("upload_bytes", "download_bytes", "pending_upload_bytes", "pending_download_bytes")
+        columns = (*amounts, "records")
         apps, categories, devices = {}, {}, {}
+        untracked = {c: 0 for c in columns}
 
         def add(target, row):
             for column in columns:
@@ -505,9 +589,13 @@ class Store:
         for row in self._iter_app_rows(start, end):
             if vlan and row["vlan"]["key"] != vlan or device and row["device_id"] != device:
                 continue
+            if row["app"] == "" and row["category"] == "":
+                add(untracked, row)
+                continue
             key = (row["app"], row["category"])
             entry = apps.setdefault(key, {"app": row["app"] or None, "category": row["category"] or None, "risk": None,
-                                          "event_ns": -1, "devices": set(), **{c: 0 for c in columns}})
+                                          "generic": bool(GENERIC_APP.fullmatch(row["app"])), "event_ns": -1,
+                                          "devices": set(), **{c: 0 for c in columns}})
             add(entry, row)
             entry["devices"].add(row["device_id"])
             if row["event_ns"] >= entry["event_ns"]:
@@ -519,11 +607,13 @@ class Store:
             group["devices"].add(row["device_id"])
             if (app is not None and row["app"] == app and (category is None or row["category"] == category)) or \
                     (app is None and category is not None and row["category"] == category):
-                target = devices.setdefault((row["device_id"], row["vlan"]["key"]), {"device_id": row["device_id"], "vlan": row["vlan"],
+                # One row per endpoint identity; its VLANs are listed, not repeated.
+                target = devices.setdefault(row["device_id"], {"device_id": row["device_id"], "vlan": row["vlan"], "vlans": {},
                     "event_ns": -1, "hostname": "", "ip": "", "mac": "", "identity_kind": "", **{c: 0 for c in columns}})
                 add(target, row)
+                target["vlans"][row["vlan"]["key"]] = row["vlan"]
                 if row["event_ns"] >= target["event_ns"]:
-                    for column in ("event_ns", "hostname", "ip", "mac", "identity_kind"):
+                    for column in ("event_ns", "hostname", "ip", "mac", "identity_kind", "vlan"):
                         target[column] = row[column]
 
         def finish(values, *sets):
@@ -538,15 +628,35 @@ class Store:
             return sorted(result, key=lambda x: (-x["total_bytes"], str(x.get("app") or x.get("category") or x.get("device_id"))))
 
         rows = finish(apps.values(), "devices")
-        totals = {c: sum(x[c] for x in rows) if rows else None for c in ("upload_bytes", "download_bytes", "pending_upload_bytes", "pending_download_bytes")}
+        selected = finish(devices.values()) if (app is not None or category is not None) else []
+        found = self.profiles(x["device_id"] for x in selected)
+        for row in selected:
+            row["profile"] = found.get(row["device_id"])
+            row["vlans"] = list(row["vlans"].values())
+        total = sum(x["total_bytes"] for x in rows)
         unidentified = sum(x["total_bytes"] for x in rows if x["app"] is None)
-        since = self.db.execute("SELECT MIN(day) FROM app_daily").fetchone()[0] if self._app_table() else None
-        return {"start_utc": iso(start), "end_utc": iso(end), "boundary": "[start,end)", "timezone": self.config["accounting_timezone"],
-                "applications": rows, "categories": finish(categories.values(), "apps", "devices"),
-                "devices": finish(devices.values()) if (app is not None or category is not None) else [],
-                "totals": totals, "unidentified_bytes": unidentified if rows else None, "applications_since": since,
-                "traffic_coverage": "UNKNOWN", "status": "RECORDED_ONLY" if rows else "UNAVAILABLE",
-                "note": "Application labels come from FortiGate Application Control on each record. Records without a label are unidentified. Device names are not authenticated user accounts."}
+        generic = sum(x["total_bytes"] for x in rows if x["generic"])
+        named = [x for x in rows if x["app"] is not None and not x["generic"]]
+        genai = next((c for c in finish(categories.values(), "apps", "devices") if c["category"] == "GenAI"), None)
+        untracked_total = untracked["upload_bytes"]+untracked["download_bytes"]
+        result = {"start_utc": iso(start), "end_utc": iso(end), "boundary": "[start,end)", "timezone": self.config["accounting_timezone"],
+                  "applications": rows, "categories": finish(categories.values(), "apps", "devices"), "devices": selected,
+                  "totals": {c: sum(x[c] for x in rows) if rows else None for c in amounts},
+                  "summary": {"total_bytes": total if rows else None, "applications": len(rows),
+                              "top_application": named[0]["app"] if named else None,
+                              "identified_bytes": total-unidentified-generic if rows else None,
+                              "unidentified_bytes": unidentified if rows else None, "generic_bytes": generic if rows else None,
+                              "genai_bytes": genai["total_bytes"] if genai else 0, "genai_devices": genai["devices"] if genai else 0},
+                  "unidentified_bytes": unidentified if rows else None,
+                  "untracked": {**untracked, "total_bytes": untracked_total} if untracked["records"] else None,
+                  "tracking_started_ns": self.state("applications_first_ns"),
+                  "applications_since": self.db.execute("SELECT MIN(day) FROM app_daily WHERE category<>'' OR app<>''").fetchone()[0] if self._app_table() else None,
+                  "traffic_coverage": "UNKNOWN", "status": "RECORDED_ONLY" if rows else "UNAVAILABLE",
+                  "note": "Application labels come from FortiGate Application Control on each record. Records without an application label are unidentified; protocol-only labels such as QUIC or SSL are marked generic. Device names are not authenticated user accounts."}
+        if history and (app is not None or category is not None):
+            result["daily_history"] = self.app_history(app, category, device=device, vlan=vlan)
+            result["monthly_history"] = self.app_history(app, category, device=device, vlan=vlan, months=True, limit=36)
+        return result
 
     def ingest(self, records, *, checkpoint=None):
         if len(records) > 30000:
@@ -739,7 +849,7 @@ class Store:
                 entry["total_bytes"] = entry["upload_bytes"]+entry["download_bytes"]
         return {"start_utc": iso(start), "end_utc": iso(end), "boundary": "[start,end)", "timezone": self.config["accounting_timezone"],
             'source_record_classifications': self.classifications(start,end),
-            "rows": rows, "devices": sorted(devices.values(), key=lambda x: x["total_bytes"], reverse=True),
+            "rows": rows, "devices": self._with_profiles(sorted(devices.values(), key=lambda x: x["total_bytes"], reverse=True)),
             "vlans": sorted(vlans.values(), key=lambda x: x["total_bytes"], reverse=True),
             "totals": totals, "observed_endpoint_identities": len({x["device_id"] for x in rows}),
             "unverified_endpoint_identities": len({x["device_id"] for x in rows if x["identity_kind"] != "MAC"}),

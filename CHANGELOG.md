@@ -14,6 +14,16 @@
   device totals only. The view shows the first day with labels.
 - The view shows which device used which application. Organizations may need to
   tell employees before enabling it.
+- Bytes recorded before labels were kept are reported apart, with the time labels
+  began, instead of appearing as unidentified traffic.
+- Protocol-only labels (QUIC, SSL/TLS, browser HTTP/HTTPS) are marked as generic,
+  with guidance when they are a large share of traffic.
+- The view adds summary cards (identified share, top application, GenAI use), a
+  chart of the largest applications, a category mix, share columns, search, top-N
+  and risk filters, and daily history for a selected application or category.
+- FortiGate device detection (`osname`, `srchwvendor`, `devtype`) is kept as the
+  latest profile per endpoint and shown beside device identities. It never merges
+  identities.
 
 ### Smaller accounting storage for usage monitoring
 

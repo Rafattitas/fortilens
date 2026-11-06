@@ -332,7 +332,8 @@ class Engine:
                 self._report_cache.move_to_end(key)
                 result=json.loads(cached)
             else:
-                result=store.applications(first,last,app=app,category=category,device=device,vlan=vlan)
+                result=store.applications(first,last,app=app,category=category,device=device,vlan=vlan,
+                    history=app is not None or category is not None)
                 if version is not None:
                     encoded=json.dumps(result,ensure_ascii=False)
                     if len(encoded.encode('utf-8','surrogatepass'))<=2*1024*1024:
