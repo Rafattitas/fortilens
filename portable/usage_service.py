@@ -72,6 +72,7 @@ def fetch_json(base, route, params=None, *, timeout=25, headers=None, context=No
 
 
 LIVE_ROUTE='/api/v2/monitor/fortiview/statistics'
+INTERFACE_ROUTE='/api/v2/monitor/system/interface'
 LIVE_ROWS=500
 LIVE_CACHE_SECONDS=5
 
@@ -90,7 +91,7 @@ def _rate(row,key):
     return value if isinstance(value,(int,float)) and not isinstance(value,bool) and value>=0 else 0
 
 
-def build_live(sources,applications,wan,inventory,vdom,by_mac,by_ip,catalog,now):
+def build_live(sources,applications,wan,inventory,vdom,by_mac,by_ip,catalog,now,interface_links=None):
     """Group FortiView rows that leave through a WAN interface.
 
     FortiView reports bits per second from the source's side: tx is what the
@@ -139,8 +140,20 @@ def build_live(sources,applications,wan,inventory,vdom,by_mac,by_ip,catalog,now)
         device['top_apps']=[name for name,_ in sorted(device.pop('apps').items(),key=lambda x:-x[1])[:3]]
     for segment in segments.values():
         segment['devices']=len(segment['devices'])
+    listed={'download_bps':totals['download_bps'],'upload_bps':totals['upload_bps']}
+    totals_source='LISTED_SESSIONS'
+    measured=[x for x in (interface_links or []) if x.get("download_bps") is not None]
+    if measured:
+        # Interface counters cover every session, including sources past the page.
+        totals['download_bps']=sum(x['download_bps'] for x in measured)
+        totals['upload_bps']=sum(x['upload_bps'] for x in measured)
+        totals_source='INTERFACE_COUNTERS'
+        link_rows=sorted(interface_links,key=lambda x:-((x["download_bps"] or 0)+(x["upload_bps"] or 0)))
+    else:
+        link_rows=ordered(links.values())
     return {'observed_at':now,'source':'FORTIVIEW_REALTIME','unit':'bits_per_second','totals':{**totals,'devices':len(devices)},
-            'links':ordered(links.values()),'devices':ordered(devices.values()),'vlans':ordered(segments.values()),
+            'totals_source':totals_source,'listed':listed,'listed_sources':len(sources),'truncated':len(sources)>=LIVE_ROWS,
+            'links':link_rows,'devices':ordered(devices.values()),'vlans':ordered(segments.values()),
             'applications':ordered(apps.values()),'wan_interfaces':sorted(wan),
             'note':'Live estimates from FortiGate realtime session statistics for traffic leaving through WAN interfaces. They are not recorded usage totals.'}
 
@@ -230,6 +243,7 @@ class Engine:
         self._diagnostics_cache=None
         self.live_lock=threading.Lock()
         self._live_cache=None
+        self._interface_sample=None
 
     @contextmanager
     def _read_snapshot(self):
@@ -294,21 +308,57 @@ class Engine:
         with self.live_lock:
             if self._live_cache and now-self._live_cache[0]<LIVE_CACHE_SECONDS:
                 return json.loads(self._live_cache[1])
-            fixed={'realtime':'true','count':str(LIVE_ROWS)}
+            # FortiView returns rows in session order unless asked; sort_by
+            # bandwidth makes a bounded page the busiest sources, not arbitrary ones.
+            fixed={'realtime':'true','count':str(LIVE_ROWS),'sort_by':'bandwidth'}
             sources=self.read_device(LIVE_ROUTE,{**fixed,'report_by':'source'})
             applications=self.read_device(LIVE_ROUTE,{**fixed,'report_by':'application'})
+            links=self.interface_rates(time.monotonic)
             with self._read_snapshot() as (store,_version):
                 by_mac,by_ip=store.recent_identities()
                 ids={str(a.get('id')) for row in fv_rows(applications)+fv_rows(sources) for a in row.get('apps') or [] if isinstance(a,dict)}
                 catalog=store.app_catalog(ids)
                 inventory=store.inventory
             wan=self.config.get('confirmed_wan_interfaces') or self.config.get('wan_interfaces') or []
-            result=build_live(fv_rows(sources),fv_rows(applications),wan,inventory,self.config.get('vdom',''),by_mac,by_ip,catalog,now)
+            result=build_live(fv_rows(sources),fv_rows(applications),wan,inventory,self.config.get('vdom',''),by_mac,by_ip,catalog,now,interface_links=links)
             self._live_cache=(now,json.dumps(result))
             return result
 
+    def interface_rates(self,clock,pause=1.0):
+        """WAN interface bits per second from two counter readings.
+
+        Totals from interface counters stay exact however many sources there
+        are; FortiView rows are a bounded page. A reading older than a minute is
+        retaken one second apart. A counter that went backwards gives no rate.
+        """
+        wan=self.config.get('confirmed_wan_interfaces') or self.config.get('wan_interfaces') or []
+        def sample():
+            response=self.read_device(INTERFACE_ROUTE,{})
+            results=response.get('results') if isinstance(response,dict) else None
+            if not isinstance(results,dict):raise ServiceError('invalid_response')
+            counters={}
+            for name in wan:
+                row=results.get(name)
+                if isinstance(row,dict) and all(type(row.get(k)) is int and row[k]>=0 for k in ('rx_bytes','tx_bytes')):
+                    counters[name]=(row['rx_bytes'],row['tx_bytes'])
+            return clock(),counters
+        previous=self._interface_sample
+        if previous is None or clock()-previous[0]>60:
+            previous=sample();time.sleep(pause)
+        current=sample();self._interface_sample=current
+        elapsed=current[0]-previous[0]
+        links=[]
+        for name in wan:
+            old,new=previous[1].get(name),current[1].get(name)
+            rate=None
+            if old and new and elapsed>0 and new[0]>=old[0] and new[1]>=old[1]:
+                rate=((new[0]-old[0])*8/elapsed,(new[1]-old[1])*8/elapsed)
+            links.append({'interface':name,'download_bps':round(rate[0]) if rate else None,'upload_bps':round(rate[1]) if rate else None,
+                          'measured_seconds':round(elapsed,1) if rate else None})
+        return links
+
     def read_device(self,route,params):
-        if route not in ('/api/v2/monitor/router/lookup','/api/v2/monitor/system/status',LIVE_ROUTE):
+        if route not in ('/api/v2/monitor/router/lookup','/api/v2/monitor/system/status',LIVE_ROUTE,INTERFACE_ROUTE):
             raise ServiceError('device_endpoint_not_allowlisted')
         c=self.config
         token=Path(self.token_file).read_text().strip()
