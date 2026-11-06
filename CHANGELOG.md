@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## v0.3.1 — 2026-11-06 — in-place upgrades
+
+### Fixes
+
+- Device details stay visible when the device's application list cannot load.
+  Before, a failed applications request replaced the loaded details with
+  "Evidence unavailable".
+- `install.sh` no longer writes root-owned `__pycache__` folders into the source
+  checkout when run with `sudo`.
 
 ### In-place upgrades
 
