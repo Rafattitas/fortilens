@@ -458,6 +458,14 @@ class ManagementTests(unittest.TestCase):
         (c.root/'compose.yaml').write_text(yaml.safe_dump(compose,sort_keys=False))
         adopted=Configuration(c.root,self.base/'adopt-control-2',project='existing-original-project')
         self.assertEqual(adopted.view()['settings']['accounting_cpus'],'2')
+        # Settings saved before the choice existed show the live limit, and a
+        # Save of unrelated fields keeps it.
+        state=json.loads(c.state_path.read_text());state['settings'].pop('accounting_cpus')
+        c.state_path.write_text(json.dumps(state))
+        view=c.view();self.assertEqual(view['settings']['accounting_cpus'],'2')
+        view['settings']['site_name']='Renamed'
+        c.save({'revision':view['revision'],'settings':view['settings']})
+        self.assertEqual(c.state()['settings']['accounting_cpus'],'2')
         settings=deepcopy(c.view()['settings']);settings['accounting_cpus']='8'
         with self.assertRaises(Exception):c.save({'revision':c.view()['revision'],'settings':settings})
         page=(ROOT/'management/static/index.html').read_text(encoding='utf-8')

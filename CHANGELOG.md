@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- Installations whose settings were saved before v0.4.0 now show the running
+  accounting CPU limit. Before, the console showed 0.5 and a later Save reset a
+  manually raised limit to 0.5.
+
 ## v0.4.0 — 2026-11-06 — live usage and busy sites
 
 ### Busy sites and capacity

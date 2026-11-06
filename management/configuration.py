@@ -225,6 +225,10 @@ class Configuration:
             present = bool(self.token())
         except Problem:
             present = False
+        if 'accounting_cpus' not in state['settings']:
+            # Settings saved before this choice existed: show the live limit, so
+            # the next Save keeps it instead of resetting it to the default.
+            state['settings']['accounting_cpus'] = accounting_cpus(self.compose())
         return {key: state[key] for key in ('revision', 'applied_revision', 'configured', 'settings')} | {
             'secret_status': {'api_token_present': present, 'custom_ca_present': bool(load(self.secret_path, {}).get('ca') or load(self.root / state['site_file'], {}).get('api_ca_file'))},
             'pending_changes': state['applied_revision'] != state['revision'],
