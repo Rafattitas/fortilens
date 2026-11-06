@@ -3,7 +3,7 @@
 For the unified FortiLens interface in current source, use `python3 setup.py init --enable-portal`.
 This enables accounting and one console for reports and embedded Grafana. Read the
 [unified console guide](../docs/getting-started/UNIFIED_CONSOLE.md) for authentication, existing-site
-migration and rollback. Published v0.2.0 ZIPs retain the separate reporting interface.
+migration and rollback. The earlier v0.2.0 ZIP retains the separate reporting interface.
 
 For one FortiGate per independent company installation. Requires **Linux x86-64, Docker Compose v2 and Python 3.10+**. Windows supports configuration and tests; deployment and host monitoring target Linux. No third-party Python packages are required. All product text is English.
 
