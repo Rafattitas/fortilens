@@ -288,7 +288,9 @@ def _report_digest(store):
 
     def bound(day):
         return accounting.timestamp_ns(
-            datetime.combine(datetime.fromisoformat(day).date(), datetime.min.time(), zone).isoformat()
+            datetime.combine(
+                datetime.fromisoformat(day).date(), datetime.min.time(), zone
+            ).isoformat()
         )
 
     ranges = []
@@ -344,12 +346,18 @@ def slim(source, destination, *, batch_size=2000, min_free_bytes=2 * 1024**3, pr
         if shutil.disk_usage(destination.parent).free < min_free_bytes:
             raise MigrationError("The copy reached its free-space reserve")
         if progress:
-            progress({"stage": stage, "rows": rows,
-                      "elapsed_seconds": round(time.monotonic() - started, 2)})
+            progress(
+                {
+                    "stage": stage,
+                    "rows": rows,
+                    "elapsed_seconds": round(time.monotonic() - started, 2),
+                }
+            )
 
     def temporary(label):
-        fd, name = tempfile.mkstemp(prefix="." + destination.name + "." + label + "-",
-                                    dir=destination.parent)
+        fd, name = tempfile.mkstemp(
+            prefix="." + destination.name + "." + label + "-", dir=destination.parent
+        )
         os.close(fd)
         path = Path(name)
         temporaries.append(path)
@@ -370,7 +378,9 @@ def slim(source, destination, *, batch_size=2000, min_free_bytes=2 * 1024**3, pr
         src.backup(work)
         notify("copied")
         work.row_factory = sqlite3.Row
-        work.executescript("PRAGMA journal_mode=MEMORY;PRAGMA synchronous=OFF;PRAGMA foreign_keys=ON;")
+        work.executescript(
+            "PRAGMA journal_mode=MEMORY;PRAGMA synchronous=OFF;PRAGMA foreign_keys=ON;"
+        )
         ledger = open_ledger(work)
         unsupported_class = _class_text("UNSUPPORTED_RECORD")
         removed = 0
@@ -387,16 +397,23 @@ def slim(source, destination, *, batch_size=2000, min_free_bytes=2 * 1024**3, pr
             for row in rows:
                 details = _unpack(row["details"])
                 fields = _decode_fields(details[1])
-                if (accounting.unsupported(fields) and row["classification"] == unsupported_class
-                        and not details[2].get("anchor")):
-                    work.execute("INSERT INTO compact_skipped VALUES(?,?,?)",
-                                 (row["uid"], row["stamp"], unsupported_class))
+                if (
+                    accounting.unsupported(fields)
+                    and row["classification"] == unsupported_class
+                    and not details[2].get("anchor")
+                ):
+                    work.execute(
+                        "INSERT INTO compact_skipped VALUES(?,?,?)",
+                        (row["uid"], row["stamp"], unsupported_class),
+                    )
                     work.execute("DELETE FROM compact_facts WHERE id=?", (row["fact_id"],))
                     work.execute("DELETE FROM compact_events WHERE id=?", (row["id"],))
                     removed += 1
                 elif isinstance(row["details"], str):
-                    work.execute("UPDATE compact_events SET details=? WHERE id=?",
-                                 (_pack(details), row["id"]))
+                    work.execute(
+                        "UPDATE compact_events SET details=? WHERE id=?",
+                        (_pack(details), row["id"]),
+                    )
             last = rows[-1]["id"]
             work.commit()
             notify("events", last)
@@ -410,8 +427,10 @@ def slim(source, destination, *, batch_size=2000, min_free_bytes=2 * 1024**3, pr
                 break
             for row in rows:
                 if isinstance(row["details"], str):
-                    work.execute("UPDATE compact_facts SET details=? WHERE id=?",
-                                 (_pack(_unpack(row["details"])), row["id"]))
+                    work.execute(
+                        "UPDATE compact_facts SET details=? WHERE id=?",
+                        (_pack(_unpack(row["details"])), row["id"]),
+                    )
             last = rows[-1]["id"]
             work.commit()
             notify("facts", last)
@@ -428,9 +447,7 @@ def slim(source, destination, *, batch_size=2000, min_free_bytes=2 * 1024**3, pr
         if out.execute("PRAGMA user_version").fetchone()[0] != 2:
             raise MigrationError("The copy did not reach compact version 2")
         notify("verify")
-        skipped_uids = {
-            r[0] for r in out.execute("SELECT uid FROM compact_skipped")
-        }
+        skipped_uids = {r[0] for r in out.execute("SELECT uid FROM compact_skipped")}
         if len(skipped_uids) < removed:
             raise MigrationError("Logical database verification failed")
         verified = {}
@@ -494,8 +511,12 @@ def slim(source, destination, *, batch_size=2000, min_free_bytes=2 * 1024**3, pr
             if connection is not None:
                 connection.close()
         for path in temporaries:
-            for item in (path, Path(str(path) + "-wal"), Path(str(path) + "-shm"),
-                         Path(str(path) + "-journal")):
+            for item in (
+                path,
+                Path(str(path) + "-wal"),
+                Path(str(path) + "-shm"),
+                Path(str(path) + "-journal"),
+            ):
                 item.unlink(missing_ok=True)
 
 
@@ -506,8 +527,11 @@ def main(argv=None):
     parser.add_argument("--batch-size", type=int, default=1000)
     parser.add_argument("--min-free-gib", type=float, default=2)
     parser.add_argument("--progress", action="store_true")
-    parser.add_argument("--slim", action="store_true",
-                        help="Copy a compact database to a smaller verified compact version 2 file")
+    parser.add_argument(
+        "--slim",
+        action="store_true",
+        help="Copy a compact database to a smaller verified compact version 2 file",
+    )
     args = parser.parse_args(argv)
     try:
         reserve = int(args.min_free_gib * 1024**3)

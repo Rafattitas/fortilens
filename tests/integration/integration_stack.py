@@ -169,10 +169,13 @@ def compact_storage_pipeline(command, root, compose, usage, password, expected, 
     oneoff=['docker','run','--rm','--network','none','--volumes-from',worker,
             '--mount','type=bind,src='+str(ROOT/'portable')+',dst=/tools,readonly',
             '--entrypoint','python',image]
-    result=subprocess.run([*oneoff,'/tools/accounting_migrate.py','/data/usage.sqlite',
+    # The service creates new databases in compact storage, so this lab copy is
+    # the verified version 2 slim copy rather than a legacy migration.
+    result=subprocess.run([*oneoff,'/tools/accounting_migrate.py','--slim','/data/usage.sqlite',
                            '/data/compact-candidate.sqlite'],capture_output=True,text=True,check=True)
     manifest=json.loads(result.stdout)
-    assert manifest['destination_format']=='compact' and manifest['verified']['events']['rows']>=2
+    assert manifest['destination_format']=='compact-v2' and manifest['verified']['events']['rows']>=2
+    assert manifest['verified']['reports']['rows']>=1
     # Sidecars belong to their corresponding DB. Keep the original pair intact;
     # never apply this fixture-only switch to a registered installation.
     switch="""from pathlib import Path

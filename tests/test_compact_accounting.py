@@ -881,17 +881,36 @@ def mixed_records(offset=0):
 
     rows = [
         record(at % (offset + 1), sessionid="s1"),
-        record(at % (offset + 2), sessionid="s1", logid="0000000013", sentdelta="40",
-               rcvddelta="50", sentbyte="140", rcvdbyte="250", duration="120"),
+        record(
+            at % (offset + 2),
+            sessionid="s1",
+            logid="0000000013",
+            sentdelta="40",
+            rcvddelta="50",
+            sentbyte="140",
+            rcvdbyte="250",
+            duration="120",
+        ),
         record(at % (offset + 3), sessionid="s2", mastersrcmac="02:00:00:00:00:02"),
     ]
-    for index, (kind, subtype, logid) in enumerate((
-        ("traffic", "local", "0001000014"), ("utm", "app-ctrl", "1059028704"),
-        ("traffic", "forward", "0000000011"), ("utm", "webfilter", "0317013312"),
-        ("event", "system", "0100040704"),
-    )):
-        rows.append(record(at % (offset + 4 + index), sessionid="u" + str(index),
-                           type=kind, subtype=subtype, logid=logid))
+    for index, (kind, subtype, logid) in enumerate(
+        (
+            ("traffic", "local", "0001000014"),
+            ("utm", "app-ctrl", "1059028704"),
+            ("traffic", "forward", "0000000011"),
+            ("utm", "webfilter", "0317013312"),
+            ("event", "system", "0100040704"),
+        )
+    ):
+        rows.append(
+            record(
+                at % (offset + 4 + index),
+                sessionid="u" + str(index),
+                type=kind,
+                subtype=subtype,
+                logid=logid,
+            )
+        )
     return rows
 
 
@@ -906,8 +925,10 @@ class CompactVersionTwoTests(unittest.TestCase):
         """Build the compact fixture as an older version 1 file with text rows."""
         storage = accounting.open_ledger.__globals__
         plain = lambda value: json.dumps(value, separators=(",", ":"))
-        with patch.dict(storage, {"_pack": plain}), \
-                patch.object(storage["CompactLedger"], "supports_skipped", False):
+        with (
+            patch.dict(storage, {"_pack": plain}),
+            patch.object(storage["CompactLedger"], "supports_skipped", False),
+        ):
             self.ingest(rows, checkpoint)
         self.compact.close()
         with closing(sqlite3.connect(self.compact_path)) as db:
@@ -945,13 +966,18 @@ class CompactVersionTwoTests(unittest.TestCase):
 
     def test_new_details_are_compressed_and_roundtrip(self):
         self.ingest(mixed_records(), CHECKPOINT)
-        kinds = {r[0] for r in self.compact.db.execute(
-            "SELECT typeof(details) FROM compact_events UNION SELECT typeof(details) FROM compact_facts")}
+        kinds = {
+            r[0]
+            for r in self.compact.db.execute(
+                "SELECT typeof(details) FROM compact_events UNION SELECT typeof(details) FROM compact_facts"
+            )
+        }
         self.assertEqual(kinds, {"blob"})
         for table in ("compact_events", "compact_facts"):
-            for packed, in self.compact.db.execute("SELECT details FROM " + table):
-                text = json.dumps(accounting.open_ledger.__globals__["_unpack"](packed),
-                                  separators=(",", ":"))
+            for (packed,) in self.compact.db.execute("SELECT details FROM " + table):
+                text = json.dumps(
+                    accounting.open_ledger.__globals__["_unpack"](packed), separators=(",", ":")
+                )
                 self.assertLess(len(packed), len(text))
         self.compare()
 
@@ -965,7 +991,9 @@ class CompactVersionTwoTests(unittest.TestCase):
     def test_version_one_file_upgrades_in_place_and_keeps_counting_exactly(self):
         rows = mixed_records()
         self.version_one(rows, CHECKPOINT)
-        with closing(accounting.Store.open_readonly(self.compact_path, CONFIG, INVENTORY)) as reader:
+        with closing(
+            accounting.Store.open_readonly(self.compact_path, CONFIG, INVENTORY)
+        ) as reader:
             self.assertEqual(reader.db.execute("PRAGMA user_version").fetchone()[0], 1)
             self.assertEqual(reader.report(START, END), self.legacy.report(START, END))
         self.compact = accounting.Store(self.compact_path, CONFIG, deepcopy(INVENTORY))
@@ -989,8 +1017,10 @@ class CompactVersionTwoTests(unittest.TestCase):
         destination = Path(self.temporary.name) / "slim.sqlite"
         result = slim(self.compact_path, destination, batch_size=3, min_free_bytes=0)
         self.assertEqual(result["unsupported_records_counted_not_stored"], 10)
-        self.assertEqual(set(result["verified"]),
-                         {"deliveries", "daily", "quality", "state", "events", "facts", "reports"})
+        self.assertEqual(
+            set(result["verified"]),
+            {"deliveries", "daily", "quality", "state", "events", "facts", "reports"},
+        )
         with self.assertRaises(MigrationError):
             slim(self.compact_path, destination, min_free_bytes=0)
         self.compact = accounting.Store(destination, CONFIG, deepcopy(INVENTORY))
