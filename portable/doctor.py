@@ -379,6 +379,47 @@ def accounting_checks(report,now,freshness):
         'Receipt-time Loki timestamps are configured for late-delivery discovery.' if receipt else 'Receipt-time discovery is not confirmed; late source timestamps may fall outside a short poll overlap.',
         'receipt_timestamps_configured' if receipt else 'late_delivery_coverage_unverified',
         '' if receipt else 'Review the upgrade plan; source eventtime must remain in the raw log line.'))
+    if isinstance(report.get('fortigate'),dict):
+        result.extend(fortios_checks(report['fortigate'],report.get('app_ids_seen')))
+    return result
+
+
+LIVE_PARTS={'applications':'application statistics','interface_counters':'WAN interface counters'}
+
+
+def fortios_checks(device,app_ids_seen=None):
+    """FortiOS version coverage and the API parts this firmware actually returned."""
+    if not device.get('api_configured'):return []
+    result=[]
+    level=device.get('level')
+    label=str(device.get('message',''))+(' Build '+str(device['build'])+'.' if device.get('build') else '')
+    if level in ('TESTED','SAME_BRANCH'):
+        result.append(check('fortios_version','PASS',label,'fortios_'+level.lower()))
+    elif level=='UNTESTED':
+        result.append(check('fortios_version','WARN',label,'fortios_untested',
+            'Reports from logs are expected to work. If a figure looks wrong, open a FortiOS compatibility report with the details shown here.'))
+    else:
+        reason=device.get('error')
+        result.append(check('fortios_version','UNKNOWN','The FortiOS version could not be read'+(' ('+reason+').' if reason else '.'),
+            'fortios_version_unknown','Use Settings > FortiGate Connection > Test Connection to review the read-only API account.'))
+    live=device.get('live')
+    if isinstance(live,dict):
+        problems=[]
+        if live.get('fortiview')=='UNAVAILABLE':
+            problems.append('realtime FortiView statistics are unavailable'+(' ('+live['fortiview_error']+')' if live.get('fortiview_error') else ''))
+        elif live.get('fortiview')=='FIELDS_MISSING':
+            problems.append('FortiView rows lack '+', '.join(map(str,live.get('missing_fields') or [])))
+        if live.get('sorted_by_device') is False:
+            problems.append('FortiGate ignored the bandwidth sort, so on busy sites the listed devices may not be the busiest')
+        for key,name in LIVE_PARTS.items():
+            if live.get(key)=='UNAVAILABLE' and live.get('fortiview')!='UNAVAILABLE':problems.append(name+' are unavailable')
+        result.append(check('live_usage_api','WARN' if problems else 'PASS',
+            'Live usage: '+'; '.join(problems)+'.' if problems else 'Live usage: every FortiGate API part it uses responded in the expected shape.',
+            'live_usage_partial' if problems else 'live_usage_supported',
+            'The rest of Live usage keeps working. Recorded reports from logs are not affected.' if problems else ''))
+    if app_ids_seen==0:
+        result.append(check('application_ids','WARN','No Application Control IDs (appid) have been seen in received logs yet.','application_ids_missing',
+            'Live usage shows application IDs without names until logs with appid arrive. Application Control must be enabled on the logging policies.'))
     return result
 
 

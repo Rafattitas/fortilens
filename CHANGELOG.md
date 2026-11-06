@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### FortiOS compatibility
+
+- Diagnostics shows the FortiOS version and build read from the FortiGate, and
+  whether that version has been checked on a real device (only 7.2.14 so far).
+- Live usage reads each FortiGate API part separately. Without FortiView, link
+  totals still show; missing fields, an ignored bandwidth sort, and missing
+  application statistics or interface counters are named on the page and in
+  Diagnostics instead of showing as zero.
+- Diagnostics warns when no Application Control IDs have arrived in logs.
+- New guide: [FortiOS compatibility](docs/operations/COMPATIBILITY.md).
+
 ### Fixes
 
 - Installations whose settings were saved before v0.4.0 now show the running

@@ -10,6 +10,7 @@ import hmac
 import json
 import logging
 import math
+import re
 from pathlib import Path
 import signal
 import sqlite3
@@ -90,6 +91,42 @@ def fv_rows(response):
 def _rate(row,key):
     value=row.get(key,0)
     return value if isinstance(value,(int,float)) and not isinstance(value,bool) and value>=0 else 0
+
+
+# FortiOS versions checked against a real device. Other versions are expected to
+# work but may name or shape API fields differently; see docs/operations/COMPATIBILITY.md.
+TESTED_FORTIOS=('7.2.14',)
+# FortiView source-row fields that Live usage cannot do without.
+LIVE_FIELDS=('dstintf','srcaddr','rx_bandwidth','tx_bandwidth')
+DEVICE_INFO_SECONDS=3600
+DEVICE_RETRY_SECONDS=300
+LIVE_CHECK_SECONDS=3600
+
+
+def fortios_support(version):
+    """How far a FortiOS version is covered by real-device checks."""
+    match=re.fullmatch(r'v?(\d+)\.(\d+)\.(\d+)',str(version or ''))
+    if not match:return {'level':'UNKNOWN','message':'The FortiOS version has not been read yet.'}
+    plain='.'.join(match.groups());tested=', '.join(TESTED_FORTIOS)
+    if plain in TESTED_FORTIOS:return {'level':'TESTED','message':'FortiOS '+plain+' has been checked on a real device.'}
+    if any(t.startswith(match[1]+'.'+match[2]+'.') for t in TESTED_FORTIOS):
+        return {'level':'SAME_BRANCH','message':'FortiOS '+plain+' has not been checked itself; '+tested+' on the same branch has.'}
+    return {'level':'UNTESTED','message':'FortiOS '+plain+' has not been checked on a real device (checked: '+tested+'). Reports from logs are expected to work; Live usage is the most version-sensitive.'}
+
+
+def _bandwidth(row):
+    return _rate(row,'rx_bandwidth')+_rate(row,'tx_bandwidth')
+
+
+def check_live_rows(rows):
+    """Fields this FortiOS left out, and whether it honoured the bandwidth sort.
+
+    FortiOS silently ignores an unsupported sort (it returns session order), so
+    the order is checked instead of trusted.
+    """
+    missing=[field for field in LIVE_FIELDS if rows and not any(field in row for row in rows)]
+    ordered=all(_bandwidth(a)>=_bandwidth(b) for a,b in zip(rows,rows[1:]))
+    return missing,ordered
 
 
 def build_live(sources,applications,wan,inventory,vdom,by_mac,by_ip,catalog,now,interface_links=None):
@@ -246,6 +283,9 @@ class Engine:
         self._live_cache=None
         self._interface_sample=None
         self.step_seconds=None
+        self.device=None
+        self._device_attempt=None
+        self.live_compatibility=None
 
     @contextmanager
     def _read_snapshot(self):
@@ -313,18 +353,73 @@ class Engine:
             # FortiView returns rows in session order unless asked; sort_by
             # bandwidth makes a bounded page the busiest sources, not arbitrary ones.
             fixed={'realtime':'true','count':str(LIVE_ROWS),'sort_by':'bandwidth'}
-            sources=self.read_device(LIVE_ROUTE,{**fixed,'report_by':'source'})
-            applications=self.read_device(LIVE_ROUTE,{**fixed,'report_by':'application'})
-            links=self.interface_rates(time.monotonic)
+            # Each part is read on its own: a FortiOS without one of them still
+            # shows the others, and says which part is missing.
+            problems={}
+            def attempt(name,read):
+                try:return read()
+                except (ServiceError,OSError,ValueError) as exc:
+                    problems[name]=safe_error(exc);return None
+            sources=attempt('fortiview',lambda:fv_rows(self.read_device(LIVE_ROUTE,{**fixed,'report_by':'source'})))
+            applications=attempt('applications',lambda:fv_rows(self.read_device(LIVE_ROUTE,{**fixed,'report_by':'application'}))) if sources is not None else None
+            links=attempt('interface_counters',lambda:self.interface_rates(time.monotonic))
+            if sources is None and links is None:
+                self.live_compatibility={'checked_at':now,'fortiview':'UNAVAILABLE','fortiview_error':problems['fortiview'],
+                    'applications':'UNAVAILABLE','interface_counters':'UNAVAILABLE','missing_fields':[],'sorted_by_device':None}
+                raise ServiceError(problems['fortiview'] if problems['fortiview'] in ERROR_CODES else 'upstream_unavailable')
+            missing,ordered=check_live_rows(sources or [])
+            if not ordered:sources=sorted(sources,key=lambda row:-_bandwidth(row))
+            if applications and not check_live_rows(applications)[1]:applications=sorted(applications,key=lambda row:-_bandwidth(row))
             with self._read_snapshot() as (store,_version):
                 by_mac,by_ip=store.recent_identities()
-                ids={str(a.get('id')) for row in fv_rows(applications)+fv_rows(sources) for a in row.get('apps') or [] if isinstance(a,dict)}
+                ids={str(a.get('id')) for row in (applications or [])+(sources or []) for a in row.get('apps') or [] if isinstance(a,dict)}
                 catalog=store.app_catalog(ids)
                 inventory=store.inventory
             wan=self.config.get('confirmed_wan_interfaces') or self.config.get('wan_interfaces') or []
-            result=build_live(fv_rows(sources),fv_rows(applications),wan,inventory,self.config.get('vdom',''),by_mac,by_ip,catalog,now,interface_links=links)
+            result=build_live(sources or [],applications or [],wan,inventory,self.config.get('vdom',''),by_mac,by_ip,catalog,now,interface_links=links)
+            compatibility={'checked_at':now,
+                'fortiview':'UNAVAILABLE' if sources is None else 'FIELDS_MISSING' if missing else 'OK',
+                'fortiview_error':problems.get('fortiview'),'missing_fields':missing,
+                'sorted_by_device':ordered if sources is not None else None,
+                'applications':'UNAVAILABLE' if applications is None else 'OK',
+                'interface_counters':'UNAVAILABLE' if links is None else 'OK'}
+            self.live_compatibility=compatibility
+            result['compatibility']={**compatibility,'fortios':self.device_summary()}
             self._live_cache=(now,json.dumps(result))
             return result
+
+    def device_summary(self):
+        device=self.device or {}
+        return {'version':device.get('version'),'build':device.get('build'),**fortios_support(device.get('version'))}
+
+    def _remember_device(self,response):
+        """Every FortiOS REST reply names the firmware; keep it for diagnostics."""
+        version=response.get('version') if isinstance(response,dict) else None
+        if isinstance(version,str) and re.fullmatch(r'v?\d+\.\d+\.\d+',version):
+            build=response.get('build')
+            self.device={'version':version.lstrip('v'),'build':build if type(build) is int else None,'observed_at':time.time()}
+
+    def fortigate_diagnostics(self,now=None):
+        """FortiOS version and Live usage support, refreshed at most hourly.
+
+        Read-only. A failed read is retried after five minutes, so a FortiGate
+        that is down cannot slow every diagnostics request.
+        """
+        now=time.time() if now is None else now
+        error=None
+        if self.token_file:
+            if not self.device or now-self.device['observed_at']>DEVICE_INFO_SECONDS:
+                if self._device_attempt is None or now-self._device_attempt[0]>DEVICE_RETRY_SECONDS:
+                    try:
+                        self.read_device('/api/v2/monitor/system/status',{});self._device_attempt=(now,None)
+                    except (ServiceError,OSError,ValueError) as exc:
+                        self._device_attempt=(now,safe_error(exc))
+                error=self._device_attempt[1]
+            live=self.live_compatibility
+            if live is None or now-live['checked_at']>LIVE_CHECK_SECONDS:
+                try:self.live(now)
+                except (ServiceError,OSError,ValueError,sqlite3.Error):pass
+        return {**self.device_summary(),'error':error,'api_configured':bool(self.token_file),'live':self.live_compatibility}
 
     def interface_rates(self,clock,pause=1.0):
         """WAN interface bits per second from two counter readings.
@@ -370,7 +465,9 @@ class Engine:
         if c.get('api_tls_verify',True) is False:
             context.check_hostname=False;context.verify_mode=ssl.CERT_NONE
         host=c['fortigate_host'];host='['+host+']' if ':' in host else host
-        return self.fetch('https://'+host+':'+str(c['api_port']),route,{'vdom':c['vdom'],**params},headers={'Authorization':'Bearer '+token},context=context,timeout=15,budget=8*1024*1024)
+        response=self.fetch('https://'+host+':'+str(c['api_port']),route,{'vdom':c['vdom'],**params},headers={'Authorization':'Bearer '+token},context=context,timeout=15,budget=8*1024*1024)
+        self._remember_device(response)
+        return response
 
     def refresh_inventory(self):
         if not self.token_file:return
@@ -516,7 +613,9 @@ class Engine:
 
     def diagnostics(self):
         with self._read_snapshot() as (store,version):
-            return self._snapshot_diagnostics(store,version)
+            details=self._snapshot_diagnostics(store,version)
+        details['fortigate']=self.fortigate_diagnostics()
+        return details
 
     def wan(self,seconds=300):
         if not 60<=seconds<=7*86400:raise ServiceError('wan_history_window_outside_budget')
