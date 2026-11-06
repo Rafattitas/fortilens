@@ -56,8 +56,15 @@ fact is attributed to the labels of its own record.
 `daily`, maintained in the same transaction and recomputed with the session.
 Whole days in an Applications report read `app_daily`; partial-day edges read
 retained facts and labels, under the same ledger-retention rule as device reports.
-Records without an `app` label are unidentified, never guessed. Summaries start
-when a version with labels first runs; `applications_since` reports that day.
+Records without an `app` label are unidentified, never guessed. Facts with no
+labels at all were recorded before labels were kept: they are reported apart as
+`untracked`, and `tracking_started_ns` gives the first labelled event. Protocol-only
+labels such as QUIC or `SSL_TLSv1.3` are marked `generic`: FortiGate saw the
+protocol, not the application.
+
+`osname`, `srchwvendor` and `devtype` are kept as the latest FortiGate device
+detection per endpoint identity in `device_profile`. The profile is descriptive:
+it never merges identities or changes a byte value.
 The view shows which device used which application; organizations may need an
 employee notice before enabling it.
 

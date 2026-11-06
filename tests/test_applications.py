@@ -104,7 +104,10 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(result["new_events"], 0)
         self.assertEqual(self.store.report(*DAY)["totals"], before)
         apps = self.store.applications(*DAY)
-        self.assertEqual([(x["app"], x["total_bytes"]) for x in apps["applications"]], [(None, 100)])
+        # Recorded before labels were kept: reported apart, never as unidentified.
+        self.assertEqual(apps["applications"], [])
+        self.assertEqual(apps["untracked"]["total_bytes"], 100)
+        self.assertIsNone(apps["tracking_started_ns"])
 
     def test_late_session_records_recompute_without_duplicate_application_rows(self):
         rows = mixed()
@@ -201,6 +204,60 @@ class ApplicationTests(unittest.TestCase):
         self.assertIn("'applications'", server.split("EMBEDDED_VIEWS=", 1)[1].split("\n", 1)[0])
         self.assertIn("'applications':'/console/?section=applications#applications'", server)
         self.assertIn("section in ('devices','vlans','reports','applications')", server)
+
+
+class ApplicationViewTests(unittest.TestCase):
+    def setUp(self):
+        self.store = a.Store(":memory:", CONFIG, INVENTORY, storage_format="compact")
+        self.addCleanup(self.store.close)
+
+    def test_untracked_bytes_are_separate_and_complete_the_device_totals(self):
+        self.store.ingest([record(sessionid="old", sentdelta="40", rcvddelta="60")])
+        self.store.ingest(mixed())
+        apps = self.store.applications(*DAY)
+        report = self.store.report(*DAY)
+        self.assertNotIn(None, [x["category"] for x in apps["applications"]])
+        self.assertEqual(apps["untracked"]["upload_bytes"] + apps["totals"]["upload_bytes"], report["totals"]["upload_bytes"])
+        self.assertEqual(apps["untracked"]["download_bytes"] + apps["totals"]["download_bytes"], report["totals"]["download_bytes"])
+        self.assertEqual(apps["tracking_started_ns"], a.timestamp_ns("2026-10-20T12:00:00Z"))
+
+    def test_protocol_only_labels_are_generic_and_summary_is_consistent(self):
+        rows = mixed() + [labelled(sessionid="q", app="QUIC", appcat="Network.Service", apprisk="low",
+                                   mastersrcmac="02:00:00:00:00:09", sentdelta="5000", rcvddelta="5000"),
+                          labelled(sessionid="t", app="SSL_TLSv1.3", appcat="Network.Service", apprisk="medium",
+                                   mastersrcmac="02:00:00:00:00:09", sentdelta="1", rcvddelta="1")]
+        self.store.ingest(rows)
+        apps = self.store.applications(*DAY)
+        generic = {x["app"] for x in apps["applications"] if x["generic"]}
+        self.assertEqual(generic, {"QUIC", "SSL_TLSv1.3"})
+        summary = apps["summary"]
+        self.assertEqual(summary["top_application"], "YouTube")
+        self.assertEqual(summary["generic_bytes"], 10002)
+        self.assertEqual(summary["unidentified_bytes"], 16)
+        self.assertEqual(summary["identified_bytes"] + summary["generic_bytes"] + summary["unidentified_bytes"], summary["total_bytes"])
+        self.assertEqual((summary["genai_bytes"], summary["genai_devices"]), (330, 1))
+        self.assertEqual(summary["applications"], len(apps["applications"]))
+
+    def test_selected_application_returns_daily_and_monthly_history(self):
+        self.store.ingest(mixed())
+        self.store.ingest([labelled("2026-10-21T08:00:00Z", sessionid="next-day", sentdelta="10", rcvddelta="20")])
+        apps = self.store.applications("2026-10-20T00:00:00Z", "2026-10-22T00:00:00Z", app="YouTube", history=True)
+        self.assertEqual([(x["period"], x["upload_bytes"]+x["download_bytes"]) for x in apps["daily_history"]],
+                         [("2026-10-20", 1650), ("2026-10-21", 30)])
+        self.assertEqual([(x["period"], x["observed_days"]) for x in apps["monthly_history"]], [("2026-10", 2)])
+        self.assertNotIn("daily_history", self.store.applications(*DAY))
+
+    def test_device_profile_labels_follow_the_latest_record(self):
+        self.store.ingest([labelled(sessionid="p1", osname="Android", srchwvendor="Samsung", devtype="Mobile"),
+                           labelled("2026-10-20T12:05:00Z", sessionid="p2", osname="Android 14", srchwvendor="Samsung")])
+        self.store.ingest([labelled("2026-10-20T11:00:00Z", sessionid="p0", osname="Old OS", srchwvendor="Old")])
+        device = self.store.report(*DAY)["devices"][0]
+        self.assertEqual(device["profile"], {"os": "Android 14", "vendor": "Samsung"})
+        chosen = self.store.applications(*DAY, app="YouTube")
+        self.assertEqual(chosen["devices"][0]["profile"], device["profile"])
+        plain = a.normalize(record(), "src")
+        rich = a.normalize(labelled(osname="Android", srchwvendor="Samsung", devtype="Mobile"), "src")
+        self.assertEqual(plain["uid"], rich["uid"])
 
 
 if __name__ == "__main__":
