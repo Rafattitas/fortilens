@@ -75,6 +75,7 @@ main{padding:0 2px 24px!important;max-width:none!important}
 input,select{border-color:#63728b}.notice{border-radius:0;border-width:0 0 0 2px}
 .quality-grid>.card{padding:18px 0}.quality-grid{column-gap:32px}
 .pager{padding:14px 0}.chart{padding:18px 0}
+@media(max-width:1050px){.stats .card:nth-child(2n+1){padding-left:0;border-left:0}}
 @media(max-width:700px){main{padding:0 0 20px!important}.toolbar{padding:0 0 16px}.stats{row-gap:22px}.stats .card{padding:0 12px}.stats .card:nth-child(2n+1){border-left:0;padding-left:0}.metric-value{font-size:23px}.periods{gap:4px}.periods button{font-size:12px;padding:8px 10px}input,select{font-size:16px}.filters{gap:14px}.section-head{padding:18px 0}.context{font-size:11px}.quality-grid>.card{padding:16px 0}}
 '''
 

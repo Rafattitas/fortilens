@@ -30,7 +30,7 @@ APP_INDEXES = ("CREATE INDEX IF NOT EXISTS app_daily_app ON app_daily(app,catego
                "CREATE INDEX IF NOT EXISTS app_daily_category ON app_daily(category,day)")
 PROFILE_LABELS = {"osname": "os", "srchwvendor": "vendor", "devtype": "type"}
 # FortiGate reports these when it saw only the protocol, not the application.
-GENERIC_APP = re.compile(r"(?:QUIC|SSL|SSL_TLSv1\.[0-3]|TLS|HTTPS?\.BROWSER)", re.IGNORECASE)
+GENERIC_APP = re.compile(r"(?:QUIC|SSL(?:[._].*)?|TLS(?:[._v].*)?|HTTPS?\.BROWSER)", re.IGNORECASE)
 UINT64 = 2**64 - 1
 NS = 1000000000
 
@@ -607,11 +607,13 @@ class Store:
             group["devices"].add(row["device_id"])
             if (app is not None and row["app"] == app and (category is None or row["category"] == category)) or \
                     (app is None and category is not None and row["category"] == category):
-                target = devices.setdefault((row["device_id"], row["vlan"]["key"]), {"device_id": row["device_id"], "vlan": row["vlan"],
+                # One row per endpoint identity; its VLANs are listed, not repeated.
+                target = devices.setdefault(row["device_id"], {"device_id": row["device_id"], "vlan": row["vlan"], "vlans": {},
                     "event_ns": -1, "hostname": "", "ip": "", "mac": "", "identity_kind": "", **{c: 0 for c in columns}})
                 add(target, row)
+                target["vlans"][row["vlan"]["key"]] = row["vlan"]
                 if row["event_ns"] >= target["event_ns"]:
-                    for column in ("event_ns", "hostname", "ip", "mac", "identity_kind"):
+                    for column in ("event_ns", "hostname", "ip", "mac", "identity_kind", "vlan"):
                         target[column] = row[column]
 
         def finish(values, *sets):
@@ -630,6 +632,7 @@ class Store:
         found = self.profiles(x["device_id"] for x in selected)
         for row in selected:
             row["profile"] = found.get(row["device_id"])
+            row["vlans"] = list(row["vlans"].values())
         total = sum(x["total_bytes"] for x in rows)
         unidentified = sum(x["total_bytes"] for x in rows if x["app"] is None)
         generic = sum(x["total_bytes"] for x in rows if x["generic"])

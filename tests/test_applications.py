@@ -247,6 +247,15 @@ class ApplicationViewTests(unittest.TestCase):
         self.assertEqual([(x["period"], x["observed_days"]) for x in apps["monthly_history"]], [("2026-10", 2)])
         self.assertNotIn("daily_history", self.store.applications(*DAY))
 
+    def test_selected_devices_are_one_row_per_endpoint_with_their_segments(self):
+        self.store.ingest([labelled(sessionid="v1", srcintf="staff"), labelled(sessionid="v2", srcintf="guests")])
+        chosen = self.store.applications(*DAY, app="YouTube")
+        self.assertEqual(len(chosen["devices"]), 1)
+        self.assertEqual(len(chosen["devices"][0]["vlans"]), 2)
+        self.assertEqual(chosen["devices"][0]["total_bytes"], 600)
+        self.assertTrue(a.GENERIC_APP.fullmatch("SSL_TLSv1.3.PQC"))
+        self.assertFalse(a.GENERIC_APP.fullmatch("Microsoft.365.Portal"))
+
     def test_device_profile_labels_follow_the_latest_record(self):
         self.store.ingest([labelled(sessionid="p1", osname="Android", srchwvendor="Samsung", devtype="Mobile"),
                            labelled("2026-10-20T12:05:00Z", sessionid="p2", osname="Android 14", srchwvendor="Samsung")])
