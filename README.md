@@ -122,9 +122,12 @@ Create your administrator with the one-time installation token, then configure t
 connection, WANs, syslog and retention in the browser. Review and Apply starts the
 monitoring stack. There is no default password.
 
-**Already running FortiLens?** Do not initialize again. Use `--adopt` with the exact
-existing Compose project, as described in the
-[web setup guide](docs/getting-started/WEB_SETUP.md).
+**Already running FortiLens?** Do not initialize again. To move a web-managed
+installation to a new version, run `sudo ./install.sh --upgrade` from the new
+source; it keeps a backup and restores the previous version if any step fails.
+To bring a portable installation under the console, use `--adopt` with the exact
+existing Compose project. Both are described in the
+[web setup guide](docs/getting-started/WEB_SETUP.md#upgrade-to-a-new-version).
 
 ### Portable CLI
 

@@ -75,7 +75,7 @@ def source_files(source):
     # secrets. Never recursively copy them into world-readable application code.
     names=['management/'+name for name in (
         '__init__.py','app.py','auth.py','common.py','configuration.py','helper.py',
-        'install.py','models.py','recovery.py','runtime.py','storage.py','requirements.txt',
+        'install.py','models.py','recovery.py','runtime.py','storage.py','upgrade.py','requirements.txt',
         'requirements-test.txt','Dockerfile','static/app.css','static/app.js','static/grafana-clock.js','static/index.html',
         'static/fonts/IBMPlexSans-Light-Latin1.woff2','static/fonts/IBMPlexSans-Regular-Latin1.woff2',
         'static/fonts/IBMPlexSans-Medium-Latin1.woff2','static/fonts/IBMPlexSans-SemiBold-Latin1.woff2',
@@ -133,9 +133,17 @@ def _main():
     parser.add_argument('--project',help='Exact existing Compose project; required with --adopt')
     parser.add_argument('--dashboard-uid',default='forti-monitor')
     parser.add_argument('--install-dependencies',action='store_true',help='Explicitly authorize Ubuntu apt prerequisites')
+    mode=parser.add_mutually_exclusive_group()
+    mode.add_argument('--upgrade',action='store_true',help='Upgrade the existing installation to this source, with a backup and automatic restore on failure')
+    mode.add_argument('--rollback-upgrade',action='store_true',help='Return to the version saved by the last upgrade')
     args=parser.parse_args()
     if sys.platform!='linux' or not hasattr(os,'geteuid') or os.geteuid()!=0:
         raise SystemExit('Run this installer as root on an Ubuntu Linux server. It does not modify Windows.')
+    if args.upgrade or args.rollback_upgrade:
+        from . import upgrade
+        if args.upgrade:upgrade.upgrade(Path(__file__).resolve().parents[1],args.prefix)
+        else:upgrade.rollback(args.prefix)
+        return
     import pwd
     import grp
     osrelease=Path('/etc/os-release').read_text()
@@ -186,7 +194,7 @@ def _main():
         finally:probe.close()
     source=Path(__file__).resolve().parents[1];hashes=source_files(source)
     if previous and previous['source']!=hashes:
-        raise SystemExit('Installed source differs. This bootstrap does not perform version upgrades; use the reviewed manual update procedure.')
+        raise SystemExit('Installed source differs. To move the existing installation to this source, run: sudo ./install.sh --upgrade')
     if partial and partial['source']!=hashes:raise SystemExit('The interrupted installation used different source. Restore that source before resuming.')
     if args.adopt and not args.project:raise SystemExit('--adopt requires the exact --project to preserve its existing Docker volume identity.')
     if not re.fullmatch(r'[a-z0-9][a-z0-9_-]{0,80}',args.project or 'fortilens'):raise SystemExit('Invalid Compose project.')
