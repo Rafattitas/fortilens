@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.0 — 2026-11-06 — live usage and busy sites
 
 ### Busy sites and capacity
 
