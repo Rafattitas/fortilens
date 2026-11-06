@@ -85,7 +85,7 @@ want link health and device or VLAN usage without sending data to a third party.
   FortiGate Application Control labels in the traffic logs.
 - Certified billing, or complete traffic capture.
 - High availability or multiple writers.
-- Sites far above about 1,500 devices without extra CPU for accounting. See
+- Sites far above about 2,000 devices without extra CPU for accounting. See
   [capacity and sizing](docs/operations/CAPACITY.md) for measured rates and storage.
 - ARM hosts. Deployed monitoring targets Linux/amd64.
 

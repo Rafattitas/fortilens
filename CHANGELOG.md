@@ -8,10 +8,19 @@
   records; when the 120-second window holds more, it halves until a read fits
   and grows back when traffic drops. Before, a full window stopped processing,
   which capped a site at about 200 records per second.
-- New capacity guide with measured figures: about 1,170 records per second at
-  the production limits (0.5 CPU, 192 MiB), about 740 bytes per raw record, and
-  sizing for 100 to 2,000 devices. `tests/support/benchmark_scale.py` reproduces
-  the measurement with synthetic data.
+- Accounting is about 35% faster. Daily, application, quality and profile
+  summary rows are updated in memory and written once per batch instead of
+  being read, decoded, re-encoded and written for every fact, and repeated IP
+  parsing and endpoint digests are cached. Results are unchanged:
+  `tests/support/compare_engines.py` found every summary table and all 231,371
+  ledger facts identical to the previous code on 510,000 real records, and on
+  synthetic data with large and small batches.
+- New capacity guide with measured figures: about 1,600 records per second at
+  the production limits (0.5 CPU, 192 MiB) and 2,700 with 1.0 CPU, about 730
+  bytes per raw record, and sizing for 100 to 3,000 devices.
+  `tests/support/benchmark_scale.py` reproduces the measurement with synthetic data.
+- An application name whose write was rolled back with a failed batch is now
+  written again by the next batch.
 
 ### Live usage
 

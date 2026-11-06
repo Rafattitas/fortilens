@@ -136,6 +136,7 @@ PUBLIC_FILES = (
     "tests/test_compact_accounting.py",
     "tests/support/benchmark_accounting.py",
     "tests/support/benchmark_scale.py",
+    "tests/support/compare_engines.py",
     "tests/test_accounting_migrate.py",
     "tests/test_alerts.py",
     "tests/test_cli_errors.py",

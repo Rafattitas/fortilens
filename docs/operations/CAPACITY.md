@@ -10,15 +10,19 @@ Its Compose limits are half a CPU core and 192 MiB of memory.
 
 | Measurement | Result |
 |---|---|
-| Sustained processing, production limits (0.5 CPU, 192 MiB) | about 1,170 records per second |
-| Same, one full CPU core | about 2,000–2,300 records per second |
+| Sustained processing, production limits (0.5 CPU, 192 MiB) | about 1,600 records per second |
+| Same with a 1.0 CPU limit | about 2,700 records per second |
 | Peak memory per 30,000-record read | under 192 MiB |
-| Raw ledger size | about 740 bytes per record (compact storage) |
+| Raw ledger size | about 730 bytes per record (compact storage) |
 | Report for 2,000 devices | 0.03 s; Applications 0.13 s |
 
 Measured with `tests/support/benchmark_scale.py --devices 2000 --sessions 3 --locals 3`
 (half Internet records, half local or UTM records, like a real site) on an 8-core
-Ubuntu VM, inside a container with the production limits.
+Ubuntu VM, inside a container with the production limits. Summary rows are
+updated in memory and written once per batch; `tests/support/compare_engines.py`
+confirmed the stored results are identical to the earlier per-record writes on
+510,000 real and 144,000 synthetic records (231,371 ledger facts and every
+summary table).
 
 Each read from Loki is bounded to 30,000 records. When a busy site logs more than
 that in the normal 120-second window, the window halves until a read fits and
@@ -33,18 +37,19 @@ records a day: an average of 33–45 records per second, about 0.35 per device,
 with a measured busiest hour of 74 records per second (2.2 times the daily
 average, 2 PM local time).
 
-| Devices (0.35 records/s each, peak 2.2x) | Average | Busiest hour | At 0.5 CPU (about 1,170/s) |
+| Devices (0.35 records/s each, peak 2.2x) | Average | Busiest hour | At 0.5 CPU (about 1,600/s) |
 |---|---|---|---|
 | 100 | 35/s | ~75/s | Comfortable |
 | 500 | 175/s | ~385/s | Comfortable |
 | 1,000 | 350/s | ~770/s | Comfortable at peak |
-| 2,000 | 700/s | ~1,540/s | About 30% short in the busiest hours; catches up in the evening |
+| 2,000 | 700/s | ~1,540/s | Fits, with almost no headroom in the busiest hour |
+| 3,000 | 1,050/s | ~2,300/s | Needs a 1.0 CPU limit (about 2,700/s) |
 
 Processing that falls behind shows as processing lag in Diagnostics. Recorded
 totals are still exact once processing catches up; they are later, not lost,
 while the records remain in Loki.
 
-For more than about 1,500 devices, give the accounting service a full CPU core
+For more than about 1,500 devices, give the accounting service a 1.0 CPU limit
 and confirm with your own record rate before relying on near-real-time reports.
 
 ## Storage
