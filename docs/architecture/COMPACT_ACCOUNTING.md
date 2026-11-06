@@ -62,6 +62,24 @@ deliveries, daily, quality, state, remaining events/facts and every whole-day,
 six-hour partial-window and whole-span report match the source. The source file is
 never changed. Keep the original until the new file has been validated in service.
 
+### Version 2 validation record (2026-11-06)
+
+A consistent snapshot of a production compact version 1 database (14.7 GB,
+9,223,741 received records over about 2.6 days, 3.1 million a day) was tested in
+disposable containers on the test host. The running installation was not changed.
+
+| Check | Result |
+|---|---|
+| `--slim` copy | 14.7 GB to 5.2 GB; 4,914,661 unsupported records (53.3%) became markers; deliveries, daily, quality, state, 4,309,080 events and facts, and 16 reports (3 whole days, 12 six-hour unaligned windows, whole span) matched by SHA-256 |
+| Full re-ingestion, old vs new code | Same records replayed from an empty file: 15.0 GB vs 5.8 GB (61% smaller), 10,473 s vs 9,045 s |
+| Reports, old vs new code | 16 of 16 reports with identical totals and classification counts; 1,305 device rows with identical bytes, pending bytes, records, flag counts and identities; 136 of 136 device histories identical |
+
+142 of 153 compared report lines were byte-identical. The remaining lines differed
+only in fields copied from the first fact that opened a daily row (`uid`,
+`generation_seed`, `flags`, `wan`): version 2 processes affected sessions in sorted
+order, while the earlier set order varied between processes. These fields are not
+aggregated usage values and the report page does not display them.
+
 ## Explicit offline copy
 
 Use the same application revision that supplies both `accounting_storage.py`
