@@ -2,6 +2,19 @@
 
 ## Unreleased — unified console and Web Setup & Settings
 
+### Applications view
+
+- Reports now show recorded Internet usage by application and by Application
+  Control category, which devices used an application, which applications a device
+  used, and a GenAI filter. Records without a label are shown as unidentified.
+- Labels (`app`, `appcat`, `apprisk`, `dstcountry`) come from forward-traffic
+  records and never enter event identities, so records re-read across the upgrade
+  are not counted twice. Application bytes are the same facts as device totals.
+- Application summaries start when this version starts; earlier days remain in
+  device totals only. The view shows the first day with labels.
+- The view shows which device used which application. Organizations may need to
+  tell employees before enabling it.
+
 ### Smaller accounting storage for usage monitoring
 
 - Unsupported records (local traffic, UTM, other log IDs) are stored as exact counted

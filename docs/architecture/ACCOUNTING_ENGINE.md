@@ -44,6 +44,23 @@ original report bounds. No browser storage or shared proxy cache is introduced.
 These optimizations do not establish traffic completeness or eliminate the need
 to size the collector for its ingestion rate.
 
+## Application labels
+
+Forward-traffic records keep `app`, `appcat`, `apprisk` and `dstcountry` as
+descriptive labels beside the allowlisted accounting fields. Labels never enter
+event, delivery or session identities, so a record re-read across an upgrade keeps
+its identity and is not counted twice. Byte arithmetic is unchanged: each Internet
+fact is attributed to the labels of its own record.
+
+`app_daily` keeps day × device × VLAN × application × category totals beside
+`daily`, maintained in the same transaction and recomputed with the session.
+Whole days in an Applications report read `app_daily`; partial-day edges read
+retained facts and labels, under the same ledger-retention rule as device reports.
+Records without an `app` label are unidentified, never guessed. Summaries start
+when a version with labels first runs; `applications_since` reports that day.
+The view shows which device used which application; organizations may need an
+employee notice before enabling it.
+
 ## Evidence limits
 
 Assigned bytes follow source event timestamps. A delta interval crossing midnight cannot be allocated to exact packet times from a single record; it is flagged. Missing/invalid contributions, source binding, counter discontinuities, pending counters, mapping uncertainty and weak identities are visible alongside totals. Pending values must never be added to assigned totals as if independently verified traffic.
