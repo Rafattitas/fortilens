@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Busy sites and capacity
+
+- Accounting no longer stalls on busy sites. Each Loki read is bounded to 30,000
+  records; when the 120-second window holds more, it halves until a read fits
+  and grows back when traffic drops. Before, a full window stopped processing,
+  which capped a site at about 200 records per second.
+- New capacity guide with measured figures: about 1,170 records per second at
+  the production limits (0.5 CPU, 192 MiB), about 740 bytes per raw record, and
+  sizing for 100 to 2,000 devices. `tests/support/benchmark_scale.py` reproduces
+  the measurement with synthetic data.
+
 ### Live usage
 
 - A Live usage view shows who is using the Internet right now: download and
@@ -11,6 +22,10 @@
 - Figures come from FortiGate realtime FortiView statistics through the existing
   read-only API token, limited to traffic leaving through WAN interfaces and
   cached for 5 seconds. They are live estimates, not recorded usage totals.
+- FortiView pages are sorted by bandwidth, so the 500-row page holds the
+  busiest sources. Link totals come from WAN interface counters and include
+  every session, including FortiGate's own traffic and VPN; the page shows them
+  beside the share attributed to listed devices.
 - Devices are named from recent accounting records (MAC, then IP) with their
   FortiGate profile. Application Control IDs (`appid`) are now kept as a
   descriptive label so live rows show application names; identities and totals

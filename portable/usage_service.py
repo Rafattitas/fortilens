@@ -74,6 +74,7 @@ def fetch_json(base, route, params=None, *, timeout=25, headers=None, context=No
 LIVE_ROUTE='/api/v2/monitor/fortiview/statistics'
 INTERFACE_ROUTE='/api/v2/monitor/system/interface'
 LIVE_ROWS=500
+MIN_STEP_SECONDS=1
 LIVE_CACHE_SECONDS=5
 
 
@@ -244,6 +245,7 @@ class Engine:
         self.live_lock=threading.Lock()
         self._live_cache=None
         self._interface_sample=None
+        self.step_seconds=None
 
     @contextmanager
     def _read_snapshot(self):
@@ -431,13 +433,29 @@ class Engine:
                 self.store.set_state('checkpoint_ns',first if first is not None else end)
                 self.store.set_state('initial_empty_prefix_end_ns',first if first is not None else end)
             checkpoint=first if first is not None else end
-        target=min(end,checkpoint+self.config.get('accounting_step_seconds',120)*accounting.NS)
+        configured=self.config.get('accounting_step_seconds',120)
+        step=min(configured,self.step_seconds or configured)
+        target=min(end,checkpoint+int(step*accounting.NS))
         if target>checkpoint:
             # New installations timestamp Loki at receipt time, retaining source
             # eventtime in the line. Late source events therefore enter this
-            # stream without rescanning a whole raw-log day every poll.
-            start=max(self.store.state('scan_start_ns',0),checkpoint-self.config.get('accounting_overlap_seconds',30)*accounting.NS)
-            records,budget=self.loki.read(start,target)
+            # stream without rescanning a whole raw-log day every poll. Under
+            # load the overlap shrinks with the window so one read stays bounded.
+            overlap=min(self.config.get('accounting_overlap_seconds',30),step)
+            start=max(self.store.state('scan_start_ns',0),checkpoint-int(overlap*accounting.NS))
+            try:
+                records,budget=self.loki.read(start,target)
+            except ServiceError as exc:
+                # A busy site can log more than one bounded read holds in a full
+                # window. Halve the window and retry at once instead of stalling;
+                # only a single second over budget is still an error.
+                if str(exc) in ('loki_record_budget_exhausted','loki_paging_budget_exhausted') and step>MIN_STEP_SECONDS:
+                    self.step_seconds=max(MIN_STEP_SECONDS,step/2)
+                    log_failure('accounting_window_reduced',str(round(self.step_seconds,1)))
+                    return False
+                raise
+            if step<configured and len(records)*4<=self.loki.max_records:
+                self.step_seconds=min(configured,step*2)
             self.fit_storage(target)
             with self.lock:
                 result=self.store.ingest(records,checkpoint=target)
