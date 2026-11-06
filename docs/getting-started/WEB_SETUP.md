@@ -38,8 +38,9 @@ installs system packages silently.
 Repeat the same installer command to resume an interrupted installation or
 verify an installed one. It preserves the admin, bootstrap, service credentials,
 configuration, volumes and databases. It refuses changed source versions,
-different access settings and unknown nonempty installation prefixes. Version
-upgrades and host access changes require the reviewed manual procedure below.
+different access settings and unknown nonempty installation prefixes. Use
+[`--upgrade`](#upgrade-to-a-new-version) for a new version; host access changes
+require the reviewed manual procedure below.
 
 From your workstation:
 
@@ -288,12 +289,50 @@ error bodies are not logged. Private configuration backups/jobs/audit are under
 `/var/lib/fortilens/control`; auth/audit/session state is under `web`. Protect them
 as secrets. The helper key and fixed registry are under `/etc/fortilens`.
 
-To change access settings/certificates or update management source, stop both
-management units, preserve these private directories and registry, and review the
-new source/dependencies/unit changes with a host administrator. Do not remove or
-reinitialize the stack. Certificate renewal updates `/etc/fortilens/tls.crt` and
-`tls.key` with the existing root/fortilens ownership and restarts only the web unit.
-Do not rerun a different source checkout as an automatic upgrader.
+To change access settings or certificates, stop both management units, preserve
+these private directories and registry, and review the changes with a host
+administrator. Do not remove or reinitialize the stack. Certificate renewal
+updates `/etc/fortilens/tls.crt` and `tls.key` with the existing root/fortilens
+ownership and restarts only the web unit.
+
+## Upgrade to a new version
+
+Download and verify the new release (or check out the reviewed source) in a new
+directory, then run its installer with `--upgrade`:
+
+```bash
+cd fortilens-new
+sudo ./install.sh --upgrade
+```
+
+The upgrade:
+
+1. Refuses to start while a console deployment or an earlier upgrade is
+   unfinished, or when less than 1 GiB is free.
+2. Saves the current management source, `installation.json` and any service code
+   it will replace under `/var/lib/fortilens/control/upgrades/<time>/`, and tags
+   the current accounting and syslog images as `-pre-<time>`.
+3. Replaces the allowlisted management source. It builds a new virtual
+   environment only when `management/requirements.txt` changed. It then restarts
+   both management units and waits for the web health check.
+4. Copies new code into services that already exist (accounting and the native
+   syslog receiver), rebuilds only those images, recreates the portal that shares
+   the accounting image and waits until each one is healthy.
+
+Settings, secrets, Grafana dashboards, Prometheus/Loki data and the accounting
+database are not changed. No service is added. If any step fails, the previous
+source, environment, service code and images are restored automatically and the
+previous version is started again.
+
+To return to the previous version after a completed upgrade:
+
+```bash
+sudo ./install.sh --rollback-upgrade
+```
+
+A newer version may have upgraded the accounting database format in place.
+Rolling back restores code, not data. Check the release notes before rolling
+back across a storage change.
 
 See [management architecture and compatibility](../architecture/MANAGEMENT_ARCHITECTURE.md) and
 [management verification](../development/MANAGEMENT_VERIFICATION.md).
