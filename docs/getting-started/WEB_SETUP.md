@@ -1,8 +1,9 @@
 # Web Setup & Settings
 
-The current source includes an independent administrative web application. The
-published v0.2.0 ZIP does not include it. Use a reviewed source checkout containing
-`install.sh`; the dependency-free portable CLI continues to work separately.
+FortiLens includes an independent administrative web application. It ships in
+the v0.3.0 full archive and in current source; portable ZIPs do not include it.
+Use a reviewed checkout or full archive containing `install.sh`; the
+dependency-free portable CLI continues to work separately.
 
 A full source archive prepared by the [release tooling](../development/RELEASING.md) contains
 the same installer/runtime inputs. Verify its checksum and extracted contents

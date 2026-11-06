@@ -3,7 +3,7 @@
 For the current Ubuntu web management source, start with [Web Setup & Settings](WEB_SETUP.md).
 It covers `sudo ./install.sh`, first-run administration, HTTPS, existing-site
 adoption and recovery. The portable workflow below remains supported and the
-published v0.2.0 ZIP is unchanged.
+v0.3.0 release has both a full archive (web setup) and a portable ZIP.
 
 Use the [documentation index](../README.md) to find operations and architecture
 guides. The [release guide](../development/RELEASING.md) explains full versus portable archives,

@@ -97,7 +97,7 @@ administrator. FortiLens never changes FortiGate settings.
 | **Gives you** | Browser setup, the full console, reviewed Apply and rollback | Command-line setup; the console is opt-in |
 | **Host** | Ubuntu x86-64, Python 3.11+; 24.04+ recommended | Linux x86-64, Python 3.10+ |
 | **Also needs** | systemd, Python venv, Docker Engine, Docker Compose v2 | Docker Compose v2 |
-| **Available from** | `main` only | `main`, or the v0.2.0 ZIP without the console |
+| **Available from** | `main`, or the v0.3.0 full archive | `main`, or the v0.3.0 portable ZIP |
 | **Guide** | [Web Setup & Settings](docs/getting-started/WEB_SETUP.md) | [Portable guide](portable/README.md) |
 
 Size resources for your actual traffic and retention; container limits are not a
@@ -137,9 +137,12 @@ python3 setup.py doctor
 ```
 
 The setup utility uses only the Python standard library. For a versioned package,
-download [fortilens-v0.2.0.zip](https://github.com/Rafattitas/fortilens/releases/download/v0.2.0/fortilens-v0.2.0.zip)
-and [SHA256SUMS.txt](https://github.com/Rafattitas/fortilens/releases/download/v0.2.0/SHA256SUMS.txt),
+download [fortilens-v0.3.0.zip](https://github.com/Rafattitas/fortilens/releases/download/v0.3.0/fortilens-v0.3.0.zip)
+and [SHA256SUMS.txt](https://github.com/Rafattitas/fortilens/releases/download/v0.3.0/SHA256SUMS.txt),
 verify the checksum, and run the same commands from its `forti-monitor/` directory.
+The [v0.3.0 release](https://github.com/Rafattitas/fortilens/releases/tag/v0.3.0) also
+has a full archive with the web installer; run `sudo ./install.sh` from its
+`fortilens/` directory.
 
 The [portable guide](portable/README.md) covers passwords, addresses, FortiGate
 logging and daily commands. `doctor` is read-only and never restarts anything.

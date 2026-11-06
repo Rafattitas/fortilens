@@ -23,7 +23,7 @@ Linux/amd64 installation.
   of the oldest raw days instead of stopping at the storage limit.
 
 The published v0.2.0 portable distribution predates web management and the unified
-console. See [release preparation](docs/development/RELEASING.md) and the
+console; v0.3.0 is the first release with them. See [release preparation](docs/development/RELEASING.md) and the
 [changelog](CHANGELOG.md) for distribution boundaries.
 
 ## Milestone 1 — Repository professionalization

@@ -23,7 +23,8 @@ package links to those addresses, so keep them.
 | [Portable installation and operations](../portable/README.md) | The Python 3.10+ CLI, private generated installation, commands and operational examples. |
 | [Unified console](getting-started/UNIFIED_CONSOLE.md) | Native Grafana/report gateway, authentication boundaries and explicit adoption limitations. |
 
-The published v0.2.0 portable ZIP predates web management and the unified console.
+The v0.3.0 release adds a full archive with web management and the unified console.
+The portable ZIP, including the earlier v0.2.0 one, does not include web management.
 Read [release preparation](development/RELEASING.md) before choosing or building an archive.
 
 ## Architecture and data contracts
