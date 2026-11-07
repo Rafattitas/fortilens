@@ -4,12 +4,12 @@
   "fixture_time": "2026-11-05T12:00:00.000Z",
   "browser": "158.0.8127.18",
   "source_sha256": {
-    "tools/capture_screenshots.cjs": "65eb0d87ae01df213b8bec68838941f9fc74cdc384471120ecb634578b60542e",
-    "management/app.py": "08a9ce177d20a537d3c40fa88b429924158dabc37e2acaaf112b9ce02b9cc23b",
-    "management/static/index.html": "769ab52397b7c6f0e38aeb73fb0e4eba4e1e92f90637276647ce699dd0f2dd83",
-    "management/static/app.js": "671485648d60f46e5dcc9ae086c5c2e9f4e6ed6b0a764b3a9f1653d8ea5efebc",
+    "tools/capture_screenshots.cjs": "2013480e010d319df92d7b0f6142d9b186cb5aa8db41a276f818935f8c80f69a",
+    "management/app.py": "f0e6c480c3bacf882a1e2c2896842064330f1238e02cb30c53c709a6d4449860",
+    "management/static/index.html": "cebfcb670588aeb2eac283258bb70c601137b473a0c2ee5be8c841b9a71c1bfd",
+    "management/static/app.js": "f475d6502105fcd730315b7ca0e23c50134a69e02b16bd397a68422d8117fddc",
     "management/static/app.css": "7d37202f7772d192ef1f6df09e32402e9a8b4a532d8ceb2c7bd024705cf3c9eb",
-    "portable/reporting.html": "bd57a7e4caf1d43a92f9b96dae2401e052613b180fcebef5db3417ca38981002",
+    "portable/reporting.html": "9dee1ee85b60bea40f4534df4f655cdf8b3ff40cd122d1db6d697b64fe455945",
     "management/static/fonts/IBMPlexSans-Light-Latin1.woff2": "a21e7db1965d4c7af07213226fb11ccd2f61a87a0045ce1fed7cd22918431144",
     "management/static/fonts/IBMPlexSans-Medium-Latin1.woff2": "b5610af04d0d4b5a14a621d96d974b993e945a065db1a8861918f69ef9321934",
     "management/static/fonts/IBMPlexSans-Regular-Latin1.woff2": "b5ad7bd39f996144915f0ad9849a90183b27d8c28ad97ed98af5b1bebc51f6b1",
@@ -18,7 +18,7 @@
   "screenshots": [
     {
       "file": "docs/design/screenshots/01-overview-dark.png",
-      "sha256": "5880b140819c6f01bddf0c04b3af72fccc51ffe01016b45eafde5de07c729039",
+      "sha256": "9de3ce498edd958970a0b486ede512731ed2ca98da7e8a9d64f466fa5ccd983f",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -34,7 +34,7 @@
     },
     {
       "file": "docs/design/screenshots/02-overview-light.png",
-      "sha256": "d469820c38e16f7f3130af974e180fa41db6754e84a1b81632ce24e4ff7e83d0",
+      "sha256": "be795db153905f6fe160b80141014ecef4391cb2002ea08af93b9422ad149b3e",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -50,7 +50,7 @@
     },
     {
       "file": "docs/design/screenshots/03-overview-degraded.png",
-      "sha256": "e72b6007fc49896b499a66c6a037d09a3aa76431a81b4c48a68a22ca008bd5ff",
+      "sha256": "3751cabaf15bbb00eff74c1f10d86c7917ab9886feb137323dd8e76626f7c153",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -66,7 +66,7 @@
     },
     {
       "file": "docs/design/screenshots/04-usage-docked.png",
-      "sha256": "cb5dba923b34f5ace844086d54f8edfabf039b8e418843089ea3b0c6b3b539a5",
+      "sha256": "13c3ab1aae0ad541a882580d95c948ab205e20435e3c631b079b9088f0b67a3f",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -82,7 +82,7 @@
     },
     {
       "file": "docs/design/screenshots/05-reports.png",
-      "sha256": "bbc91277ccdd1db13f1040bd9fe4cc3a82752dae066c829fe9caa27c33b585e2",
+      "sha256": "b25ea5f761978fc39baea6b1ace5b89cb53e75d76a86d2f0b6d43158e6e15dcd",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -98,7 +98,7 @@
     },
     {
       "file": "docs/design/screenshots/06-evidence.png",
-      "sha256": "7ce4e631b3309b5e6cd441c77d32634f36c92cc946192bc92d0061df43fef773",
+      "sha256": "6d61d28ce6f94448c2310a5485e446f55d06a45ca7d5f3df3500eeaf3adb57d7",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -114,7 +114,7 @@
     },
     {
       "file": "docs/design/screenshots/07-internet.png",
-      "sha256": "5d2a79c9b91c6836b7acb8d8ab2b068eaaf0e5756b360e8d11fbec0dccf4a430",
+      "sha256": "0172a07df6c346a1b77a664d7d32bba5fab1b451f60df0d6a9a10e5c3aa994d0",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -130,7 +130,7 @@
     },
     {
       "file": "docs/design/screenshots/08-system.png",
-      "sha256": "ffd0ce0a57de37f39cc2cdaddd8ae40f593977a269bc2ec009cd46373e1de5cd",
+      "sha256": "dc3582704ed701c36a4c46695a5f88fc5bea315c52c0897388656074278620d9",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -146,7 +146,7 @@
     },
     {
       "file": "docs/design/screenshots/09-diagnostics.png",
-      "sha256": "3fd5560d17f9c27d86d466aa610ba0498191a909b97ca3f5ef5ce3ab819bb35f",
+      "sha256": "c72339da8fa25324659dacddc0bd72a07cf278e7a1ef685b356d9ad0bf161360",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -162,7 +162,7 @@
     },
     {
       "file": "docs/design/screenshots/10-settings.png",
-      "sha256": "0f078eead828cafc24d3230c2a55d1c684f1a610ae263d8334e1cb053b1027f4",
+      "sha256": "49e23b0fff0b5666e4c42bfb6f5cecaf2afffd76e749c854f5433e2e44f64d4b",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -242,7 +242,7 @@
     },
     {
       "file": "docs/design/screenshots/16-applications.png",
-      "sha256": "5556223544c5e124b01451e72229832d8f5d8e424750aef3b7beaee71f9ee6c4",
+      "sha256": "45dad86aa2e375a79767e90d41963fe1e7bb0aac2515e6d9ea4e1e42a901264f",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -258,12 +258,28 @@
     },
     {
       "file": "docs/design/screenshots/17-live.png",
-      "sha256": "db7284329413f29c840563138aa1f0dd559340125830f32db6e4046d89a65bc1",
+      "sha256": "b172689b8b6c894dfc32534e90c3756051b54b243011bd4d44cd2a6225f22f84",
       "viewport": {
         "width": 1600,
         "height": 1050
       },
       "page": "live",
+      "theme": "dark",
+      "auth": "signed-in",
+      "inspector": false,
+      "degraded": false,
+      "synthetic": true,
+      "browserErrors": [],
+      "externalRequests": []
+    },
+    {
+      "file": "docs/design/screenshots/18-websites.png",
+      "sha256": "be352e907f8a02147142d71706f11992f293f14c3930312527916196718cd0d6",
+      "viewport": {
+        "width": 1600,
+        "height": 1050
+      },
+      "page": "websites",
       "theme": "dark",
       "auth": "signed-in",
       "inspector": false,
