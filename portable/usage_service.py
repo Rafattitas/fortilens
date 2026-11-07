@@ -590,6 +590,25 @@ class Engine:
         result['period']=period
         return result
 
+    def websites(self,period='today',*,at=None,start=None,end=None,site=None,device=None,vlan=None):
+        now=datetime.now(timezone.utc).isoformat()
+        first,last=accounting.period_bounds(period,at or now,self.config['accounting_timezone'],start=start,end=end)
+        with self._read_snapshot() as (store,version):
+            key=('websites',version,period,first,last,site,device,vlan)
+            cached=self._report_cache.get(key) if version is not None else None
+            if cached is not None:
+                self._report_cache.move_to_end(key)
+                result=json.loads(cached)
+            else:
+                result=store.websites(first,last,now=now,site=site,device=device,vlan=vlan)
+                if version is not None:
+                    encoded=json.dumps(result,ensure_ascii=False)
+                    if len(encoded.encode('utf-8','surrogatepass'))<=2*1024*1024:
+                        self._report_cache[key]=encoded
+                        while len(self._report_cache)>4:self._report_cache.popitem(last=False)
+        result['period']=period
+        return result
+
     def applications(self,period='today',*,at=None,start=None,end=None,app=None,category=None,device=None,vlan=None):
         at=at or datetime.now(timezone.utc).isoformat()
         first,last=accounting.period_bounds(period,at,self.config['accounting_timezone'],start=start,end=end)
@@ -820,6 +839,10 @@ def handler(engine,password,root):
                     # An empty app or category selects unidentified records; absent means no filter.
                     result=engine.applications(value('period','today'),at=value('at'),start=value('start'),end=value('end'),
                         app=value('app'),category=value('category'),device=value('device') or None,vlan=value('vlan') or None)
+                    return self.send(200,result)
+                if parsed.path=='/api/websites':
+                    result=engine.websites(value('period','today'),at=value('at'),start=value('start'),end=value('end'),
+                        site=value('site') or None,device=value('device') or None,vlan=value('vlan') or None)
                     return self.send(200,result)
                 self.send(404,{'error':'not_found'})
             except ServiceError as exc:

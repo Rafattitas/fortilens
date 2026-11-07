@@ -17,6 +17,7 @@
   "grafana_bind": "127.0.0.1",
   "timezone": "browser",
   "accounting_enabled": true,
+  "accounting_websites": false,
   "accounting_timezone": "UTC",
   "source_id": "dedicated-listener",
   "expected_devid": "",

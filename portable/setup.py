@@ -34,7 +34,7 @@ DEFAULTS = {
     "syslog_bind": "0.0.0.0", "grafana_port": 3001,
     "syslog_network": "bridge",
     "grafana_bind": "127.0.0.1", "timezone": "browser",
-    "accounting_enabled": False, "accounting_timezone": "UTC", "source_id": "dedicated-listener", "expected_devid": "",
+    "accounting_enabled": False, "accounting_websites": False, "accounting_timezone": "UTC", "source_id": "dedicated-listener", "expected_devid": "",
     "usage_bind": "127.0.0.1", "usage_port": 3002, "public_usage_url": "",
     "portal_enabled": False, "portal_secure_cookie": False,
     "accounting_poll_seconds": 30, "accounting_backfill_days": 31, "accounting_step_seconds": 120,
@@ -167,11 +167,13 @@ def validate_config(raw):
         raise SetupError("Set the SLA name when supplying fallback WAN interfaces")
     if c["api_ca_file"] and not c["api_tls_verify"]:
         raise SetupError("A custom CA requires api_tls_verify=true")
-    for key in ("accounting_enabled", "route_lookup_enabled", "loki_receive_timestamps", "portal_enabled", "portal_secure_cookie"):
+    for key in ("accounting_enabled", "accounting_websites", "route_lookup_enabled", "loki_receive_timestamps", "portal_enabled", "portal_secure_cookie"):
         if type(c[key]) is not bool:
             raise SetupError(key + " must be true or false")
     if c["portal_enabled"] and not c["accounting_enabled"]:
         raise SetupError("The unified portal requires accounting_enabled=true")
+    if c["accounting_websites"] and not c["accounting_enabled"]:
+        raise SetupError("Website usage requires accounting_enabled=true")
     limits={"accounting_poll_seconds":(5,3600),"accounting_backfill_days":(1,90),"accounting_step_seconds":(10,3600),
         "accounting_overlap_seconds":(0,3600),"accounting_settle_seconds":(1,300),"accounting_ledger_days":(1,365),
         "accounting_summary_days":(31,3650),"accounting_max_bytes":(67108864,1099511627776),"accounting_metrics_rows":(100,50000),

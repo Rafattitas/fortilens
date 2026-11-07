@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Websites (opt-in)
+
+- New **Websites** page: recorded usage by site name (`whatsapp.com`), and the
+  devices that used each site. Off by default; switch it on in Settings →
+  Monitoring → Website Usage per Device.
+- The site comes from FortiGate Application Control and Web Filter logs, linked
+  to the traffic session with the same key. Website totals use exactly the
+  bytes accounting already counted, so they never add to or change device totals.
+- Only registrable site names are kept, never full hostnames or URLs, for 90
+  days. The page shows what share of usage has a known website.
+- Guide: [website usage](docs/operations/WEBSITES.md).
+
 ### FortiOS compatibility
 
 - Diagnostics shows the FortiOS version and build read from the FortiGate, and

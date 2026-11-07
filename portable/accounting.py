@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import re
 import sqlite3
+import time
 from zoneinfo import ZoneInfo
 
 from interfaces import map_source_interface
@@ -33,6 +34,60 @@ APP_CATALOG_SCHEMA = "CREATE TABLE IF NOT EXISTS app_catalog(appid TEXT PRIMARY 
 APP_INDEXES = ("CREATE INDEX IF NOT EXISTS app_daily_app ON app_daily(app,category,day)",
                "CREATE INDEX IF NOT EXISTS app_daily_category ON app_daily(category,day)")
 PROFILE_LABELS = {"osname": "os", "srchwvendor": "vendor", "devtype": "type"}
+# Websites (opt-in, `accounting_websites`). Traffic logs carry bytes but no
+# hostname; FortiGate Application Control and Web Filter logs carry the hostname
+# and the same session key. The first site seen for a traffic session is kept,
+# and the session's counted bytes are added to day × device × VLAN × site rows.
+# Only the registrable site (example.com) is kept, never full URLs or paths.
+SITE_SCHEMA = """CREATE TABLE IF NOT EXISTS site_daily(day TEXT NOT NULL,device TEXT NOT NULL,vlan TEXT NOT NULL,
+site TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(day,device,vlan,site))"""
+SESSION_SITE_SCHEMA = "CREATE TABLE IF NOT EXISTS session_site(session TEXT PRIMARY KEY,site TEXT NOT NULL,event_ns INTEGER NOT NULL)"
+SITE_INDEXES = ("CREATE INDEX IF NOT EXISTS site_daily_site ON site_daily(site,day)",
+                "CREATE INDEX IF NOT EXISTS session_site_stamp ON session_site(event_ns)")
+SITE_DAYS = 90
+SITE_SOURCES = frozenset({"app-ctrl", "webfilter"})
+# Public suffixes under which the registrable name has three labels. A short
+# list, not the full Public Suffix List: other two-level suffixes show one level
+# too short (for example "example.co.xx" as "co.xx").
+SECOND_LEVEL_SUFFIXES = frozenset("""
+co.uk org.uk ac.uk gov.uk me.uk net.uk
+com.eg net.eg org.eg gov.eg edu.eg sci.eg eun.eg
+com.sa net.sa org.sa gov.sa edu.sa med.sa
+com.ae net.ae org.ae gov.ae ac.ae co.ae
+com.kw net.kw org.kw gov.kw edu.kw com.qa net.qa org.qa gov.qa edu.qa
+com.bh net.bh org.bh gov.bh edu.bh com.om net.om org.om gov.om co.om
+com.jo net.jo org.jo gov.jo edu.jo com.lb net.lb org.lb gov.lb edu.lb
+com.ly net.ly org.ly gov.ly edu.ly com.tn net.tn org.tn gov.tn co.ma gov.ma ac.ma
+com.tr net.tr org.tr gov.tr edu.tr com.pk net.pk org.pk gov.pk edu.pk
+com.au net.au org.au gov.au edu.au co.nz org.nz govt.nz ac.nz
+co.jp ne.jp or.jp ac.jp go.jp co.kr or.kr ac.kr go.kr
+com.cn net.cn org.cn gov.cn edu.cn com.hk net.hk org.hk gov.hk edu.hk com.tw org.tw gov.tw edu.tw
+com.sg net.sg org.sg gov.sg edu.sg com.my net.my org.my gov.my edu.my
+co.in net.in org.in gov.in ac.in co.id or.id go.id ac.id com.ph gov.ph edu.ph
+co.za org.za gov.za ac.za com.ng gov.ng edu.ng co.ke or.ke go.ke ac.ke
+com.br net.br org.br gov.br edu.br com.mx org.mx gob.mx edu.mx com.ar gob.ar
+co.il org.il gov.il ac.il
+""".split())
+
+
+@functools.lru_cache(maxsize=65536)
+def site_name(hostname):
+    """The registrable site of a hostname ("mail.google.com" -> "google.com").
+
+    None for IP literals, single labels and malformed names: those are not
+    websites, and they are not reduced to a guess.
+    """
+    host = hostname.strip().lower().rstrip(".")
+    if host.startswith("[") or not 3 <= len(host) <= 253:
+        return None
+    host = host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+    if canonical_ip(host) or not re.fullmatch(r"[a-z0-9_](?:[a-z0-9_.-]*[a-z0-9])?", host):
+        return None
+    labels = host.split(".")
+    if len(labels) < 2 or any(not label or len(label) > 63 for label in labels) or labels[-1].isdigit():
+        return None
+    keep = 3 if ".".join(labels[-2:]) in SECOND_LEVEL_SUFFIXES else 2
+    return ".".join(labels[-keep:]) if len(labels) >= keep else None
 # FortiGate reports these when it saw only the protocol, not the application.
 GENERIC_APP = re.compile(r"(?:QUIC|SSL(?:[._].*)?|TLS(?:[._v].*)?|HTTPS?\.BROWSER)", re.IGNORECASE)
 UINT64 = 2**64 - 1
@@ -153,7 +208,7 @@ def parse_line(line):
         if key in fields:
             raise ValueError("Duplicate log keys require review")
         fields[key] = value
-    return {k: v for k, v in fields.items() if k in FIELDS or k in META_FIELDS}
+    return {k: v for k, v in fields.items() if k in FIELDS or k in META_FIELDS or k == "hostname"}
 
 
 def normalize(record, source_id):
@@ -165,6 +220,7 @@ def normalize(record, source_id):
     if not isinstance(fields, dict) or not all(isinstance(k, str) and isinstance(v, str) and len(v) <= 4096 for k, v in fields.items()):
         raise ValueError("Normalized fields must be bounded strings")
     meta = {k: v for k, v in fields.items() if k in META_FIELDS and v}
+    hostname = fields.get("hostname", "")
     fields = {k: v for k, v in fields.items() if k in FIELDS}
     eventtime = fields.get("eventtime", "")
     event_ns = number(eventtime)
@@ -175,6 +231,10 @@ def normalize(record, source_id):
     uid = digest([source_id, event_ns, fields])
     session = [source_id, fields.get("devid", ""), fields.get("vd", ""), fields.get("sessionid", ""),
                *[fields.get(k, "") for k in ("srcintf", "srcip", "srcport", "dstip", "dstport", "proto")]]
+    site = site_name(hostname) if hostname and fields.get("type") == "utm" and fields.get("subtype") in SITE_SOURCES else None
+    # The session key forward-traffic records of this connection get; it is
+    # never part of this record's own identity.
+    traffic_session = digest(session) if site and fields.get("sessionid") else None
     if not fields.get("sessionid"):
         session.append(uid)
     if unsupported(fields):
@@ -184,6 +244,8 @@ def normalize(record, source_id):
              "session": digest(session), "strong_event_time": strong}
     if meta and not unsupported(fields):
         event["meta"] = meta
+    if traffic_session:
+        event["site"] = (site, traffic_session)
     return event
 
 
@@ -375,6 +437,7 @@ class Store:
             raise ValueError("Accounting requires an explicit IANA timezone")
         tz(config["accounting_timezone"])
         self.config, self.inventory = dict(config), inventory or {"interfaces": []}
+        self.websites_enabled = config.get("accounting_websites") is True
         self.path = None if str(path) == ':memory:' else Path(path).resolve()
         self.db = sqlite3.connect(str(path), timeout=20, check_same_thread=False)
         try:
@@ -391,8 +454,16 @@ class Store:
                 self.db.execute(APP_SCHEMA)
                 self.db.execute(PROFILE_SCHEMA)
                 self.db.execute(APP_CATALOG_SCHEMA)
-                for statement in APP_INDEXES:
+                self.db.execute(SITE_SCHEMA)
+                self.db.execute(SESSION_SITE_SCHEMA)
+                for statement in APP_INDEXES + SITE_INDEXES:
                     self.db.execute(statement)
+                # Websites are counted from the moment they are switched on. While
+                # off nothing is linked or added, and existing rows simply expire.
+                if self.websites_enabled and self.state("websites_since_ns") is None:
+                    self.set_state("websites_since_ns", time.time_ns())
+                elif not self.websites_enabled and self.state("websites_since_ns") is not None:
+                    self.set_state("websites_since_ns", None)
                 self.set_state("contract", contract)
                 # Rebuild this optional derived observation once on writer open,
                 # including after an older version or an offline DB restore.
@@ -417,6 +488,7 @@ class Store:
         tz(config['accounting_timezone'])
         reader = object.__new__(cls)
         reader.config, reader.inventory = dict(config), inventory or {'interfaces': []}
+        reader.websites_enabled = config.get('accounting_websites') is True
         reader.path = Path(path).resolve()
         reader.db = sqlite3.connect(reader.path.as_uri()+'?mode=ro', uri=True, timeout=2,
                                     check_same_thread=False)
@@ -463,7 +535,8 @@ class Store:
     def _rollup_batch(self):
         """Summary rows touched by one ingest live here until its transaction
         ends; a failed batch rolls back and its cache is discarded."""
-        self._batch = {"quality": {}, "daily": {}, "app_daily": {}, "device_profile": {}, "dirty": set(), "first": None}
+        self._batch = {"quality": {}, "daily": {}, "app_daily": {}, "site_daily": {}, "device_profile": {}, "dirty": set(), "first": None,
+                       "sites": {}, "sites_before": {}}
         try:
             yield
         finally:
@@ -473,8 +546,13 @@ class Store:
         "quality": "SELECT records,first_stamp,last_stamp FROM quality WHERE day=? AND classification=?",
         "daily": "SELECT payload FROM daily WHERE day=? AND device=? AND vlan=?",
         "app_daily": "SELECT payload FROM app_daily WHERE day=? AND device=? AND vlan=? AND app=? AND category=?",
+        "site_daily": "SELECT payload FROM site_daily WHERE day=? AND device=? AND vlan=? AND site=?",
         "device_profile": "SELECT payload FROM device_profile WHERE device=?",
     }
+
+    _websites_since = None
+    _ROW_KEYS = {"daily": ("day", "device", "vlan"), "app_daily": ("day", "device", "vlan", "app", "category"),
+                 "site_daily": ("day", "device", "vlan", "site")}
 
     def _row(self, table, key):
         """A summary row as this batch currently sees it; None when absent.
@@ -506,7 +584,7 @@ class Store:
             elif table == "device_profile":
                 self.db.execute("INSERT OR REPLACE INTO device_profile VALUES(?,?)", (*key, json.dumps(value)))
             elif value is None:
-                where = " AND ".join(c+"=?" for c in (("day", "device", "vlan") if table == "daily" else ("day", "device", "vlan", "app", "category")))
+                where = " AND ".join(c+"=?" for c in self._ROW_KEYS[table])
                 self.db.execute("DELETE FROM "+table+" WHERE "+where, key)
             else:
                 self.db.execute("INSERT OR REPLACE INTO "+table+" VALUES("+",".join("?"*(len(key)+1))+")", (*key, json.dumps(value)))
@@ -577,6 +655,47 @@ class Store:
                 value[column] = fact[column]
             value["risk"] = labels.get("apprisk", value["risk"])
         self._put("app_daily", key, value if value["records"] > 0 else None)
+
+    def _session_site(self, session):
+        """The site linked to a traffic session, as this batch sees it."""
+        sites = self._batch["sites"]
+        if session not in sites:
+            found = self.db.execute("SELECT site FROM session_site WHERE session=?", (session,)).fetchone()
+            sites[session] = found[0] if found else None
+        return sites[session]
+
+    def _link_site(self, site, session, event_ns):
+        """Keep the first site seen for a session. True when this added a link.
+
+        The site the session had before this batch is remembered, so facts the
+        session already counted are taken back out of the same rows.
+        """
+        if self._session_site(session) is not None:
+            return False
+        self._batch["sites_before"].setdefault(session, None)
+        self.db.execute("INSERT INTO session_site VALUES(?,?,?)", (session, site, event_ns))
+        self._batch["sites"][session] = site
+        return True
+
+    def _site_rollup(self, fact, site, sign):
+        """Day × device × VLAN × site totals, from exactly the fact's counted bytes."""
+        if site is None or fact["classification"] != "INTERNET":
+            return
+        since = self._websites_since
+        if since is None or fact["event_ns"] < since:
+            return
+        key = (fact["day"], fact["device_id"], fact["vlan"]["key"], site)
+        value = self._row("site_daily", key)
+        if value is None:
+            value = {"vlan": fact["vlan"], "records": 0, "upload_bytes": 0, "download_bytes": 0,
+                     "first_event_ns": fact["event_ns"], "event_ns": fact["event_ns"]}
+        value["upload_bytes"] += sign*fact["upload_bytes"]
+        value["download_bytes"] += sign*fact["download_bytes"]
+        value["records"] += sign
+        if sign > 0:
+            value["first_event_ns"] = min(value["first_event_ns"], fact["event_ns"])
+            value["event_ns"] = max(value["event_ns"], fact["event_ns"])
+        self._put("site_daily", key, value if value["records"] > 0 else None)
 
     def _remember_labels(self, fact, labels):
         """Record when labelled evidence starts and each endpoint's latest profile."""
@@ -863,12 +982,14 @@ class Store:
         affected, inserted, repeated, singletons = set(), 0, 0, 0
         with self.db, self.ledger.write_unit(), self._rollup_batch():
             maximum = self.delivery_max()
+            self._websites_since = self.state("websites_since_ns") if self.websites_enabled else None
             for uid in rejected:
                 new = self.ledger.insert_delivery(uid, "invalid", checkpoint or 0)
                 if new:
                     maximum = max(maximum, checkpoint or 0) if maximum is not None else checkpoint or 0
                     self.set_state("parser_rejections", self.state("parser_rejections", 0)+1)
             for event in normalized:
+                site = event.pop("site", None)
                 new_delivery = self.ledger.insert_delivery(event["delivery_uid"], event["uid"], event["record_ns"])
                 if new_delivery:
                     maximum = max(maximum, event['record_ns']) if maximum is not None else event['record_ns']
@@ -876,6 +997,9 @@ class Store:
                     if new_delivery:
                         self.set_state("late_rejections", self.state("late_rejections", 0)+1)
                     continue
+                if site and self._websites_since is not None and self._link_site(site[0], site[1], event["event_ns"]):
+                    # Counted bytes the session already has move to this site.
+                    affected.add(site[1])
                 if self.ledger.supports_skipped and unsupported(event["fields"]):
                     # Normalization gives each unsupported record its own session,
                     # so its only effect is one source-wide classification count.
@@ -911,14 +1035,18 @@ class Store:
                 if len(rows) > 10000:
                     raise ValueError("Session exceeds safe recomputation size; checkpoint not advanced")
                 labels = {row["uid"]: row.get("meta") or {} for row in rows}
+                site_now = self._session_site(session) if self._websites_since is not None else None
+                site_before = self._batch["sites_before"].get(session, site_now)
                 for old in self.ledger.session_facts(session):
                     self._rollup(old, -1)
                     self._app_rollup(old, labels.get(old["uid"], {}), -1)
+                    self._site_rollup(old, site_before, -1)
                 self.ledger.delete_session_facts(session)
                 for fact in derive_session(rows, self.inventory, self.config):
                     self.ledger.insert_fact(fact, session)
                     self._rollup(fact, 1)
                     self._app_rollup(fact, labels.get(fact["uid"], {}), 1)
+                    self._site_rollup(fact, site_now, 1)
             self._flush_rollups()
             self.set_state("replay_candidates", self.state("replay_candidates", 0)+repeated)
             self.set_state('delivery_max_ns', maximum)
@@ -929,6 +1057,115 @@ class Store:
             self._catalog_seen.update(self._catalog_pending)
             self._catalog_pending = {}
         return {"new_events": inserted, "new_replay_candidates": repeated, "rejected_input_records": len(rejected), "affected_sessions": len(affected)+singletons}
+
+    def site_days(self, start, end, now):
+        """The calendar days a website report covers, or ValueError.
+
+        Website totals are kept per day. A period must start at midnight and end
+        at midnight, or end inside the current day ("so far today").
+        """
+        zone = tz(self.config["accounting_timezone"])
+        start, end = timestamp_ns(start), timestamp_ns(end)
+        if start >= end:
+            raise ValueError("Report start must precede its end")
+        first, last = datetime.fromtimestamp(start//NS, zone), datetime.fromtimestamp(end//NS, zone)
+        def midnight(moment, ns):
+            return (moment.hour, moment.minute, moment.second) == (0, 0, 0) and ns % NS == 0
+        if not midnight(first, start):
+            raise ValueError("Website totals are kept per day; choose a period that starts at midnight")
+        if midnight(last, end):
+            final = last.date()-timedelta(days=1)
+        elif last.date() == datetime.fromtimestamp(timestamp_ns(now)//NS, zone).date():
+            final = last.date()
+        else:
+            raise ValueError("Website totals are kept per day; choose a period that ends at midnight")
+        return first.date().isoformat(), final.isoformat()
+
+    def websites(self, start, end, *, now, site=None, device=None, vlan=None, limit=500):
+        """Recorded Internet bytes by website for whole days, from `site_daily`.
+
+        Only sessions whose site FortiGate logged (Application Control or Web
+        Filter) are included; `coverage` is their share of all recorded Internet
+        bytes on the same days since websites were switched on.
+        """
+        first, last = self.site_days(start, end, now)
+        since_ns = self.state("websites_since_ns")
+        since = datetime.fromtimestamp(since_ns//NS, tz(self.config["accounting_timezone"])).date().isoformat() if since_ns is not None else None
+        result = {"start_utc": iso(timestamp_ns(start)), "end_utc": iso(timestamp_ns(end)), "first_day": first, "last_day": last,
+                  "timezone": self.config["accounting_timezone"], "enabled": self.websites_enabled, "since_ns": since_ns,
+                  "retention_days": SITE_DAYS, "sites": [], "devices": [], "site": site,
+                  "summary": {"total_bytes": None, "sites": 0, "top_site": None, "internet_bytes": None, "coverage": None},
+                  "note": "Websites come from FortiGate Application Control and Web Filter logs for the same session. Sessions without such a log are not included. Only the site name (example.com) is kept, never full addresses. Device names are not authenticated user accounts."}
+        if not self._has_table("site_daily"):
+            return result
+        where, params = ["day>=?", "day<=?"], [first, last]
+        for column, value in (("device", device), ("vlan", vlan)):
+            if value:
+                where.append(column+"=?")
+                params.append(value)
+        sites, devices = {}, {}
+        for day, row_device, row_site, payload in self.db.execute(
+                "SELECT day,device,site,payload FROM site_daily WHERE "+" AND ".join(where), params):
+            value = json.loads(payload)
+            entry = sites.setdefault(row_site, {"site": row_site, "upload_bytes": 0, "download_bytes": 0, "records": 0, "devices": set()})
+            for column in ("upload_bytes", "download_bytes", "records"):
+                entry[column] += value[column]
+            entry["devices"].add(row_device)
+            if row_site == site:
+                target = devices.setdefault(row_device, {"device_id": row_device, "upload_bytes": 0, "download_bytes": 0,
+                                                         "records": 0, "vlans": {}, "event_ns": -1})
+                for column in ("upload_bytes", "download_bytes", "records"):
+                    target[column] += value[column]
+                target["vlans"][value["vlan"]["key"]] = value["vlan"]
+                target["event_ns"] = max(target["event_ns"], value["event_ns"])
+        rows = []
+        for entry in sites.values():
+            entry["devices"] = len(entry["devices"])
+            entry["total_bytes"] = entry["upload_bytes"]+entry["download_bytes"]
+            rows.append(entry)
+        rows.sort(key=lambda x: (-x["total_bytes"], x["site"]))
+        selected = sorted(devices.values(), key=lambda x: (-(x["upload_bytes"]+x["download_bytes"]), x["device_id"]))[:limit]
+        profiles = self.profiles(x["device_id"] for x in selected)
+        for target in selected:
+            # Representative identifiers from the device's latest daily row.
+            latest = self.db.execute("SELECT payload FROM daily WHERE device=? AND day>=? AND day<=? ORDER BY day DESC LIMIT 1",
+                                     (target["device_id"], first, last)).fetchone()
+            known = json.loads(latest[0]) if latest else {}
+            target.update({k: known.get(k, "") for k in ("hostname", "ip", "mac", "identity_kind")})
+            target["vlans"] = list(target["vlans"].values())
+            target["total_bytes"] = target["upload_bytes"]+target["download_bytes"]
+            target["profile"] = profiles.get(target["device_id"])
+            target.pop("event_ns")
+        total = sum(x["total_bytes"] for x in rows)
+        internet = None
+        if since and since <= last:
+            def counted(table, low):
+                where, values = ["day>=?", "day<=?"], [low, last]
+                for column, value in (("device", device), ("vlan", vlan)):
+                    if value:
+                        where.append(column+"=?")
+                        values.append(value)
+                return self.db.execute(
+                    "SELECT COALESCE(SUM(json_extract(payload,'$.upload_bytes')+json_extract(payload,'$.download_bytes')),0) FROM "
+                    + table + " WHERE " + " AND ".join(where), values).fetchone()[0]
+            if since < first:
+                internet, site_bytes = counted("daily", first), counted("site_daily", first)
+            else:
+                # The day websites were switched on: its daily row also holds usage
+                # from before, so only facts from that moment are compared.
+                zone = tz(self.config["accounting_timezone"])
+                next_day = (datetime.fromisoformat(since)+timedelta(days=1)).date()
+                internet, site_bytes = counted("daily", next_day.isoformat()), counted("site_daily", next_day.isoformat())
+                if since_ns >= self.state("ledger_floor_ns", 0):
+                    day_end = timestamp_ns(datetime.combine(next_day, datetime.min.time(), zone).isoformat())
+                    internet += sum(fact["upload_bytes"]+fact["download_bytes"] for fact, _ in self.ledger.range_facts_labels(since_ns, day_end)
+                                    if (not device or fact["device_id"] == device) and (not vlan or fact["vlan"]["key"] == vlan))
+                    site_bytes = counted("site_daily", since)
+            result["summary"]["coverage"] = min(1.0, site_bytes/internet) if internet else None
+        result.update(sites=rows[:limit], devices=selected, truncated=len(rows) > limit)
+        result["summary"].update(total_bytes=total if rows else None, sites=len(rows), top_site=rows[0]["site"] if rows else None,
+                                 internet_bytes=internet)
+        return result
 
     def prune(self, now, ledger_days=3, summary_days=400):
         if not 1 <= ledger_days <= 365 or not ledger_days <= summary_days <= 3650:
@@ -958,6 +1195,11 @@ class Store:
             cutoff = datetime.fromtimestamp((timestamp_ns(now)-summary_days*86400*NS)//NS, tz(self.config["accounting_timezone"])).date().isoformat()
             self.db.execute("DELETE FROM daily WHERE day<?", (cutoff,))
             self.db.execute("DELETE FROM app_daily WHERE day<?", (cutoff,))
+            # Website rows are kept for at most SITE_DAYS; session links only as
+            # long as the raw records they can still be joined to.
+            site_cutoff = datetime.fromtimestamp((timestamp_ns(now)-min(SITE_DAYS, summary_days)*86400*NS)//NS, tz(self.config["accounting_timezone"])).date().isoformat()
+            self.db.execute("DELETE FROM site_daily WHERE day<?", (site_cutoff,))
+            self.db.execute("DELETE FROM session_site WHERE event_ns<?", (floor,))
             self.db.execute('DELETE FROM quality WHERE day<?',(cutoff,))
             self.set_state("ledger_floor_ns", max(floor, self.state("ledger_floor_ns", 0)))
             self.set_state("summary_floor_day", cutoff)

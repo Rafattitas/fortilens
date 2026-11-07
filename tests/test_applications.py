@@ -188,7 +188,7 @@ class ApplicationTests(unittest.TestCase):
         page = (Path(__file__).resolve().parents[1] / "portable" / "reporting.html").read_text(encoding="utf-8")
         self.assertIn("api('/api/applications?'", page)
         self.assertIn('data-view="applications"', page)
-        self.assertIn("['devices','vlans','reports','applications','live'].includes(requestedSection)", page)
+        self.assertIn("['devices','vlans','reports','applications','websites','live'].includes(requestedSection)", page)
 
     def test_management_console_navigation_opens_the_applications_view(self):
         # The console hides the report page's own menu, so it needs its own entry.
@@ -203,7 +203,7 @@ class ApplicationTests(unittest.TestCase):
         self.assertIn("applications:'/console/?section=applications#applications'", script)
         self.assertIn("'applications'", server.split("EMBEDDED_VIEWS=", 1)[1].split("\n", 1)[0])
         self.assertIn("'applications':'/console/?section=applications#applications'", server)
-        self.assertIn("section in ('devices','vlans','reports','applications','live')", server)
+        self.assertIn("section in ('devices','vlans','reports','applications','websites','live')", server)
 
 
 class ApplicationViewTests(unittest.TestCase):

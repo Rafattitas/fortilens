@@ -17,6 +17,8 @@ class Monitoring(Strict):
     accounting: bool = True
     vlans: bool = True
     server: bool = True
+    # Opt-in: per-device website history (docs/operations/WEBSITES.md).
+    websites: bool = False
 
 
 class Retention(Strict):
@@ -63,7 +65,7 @@ class Settings(Strict):
                 ZoneInfo(zone)
             if self.retention.summary_days < self.retention.ledger_days:
                 raise ValueError()
-            if self.monitoring.accounting and not self.monitoring.syslog or self.monitoring.vlans and not self.monitoring.accounting:
+            if self.monitoring.accounting and not self.monitoring.syslog or (self.monitoring.vlans or self.monitoring.websites) and not self.monitoring.accounting:
                 raise ValueError()
             if self.monitoring.accounting and self.grafana_port==self.usage_port:
                 raise ValueError()
@@ -83,6 +85,7 @@ class Settings(Strict):
                  syslog_network=self.syslog_network,
                  wan_interfaces=self.wan_interfaces if self.sla else [],
                  accounting_enabled=self.monitoring.accounting, portal_enabled=self.monitoring.accounting,
+                 accounting_websites=self.monitoring.websites and self.monitoring.accounting,
                  accounting_ledger_days=self.retention.ledger_days, accounting_summary_days=self.retention.summary_days,
                  accounting_max_bytes=self.retention.database_bytes)
         if validate:

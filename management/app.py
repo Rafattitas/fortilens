@@ -22,7 +22,7 @@ from .models import Apply, Change, Job, Revision, Strict
 
 STATIC=Path(__file__).parent/'static'
 COOKIE='fortilens_management'
-EMBEDDED_VIEWS={'monitoring','wan','devices','vlans','reports','applications','live','quality'}
+EMBEDDED_VIEWS={'monitoring','wan','devices','vlans','reports','applications','websites','live','quality'}
 
 
 def monitoring_destination(target, active_sla=''):
@@ -92,7 +92,7 @@ def hosted_report(text,section=None):
     css=HOSTED_REPORT_CSS
     if section=='devices':css+='#vlan-section{display:none!important}'
     if section=='vlans':css+='#device-section{display:none!important}'
-    body='<body'+(' data-report-section="'+section+'"' if section in ('devices','vlans','reports','applications','live') else '')+'>'
+    body='<body'+(' data-report-section="'+section+'"' if section in ('devices','vlans','reports','applications','websites','live') else '')+'>'
     return (text.replace("'/api/","'/console/api/").replace('</style>','\n'+css+'</style>')
             .replace('<body>',body+HOSTED_REPORT_STATUS).replace('</body>',HOSTED_REPORT_SCRIPT+'</body>'))
 
@@ -292,7 +292,7 @@ def create_app(data,bootstrap_file,helper,*,origin='http://127.0.0.1:3030',dashb
             raise Problem('view_unavailable','This view is not enabled. Review your installation settings.',503)
         paths={'wan':'/console/#wan','devices':'/console/?section=devices#overview',
                'vlans':'/console/?section=vlans#overview','reports':'/console/?section=reports#reports',
-               'applications':'/console/?section=applications#applications','live':'/console/?section=live#live','quality':'/console/#quality'}
+               'applications':'/console/?section=applications#applications','websites':'/console/?section=websites#websites','live':'/console/?section=live#live','quality':'/console/#quality'}
         if view=='monitoring':
             result=await run_in_threadpool(helper.call,'console',{'path':'/api/monitoring-status','method':'GET','body':'','content_type':'application/json'})
             try:status=json.loads(base64.b64decode(result['body']))

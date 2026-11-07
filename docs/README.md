@@ -45,6 +45,7 @@ Read [release preparation](development/RELEASING.md) before choosing or building
 |---|---|
 | [Capacity and sizing](operations/CAPACITY.md) | Measured processing rate, storage per record and sizing by number of devices. |
 | [FortiOS compatibility](operations/COMPATIBILITY.md) | Checked FortiOS versions, what depends on the version, and how a different version is shown. |
+| [Website usage](operations/WEBSITES.md) | Opt-in per-device website usage: what is kept, where it comes from, coverage and retention. |
 | [Troubleshooting](operations/TROUBLESHOOTING.md) | Read-only doctor evidence, missing telemetry, processing lag and storage failures. |
 | [Native FortiGate UDP reception](operations/SYSLOG_NATIVE_UDP.md) | Explicit managed native UDP profile, bounded delivery evidence and the separate legacy rsyslog alternative. |
 | [Upgrade from v0.1.0](operations/UPGRADE.md) | Reviewed accounting migration and hash-guarded configuration rollback. |
