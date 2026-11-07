@@ -44,32 +44,47 @@ distinguish pending drafts from the applied configuration.
 
 ## Layout and navigation
 
-Overview is the configured default and first network destination, with live
-monitoring one click away. Keep an explicitly saved valid route; use Settings
-for an unconfigured installation. Overview brings link timelines, current
-observations, recorded consumers and collection evidence together. Live monitoring
-opens the real native Grafana dashboard within the same workspace:
+Overview is the configured default and first destination. Keep an explicitly
+saved valid route; use Settings for an unconfigured installation. Overview brings
+link timelines, current observations, recorded consumers and collection evidence
+together. The Firewall dashboard opens the real native Grafana dashboard within
+the same workspace.
+
+The sidebar is grouped by the question a person is asking, and every page is one
+top-level item with its own icon:
 
 ```text
 FortiLens            Site                                  Account
-Network              Overview                         Reload view
-  Overview           +-------------------------------------------+
-    Live monitoring  | Shared link timelines and observed states |
-  Internet           | Current link measurements                 |
-  Usage              | Recorded consumers and segments           |
-    Segments         | Collection and installation evidence      |
-    Reports          +-------------------------------------------+
-Trust
-  Evidence
-Installation
-  System
-    Diagnostics
+Overview             Overview                         Reload view
+RIGHT NOW            +-------------------------------------------+
+  Live usage      •  | Shared link timelines and observed states |
+  Internet links     | Current link measurements                 |
+  Firewall dashboard | Recorded consumers and segments           |
+RECORDED USAGE       | Collection and installation evidence      |
+  Devices            +-------------------------------------------+
+  Segments
+  Applications
+  Websites
+  Reports
+SYSTEM
+  Status
+  Data quality
+  Diagnostics
   Settings
 ```
 
+- Right now: current state (realtime sessions, link health, Grafana). Recorded
+  usage: views of accounting history, with Reports last because it spans them.
+  System: FortiLens itself. Add a new page to the group whose question it answers,
+  as a top-level item with an icon; do not nest pages under another page.
+- Group captions are small uppercase labels. The active item has a tinted
+  background and a 3px accent bar, so it does not rely on colour alone.
+- Page names stay plain. URL fragments (`#devices`, `#quality`, …) are stable
+  even when a visible name changes.
+
 - A compact persistent sidebar and 56px header on desktop. One main scroll region
   for overview/settings/diagnostics; consistent content spacing.
-- Live monitoring and hosted reports fill the remaining viewport with a borderless document.
+- The Firewall dashboard and hosted reports fill the remaining viewport with a borderless document.
   The shell does not add an outer scrolling page around that embedded viewport.
   Retain native Grafana panels, selectors, query groups and saved layout.
 - Native Grafana remains at `/grafana/`. Never globally replace Grafana URLs,

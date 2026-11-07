@@ -197,7 +197,7 @@ const diagnostics = () => ({system:system(),monitoring:{status:'Recorded evidenc
   {id:'recent_logs',status:'PASS',message:'Recent delivery is observed in this synthetic fixture.'},
   {id:'accounting_poll',status:'PASS',message:'The accounting engine recently processed a poll.'},
   {id:'accounting_lag',status:'PASS',message:'Synthetic usage processing is near the present.'},
-  {id:'accounting_metadata',status:'WARN',message:'Some retained records have unknown segment mappings.',action:'Inspect Evidence; do not infer historical VLANs from the current IP subnet.'},
+  {id:'accounting_metadata',status:'WARN',message:'Some retained records have unknown segment mappings.',action:'Inspect Data quality; do not infer historical VLANs from the current IP subnet.'},
   {id:'fortigate_tls',status:'PASS',message:'Certificate verification is enabled in this synthetic configuration.'},
   {id:'completeness',status:'UNKNOWN',message:'Received records do not certify complete traffic collection.',action:'Compare sender, listener and processing evidence before interpreting totals.'},
 ]},collection:{latest_log_at:new Date(now-12000).toISOString(),latest_metric_at:new Date(now-15000).toISOString(),processing_lag_seconds:4,log_timestamp_kind:'receipt time'}});

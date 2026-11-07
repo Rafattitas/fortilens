@@ -42,8 +42,8 @@ your own server, with your own credentials and data.
 | Which websites used the Internet, and which devices visited them? | **Websites** (opt-in, off by default) groups recorded usage by site name from FortiGate Application Control and Web Filter logs, kept 90 days. See [website usage](docs/operations/WEBSITES.md). |
 | Who is using the Internet right now? | **Live usage** shows current download and upload per device, application, segment and WAN link from FortiGate realtime sessions, refreshed every 10 seconds. |
 | What was the total for a period? | **Reports** covers Today, rolling 7 days, this month, this year, recent 5 minutes or a custom range. |
-| Can I trust these numbers? | **Evidence** shows collection gaps, pending counters and identity limits. |
-| What is happening right now, in detail? | **Live monitoring** opens the native Grafana dashboard. |
+| Can I trust these numbers? | **Data quality** shows collection gaps, pending counters and identity limits. |
+| What is happening right now, in detail? | **Firewall dashboard** opens the native Grafana dashboard. |
 | Is the installation itself working? | **System**, **Diagnostics** and **Settings** cover services, collection and reviewed configuration changes. |
 
 Usage figures come from received accounting records. Missing records never become
