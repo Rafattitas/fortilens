@@ -31,7 +31,7 @@ instead; at 120 + 30 seconds that ceiling was about 200 records per second.
 
 ## Estimating your rate
 
-Diagnostics and the Evidence page show received record counts. As a reference,
+Diagnostics and the Data quality page show received record counts. As a reference,
 one office site with about 110 endpoint identities received 2.8–3.9 million
 records a day: an average of 33–45 records per second, about 0.35 per device,
 with a measured busiest hour of 74 records per second (2.2 times the daily

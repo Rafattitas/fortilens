@@ -4,12 +4,12 @@
   "fixture_time": "2026-11-05T12:00:00.000Z",
   "browser": "158.0.8127.18",
   "source_sha256": {
-    "tools/capture_screenshots.cjs": "3d6c4688c459825121b418be927e95ed9c6dfecf80769a273702c9c213563960",
+    "tools/capture_screenshots.cjs": "65eb0d87ae01df213b8bec68838941f9fc74cdc384471120ecb634578b60542e",
     "management/app.py": "08a9ce177d20a537d3c40fa88b429924158dabc37e2acaaf112b9ce02b9cc23b",
-    "management/static/index.html": "66145642605f583a7a031646134efa5252352f2df426e8989640ae4a1aee7eae",
-    "management/static/app.js": "4c83e12d9e0ae7b1d07b51b1275b78a12d89a310101e9f9d4f4b1a2520a743c4",
-    "management/static/app.css": "29056b1b70f39ac5f9548ebf7bd4b8c6efa332a9eb59f4cdba1721e9d6f332b1",
-    "portable/reporting.html": "d5147e6db21ef734e2a157c3f7fd5cbd0234814068aef01210d95154a21b6b73",
+    "management/static/index.html": "769ab52397b7c6f0e38aeb73fb0e4eba4e1e92f90637276647ce699dd0f2dd83",
+    "management/static/app.js": "671485648d60f46e5dcc9ae086c5c2e9f4e6ed6b0a764b3a9f1653d8ea5efebc",
+    "management/static/app.css": "7d37202f7772d192ef1f6df09e32402e9a8b4a532d8ceb2c7bd024705cf3c9eb",
+    "portable/reporting.html": "bd57a7e4caf1d43a92f9b96dae2401e052613b180fcebef5db3417ca38981002",
     "management/static/fonts/IBMPlexSans-Light-Latin1.woff2": "a21e7db1965d4c7af07213226fb11ccd2f61a87a0045ce1fed7cd22918431144",
     "management/static/fonts/IBMPlexSans-Medium-Latin1.woff2": "b5610af04d0d4b5a14a621d96d974b993e945a065db1a8861918f69ef9321934",
     "management/static/fonts/IBMPlexSans-Regular-Latin1.woff2": "b5ad7bd39f996144915f0ad9849a90183b27d8c28ad97ed98af5b1bebc51f6b1",
@@ -18,7 +18,7 @@
   "screenshots": [
     {
       "file": "docs/design/screenshots/01-overview-dark.png",
-      "sha256": "5429608b6e87941b7c27acd5e3ff6e3bd57772c625da7dc3efa2bb3df32afc3e",
+      "sha256": "5880b140819c6f01bddf0c04b3af72fccc51ffe01016b45eafde5de07c729039",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -34,7 +34,7 @@
     },
     {
       "file": "docs/design/screenshots/02-overview-light.png",
-      "sha256": "7348c2813137cf8c12fca880cd8ff35c98f2896a2e65f1de76be88a4c34466ac",
+      "sha256": "d469820c38e16f7f3130af974e180fa41db6754e84a1b81632ce24e4ff7e83d0",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -50,7 +50,7 @@
     },
     {
       "file": "docs/design/screenshots/03-overview-degraded.png",
-      "sha256": "113ea39a32eed4f2357d6462c7c7824fc487bd1a0b6d9fd08fbabe998c4cb99c",
+      "sha256": "e72b6007fc49896b499a66c6a037d09a3aa76431a81b4c48a68a22ca008bd5ff",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -66,7 +66,7 @@
     },
     {
       "file": "docs/design/screenshots/04-usage-docked.png",
-      "sha256": "c12aadf4a54151187975a9a4570f5eb79bcd9437420c9864b1d87aff2f13cedb",
+      "sha256": "cb5dba923b34f5ace844086d54f8edfabf039b8e418843089ea3b0c6b3b539a5",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -82,7 +82,7 @@
     },
     {
       "file": "docs/design/screenshots/05-reports.png",
-      "sha256": "aa8667075d459445465951a6addca3c4be6d66576986fa6f3a7b77feb24fd3ac",
+      "sha256": "bbc91277ccdd1db13f1040bd9fe4cc3a82752dae066c829fe9caa27c33b585e2",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -98,7 +98,7 @@
     },
     {
       "file": "docs/design/screenshots/06-evidence.png",
-      "sha256": "f59e4248ae341497d8e490c85f64ac4c30735ffd089a3931786b489dcfdea757",
+      "sha256": "7ce4e631b3309b5e6cd441c77d32634f36c92cc946192bc92d0061df43fef773",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -114,7 +114,7 @@
     },
     {
       "file": "docs/design/screenshots/07-internet.png",
-      "sha256": "87b77aa8a8a6902fea3d4788fd801e1c65dc71392a556812cb7e5f1d03025d4b",
+      "sha256": "5d2a79c9b91c6836b7acb8d8ab2b068eaaf0e5756b360e8d11fbec0dccf4a430",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -130,7 +130,7 @@
     },
     {
       "file": "docs/design/screenshots/08-system.png",
-      "sha256": "912d5ae815ca68237ef074c464d0cd50d6d99f458c72b42a15a2af2abf5ef591",
+      "sha256": "ffd0ce0a57de37f39cc2cdaddd8ae40f593977a269bc2ec009cd46373e1de5cd",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -146,7 +146,7 @@
     },
     {
       "file": "docs/design/screenshots/09-diagnostics.png",
-      "sha256": "63dc86b1c959ce4211f7edbcd0a6e8b410fef75f449053477cc2f2d7dc734084",
+      "sha256": "3fd5560d17f9c27d86d466aa610ba0498191a909b97ca3f5ef5ce3ab819bb35f",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -162,7 +162,7 @@
     },
     {
       "file": "docs/design/screenshots/10-settings.png",
-      "sha256": "887dd7f8a88ec6d2be9708e77f383306b563f8cae7d41ca0dda101d760671fe2",
+      "sha256": "0f078eead828cafc24d3230c2a55d1c684f1a610ae263d8334e1cb053b1027f4",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -210,7 +210,7 @@
     },
     {
       "file": "docs/design/screenshots/14-overview-narrow.png",
-      "sha256": "8e1f8e25e7a73b5fec9d9ce46e44928e916a3e2e43ad91d5e102c7ca34e3dafa",
+      "sha256": "6a27f5e2f257d6297fea7514d1c586dc61188835fdc8cd3f1a9595e3b6c23fac",
       "viewport": {
         "width": 375,
         "height": 900
@@ -226,7 +226,7 @@
     },
     {
       "file": "docs/design/screenshots/15-usage-narrow.png",
-      "sha256": "76d9da7843fe161e66e8ca44437e31197b8a583886b4752f5fa81da41f0a1f03",
+      "sha256": "2695f968a60c89c37f067b5e4bb2981d1546542f774de7224557d2965a9f3059",
       "viewport": {
         "width": 375,
         "height": 900
@@ -242,7 +242,7 @@
     },
     {
       "file": "docs/design/screenshots/16-applications.png",
-      "sha256": "df612fca37ceac341e155d4188a567a4bb41cf0f1a3e03b0958611ca7c8cf76c",
+      "sha256": "5556223544c5e124b01451e72229832d8f5d8e424750aef3b7beaee71f9ee6c4",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -258,7 +258,7 @@
     },
     {
       "file": "docs/design/screenshots/17-live.png",
-      "sha256": "7dee29c81d0ac0758ce828e068e679c9d645e0ea3d54d7c03638f5fe9bfb3381",
+      "sha256": "db7284329413f29c840563138aa1f0dd559340125830f32db6e4046d89a65bc1",
       "viewport": {
         "width": 1600,
         "height": 1050
