@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.5.0 — 2026-11-08 — websites, clearer navigation and an online demo
 
 ### Websites (opt-in)
 
