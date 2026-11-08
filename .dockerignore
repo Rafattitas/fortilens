@@ -19,6 +19,9 @@
 !management/static/app.js
 !management/static/index.html
 !management/static/grafana-clock.js
+!management/static/favicon.svg
+!management/static/favicon-32.png
+!management/static/apple-touch-icon.png
 !management/static/fonts/
 !management/static/fonts/IBMPlexSans-Light-Latin1.woff2
 !management/static/fonts/IBMPlexSans-Regular-Latin1.woff2

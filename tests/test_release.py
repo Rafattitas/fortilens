@@ -30,6 +30,10 @@ class ReleaseTests(unittest.TestCase):
         self.assertTrue(fonts, "The vendored management fonts must be discoverable")
         required = {"management/static/" + name for name in fonts}
         required.update({"management/static/fonts/OFL.txt", "management/static/grafana-clock.js"})
+        index = (ROOT / "management/static/index.html").read_text(encoding="utf-8")
+        icons = re.findall(r'<link rel="(?:icon|apple-touch-icon)" href="/static/([^"]+)"', index)
+        self.assertEqual(len(icons), 3, "The console links its SVG, PNG and home-screen icons")
+        required.update("management/static/" + name for name in icons)
         spec = importlib.util.spec_from_file_location(
             "fortilens_asset_installer", ROOT / "management/install.py"
         )
