@@ -8,7 +8,7 @@ FortiLens 0.2 provides an optional persistent received-log engine and protected 
 | Existing Grafana / Loki tables | Legacy raw-log diagnostics and comparisons. | Original MAC/IP/name grouping and closing cumulative fallback; no stateful deduplication. Absolute Grafana ranges override relative periods. |
 | Offline usage-audit | Sanitized sample comparison and repeat/identity review. | A sample is not a complete ledger. No live collection or deployment. |
 
-Portal periods use an explicit accounting timezone, **[start,end)** boundaries, calendar boundaries for day, week (today plus the six previous whole days), month and year. Fixed selections use the server's current time independently of Grafana. GB means decimal 1,000,000,000 bytes; API totals retain integer bytes and the UI rounds display units.
+Portal periods use the accounting timezone (by default the FortiGate clock), **[start,end)** boundaries, calendar boundaries for day, week (today plus the six previous whole days), month and year. Fixed selections use the server's current time independently of Grafana. GB means decimal 1,000,000,000 bytes; API totals retain integer bytes and the UI rounds display units.
 
 MAC identifies an observed endpoint, not an authenticated person. Without usable MAC evidence, session/observation identities stay unverified; an IP or hostname alone never merges devices permanently. Router/proxy MACs and forged source fields require site-specific review.
 

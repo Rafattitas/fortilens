@@ -4,7 +4,7 @@ Raw logs remain in Loki. This module stores only allowlisted accounting fields.
 Traffic completeness and exact packet-time allocation are never inferred.
 """
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date as calendar_date, datetime, timedelta, timezone, tzinfo
 from contextlib import contextmanager
 import functools
 import hashlib
@@ -94,9 +94,15 @@ UINT64 = 2**64 - 1
 NS = 1000000000
 
 
+FORTIGATE_ZONE = "fortigate"
+
+
 def tz(name):
     if name == "UTC":
         return timezone.utc
+    if name == FORTIGATE_ZONE:
+        # Until the first FortiGate offset arrives there are no days to split.
+        return ZoneTimeline([])
     if name == "browser":
         raise ValueError("Accounting requires an explicit timezone")
     try:
@@ -105,15 +111,110 @@ def tz(name):
         raise ValueError("Accounting timezone unavailable; install IANA data or choose UTC") from None
 
 
+def parse_utc_offset(value):
+    """FortiGate's tz log field, such as "+0200", as seconds east of UTC."""
+    match = re.fullmatch(r"([+-])([0-9]{2}):?([0-9]{2})", value or "")
+    if not match or int(match[2]) > 14 or int(match[3]) >= 60:
+        return None
+    seconds = int(match[2])*3600 + int(match[3])*60
+    return seconds if match[1] == "+" else -seconds
+
+
+def offset_label(seconds):
+    hours, minutes = divmod(abs(seconds)//60, 60)
+    return "UTC" + ("+" if seconds >= 0 else "-") + "%02d:%02d" % (hours, minutes)
+
+
+def stored_zone(value):
+    return timezone(timedelta(seconds=value)) if isinstance(value, int) else tz(value)
+
+
+class ZoneTimeline(tzinfo):
+    """Accounting days that follow the FortiGate's own clock.
+
+    Each entry names the zone for local days from its first date on. A whole
+    day belongs to one entry, so a change only shortens or lengthens the day it
+    takes effect; days counted earlier keep their boundaries."""
+
+    def __init__(self, entries):
+        self.entries = [(calendar_date.min if first is None else first, zone) for first, zone in entries]
+        if not self.entries:
+            self.entries = [(calendar_date.min, timezone.utc)]
+
+    @classmethod
+    def load(cls, stored):
+        return cls([(None if first is None else calendar_date.fromisoformat(first), stored_zone(value))
+                    for first, value in stored or []])
+
+    def zone_for(self, day):
+        chosen = self.entries[0][1]
+        for first, zone in self.entries:
+            if first > day:
+                break
+            chosen = zone
+        return chosen
+
+    def utcoffset(self, dt):
+        if dt is None:
+            return None
+        return self.zone_for(dt.date()).utcoffset(dt.replace(tzinfo=None))
+
+    def dst(self, dt):
+        return timedelta(0)
+
+    def tzname(self, dt):
+        offset = self.utcoffset(dt) if dt is not None else None
+        return offset_label(int(offset.total_seconds())) if offset is not None else "FortiGate"
+
+    def fromutc(self, dt):
+        instant = dt.replace(tzinfo=timezone.utc)
+        for index in range(len(self.entries)-1, -1, -1):
+            first, zone = self.entries[index]
+            local = instant.astimezone(zone)
+            if local.date() < first:
+                continue
+            following = self.entries[index+1][0] if index+1 < len(self.entries) else None
+            if following is not None and local.date() >= following:
+                # The last day before a westward change is longer than 24
+                # hours; its extra hour still belongs to that day.
+                local = datetime.combine(following-timedelta(days=1), datetime.max.time(), zone)
+            return local.replace(tzinfo=self)
+        return instant.astimezone(self.entries[0][1]).replace(tzinfo=self)
+
+
+def zone_of(config):
+    """The accounting zone: a fixed IANA zone, or the FortiGate-following timeline."""
+    return config.get("_zone") or tz(config["accounting_timezone"])
+
+
+def follows_fortigate_from(existing, contract):
+    """A fixed-zone contract may switch to following the FortiGate, forward only."""
+    return (existing is not None and contract["accounting_timezone"] == FORTIGATE_ZONE
+            and existing.get("accounting_timezone") not in (None, FORTIGATE_ZONE)
+            and {k: v for k, v in existing.items() if k != "accounting_timezone"} == {k: v for k, v in contract.items() if k != "accounting_timezone"})
+
+
+def zone_fields(config, at_ns):
+    """Report labels; "timezone" stays a name every browser formatter accepts."""
+    if config["accounting_timezone"] != FORTIGATE_ZONE:
+        return {"timezone": config["accounting_timezone"], "timezone_label": config["accounting_timezone"]}
+    zone = zone_of(config)
+    offset = int(datetime.fromtimestamp(at_ns//NS, zone).utcoffset().total_seconds())
+    hours, rest = divmod(abs(offset), 3600)
+    name = "UTC" if offset == 0 else ("Etc/GMT%s%d" % ("-" if offset > 0 else "+", hours) if not rest else "UTC")
+    return {"timezone": name, "timezone_label": "FortiGate time (" + offset_label(offset) + ")"}
+
+
 def period_bounds(period, at, zone, *, start=None, end=None):
     at_ns = timestamp_ns(at)
-    local = datetime.fromtimestamp(at_ns//NS, tz(zone))
+    zone = zone if isinstance(zone, tzinfo) else tz(zone)
+    local = datetime.fromtimestamp(at_ns//NS, zone)
     if period == "today":
         first = timestamp_ns(local.replace(hour=0, minute=0, second=0, microsecond=0).isoformat())
     elif period == "week":
         # Today plus the six previous whole calendar days. Whole days come from
         # retained daily summaries, so the week never depends on old raw records.
-        first = timestamp_ns(datetime.combine(local.date()-timedelta(days=6), datetime.min.time(), tz(zone)).isoformat())
+        first = timestamp_ns(datetime.combine(local.date()-timedelta(days=6), datetime.min.time(), zone).isoformat())
     elif period == "recent":
         first = at_ns-300*NS
     elif period == "month":
@@ -208,7 +309,7 @@ def parse_line(line):
         if key in fields:
             raise ValueError("Duplicate log keys require review")
         fields[key] = value
-    return {k: v for k, v in fields.items() if k in FIELDS or k in META_FIELDS or k == "hostname"}
+    return {k: v for k, v in fields.items() if k in FIELDS or k in META_FIELDS or k in ("hostname", "tz")}
 
 
 def normalize(record, source_id):
@@ -221,6 +322,7 @@ def normalize(record, source_id):
         raise ValueError("Normalized fields must be bounded strings")
     meta = {k: v for k, v in fields.items() if k in META_FIELDS and v}
     hostname = fields.get("hostname", "")
+    utc_offset = parse_utc_offset(fields.get("tz"))
     fields = {k: v for k, v in fields.items() if k in FIELDS}
     eventtime = fields.get("eventtime", "")
     event_ns = number(eventtime)
@@ -246,6 +348,8 @@ def normalize(record, source_id):
         event["meta"] = meta
     if traffic_session:
         event["site"] = (site, traffic_session)
+    if utc_offset is not None:
+        event["utc_offset"] = utc_offset
     return event
 
 
@@ -327,7 +431,7 @@ def event_order(event):
 
 
 def derive_session(events, inventory, config):
-    zone = tz(config["accounting_timezone"])
+    zone = zone_of(config)
     previous, ended, generation, previous_time, previous_duration = {}, False, None, None, None
     previous_start, previous_mac = None, None
     results = []
@@ -448,7 +552,8 @@ class Store:
             self.storage_format = self.ledger.format
             contract = {k: config.get(k) for k in ("accounting_timezone", "source_id", "vdom", "expected_devid")}
             existing = self.state("contract")
-            if existing is not None and existing != contract:
+            follow = follows_fortigate_from(existing, contract)
+            if existing is not None and existing != contract and not follow:
                 raise ValueError("Accounting identity/timezone contract changed; use an explicitly rebuilt database")
             with self.db:
                 self.db.execute(APP_SCHEMA)
@@ -464,7 +569,12 @@ class Store:
                     self.set_state("websites_since_ns", time.time_ns())
                 elif not self.websites_enabled and self.state("websites_since_ns") is not None:
                     self.set_state("websites_since_ns", None)
+                if follow and self.state("zone_timeline") is None:
+                    # Days counted so far keep their zone; the FortiGate's own
+                    # offset applies from the next local day it reports.
+                    self.set_state("zone_timeline", [[None, existing["accounting_timezone"]]])
                 self.set_state("contract", contract)
+                self._load_zone()
                 # Rebuild this optional derived observation once on writer open,
                 # including after an older version or an offline DB restore.
                 self.set_state('delivery_max_ns', self.ledger.max_delivery_stamp())
@@ -477,6 +587,41 @@ class Store:
 
     def close(self):
         self.db.close()
+
+    def zone(self):
+        return zone_of(self.config)
+
+    def _load_zone(self, fallback=None):
+        if self.config["accounting_timezone"] == FORTIGATE_ZONE:
+            self.config["_zone"] = ZoneTimeline.load(self.state("zone_timeline") or fallback)
+
+    def _follow_fortigate_clock(self, events):
+        """Record the FortiGate's UTC offset; a change applies from the next local day."""
+        if self.config["accounting_timezone"] != FORTIGATE_ZONE:
+            return
+        seen = self.state("zone_observed_ns", -1)
+        latest = max((e for e in events if "utc_offset" in e and e["event_ns"] >= seen), key=lambda e: e["event_ns"], default=None)
+        if latest is None:
+            return
+        offset, at = latest["utc_offset"], latest["event_ns"]
+        stored = self.state("zone_timeline")
+        if stored is None:
+            stored = [[None, offset]]
+        else:
+            zone = ZoneTimeline.load(stored)
+            day = datetime.fromtimestamp(at//NS, zone).date()
+            if stored[-1][0] is not None and calendar_date.fromisoformat(stored[-1][0]) > day:
+                # A change not in effect yet is replaced by what the FortiGate reports now.
+                stored = stored[:-1]
+                zone = ZoneTimeline.load(stored)
+            local = datetime.fromtimestamp(at//NS, zone).replace(tzinfo=None)
+            if zone.zone_for(day).utcoffset(local) != timedelta(seconds=offset):
+                reported = datetime.fromtimestamp(at//NS, timezone(timedelta(seconds=offset))).date()
+                effective = max(reported, day)+timedelta(days=1)
+                stored = stored+[[effective.isoformat(), offset]]
+        self.set_state("zone_timeline", stored)
+        self.set_state("zone_observed_ns", at)
+        self.config["_zone"] = ZoneTimeline.load(stored)
 
     @classmethod
     def open_readonly(cls, path, config, inventory=None, *, storage_format=None):
@@ -500,8 +645,10 @@ class Store:
             reader.storage_format = reader.ledger.format
             contract = {key: config.get(key) for key in ('accounting_timezone', 'source_id', 'vdom', 'expected_devid')}
             existing = reader.state('contract')
-            if existing is not None and existing != contract:
+            follow = follows_fortigate_from(existing, contract)
+            if existing is not None and existing != contract and not follow:
                 raise ValueError('Accounting identity/timezone contract changed; use an explicitly rebuilt database')
+            reader._load_zone([[None, existing['accounting_timezone']]] if follow else None)
         except Exception:
             reader.db.close()
             raise
@@ -833,7 +980,7 @@ class Store:
 
     def _iter_app_rows(self, start, end):
         """Whole days from `app_daily`; partial edges from retained facts and labels."""
-        zone = tz(self.config["accounting_timezone"])
+        zone = self.zone()
         start_local = datetime.fromtimestamp(start//NS, zone)
         end_local = datetime.fromtimestamp(end//NS, zone)
         first_full = start_local.date() + (timedelta(days=1) if (start_local.hour or start_local.minute or start_local.second or start % NS) else timedelta())
@@ -951,7 +1098,7 @@ class Store:
         named = [x for x in rows if x["app"] is not None and not x["generic"]]
         genai = next((c for c in finish(categories.values(), "apps", "devices") if c["category"] == "GenAI"), None)
         untracked_total = untracked["upload_bytes"]+untracked["download_bytes"]
-        result = {"start_utc": iso(start), "end_utc": iso(end), "boundary": "[start,end)", "timezone": self.config["accounting_timezone"],
+        result = {"start_utc": iso(start), "end_utc": iso(end), "boundary": "[start,end)", **zone_fields(self.config, end),
                   "applications": rows, "categories": finish(categories.values(), "apps", "devices"), "devices": selected,
                   "totals": {c: sum(x[c] for x in rows) if rows else None for c in amounts},
                   "summary": {"total_bytes": total if rows else None, "applications": len(rows),
@@ -981,6 +1128,7 @@ class Store:
                 rejected.append(digest([self.config.get("source_id"), record]))
         affected, inserted, repeated, singletons = set(), 0, 0, 0
         with self.db, self.ledger.write_unit(), self._rollup_batch():
+            self._follow_fortigate_clock(normalized)
             maximum = self.delivery_max()
             self._websites_since = self.state("websites_since_ns") if self.websites_enabled else None
             for uid in rejected:
@@ -1008,7 +1156,7 @@ class Store:
                     repeated += bool(new_delivery and not new_event)
                     if new_event:
                         singletons += 1
-                        day = datetime.fromtimestamp(event["event_ns"]//NS, tz(self.config["accounting_timezone"])).date().isoformat()
+                        day = datetime.fromtimestamp(event["event_ns"]//NS, self.zone()).date().isoformat()
                         self._rollup({"day": day, "classification": "UNSUPPORTED_RECORD", "event_ns": event["event_ns"]}, 1)
                     continue
                 cls, vlan = direction(event["fields"], self.inventory, self.config)
@@ -1064,7 +1212,7 @@ class Store:
         Website totals are kept per day. A period must start at midnight and end
         at midnight, or end inside the current day ("so far today").
         """
-        zone = tz(self.config["accounting_timezone"])
+        zone = self.zone()
         start, end = timestamp_ns(start), timestamp_ns(end)
         if start >= end:
             raise ValueError("Report start must precede its end")
@@ -1090,9 +1238,9 @@ class Store:
         """
         first, last = self.site_days(start, end, now)
         since_ns = self.state("websites_since_ns")
-        since = datetime.fromtimestamp(since_ns//NS, tz(self.config["accounting_timezone"])).date().isoformat() if since_ns is not None else None
+        since = datetime.fromtimestamp(since_ns//NS, self.zone()).date().isoformat() if since_ns is not None else None
         result = {"start_utc": iso(timestamp_ns(start)), "end_utc": iso(timestamp_ns(end)), "first_day": first, "last_day": last,
-                  "timezone": self.config["accounting_timezone"], "enabled": self.websites_enabled, "since_ns": since_ns,
+                  **zone_fields(self.config, timestamp_ns(end)), "enabled": self.websites_enabled, "since_ns": since_ns,
                   "retention_days": SITE_DAYS, "sites": [], "devices": [], "site": site,
                   "summary": {"total_bytes": None, "sites": 0, "top_site": None, "internet_bytes": None, "coverage": None},
                   "note": "Websites come from FortiGate Application Control and Web Filter logs for the same session. Sessions without such a log are not included. Only the site name (example.com) is kept, never full addresses. Device names are not authenticated user accounts."}
@@ -1153,7 +1301,7 @@ class Store:
             else:
                 # The day websites were switched on: its daily row also holds usage
                 # from before, so only facts from that moment are compared.
-                zone = tz(self.config["accounting_timezone"])
+                zone = self.zone()
                 next_day = (datetime.fromisoformat(since)+timedelta(days=1)).date()
                 internet, site_bytes = counted("daily", next_day.isoformat()), counted("site_daily", next_day.isoformat())
                 if since_ns >= self.state("ledger_floor_ns", 0):
@@ -1192,12 +1340,12 @@ class Store:
             maximum = self.delivery_max()
             if maximum is not None and maximum < floor:
                 self.set_state('delivery_max_ns', None)
-            cutoff = datetime.fromtimestamp((timestamp_ns(now)-summary_days*86400*NS)//NS, tz(self.config["accounting_timezone"])).date().isoformat()
+            cutoff = datetime.fromtimestamp((timestamp_ns(now)-summary_days*86400*NS)//NS, self.zone()).date().isoformat()
             self.db.execute("DELETE FROM daily WHERE day<?", (cutoff,))
             self.db.execute("DELETE FROM app_daily WHERE day<?", (cutoff,))
             # Website rows are kept for at most SITE_DAYS; session links only as
             # long as the raw records they can still be joined to.
-            site_cutoff = datetime.fromtimestamp((timestamp_ns(now)-min(SITE_DAYS, summary_days)*86400*NS)//NS, tz(self.config["accounting_timezone"])).date().isoformat()
+            site_cutoff = datetime.fromtimestamp((timestamp_ns(now)-min(SITE_DAYS, summary_days)*86400*NS)//NS, self.zone()).date().isoformat()
             self.db.execute("DELETE FROM site_daily WHERE day<?", (site_cutoff,))
             self.db.execute("DELETE FROM session_site WHERE event_ns<?", (floor,))
             self.db.execute('DELETE FROM quality WHERE day<?',(cutoff,))
@@ -1211,7 +1359,7 @@ class Store:
     def _iter_range_rows(self, start, end):
         # A partial day can contain millions of facts. Reports consume each row
         # immediately rather than keeping a second complete ledger in memory.
-        zone = tz(self.config["accounting_timezone"])
+        zone = self.zone()
         start_local = datetime.fromtimestamp(start//NS, zone)
         end_local = datetime.fromtimestamp(end//NS, zone)
         first_full = start_local.date() + (timedelta(days=1) if (start_local.hour or start_local.minute or start_local.second or start % NS) else timedelta())
@@ -1287,7 +1435,7 @@ class Store:
                 entry["source_interfaces"] = sorted(entry["source_interfaces"])
                 entry["vlans"] = list(entry["vlans"].values())
                 entry["total_bytes"] = entry["upload_bytes"]+entry["download_bytes"]
-        return {"start_utc": iso(start), "end_utc": iso(end), "boundary": "[start,end)", "timezone": self.config["accounting_timezone"],
+        return {"start_utc": iso(start), "end_utc": iso(end), "boundary": "[start,end)", **zone_fields(self.config, end),
             'source_record_classifications': self.classifications(start,end),
             "rows": rows, "devices": self._with_profiles(sorted(devices.values(), key=lambda x: x["total_bytes"], reverse=True)),
             "vlans": sorted(vlans.values(), key=lambda x: x["total_bytes"], reverse=True),
@@ -1298,7 +1446,7 @@ class Store:
 
     def classifications(self,start,end):
         """Source-wide received counts, explicitly independent of device filters."""
-        zone=tz(self.config['accounting_timezone'])
+        zone=self.zone()
         first=datetime.fromtimestamp(start//NS,zone).date().isoformat()
         last=datetime.fromtimestamp((end-1)//NS,zone).date().isoformat()
         counts=defaultdict(int)

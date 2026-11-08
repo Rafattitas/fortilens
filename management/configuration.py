@@ -100,7 +100,6 @@ class Configuration:
         c = load(self.root / self.site_name, {})
         d = {key: c[key] for key in Settings.model_fields if key in c and key not in ('wan_interfaces', 'monitoring', 'retention')}
         if existing:
-            if d.get('timezone')=='browser':d['timezone']=c.get('accounting_timezone','UTC')
             d['wan_interfaces'] = c.get('confirmed_wan_interfaces', [])
             d['wan_confirmed'] = bool(d['wan_interfaces'])
             d['monitoring'] = {'accounting': c.get('accounting_enabled', False), 'vlans': c.get('accounting_enabled', False), 'websites': c.get('accounting_websites', False) is True}
@@ -274,6 +273,10 @@ class Configuration:
             scope=load(self.control/'accounting-contract.json',previous)
             if self.view()['scope_locked'] and scope:
                 for field in ('vdom', 'accounting_timezone', 'expected_devid'):
+                    # A fixed accounting zone may start following the FortiGate;
+                    # days already counted keep their zone.
+                    if field == 'accounting_timezone' and new[field] == 'fortigate' and scope[field] != 'fortigate':
+                        continue
                     if new[field] != scope[field]:
                         raise Problem('accounting_migration_required', 'Changing historical accounting scope requires an explicit migration; no data was changed.', 409)
             if previous:

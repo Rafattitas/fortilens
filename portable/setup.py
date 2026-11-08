@@ -34,7 +34,7 @@ DEFAULTS = {
     "syslog_bind": "0.0.0.0", "grafana_port": 3001,
     "syslog_network": "bridge",
     "grafana_bind": "127.0.0.1", "timezone": "browser",
-    "accounting_enabled": False, "accounting_websites": False, "accounting_timezone": "UTC", "source_id": "dedicated-listener", "expected_devid": "",
+    "accounting_enabled": False, "accounting_websites": False, "accounting_timezone": "fortigate", "source_id": "dedicated-listener", "expected_devid": "",
     "usage_bind": "127.0.0.1", "usage_port": 3002, "public_usage_url": "",
     "portal_enabled": False, "portal_secure_cookie": False,
     "accounting_poll_seconds": 30, "accounting_backfill_days": 31, "accounting_step_seconds": 120,
@@ -427,7 +427,7 @@ def wizard():
     c["accounting_enabled"]=ask("Enable persistent device/VLAN accounting and protected reports? yes/no","yes").lower()=="yes"
     if c["accounting_enabled"]:
         c["portal_enabled"]=ask("Use FortiLens as the main console with embedded Grafana? yes/no","yes").lower()=="yes"
-        c["accounting_timezone"]=ask("Accounting timezone (explicit IANA name or UTC)","UTC")
+        c["accounting_timezone"]=ask("Accounting days: fortigate (follow the FortiGate clock), UTC or an IANA name","fortigate")
         c["usage_bind"]=ask("Reports listen IPv4 (loopback by default)","127.0.0.1")
         c["usage_port"]=int(ask("Reports port","3002"))
         c["expected_devid"]=ask("Expected FortiGate serial/device ID (blank = source binding unverified)")

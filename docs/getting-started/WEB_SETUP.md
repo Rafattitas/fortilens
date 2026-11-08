@@ -91,8 +91,10 @@ Secure/HttpOnly/SameSite=Strict cookies on HTTPS, server sessions and CSRF check
    unknowns remain unknown. VLAN IDs/parents are exact device metadata. A configured
    interface's enabled state does not establish physical or Internet health.
 5. **Monitoring & Syslog:** select supported collectors/views, native service ports,
-   syslog transport/format/port, SLA name, interval, accounting timezone and expected
-   serial. Accounting requires syslog; VLAN reports require accounting. WAN/SLA/
+   syslog transport/format/port, SLA name, interval, accounting days and expected
+   serial. Accounting days default to `fortigate`: midnight on the FortiGate clock,
+   read from every log. The workspace display timezone defaults to `browser`, so each
+   viewer sees times in their own device timezone. Accounting requires syslog; VLAN reports require accounting. WAN/SLA/
    interface controls share the existing exporter; it stops only if all three are
    disabled. Saved Grafana panels are preserved. General timezone/date format are
    management display preferences; saved native dashboards keep their own settings.
@@ -189,7 +191,10 @@ installed gateway remains available. Disabling a view does not rewrite existing
 Grafana panels or delete old data.
 
 VDOM, accounting timezone and expected source ID are locked once a worker/source
-contract exists. Changing them requires a separately designed migration. Retention
+contract exists. Changing them requires a separately designed migration. The one
+exception: an installation that counts days in UTC or another fixed zone can switch
+accounting days to `fortigate`. The change applies from the next local day the
+FortiGate reports; days already counted keep their zone. Retention
 and database-ceiling reductions are rejected in the web UI to avoid unexpected
 deletion. A host operator must independently back up data, inspect actual oldest
 records, estimate the impact and perform a reviewed policy reduction. Configuration

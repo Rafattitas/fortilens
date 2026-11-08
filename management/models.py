@@ -32,7 +32,8 @@ class Retention(Strict):
 class Settings(Strict):
     site_name: str = Field(default='My company', min_length=1, max_length=120)
     installation_name: str = Field(default='FortiLens', pattern=r'^[A-Za-z0-9_. -]{1,80}$')
-    timezone: str = 'UTC'
+    # 'browser' shows every time in each viewer's own device timezone.
+    timezone: str = 'browser'
     date_format: Literal['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY'] = 'YYYY-MM-DD'
     fortigate_host: str = ''
     api_port: int = Field(default=443, ge=1, le=65535)
@@ -51,7 +52,8 @@ class Settings(Strict):
         'Log/Fortianalyzer/Status', 'System/Interface/Transceivers', 'System/SensorInfo',
     ]] | None = Field(default=None, max_length=3)
     monitoring_interval: int = Field(default=60, ge=15, le=3600)
-    accounting_timezone: str = 'UTC'
+    # 'fortigate' cuts accounting days at midnight on the FortiGate's own clock.
+    accounting_timezone: str = 'fortigate'
     expected_devid: str = ''
     monitoring: Monitoring = Field(default_factory=Monitoring)
     retention: Retention = Field(default_factory=Retention)
@@ -61,8 +63,10 @@ class Settings(Strict):
     @model_validator(mode='after')
     def supported(self):
         try:
-            for zone in (self.timezone, self.accounting_timezone):
-                ZoneInfo(zone)
+            if self.timezone != 'browser':
+                ZoneInfo(self.timezone)
+            if self.accounting_timezone not in ('fortigate', 'UTC'):
+                ZoneInfo(self.accounting_timezone)
             if self.retention.summary_days < self.retention.ledger_days:
                 raise ValueError()
             if self.monitoring.accounting and not self.monitoring.syslog or (self.monitoring.vlans or self.monitoring.websites) and not self.monitoring.accounting:
