@@ -311,6 +311,7 @@ class Engine:
                 expected={key:self.config.get(key) for key in ('accounting_timezone','source_id','vdom','expected_devid')}
                 if reader.state('contract')!=expected:
                     raise ValueError('Accounting identity/timezone contract changed; review the existing database')
+                reader._load_zone()
                 version=(identity,reader.db.execute('PRAGMA data_version').fetchone()[0])
                 reader.inventory=reader.state('inventory',self._initial_inventory)
                 yield reader,version
@@ -568,7 +569,7 @@ class Engine:
 
     def report(self,period='today',*,at=None,start=None,end=None,vlan=None,device=None,search='',include_history=False):
         at=at or datetime.now(timezone.utc).isoformat()
-        first,last=accounting.period_bounds(period,at,self.config['accounting_timezone'],start=start,end=end)
+        first,last=accounting.period_bounds(period,at,accounting.zone_of(self.config),start=start,end=end)
         with self._read_snapshot() as (store,version):
             key=(version,period,first,last,vlan,device,search,include_history)
             cached=self._report_cache.get(key) if version is not None else None
@@ -592,7 +593,7 @@ class Engine:
 
     def websites(self,period='today',*,at=None,start=None,end=None,site=None,device=None,vlan=None):
         now=datetime.now(timezone.utc).isoformat()
-        first,last=accounting.period_bounds(period,at or now,self.config['accounting_timezone'],start=start,end=end)
+        first,last=accounting.period_bounds(period,at or now,accounting.zone_of(self.config),start=start,end=end)
         with self._read_snapshot() as (store,version):
             key=('websites',version,period,first,last,site,device,vlan)
             cached=self._report_cache.get(key) if version is not None else None
@@ -611,7 +612,7 @@ class Engine:
 
     def applications(self,period='today',*,at=None,start=None,end=None,app=None,category=None,device=None,vlan=None):
         at=at or datetime.now(timezone.utc).isoformat()
-        first,last=accounting.period_bounds(period,at,self.config['accounting_timezone'],start=start,end=end)
+        first,last=accounting.period_bounds(period,at,accounting.zone_of(self.config),start=start,end=end)
         with self._read_snapshot() as (store,version):
             key=('applications',version,period,first,last,app,category,device,vlan)
             cached=self._report_cache.get(key) if version is not None else None

@@ -419,7 +419,7 @@ class ManagementTests(unittest.TestCase):
         view=self.save();plan=self.ops.dispatch('prepare',{'revision':view['revision']})
         folder,_=self.c.plan(plan['plan_id'])
         config=load(folder/'candidate/site.json')
-        self.assertTrue(config['loki_receive_timestamps']);self.assertEqual(config['accounting_timezone'],'UTC')
+        self.assertTrue(config['loki_receive_timestamps']);self.assertEqual(config['accounting_timezone'],'fortigate')
         self.assertFalse((self.c.root/'compose.yaml').exists())
         with patch.object(setup,'import_dashboard') as dashboard,patch.object(setup,'connect_portal'):
             job=self.wait_job(self.ops.dispatch('apply',{'revision':view['revision'],'plan_id':plan['plan_id'],'confirm':True}))
@@ -478,6 +478,17 @@ class ManagementTests(unittest.TestCase):
             with self.assertRaises(Problem):c.save({'revision':view['revision'],'settings':settings})
         settings=deepcopy(view['settings']);settings['retention']['loki_days']=1
         with self.assertRaises(Problem):c.save({'revision':view['revision'],'settings':settings})
+
+    def test_a_fixed_accounting_zone_may_start_following_the_fortigate(self):
+        root=self.base/'existing-utc'
+        setup.render(setup.validate_config({'fortigate_host':'192.0.2.1','accounting_enabled':True,'portal_enabled':True,'accounting_timezone':'UTC'}),root,TOKEN)
+        c=Configuration(root,self.base/'adopt-control-utc',project='existing-utc-project');view=c.view()
+        self.assertEqual(view['settings']['accounting_timezone'],'UTC')
+        settings=deepcopy(view['settings']);settings['accounting_timezone']='fortigate'
+        saved=c.save({'revision':view['revision'],'settings':settings})
+        self.assertEqual(saved['settings']['accounting_timezone'],'fortigate')
+        settings=deepcopy(saved['settings']);settings['accounting_timezone']='Africa/Cairo'
+        with self.assertRaises(Problem):c.save({'revision':saved['revision'],'settings':settings})
 
     def test_external_file_edits_and_path_traversal_fail_closed(self):
         view=self.save();plan=self.c.prepare(view['revision'])

@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Time zones
+
+- Accounting days follow the FortiGate clock by default (`fortigate`). Every log
+  carries the FortiGate's UTC offset; the first one sets it and a later change,
+  such as daylight saving time or an administrator changing the timezone, applies
+  from the next local day. Days already counted keep their boundaries; only the
+  day a change takes effect is shorter or longer. A fixed IANA zone or UTC can
+  still be chosen.
+- An installation that already counts days in UTC or another fixed zone can
+  switch to `fortigate` in Settings → Monitoring & Syslog → Accounting days. The
+  switch is forward only; other accounting-scope changes stay locked.
+- The display timezone defaults to `browser`: every viewer sees times in their
+  own device timezone. Name a zone to show one timezone to everyone. The Overview
+  timeline axis names the timezone it shows.
+- Reports label their days, for example "Accounting days: FortiGate time
+  (UTC+02:00)".
+
 ## v0.5.0 — 2026-11-08 — websites, clearer navigation and an online demo
 
 ### Websites (opt-in)

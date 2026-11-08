@@ -284,7 +284,7 @@ def _report_digest(store):
     digest = hashlib.sha256()
     if not days:
         return digest.hexdigest(), 0
-    zone = accounting.tz(store.config["accounting_timezone"])
+    zone = store.zone()
 
     def bound(day):
         return accounting.timestamp_ns(
