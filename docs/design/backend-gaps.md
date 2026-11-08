@@ -1,18 +1,14 @@
 # A Precision: backend and packaging follow-ups
 
 The A Precision redesign changed only frontend files. These items need a change
-outside the frontend. None of them has been implemented.
+outside the frontend. Shipping the font files is done; the rest are still open.
 
 ## Decide first
 
-### Ship the font files with installed copies
+### Ship the font files with installed copies (done)
 
-`management/install.py` copies an explicit list of `management/static` files. It does
-not include `static/fonts/`, so an installation built from it will not serve IBM Plex
-Sans. Pages then fall back to the system font and still work.
-
-Needed: add the four `static/fonts/IBMPlexSans-*-Latin1.woff2` files and `static/fonts/OFL.txt`
-to that list, then confirm `tools/release.py` picks them up.
+`management/install.py` now lists the four `static/fonts/IBMPlexSans-*-Latin1.woff2`
+files and `static/fonts/OFL.txt`, and `tools/release.py` packages them.
 
 ### Reports opened outside the console
 
@@ -25,10 +21,10 @@ Needed, if this matters: a route for the font files on those services.
 
 | Prototype element | Current state | Needed |
 |---|---|---|
-| Latency, loss and bandwidth traces in Network channels | Overview shows current values and observed state history. Traces stay in live monitoring. | A time series per WAN link from `/api/wan`. |
+| Latency, loss and bandwidth traces in Network channels | Overview shows current values and observed state history. Traces stay in the Firewall dashboard. | A time series per WAN link from `/api/wan`. |
 | Log rate channel | Not shown. | A received-log count over time. |
 | Firewall CPU, memory and sessions | Not shown. Overview shows installation state instead. | A firewall health summary from the API. |
-| Opening a device directly from Overview or the palette | Overview links to the Usage page. | A route that opens the report frame on one device. |
+| Opening a device directly from Overview or the palette | Overview links to the Devices page. | A route that opens the report frame on one device. |
 
 ## Small efficiency item
 

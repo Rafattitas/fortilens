@@ -7,7 +7,9 @@ FortiLens provides one browser origin, one sign-in and shared navigation:
 
 - **Monitoring** embeds the existing native Grafana dashboard and its selectors.
 - **Usage overview** and **Devices & VLANs** use the persistent accounting engine.
-- **WAN health** retains physical/SLA/route distinctions and observed history.
+- **Applications** groups recorded usage by application and category.
+- **Live usage** shows current download and upload per device from FortiGate realtime statistics.
+- **Internet links** retains physical/SLA/route distinctions and observed history.
 - **Data quality** retains gaps, pending counters and source/metadata uncertainty.
 
 The integration does not change byte accounting, historical data, alert rules,

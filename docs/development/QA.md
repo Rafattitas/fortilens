@@ -5,7 +5,7 @@ environment, results and unresolved source-data limitations. Do not treat a gree
 container/process status as evidence that all FortiGate traffic was captured.
 
 Initial entry is a separate browser check from clicking navigation links. Verify
-fresh root entry, full reload of Monitoring and Device usage, legacy hash-only
+fresh root entry, full reload of Firewall dashboard and Devices, legacy hash-only
 links and the URL query for the selected view, without pressing Reload view.
 Authenticated initial HTML uses a parser-created protected launch frame; the
 launch endpoint must reject unknown/disabled views and unexpected redirect paths.
@@ -17,7 +17,7 @@ need actual browser review. Passing API tests alone does not prove these flows.
 
 For public interface images, use the [synthetic screenshot procedure](../design/screenshots/README.md).
 It renders the shipped management and hosted-report frontend without a live
-installation. The current fourteen-image set was captured twice with matching
+installation. The current sixteen-image set was captured twice with matching
 PNG hashes, no JavaScript errors, external requests or outer-page horizontal
 overflow, and visually reviewed in desktop/light/degraded/mobile states.
 The manifest ties images to source hashes. This is presentation evidence, not

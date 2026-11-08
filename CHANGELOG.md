@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Console navigation
+
+- The sidebar is grouped by the question it answers: Overview; Right now (Live
+  usage, Internet links, Firewall dashboard); Recorded usage (Devices, Segments,
+  Applications, Reports); System (Status, Data quality, Diagnostics, Settings).
+  Every page is one top-level item with its own icon, and the active page has an
+  accent bar.
+- Renamed pages: Usage is now Devices, Internet is Internet links, Evidence is
+  Data quality, System is Status and Live monitoring is Firewall dashboard. URL
+  fragments such as `#devices` and `#quality` are unchanged, so bookmarks keep
+  working.
+- Browser tabs show the FortiLens lens icon, with a PNG fallback and a
+  home-screen icon. The standalone report page carries the same icon.
+
+### Online demo
+
+- A read-only [online demo](https://rafattitas.github.io/fortilens/) runs the
+  shipped console with synthetic data in the browser, published to GitHub Pages
+  from `main` and checked on every pull request. See
+  [online demo](docs/development/DEMO.md).
+
+### Documentation
+
+- README and guides use the new page names, show the dependency install option
+  for a fresh Ubuntu 24.04 host, and say where the one-time setup token is.
+
 ### FortiOS compatibility
 
 - Diagnostics shows the FortiOS version and build read from the FortiGate, and
@@ -318,7 +344,7 @@
   selection, supported monitoring/syslog/retention controls and measured storage evidence.
 - Idempotent Ubuntu/systemd installer, explicit existing-project adoption, authenticated
   restricted helper, revisioned candidates, private backups and configuration-only rollback.
-- Preserve legacy implicit443 exporter credentials/probe selections, real scrape
+- Preserve legacy implicit 443 exporter credentials/probe selections, real scrape
   intervals and additional Alloy listener bindings during adoption/settings changes.
 - Mount native Grafana at its configured `/grafana/` path under the management
   login; preserve runtime router settings, plugin IDs and external links.

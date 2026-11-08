@@ -39,7 +39,7 @@ Grafana: configured address/port, default `http://127.0.0.1:3001/d/forti-monitor
 
 Protected reports: configured reporting address/port, default `http://127.0.0.1:3002/`, username `admin`, separate password in `local/secrets/usage_admin_password`. Credentials stay in page memory; sign-out clears them. Use an SSH tunnel for loopback access or a reviewed HTTPS reverse proxy. Plain HTTP Basic authentication is not encrypted; do not expose it across an untrusted network.
 
-The portal provides Today, Last 7 days (today plus six whole days), This month, This year, Recent 5 minutes, an Applications view (usage by application and category, with a GenAI filter) and explicit custom ranges; IP/MAC/name search; top/all devices; VLAN filtering; device drilldown; retained daily/monthly history; WAN health/history; and data-quality evidence. GB is decimal. Recent per-device averages are received bytes over 5 minutes, not instantaneous packet counters. Fixed periods use the engine's current time independently of Grafana global selection.
+The portal provides Today, Last 7 days (today plus six whole days), This month, This year, Recent 5 minutes, an Applications view (usage by application and category, with a GenAI filter) and explicit custom ranges; IP/MAC/name search; top/all devices; VLAN filtering; device drilldown; retained daily/monthly history; Live usage; Internet links health/history; and data-quality evidence. GB is decimal. Recent per-device averages are received bytes over 5 minutes, not instantaneous packet counters. Fixed periods use the engine's current time independently of Grafana global selection.
 
 The native Grafana dashboard has four chained selectors and repeating WAN rows, with clearer compact cards and tables. Legacy Loki device tables remain diagnostics; their absolute-time and identity/cumulative limitations differ from the new engine. Host panels are shared. Use `public_usage_url` to add a reviewed report link to the generated dashboard.
 
@@ -47,7 +47,7 @@ The native Grafana dashboard has four chained selectors and repeating WAN rows, 
 
 Configure a suitable read-only API user, permissions, VDOM scope and trusted hosts on FortiGate. Review the official exporter permission reference. The tool never creates users, writes roles/policies or rotates tokens.
 
-Send forward traffic syslog to the monitoring server's reachable LAN address. Defaults are TCP1514/RFC5424. Review the existing destination before changing it manually:
+Send forward traffic syslog to the monitoring server's reachable LAN address. Defaults are TCP 1514/RFC5424. Review the existing destination before changing it manually:
 
 ```text
 config log syslogd setting
@@ -88,9 +88,9 @@ Current inventory cannot establish historical VLAN/direction where contemporaneo
 
 ## Storage and capacity
 
-Defaults: Loki raw retention60 days; Prometheus90 days/5 GB; accounting ledger 3 days, daily summaries 400 days, database soft limit4 GiB. Poll windows120 seconds, overlap30 seconds, settle5 seconds and bounded paging prevent unbounded raw scans. Initial backfill31 days is incremental and can take time; processing lag stays visible. Historical whole-day/month summaries outlive raw detail; expired partial-day slices are rejected.
+Defaults: Loki raw retention 60 days; Prometheus 90 days/5 GB; accounting ledger 3 days, daily summaries 400 days, database soft limit 4 GiB. Poll windows 120 seconds, overlap 30 seconds, settle 5 seconds and bounded paging prevent unbounded raw scans. Initial backfill 31 days is incremental and can take time; processing lag stays visible. Historical whole-day/month summaries outlive raw detail; expired partial-day slices are rejected.
 
-Configure `accounting_ledger_days`, `accounting_summary_days`, `accounting_max_bytes`, backfill/poll/window settings in site.json before deployment. Increase actual filesystem capacity too. The worker defaults to192 MiB/0.5 CPU; review its Compose limits for your measured load. Near the database limit the worker expires the oldest raw ledger days (never daily summaries) before it stops ingestion visibly; the limit is not automatic disk expansion or a reason to delete a volume. Never change timezone/source/VDOM/device identity in an existing database without a separately reviewed rebuild.
+Configure `accounting_ledger_days`, `accounting_summary_days`, `accounting_max_bytes`, backfill/poll/window settings in site.json before deployment. Increase actual filesystem capacity too. The worker defaults to 192 MiB/0.5 CPU; review its Compose limits for your measured load. Near the database limit the worker expires the oldest raw ledger days (never daily summaries) before it stops ingestion visibly; the limit is not automatic disk expansion or a reason to delete a volume. Never change timezone/source/VDOM/device identity in an existing database without a separately reviewed rebuild.
 
 Back up Loki, Prometheus, Grafana and SQLite using application-consistent volume snapshots or by stopping the relevant writer. Retain private config/secrets too. A retention setting is not proof that cleanup has happened or that the entire interval was received.
 

@@ -16,17 +16,17 @@ release archives. The captures here use `management/static/` and the actual
 | [Overview, dark](01-overview-dark.png) | Link timelines, current observations and recorded consumers. |
 | [Overview, light](02-overview-light.png) | The same fixtures in the light theme. |
 | [Overview, degraded](03-overview-degraded.png) | Failed SLA observation, stale accounting and missing evidence. |
-| [Usage with inspector](04-usage-docked.png) | Selected endpoint with daily and monthly history. |
+| [Devices with inspector](04-usage-docked.png) | Selected endpoint with daily and monthly history. |
 | [Reports](05-reports.png) | Period totals, largest consumers and segment distribution. |
-| [Evidence](06-evidence.png) | Coverage, pending counters and source classifications. |
-| [Internet](07-internet.png) | SLA, physical state, measurements and observed history. |
-| [System](08-system.png) | Service state and storage overview. |
+| [Data quality](06-evidence.png) | Coverage, pending counters and source classifications. |
+| [Internet links](07-internet.png) | SLA, physical state, measurements and observed history. |
+| [Status](08-system.png) | Service state and storage overview. |
 | [Diagnostics](09-diagnostics.png) | Collection observations with explicit unknowns. |
 | [Settings](10-settings.png) | Site settings without credentials. |
 | [First run](11-first-run.png) | Administrator bootstrap form; no token or password filled. |
 | [Sign in](12-sign-in.png) | Signed-out form with a synthetic username. |
 | [Narrow Overview](14-overview-narrow.png) | 375px viewport. |
-| [Narrow Usage](15-usage-narrow.png) | 375px viewport scrolled to the first endpoint. |
+| [Narrow Devices](15-usage-narrow.png) | 375px viewport scrolled to the first endpoint. |
 | [Applications](16-applications.png) | Labelled usage, largest named applications and filters, with generic example application names. |
 | [Live usage](17-live.png) | Current download and upload per device, application, segment and link, refreshed every 10 seconds. |
 
@@ -52,13 +52,13 @@ The script binds only an ephemeral loopback port, blocks requests outside that
 origin, accepts only read-only synthetic API requests and uses temporary isolated
 browser contexts. It freezes fixture time, waits for local fonts and rejects
 JavaScript errors, unhandled routes and outer-page horizontal overflow. It
-replaces the fourteen named PNGs and writes [manifest.json](manifest.json), plus
+replaces the sixteen named PNGs and writes [manifest.json](manifest.json), plus
 a contact sheet and capture results under ignored `qa-private/presentation/`.
 Review every image before committing; automation does not replace visual review.
 
 The manifest records fixture time, browser version, viewport/state and SHA256
 hashes of source files and captures. The checked-in set was captured twice with
-the recorded browser and all fourteen PNG hashes matched. Identical bytes across
+the recorded browser and all sixteen PNG hashes matched. Identical bytes across
 browser, platform or font-rendering changes are not promised. Regenerate the set
 and manifest together after frontend changes; do not reuse stale provenance.
 

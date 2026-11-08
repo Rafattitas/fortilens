@@ -16,7 +16,7 @@ The complete, versioned procedure is in the [portable installation guide](../../
 - A Linux x86-64 server with Docker Compose v2 and Python 3.10+. Windows can generate configuration, but deployment and host monitoring target Linux.
 - One FortiGate reachable over HTTPS from that server, with an API token and suitable read permissions. Review the [exporter's permission requirements](https://github.com/prometheus-community/fortigate_exporter#fortigate-configuration).
 - A trusted HTTPS certificate or a private CA PEM bundle. Verification is enabled by default.
-- A reachable syslog destination on the monitoring server. The default is TCP1514, RFC5424. Configure forward traffic logging on the FortiGate manually.
+- A reachable syslog destination on the monitoring server. The default is TCP 1514, RFC5424. Configure forward traffic logging on the FortiGate manually.
 - Your VDOM name and, if available, your Performance SLA name. Interface names and VLAN metadata are reviewed during setup; Internet interfaces require explicit confirmation.
 
 ## First installation
@@ -31,7 +31,7 @@ python3 setup.py doctor
 
 `init` asks for settings and a hidden token, creates a private installation, and refuses to overwrite an existing directory. It explicitly offers persistent accounting, timezone/source scope and protected reporting. `start` validates Compose, starts six base monitoring services plus the enabled worker/gateway, waits for Grafana/datasources and imports the first dashboard. Repeating it preserves existing dashboard edits.
 
-Use the protected portal for fixed-period device/VLAN totals and history, independently of Grafana's global range. Its default address is loopback port3002, with a separate password in `secrets/usage_admin_password`. Use an SSH tunnel or reviewed HTTPS reverse proxy. See [accounting](../architecture/ACCOUNTING_ENGINE.md), [upgrade from v0.1.0](../operations/UPGRADE.md), [troubleshooting](../operations/TROUBLESHOOTING.md) and [optional paused alerts](../operations/OPTIONAL_ALERTS.md).
+Use the protected portal for fixed-period device/VLAN totals and history, independently of Grafana's global range. Its default address is loopback port 3002, with a separate password in `secrets/usage_admin_password`. Use an SSH tunnel or reviewed HTTPS reverse proxy. See [accounting](../architecture/ACCOUNTING_ENGINE.md), [upgrade from v0.1.0](../operations/UPGRADE.md), [troubleshooting](../operations/TROUBLESHOOTING.md) and [optional paused alerts](../operations/OPTIONAL_ALERTS.md).
 
 Grafana defaults to `127.0.0.1:3001`. To browse from another workstation, use an
 SSH tunnel or a reviewed trusted HTTPS reverse proxy and appropriate network
@@ -63,5 +63,7 @@ After startup, `interfaces --select-wan "port1,uplink.100" --confirm-wan` create
 
 For deployment changes, keep configuration, secrets and consistent data-volume
 backups outside Git. The [reviewed CLI accounting migration](../operations/UPGRADE.md) and
-[web configuration apply/rollback](WEB_SETUP.md) have different scopes; neither
-is an automatic source-version or database-schema upgrader.
+[web configuration apply/rollback](WEB_SETUP.md) have different scopes. To move a
+web-managed installation to a new source version, use `sudo ./install.sh --upgrade`
+([upgrade guide](WEB_SETUP.md#upgrade-to-a-new-version)); neither path migrates the
+accounting database schema automatically.

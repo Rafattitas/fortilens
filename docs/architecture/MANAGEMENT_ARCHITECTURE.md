@@ -91,7 +91,7 @@ an untrusted HTTP network.
 | Older auth layout | Keep native service sign-ins if no unified gateway exists; no silent auth migration. |
 | Docker unavailable | Web/auth/Settings remain up; operations report helper/engine failures. |
 | Missing source | Unknown coverage and null totals stay unknown; no fabricated bandwidth/WAN evidence. |
-| Installer | Ubuntu x86-64/Python3.11+/systemd only; one control plane per host. Portable CLI stays Python3.10+. |
+| Installer | Ubuntu x86-64/Python 3.11+/systemd only; one control plane per host. Portable CLI stays Python 3.10+. |
 | Versions | Bootstrap is idempotent for the same source/options. Fully automated version upgrades remain out of scope. |
 | Filesystem | Configs/secrets must live under the registered root. Remote engines/unknown bind layouts need explicit migration. |
 | Storage forecast | Bounded positive filesystem-growth measurements, not a complete ingestion/capacity model; inaccessible volumes remain unavailable. |
