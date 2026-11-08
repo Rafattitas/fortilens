@@ -64,6 +64,7 @@ RECORDED USAGE       | Collection and installation evidence      |
   Devices            +-------------------------------------------+
   Segments
   Applications
+  Websites
   Reports
 SYSTEM
   Status

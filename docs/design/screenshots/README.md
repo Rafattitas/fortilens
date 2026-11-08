@@ -29,6 +29,7 @@ release archives. The captures here use `management/static/` and the actual
 | [Narrow Devices](15-usage-narrow.png) | 375px viewport scrolled to the first endpoint. |
 | [Applications](16-applications.png) | Labelled usage, largest named applications and filters, with generic example application names. |
 | [Live usage](17-live.png) | Current download and upload per device, application, segment and link, refreshed every 10 seconds. |
+| [Websites](18-websites.png) | Opt-in: recorded usage by website and the devices that used a selected site (synthetic data). |
 
 ## Regenerate
 
@@ -52,13 +53,13 @@ The script binds only an ephemeral loopback port, blocks requests outside that
 origin, accepts only read-only synthetic API requests and uses temporary isolated
 browser contexts. It freezes fixture time, waits for local fonts and rejects
 JavaScript errors, unhandled routes and outer-page horizontal overflow. It
-replaces the sixteen named PNGs and writes [manifest.json](manifest.json), plus
+replaces the seventeen named PNGs and writes [manifest.json](manifest.json), plus
 a contact sheet and capture results under ignored `qa-private/presentation/`.
 Review every image before committing; automation does not replace visual review.
 
 The manifest records fixture time, browser version, viewport/state and SHA256
 hashes of source files and captures. The checked-in set was captured twice with
-the recorded browser and all sixteen PNG hashes matched. Identical bytes across
+the recorded browser and all seventeen PNG hashes matched. Identical bytes across
 browser, platform or font-rendering changes are not promised. Regenerate the set
 and manifest together after frontend changes; do not reuse stale provenance.
 

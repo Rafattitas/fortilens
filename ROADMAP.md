@@ -67,15 +67,16 @@ Status: planned extensions; day/week/month/custom reports already exist.
 
 ## Milestone 4 — Website and application analytics
 
-Status: application usage shipped on `main`; website and domain analytics planned.
+Status: application usage and opt-in website usage on `main`; DNS-based domains planned.
 
 - Shipped: usage by FortiGate Application Control label and category, the devices
   that used each application, GenAI and risk filters, daily history, and
   protocol-only labels (QUIC, SSL/TLS) kept apart from named applications. Labels
   never enter event identities, so accounting totals are unchanged.
-- Planned: top-domain breakdowns from web-filter or DNS fields, with lawful,
-  minimized retention and visible source coverage.
-- Planned: measure storage and query cost before keeping per-domain history.
+- Shipped (opt-in): website usage by registrable site name from Application
+  Control and Web Filter hostnames linked to traffic sessions, kept 90 days,
+  with visible coverage. See [website usage](docs/operations/WEBSITES.md).
+- Planned: DNS-filter query names as a second source, and per-site history charts.
 
 ## Milestone 5 — Security analytics
 

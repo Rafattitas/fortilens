@@ -17,7 +17,7 @@ need actual browser review. Passing API tests alone does not prove these flows.
 
 For public interface images, use the [synthetic screenshot procedure](../design/screenshots/README.md).
 It renders the shipped management and hosted-report frontend without a live
-installation. The current sixteen-image set was captured twice with matching
+installation. The current seventeen-image set was captured twice with matching
 PNG hashes, no JavaScript errors, external requests or outer-page horizontal
 overflow, and visually reviewed in desktop/light/degraded/mobile states.
 The manifest ties images to source hashes. This is presentation evidence, not

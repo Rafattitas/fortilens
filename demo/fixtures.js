@@ -24,7 +24,7 @@
       syslog_protocol: 'udp', syslog_port: 1514, syslog_format: 'fortigate', syslog_network: 'bridge',
       accounting_timezone: 'UTC', expected_devid: 'SYNTHETIC-FIXTURE',
       grafana_port: 3001, usage_port: 3002, monitoring_interval: 60,
-      monitoring: {wan: true, sla: true, interfaces: true, syslog: true, accounting: true, vlans: true, server: true},
+      monitoring: {wan: true, sla: true, interfaces: true, syslog: true, accounting: true, vlans: true, server: true, websites: true},
       retention: {loki_days: 60, prometheus_days: 90, ledger_days: 8, summary_days: 400, database_bytes: 9 * GiB},
     };
     const vlans = [
@@ -112,6 +112,19 @@
         devices: rows, vlans: segmentRows, applications: apps, wan_interfaces: ['uplink-a', 'uplink-b'],
         note: 'Synthetic live estimates.'};
     }
+    // Generic example site names only; one site selected.
+    function websites(url) {
+      const sites = [['video.example', 9.6, 0.42, 6], ['cloud-storage.example', 3.1, 2.6, 4], ['office.example', 4.2, 1.1, 8], ['news.example', 1.2, 0.08, 7], ['ai-assistant.example', 0.9, 0.21, 3], ['software-updates.example', 0.8, 0.02, 8], ['maps.example', 0.31, 0.04, 5], ['mail.example', 0.22, 0.09, 8]]
+        .map(([site, d, u, n]) => ({site, download_bytes: Math.round(d * 1e9), upload_bytes: Math.round(u * 1e9), total_bytes: Math.round((d + u) * 1e9), records: 200, devices: n}));
+      const selected = url.searchParams.get('site') || 'video.example', total = sum(sites, 'total_bytes');
+      const share = [0.46, 0.21, 0.14, 0.09, 0.06, 0.04];
+      const rows = selected ? devices.slice(0, 6).map((d, i) => ({device_id: d.device_id, hostname: d.hostname, ip: d.ip, mac: d.mac, identity_kind: 'MAC', vlans: d.vlans, profile: null,
+        download_bytes: Math.round(9.6e9 * share[i]), upload_bytes: Math.round(0.42e9 * share[i]), total_bytes: Math.round(10.02e9 * share[i]), records: 40})) : [];
+      return {start_utc: new Date((seconds - 6 * day) * 1000).toISOString(), end_utc: new Date(now).toISOString(), first_day: dateOf(seconds - 6 * day), last_day: dateOf(seconds), timezone: 'UTC',
+        enabled: true, since_ns: (seconds - 40 * day) * 1e9, retention_days: 90, site: selected, sites, devices: rows, truncated: false,
+        summary: {total_bytes: total, sites: sites.length, top_site: sites[0].site, internet_bytes: Math.round(total / 0.82), coverage: 0.82},
+        note: 'Synthetic website rows.', period: url.searchParams.get('period') || 'week'};
+    }
     const inventory = () => ({schema_version: 1, collected_at: new Date(now - 600000).toISOString(), interfaces: [
       ...vlans.filter(v => v.vlan_id).map(v => ({name: v.interface, vdom: 'root', type: 'vlan', vlan_id: v.vlan_id, parent: 'internal', role: 'lan'})),
       {name: 'printers', vdom: 'root', type: 'vlan', vlan_id: 300, parent: 'internal', role: 'lan'},
@@ -180,6 +193,7 @@
         '/api/applications': () => applications(url),
         '/api/inventory': () => inventory(),
         '/api/live': () => live(jitter),
+        '/api/websites': () => websites(url),
       };
       return routes[p] ? {status: 200, payload: routes[p]()} : null;
     }

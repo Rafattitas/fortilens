@@ -41,7 +41,7 @@ nodes = [n for n in tree.body if (isinstance(n, ast.Assign) and any(isinstance(t
 namespace = {}
 exec(compile(ast.Module(body=nodes, type_ignores=[]), str(source), 'exec'), namespace)
 page = (root / 'portable/reporting.html').read_text(encoding='utf-8')
-print(json.dumps({section: namespace['hosted_report'](page, section) for section in ['devices', 'vlans', 'reports', 'applications', 'live', 'wan', 'quality']}))
+print(json.dumps({section: namespace['hosted_report'](page, section) for section in ['devices', 'vlans', 'reports', 'applications', 'websites', 'live', 'wan', 'quality']}))
 `], {cwd:root, encoding:'utf8', maxBuffer:4*1024*1024}));
 
 const fixtures=require('../demo/fixtures.js').create(now);
@@ -54,8 +54,8 @@ const server=http.createServer((req,res)=>{
   if(url.pathname==='/') {
     body=fs.readFileSync(path.join(root,'management/static/index.html'),'utf8');
     const initial=url.searchParams.get('view');
-    if(['devices','vlans','reports','applications','live','wan','quality'].includes(initial)) {
-      const target={devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/?section=reports#reports',applications:'/console/?section=applications#applications',live:'/console/?section=live#live',wan:'/console/#wan',quality:'/console/#quality'}[initial];
+    if(['devices','vlans','reports','applications','websites','live','wan','quality'].includes(initial)) {
+      const target={devices:'/console/?section=devices#overview',vlans:'/console/?section=vlans#overview',reports:'/console/?section=reports#reports',applications:'/console/?section=applications#applications',websites:'/console/?section=websites#websites',live:'/console/?section=live#live',wan:'/console/#wan',quality:'/console/#quality'}[initial];
       body=body.replace('id="console-frame"','id="console-frame" data-initial-view="'+initial+'" src="'+target+'"');
     }
   } else if(url.pathname==='/console/') body=hostedPages[url.searchParams.get('section')||'wan'];
@@ -100,12 +100,13 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
     if(auth==='signed-in') {
       await page.waitForFunction(()=>!document.getElementById('workspace').hidden);
       if(pageName==='home') await page.waitForFunction(()=>!document.getElementById('home-refresh').disabled);
-      else if(['devices','reports','applications','live','quality','wan'].includes(pageName)) {
+      else if(['devices','reports','applications','websites','live','quality','wan'].includes(pageName)) {
         const frame=page.frameLocator('#console-frame');
         await frame.locator('#application').waitFor({state:'visible'});
         if(pageName==='wan') await frame.locator('#wan-body tr').first().waitFor();
         else if(pageName==='applications') await frame.locator('#apps-body tr').first().waitFor();
         else if(pageName==='live') await frame.locator('#live-devices tr').first().waitFor();
+        else if(pageName==='websites') {await frame.locator('#sites-body .entity').first().click();await frame.locator('#sites-devices tr').first().waitFor();}
         else await frame.locator('#refresh:not([disabled])').waitFor({state:'attached'});
         if(inspector) {await frame.locator('#device-body .entity').first().click();await frame.locator('#details-title').filter({hasText:'Design workstation'}).waitFor();}
         if(mobile&&pageName==='devices') await frame.locator('#device-body tr').first().scrollIntoViewIfNeeded();
@@ -143,6 +144,7 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
       {name:'14-overview-narrow',mobile:true}, {name:'15-usage-narrow',pageName:'devices',mobile:true},
       {name:'16-applications',pageName:'applications'},
       {name:'17-live',pageName:'live'},
+      {name:'18-websites',pageName:'websites'},
     ]) await capture(browser,options);
     const sheet=await browser.newPage({viewport:{width:1600,height:1200}});
     try {await sheet.goto(baseURL+'/qa/contact-sheet');await sheet.evaluate(()=>Promise.all([...document.images].map(img=>img.decode())));await sheet.screenshot({path:path.join(privateDir,'contact-sheet.png'),fullPage:true});} finally {await sheet.close();}

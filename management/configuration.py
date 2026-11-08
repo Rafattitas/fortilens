@@ -103,7 +103,7 @@ class Configuration:
             if d.get('timezone')=='browser':d['timezone']=c.get('accounting_timezone','UTC')
             d['wan_interfaces'] = c.get('confirmed_wan_interfaces', [])
             d['wan_confirmed'] = bool(d['wan_interfaces'])
-            d['monitoring'] = {'accounting': c.get('accounting_enabled', False), 'vlans': c.get('accounting_enabled', False)}
+            d['monitoring'] = {'accounting': c.get('accounting_enabled', False), 'vlans': c.get('accounting_enabled', False), 'websites': c.get('accounting_websites', False) is True}
             d['retention'] = {'ledger_days': c.get('accounting_ledger_days', 3), 'summary_days': c.get('accounting_summary_days', 400), 'database_bytes': c.get('accounting_max_bytes', 4294967296)}
             # Read actual policies, never assume that template defaults are live.
             compose = self.compose()

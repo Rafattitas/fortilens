@@ -29,7 +29,7 @@ function rewrite(text, label, pairs) {
 // The production hosted-report adapter, evaluated from management/app.py so the
 // demo reports look exactly like the console's embedded reports.
 const python = process.env.FORTILENS_PYTHON || 'python3';
-const sections = ['wan', 'devices', 'vlans', 'reports', 'applications', 'live'];
+const sections = ['wan', 'devices', 'vlans', 'reports', 'applications', 'websites', 'live'];
 const hosted = JSON.parse(execFileSync(python, ['-c', `
 import ast, json, sys
 from pathlib import Path
@@ -62,6 +62,7 @@ write('static/app.js', rewrite(read('management/static/app.js'), 'app.js', [
   ["'/console/?section=vlans#", "'console/vlans.html#"],
   ["'/console/?section=reports#", "'console/reports.html#"],
   ["'/console/?section=applications#", "'console/applications.html#"],
+  ["'/console/?section=websites#", "'console/websites.html#"],
   ["'/console/?section=live#", "'console/live.html#"],
   ["'/console/#", "'console/index.html#"],
   ["pathname.startsWith('/console/')", "pathname.includes('/console/')"],
