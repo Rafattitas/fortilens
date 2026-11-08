@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <a href="https://rafattitas.github.io/fortilens/"><strong>Try the live demo</strong></a> ·
   <a href="#install">Install</a> ·
   <a href="docs/README.md">Documentation</a> ·
   <a href="docs/architecture/ARCHITECTURE.md">Architecture</a> ·
@@ -25,7 +26,7 @@
 
 <p align="center">
   <img src="docs/design/screenshots/01-overview-dark.png" alt="FortiLens Overview showing shared Internet-state timelines, link measurements and recorded consumers using synthetic data" width="100%">
-  <br><sub>Overview in the shipped interface, rendered with synthetic fixtures. No customer data is shown.</sub>
+  <br><sub>Overview in the shipped interface, rendered with synthetic fixtures. No customer data is shown. <a href="https://rafattitas.github.io/fortilens/">Open the live demo</a> to click through every page in your browser.</sub>
 </p>
 
 ## What it answers
