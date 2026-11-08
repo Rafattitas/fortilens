@@ -77,6 +77,7 @@ def source_files(source):
         '__init__.py','app.py','auth.py','common.py','configuration.py','helper.py',
         'install.py','models.py','recovery.py','runtime.py','storage.py','upgrade.py','requirements.txt',
         'requirements-test.txt','Dockerfile','static/app.css','static/app.js','static/grafana-clock.js','static/index.html',
+        'static/favicon.svg','static/favicon-32.png','static/apple-touch-icon.png',
         'static/fonts/IBMPlexSans-Light-Latin1.woff2','static/fonts/IBMPlexSans-Regular-Latin1.woff2',
         'static/fonts/IBMPlexSans-Medium-Latin1.woff2','static/fonts/IBMPlexSans-SemiBold-Latin1.woff2',
         'static/fonts/OFL.txt')]
