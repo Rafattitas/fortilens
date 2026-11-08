@@ -71,7 +71,7 @@ Read [release preparation](development/RELEASING.md) before choosing or building
 - [Console visual contract](development/UI_DESIGN.md): current presentation, navigation and
   accessibility requirements while preserving native monitoring.
 - [Current interface screenshots](design/screenshots/README.md): canonical
-  gallery of the shipped Overview, Usage, Reports, Internet and installation
+  gallery of the shipped Overview, Devices, Reports, Internet links and installation
   screens, rendered with synthetic fixtures; capture provenance and regeneration
   instructions are included.
 - A Precision prototype (`docs/design/a-precision-prototype.html` in the source

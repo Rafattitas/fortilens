@@ -39,7 +39,7 @@ prototype. The [screenshot gallery](../design/screenshots/README.md) renders act
 management/hosted-report assets with clearly synthetic fixtures and records
 source/image SHA256 in its manifest. Capture tooling and reviewed PNGs are public
 source-release inputs only; installer and Docker runtime allowlists are unchanged.
-README navigation distinguishes endpoint inspection in Usage from period
+README navigation distinguishes endpoint inspection in Devices from period
 summaries in Reports. No application or accounting behavior accompanies this
 documentation refresh.
 
@@ -177,8 +177,8 @@ retains the current 4 KiB/format-1 defaults: further tested reductions introduce
 read/write tradeoffs. Compaction remains reviewed offline maintenance rather
 than an automatic settings/report side effect.
 
-Managed Device usage and Reports are distinct presentations of the same received
-accounting evidence. Device usage focuses on the searchable/paginated endpoint
+Managed Devices and Reports are distinct presentations of the same received
+accounting evidence. Devices focuses on the searchable/paginated endpoint
 table and per-device history. Reports shows period totals, a top-five consumer
 summary, relative segment distribution and the VLAN table, without duplicating
 the full device table. Both retain period/search/segment filters and null/unknown

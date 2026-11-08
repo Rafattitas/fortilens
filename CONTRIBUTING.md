@@ -20,7 +20,7 @@ follow [SECURITY.md](SECURITY.md).
 | `tests/` | Unit tests, named `test_*.py`. |
 | `tests/integration/` | Docker, systemd, browser and live-device scenarios. |
 | `tests/support/` | Syntax checks, a synthetic report preview and a benchmark. |
-| `tools/` | Release packaging, repository checks and screenshot capture. |
+| `tools/` | Release packaging, repository checks, screenshot capture, the online demo build and icon rendering. |
 | `examples/` | Optional sample configuration. |
 
 `management/` and `portable/` keep their names and flat layout on purpose. Installed
@@ -65,8 +65,10 @@ Run from the repository root:
 ```bash
 python -m unittest discover -s tests -v
 python -m ruff check .
+python -m ruff check portable/accounting_storage.py portable/accounting_migrate.py tests/test_compact_accounting.py tests/test_accounting_migrate.py tests/support/benchmark_accounting.py --extend-select I
+python -m ruff format --check portable/accounting_storage.py portable/accounting_migrate.py tests/test_compact_accounting.py tests/test_accounting_migrate.py tests/support/benchmark_accounting.py
 python -m ruff check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py --extend-select I
-python -m ruff format --check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py
+python -m ruff format --check tools management/upgrade.py tests/test_upgrade_host.py tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py
 python tools/check_repository.py
 python tests/support/check_frontend.py
 python -m coverage run -m unittest discover -s tests -v
@@ -115,8 +117,8 @@ follow [release preparation](docs/development/RELEASING.md). The example version
 an announcement or authorization to tag/publish:
 
 ```bash
-python tools/release.py build --version v0.3.0 --output dist/review
-python tools/release.py verify --directory dist/review --version v0.3.0
+python tools/release.py build --version vX.Y.Z --output dist/review
+python tools/release.py verify --directory dist/review --version vX.Y.Z
 ```
 
 Verify extracted artifacts as well as the checkout. Full installation acceptance

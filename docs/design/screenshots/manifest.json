@@ -7,10 +7,10 @@
     "tools/capture_screenshots.cjs": "4792ba5b374c1ceb0359191f9d6352f703a60d8f6ce7ae031ed13822b846e814",
     "demo/fixtures.js": "bd094b30c5aef03e59e0db5901f2afa21d02b1e2d10554e99df4a792119d9ed7",
     "management/app.py": "08a9ce177d20a537d3c40fa88b429924158dabc37e2acaaf112b9ce02b9cc23b",
-    "management/static/index.html": "bde7a624d9dcf08f5e97b279cb6206634059c7624209fa43eacea2de95d646b3",
+    "management/static/index.html": "84a65f29f4d979e8ec305d269bac30a8b45c6fb3118b166f04c2114764a59ee2",
     "management/static/app.js": "671485648d60f46e5dcc9ae086c5c2e9f4e6ed6b0a764b3a9f1653d8ea5efebc",
     "management/static/app.css": "7d37202f7772d192ef1f6df09e32402e9a8b4a532d8ceb2c7bd024705cf3c9eb",
-    "portable/reporting.html": "642373051bca279714e6507b4edd6d7b73531b298c42cd052cfa104cf4ae9735",
+    "portable/reporting.html": "0c5a43ddc040d8be351f3fd5440722c0319684e6f8b861c731de175c4ff0103a",
     "management/static/fonts/IBMPlexSans-Light-Latin1.woff2": "a21e7db1965d4c7af07213226fb11ccd2f61a87a0045ce1fed7cd22918431144",
     "management/static/fonts/IBMPlexSans-Medium-Latin1.woff2": "b5610af04d0d4b5a14a621d96d974b993e945a065db1a8861918f69ef9321934",
     "management/static/fonts/IBMPlexSans-Regular-Latin1.woff2": "b5ad7bd39f996144915f0ad9849a90183b27d8c28ad97ed98af5b1bebc51f6b1",
@@ -131,7 +131,7 @@
     },
     {
       "file": "docs/design/screenshots/08-system.png",
-      "sha256": "ffd0ce0a57de37f39cc2cdaddd8ae40f593977a269bc2ec009cd46373e1de5cd",
+      "sha256": "41cbb434ba481f19daf5e8814e8460c643529439050213f4a9acfe1ca8d86204",
       "viewport": {
         "width": 1600,
         "height": 1050

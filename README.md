@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/Rafattitas/fortilens/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Rafattitas/fortilens/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-56ddb0?style=flat-square"></a>
-  <img alt="Python 3.10 or later" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square">
+  <img alt="Python 3.11 or later" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square">
   <img alt="Docker Compose" src="https://img.shields.io/badge/deploy-Docker_Compose-2496ED?style=flat-square">
   <img alt="Early access" src="https://img.shields.io/badge/status-early_access-F3BB66?style=flat-square">
 </p>
@@ -36,21 +36,21 @@ your own server, with your own credentials and data.
 
 | Your question | Where to look |
 |---|---|
-| Are my Internet links healthy, and were they healthy earlier? | **Overview** and **Internet** show SLA state, latency, jitter, packet loss, physical state and observed history. |
-| Which device used the most, in which direction? | **Usage** searches endpoints and opens each device's daily and monthly history. |
+| Are my Internet links healthy, and were they healthy earlier? | **Overview** and **Internet links** show SLA state, latency, jitter, packet loss, physical state and observed history. |
+| Which device used the most, in which direction? | **Devices** searches endpoints and opens each device's daily and monthly history. |
 | How much did each VLAN use? | **Segments** compares exact VLAN and interface mappings, and names VLANs with no received records. |
 | Which applications used the Internet, and which devices used them? | **Applications** groups recorded usage by FortiGate Application Control label and category, with GenAI and risk filters. |
 | Who is using the Internet right now? | **Live usage** shows current download and upload per device, application, segment and WAN link from FortiGate realtime sessions, refreshed every 10 seconds. |
-| What was the total for a period? | **Reports** covers Today, rolling 7 days, this month, this year, recent 5 minutes or a custom range. |
+| What was the total for a period? | **Reports** covers today, the last 7 days, this month, this year, recent 5 minutes or a custom range. |
 | Can I trust these numbers? | **Data quality** shows collection gaps, pending counters and identity limits. |
 | What is happening right now, in detail? | **Firewall dashboard** opens the native Grafana dashboard. |
-| Is the installation itself working? | **System**, **Diagnostics** and **Settings** cover services, collection and reviewed configuration changes. |
+| Is the installation itself working? | **Status**, **Diagnostics** and **Settings** cover services, collection and reviewed configuration changes. |
 
 Usage figures come from received accounting records. Missing records never become
 zero traffic or a confirmed outage, and totals are not complete billing figures.
 
 <details>
-<summary>See Live usage, Applications, Usage, Reports and Internet screenshots</summary>
+<summary>See Live usage, Applications, Devices, Reports and Internet links screenshots</summary>
 
 ![Live usage showing current download and upload per device, application, segment and link](docs/design/screenshots/17-live.png)
 
@@ -60,17 +60,17 @@ zero traffic or a confirmed outage, and totals are not complete billing figures.
 
 *Applications: usage by Application Control label, with protocol-only traffic kept apart. Shipped UI with synthetic fixtures.*
 
-![Usage with a selected device and its recorded history](docs/design/screenshots/04-usage-docked.png)
+![Devices with a selected device and its recorded history](docs/design/screenshots/04-usage-docked.png)
 
-*Usage: endpoint identities, directional totals and device history. Shipped UI with synthetic fixtures.*
+*Devices: endpoint identities, directional totals and device history. Shipped UI with synthetic fixtures.*
 
 ![Reports showing period totals, largest consumers and segment distribution](docs/design/screenshots/05-reports.png)
 
-*Reports: a period summary drawn from the same accounting evidence as Usage. Shipped UI with synthetic fixtures.*
+*Reports: a period summary drawn from the same accounting evidence as Devices. Shipped UI with synthetic fixtures.*
 
-![Internet showing separate link states, measurements and observed history](docs/design/screenshots/07-internet.png)
+![Internet links showing separate link states, measurements and observed history](docs/design/screenshots/07-internet.png)
 
-*Internet: SLA observations, physical state and history with missing evidence marked. Shipped UI with synthetic fixtures.*
+*Internet links: SLA observations, physical state and history with missing evidence marked. Shipped UI with synthetic fixtures.*
 
 </details>
 
@@ -103,7 +103,7 @@ administrator. FortiLens never changes FortiGate settings.
 | | Web setup (recommended) | Portable CLI |
 |---|---|---|
 | **Gives you** | Browser setup, the full console, reviewed Apply and rollback | Command-line setup; the console is opt-in |
-| **Host** | Ubuntu x86-64, Python 3.11+; 24.04+ recommended | Linux x86-64, Python 3.10+ |
+| **Host** | Ubuntu 24.04+ x86-64 (Python 3.11+) | Linux x86-64, Python 3.10+ |
 | **Also needs** | systemd, Python venv, Docker Engine, Docker Compose v2 | Docker Compose v2 |
 | **Available from** | `main`, or the v0.4.0 full archive | `main`, or the v0.4.0 portable ZIP |
 | **Guide** | [Web Setup & Settings](docs/getting-started/WEB_SETUP.md) | [Portable guide](portable/README.md) |
@@ -116,8 +116,11 @@ capacity guarantee.
 ```bash
 git clone https://github.com/Rafattitas/fortilens.git
 cd fortilens
-sudo ./install.sh
+sudo ./install.sh --install-dependencies
 ```
+
+`--install-dependencies` installs Docker, Docker Compose v2 and the Python venv
+package from Ubuntu's repositories. Leave it out if they are already installed.
 
 Management listens on loopback by default. From your workstation, open a tunnel and
 then browse to `http://127.0.0.1:3030`:
@@ -126,15 +129,16 @@ then browse to `http://127.0.0.1:3030`:
 ssh -N -L 3030:127.0.0.1:3030 user@monitoring-server
 ```
 
-Create your administrator with the one-time installation token, then configure the
+Create your administrator with the one-time token that `install.sh` prints (it is\nalso in `/var/lib/fortilens/web/bootstrap.token`), then configure the
 connection, WANs, syslog and retention in the browser. Review and Apply starts the
 monitoring stack. There is no default password.
 
 **Already running FortiLens?** Do not initialize again. To move a web-managed
 installation to a new version, run `sudo ./install.sh --upgrade` from the new
 source; it keeps a backup and restores the previous version if any step fails.
-To bring a portable installation under the console, use `--adopt` with the exact
-existing Compose project. Both are described in the
+To bring a portable installation under the console, run
+`sudo ./install.sh --adopt /path/to/installation --project <compose-project>` with
+its exact existing Compose project name. Both are described in the
 [web setup guide](docs/getting-started/WEB_SETUP.md#upgrade-to-a-new-version).
 
 ### Portable CLI
@@ -147,7 +151,7 @@ python3 setup.py start
 python3 setup.py doctor
 ```
 
-The setup utility uses only the Python standard library. For a versioned package,
+Add `--enable-portal` to `init` for the unified console. The setup utility uses only the Python standard library. For a versioned package,
 download [fortilens-v0.4.0.zip](https://github.com/Rafattitas/fortilens/releases/download/v0.4.0/fortilens-v0.4.0.zip)
 and [SHA256SUMS.txt](https://github.com/Rafattitas/fortilens/releases/download/v0.4.0/SHA256SUMS.txt),
 verify the checksum, and run the same commands from its `forti-monitor/` directory.

@@ -93,13 +93,13 @@ SYSTEM
   focus containment, Escape/scrim/close controls and focus restoration. Selecting
   a route, including the current route, closes it. Settings use a native section
   picker on these widths rather than a wall of wrapped tabs.
-- Usage and Reports expose their own period controls. Week means rolling 168
-  hours; month uses the accounting timezone. Usage offers endpoint search and a
+- Devices and Reports expose their own period controls. The last 7 days are today
+  plus the six previous whole days; month uses the accounting timezone. Devices offers endpoint search and a
   docked device-history inspector; Reports summarizes period totals, largest
   consumers and segment distribution from the same accounting engine. Segments
-  groups exact VLAN/interface mappings. Evidence opens the existing accounting
+  groups exact VLAN/interface mappings. Data quality opens the existing accounting
   evidence page and respects accounting enablement.
-- System describes service, storage and configuration state separately from
+- Status describes service, storage and configuration state separately from
   source collection. Diagnostics retains the existing read-only checks; Settings
   preserves the reviewed configuration workflow.
 
@@ -141,7 +141,7 @@ unfingerprinted files and unauthenticated requests retain `no-store` behavior.
 Review actual rendering at 375px, tablet, landscape and desktop widths. Check main
 and frame bounds, document overflow, drawer keyboard order/closure and settings
 section changes. Inspect monitoring selectors and actual day/week/month reports,
-Usage/Segments/Internet/Evidence pages, masked settings and diagnostic loading/errors. Test first
+Devices/Segments/Internet links/Data quality pages, masked settings and diagnostic loading/errors. Test first
 setup/login through the existing isolated scenario; do not save/apply production
 settings or inject fake traffic for visual QA.
 
