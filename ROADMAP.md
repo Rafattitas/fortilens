@@ -11,7 +11,7 @@ Linux/amd64 installation.
   Alloy and Node Exporter.
 - Optional persistent Python/SQLite received-log accounting: directional bytes,
   replay handling, exact VLAN metadata, device search and retained history.
-- Today, calendar week, month, year and custom-range reports, plus
+- Today, last 7 days (today plus six previous days), month, year and custom-range reports, plus
   retained daily/monthly device history. These are existing capabilities.
 - Observed WAN health/history/coverage with separate physical, SLA and
   destination-specific route evidence.
@@ -62,7 +62,7 @@ Status: planned extensions; day/week/month/custom reports already exist.
 
 - Review export formats, access controls and protection of endpoint identity data.
 - Design scheduled weekly/monthly delivery as an explicit opt-in capability.
-- Evaluate annual and comparative reports against retained summary coverage.
+- Evaluate comparative reports (period against period) against retained summary coverage.
 - Add reproducible report-generation and export compatibility tests.
 
 ## Milestone 4 — Website and application analytics

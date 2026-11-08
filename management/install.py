@@ -150,13 +150,13 @@ def _main():
     osrelease=Path('/etc/os-release').read_text()
     if not re.search(r'^ID=ubuntu$',osrelease,re.M) or platform.machine() not in ('x86_64','amd64'):
         raise SystemExit('This release supports Ubuntu x86-64; monitoring images are pinned for linux/amd64.')
-    if sys.version_info<(3,11):raise SystemExit('Web management requires Python3.11+ (Ubuntu24.04+ recommended). The portable CLI remains Python3.10 compatible.')
+    if sys.version_info<(3,11):raise SystemExit('Web management requires Python 3.11+ (Ubuntu 24.04+). The portable CLI remains Python 3.10 compatible.')
     if args.install_dependencies:
         run('apt-get','update');run('apt-get','install','-y','python3-venv','ca-certificates','tzdata','docker.io','docker-compose-v2')
     for command in ('docker','systemctl','useradd'):
         if not shutil.which(command):raise SystemExit('Missing '+command+'. Install the documented prerequisites or explicitly choose --install-dependencies.')
     run('docker','version','--format','{{.Server.Version}}');run('docker','compose','version')
-    if not 1024<=args.port<=65535:raise SystemExit('Choose a management port from1024 to65535.')
+    if not 1024<=args.port<=65535:raise SystemExit('Choose a management port from 1024 to 65535.')
     try:ipaddress.ip_address(args.bind)
     except ValueError:raise SystemExit('--bind must be a literal local IP address.') from None
     tls=bool(args.tls_cert and args.tls_key)

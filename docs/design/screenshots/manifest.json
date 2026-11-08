@@ -4,12 +4,13 @@
   "fixture_time": "2026-11-05T12:00:00.000Z",
   "browser": "158.0.8127.18",
   "source_sha256": {
-    "tools/capture_screenshots.cjs": "2013480e010d319df92d7b0f6142d9b186cb5aa8db41a276f818935f8c80f69a",
+    "tools/capture_screenshots.cjs": "822f71dd788713db9a2e7252e07dd5e685d774bdc3ce0d96aa0549ac7d4125e1",
+    "demo/fixtures.js": "ac5897100fe40107a5be7829193138a0a341e7b5d3db2071ec6f01ec79a27647",
     "management/app.py": "f0e6c480c3bacf882a1e2c2896842064330f1238e02cb30c53c709a6d4449860",
-    "management/static/index.html": "cebfcb670588aeb2eac283258bb70c601137b473a0c2ee5be8c841b9a71c1bfd",
+    "management/static/index.html": "cc967506945f873a52aa2b8b880a3cb275489076a1d2521c4b36785150c1b88e",
     "management/static/app.js": "f475d6502105fcd730315b7ca0e23c50134a69e02b16bd397a68422d8117fddc",
     "management/static/app.css": "7d37202f7772d192ef1f6df09e32402e9a8b4a532d8ceb2c7bd024705cf3c9eb",
-    "portable/reporting.html": "9dee1ee85b60bea40f4534df4f655cdf8b3ff40cd122d1db6d697b64fe455945",
+    "portable/reporting.html": "037de9e431fb2299abf9a52c9cc52b047b857e186d13bfaee738232ebe88a89c",
     "management/static/fonts/IBMPlexSans-Light-Latin1.woff2": "a21e7db1965d4c7af07213226fb11ccd2f61a87a0045ce1fed7cd22918431144",
     "management/static/fonts/IBMPlexSans-Medium-Latin1.woff2": "b5610af04d0d4b5a14a621d96d974b993e945a065db1a8861918f69ef9321934",
     "management/static/fonts/IBMPlexSans-Regular-Latin1.woff2": "b5ad7bd39f996144915f0ad9849a90183b27d8c28ad97ed98af5b1bebc51f6b1",
@@ -82,7 +83,7 @@
     },
     {
       "file": "docs/design/screenshots/05-reports.png",
-      "sha256": "b25ea5f761978fc39baea6b1ace5b89cb53e75d76a86d2f0b6d43158e6e15dcd",
+      "sha256": "4935240c375b68c8d1c1dc42813ee5288885a6dfffe76c13b02a9d9f0ba928ff",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -130,7 +131,7 @@
     },
     {
       "file": "docs/design/screenshots/08-system.png",
-      "sha256": "dc3582704ed701c36a4c46695a5f88fc5bea315c52c0897388656074278620d9",
+      "sha256": "f442b43566addd6b4281fb3ec2d8cddd111eaf1b29ca696401eba64c39f0b055",
       "viewport": {
         "width": 1600,
         "height": 1050

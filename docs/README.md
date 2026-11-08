@@ -58,6 +58,7 @@ Read [release preparation](development/RELEASING.md) before choosing or building
 |---|---|
 | [Contributing](../CONTRIBUTING.md) | Development setup, quality checks, focused PRs and synthetic fixtures. |
 | [QA](development/QA.md) | Source checks, isolated Docker/systemd scenarios and bounded live acceptance. |
+| [Online demo](development/DEMO.md) | How the read-only browser demo is built from the shipped UI and synthetic fixtures. |
 | [Error handling and recovery](development/ERROR_HANDLING.md) | Safe failure responses, unknown mutation outcomes, retained recovery evidence and failure-injection validation. |
 | [Verification and compatibility](development/VERIFICATION.md) | Accounting/pipeline evidence and remaining real-device limitations. |
 | [Management verification](development/MANAGEMENT_VERIFICATION.md) | Management test history, installer checks and optional read-only FortiGate validation. |
@@ -71,7 +72,7 @@ Read [release preparation](development/RELEASING.md) before choosing or building
 - [Console visual contract](development/UI_DESIGN.md): current presentation, navigation and
   accessibility requirements while preserving native monitoring.
 - [Current interface screenshots](design/screenshots/README.md): canonical
-  gallery of the shipped Overview, Usage, Reports, Internet and installation
+  gallery of the shipped Overview, Devices, Reports, Internet links and installation
   screens, rendered with synthetic fixtures; capture provenance and regeneration
   instructions are included.
 - A Precision prototype (`docs/design/a-precision-prototype.html` in the source

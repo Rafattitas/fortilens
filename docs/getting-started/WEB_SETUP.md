@@ -205,7 +205,7 @@ HTTPS port and the server's private CA. Select the real Performance SLA name;
 SD-WAN may select different egress paths for different destinations/policies.
 
 An authorized firewall administrator must configure the syslog destination,
-protocol/format and forward-traffic logging. The receiver defaults to TCP1514 /
+protocol/format and forward-traffic logging. The receiver defaults to TCP 1514 /
 RFC5424; native/default UDP uses the explicit profile above. Both bind the
 configured host syslog address and need appropriate network/host restrictions.
 The managed native IPv4 source filter and a matching device ID do not authenticate
