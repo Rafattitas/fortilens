@@ -124,18 +124,23 @@ class FollowFortiGateTests(unittest.TestCase):
             store.ingest([record("2026-11-08T23:30:00Z", sessionid="1")])
             store.close()
             self.assertEqual(days_of(path, CONFIG), ["2026-11-08"])
+            # Stores close inside the folder's lifetime; Windows cannot delete open files.
             follow = a.Store(path, FOLLOW, INVENTORY)
-            self.addCleanup(follow.close)
-            self.assertEqual(follow.state("zone_timeline"), [[None, "UTC"]])
-            self.assertEqual(follow.state("contract")["accounting_timezone"], "fortigate")
-            follow.ingest([record("2026-11-09T08:00:00Z", sessionid="2", tz="+0200")])
-            self.assertEqual(follow.state("zone_timeline"), [[None, "UTC"], ["2026-11-10", 7200]])
-            # 9 November is still a UTC day; 10 November starts at 22:00 UTC.
-            follow.ingest([record("2026-11-09T22:30:00Z", sessionid="3", tz="+0200")])
-            self.assertEqual(days(follow), ["2026-11-08", "2026-11-09", "2026-11-10"])
+            try:
+                self.assertEqual(follow.state("zone_timeline"), [[None, "UTC"]])
+                self.assertEqual(follow.state("contract")["accounting_timezone"], "fortigate")
+                follow.ingest([record("2026-11-09T08:00:00Z", sessionid="2", tz="+0200")])
+                self.assertEqual(follow.state("zone_timeline"), [[None, "UTC"], ["2026-11-10", 7200]])
+                # 9 November is still a UTC day; 10 November starts at 22:00 UTC.
+                follow.ingest([record("2026-11-09T22:30:00Z", sessionid="3", tz="+0200")])
+                self.assertEqual(days(follow), ["2026-11-08", "2026-11-09", "2026-11-10"])
+            finally:
+                follow.close()
             reader = a.Store.open_readonly(path, FOLLOW, INVENTORY)
-            self.addCleanup(reader.close)
-            self.assertEqual(datetime.fromtimestamp(at("2026-11-09T22:30:00Z"), reader.zone()).date(), date(2026, 11, 10))
+            try:
+                self.assertEqual(datetime.fromtimestamp(at("2026-11-09T22:30:00Z"), reader.zone()).date(), date(2026, 11, 10))
+            finally:
+                reader.close()
 
     def test_other_contract_changes_and_going_back_are_refused(self):
         with tempfile.TemporaryDirectory() as folder:
