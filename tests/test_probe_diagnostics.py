@@ -463,7 +463,9 @@ class ProbeRepairTests(unittest.TestCase):
 
     def test_optional_capability_omission_is_separate_from_aggregate_probe_success(self):
         item = doctor.probe_policy_check(["System/SensorInfo"])[0]
-        self.assertEqual(item["status"], "WARN")
+        # Omitting a listed optional capability is a Settings choice, not a problem.
+        self.assertEqual(item["status"], "INFO")
+        self.assertIn("Optional exporter capabilities", item["action"])
         self.assertEqual(item["code"], "exporter_optional_probes_excluded")
         self.assertIn("System/SensorInfo", item["message"])
         self.assertEqual(doctor.probe_policy_check([]), [])
@@ -471,6 +473,7 @@ class ProbeRepairTests(unittest.TestCase):
         unknown = doctor.probe_policy_check(["synthetic-private-token"])[0]
         self.assertNotIn("synthetic-private-token", json.dumps(unknown))
         self.assertTrue(unknown["evidence"]["custom_exclusions_present"])
+        self.assertEqual(unknown["status"], "WARN")
 
     def test_poll_can_pass_without_any_delivery_observation(self):
         report = {

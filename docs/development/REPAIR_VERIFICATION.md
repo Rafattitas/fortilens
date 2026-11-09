@@ -70,12 +70,14 @@ are preserved. No default exclusions are imposed on every installation. Review
 capabilities and actual endpoint failures before applying a site-specific policy.
 In upstream 1.25 both warning and error probe failures can affect aggregate
 probe_success; compare current up/probe values, retained label sets, duration and
-collector errors. Excluded capabilities remain a warning, not a claim of success.
+collector errors. Excluded optional capabilities are shown as information, not a
+claim of success; custom exclusions remain a warning.
 
 Accounting delivery is separate from polling. No received delivery stays UNKNOWN;
 a successful poll over an empty range cannot certify usage or sender identity.
 Existing source contracts remain locked; never edit expected_devid or reset the
-database as an automatic repair. Plan migration separately with consistent backups
+database as an automatic repair. An unbound source may bind its serial once,
+through Settings after a matching Test Connection. Plan migration separately with consistent backups
 and historical reconciliation.
 
 ## Optional native UDP normalization and packaging

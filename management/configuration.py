@@ -235,7 +235,13 @@ class Configuration:
             'active_sla':(state.get('applied') or {}).get('sla',''),
             'exporter_policy':self.exporter_policy(),
             'scope_locked': bool((self.control/'accounting-contract.json').exists() or state['configured'] and self.compose() and 'fortilens-usage' in self.compose()['services']),
+            'accounting_scope': self.accounting_scope(state),
             'collector_note': 'WAN, SLA and interface shortcuts share one exporter. It stops only when all three are disabled.'}
+
+    def accounting_scope(self, state):
+        """The recorded scope, so the form opens only the fields that may still move forward."""
+        scope = load(self.control/'accounting-contract.json', state.get('applied'))
+        return {key: scope.get(key) for key in ('vdom', 'accounting_timezone', 'expected_devid')} if isinstance(scope, dict) else None
 
     def exporter_policy(self):
         """Expose only reviewed capability names, never credentials or custom rules."""
@@ -277,7 +283,11 @@ class Configuration:
                     # days already counted keep their zone.
                     if field == 'accounting_timezone' and new[field] == 'fortigate' and scope[field] != 'fortigate':
                         continue
-                    if new[field] != scope[field]:
+                    # An unbound source may bind its serial once; Apply checks
+                    # it against Test Connection before anything is counted.
+                    if field == 'expected_devid' and not scope.get(field) and new[field]:
+                        continue
+                    if new[field] != scope.get(field):
                         raise Problem('accounting_migration_required', 'Changing historical accounting scope requires an explicit migration; no data was changed.', 409)
             if previous:
                 for key, value in previous['retention'].items():
@@ -655,7 +665,9 @@ class Configuration:
                 if row['before'] is not None:
                     atomic(guarded(folder/'before',row['path']), guarded(self.root,row['path']).read_bytes())
             plan['status'] = 'APPLYING';atomic(folder/'plan.json', plan)
-            if plan['settings']['monitoring']['accounting'] and not (self.control/'accounting-contract.json').exists():
+            # Save already refused every change except the forward-only ones,
+            # so the recorded scope follows them and cannot be undone later.
+            if plan['settings']['monitoring']['accounting']:
                 atomic(self.control/'accounting-contract.json',{k:plan['settings'][k] for k in ('vdom','accounting_timezone','expected_devid')})
             for row in plan['files']:
                 self.write_target(row,guarded(folder/'candidate',row['path']).read_bytes())

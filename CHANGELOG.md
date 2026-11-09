@@ -19,6 +19,24 @@
 - Reports label their days, for example "Accounting days: FortiGate time
   (UTC+02:00)".
 
+### Diagnostics
+
+- `direct_api` shows the last Test Connection result and when it ran, instead of
+  "Unavailable" five minutes after every test. A success stays until the
+  connection settings change.
+- New `INFO` status for choices made in Settings. Omitting optional exporter
+  capabilities is `INFO`, not "Needs review"; custom exclusions stay `WARN`.
+  `INFO` does not lower the overall status.
+- An installation with no expected serial number can now bind one in Settings →
+  Monitoring & Syslog. Apply checks it against Test Connection first, because the
+  binding cannot be undone. `accounting_source` explains what binding changes.
+- Settings no longer shows Accounting days as read-only on an existing
+  installation, so the switch to `fortigate` can actually be made there.
+- Data quality marks only the classifications that may hide Internet usage
+  (`UNSCOPED SOURCE`, `UNRESOLVED DIRECTION`). Other log types and local
+  traffic are listed without a warning.
+- Test Connection labels the serial number it reports.
+
 ## v0.5.0 — 2026-11-08 — websites, clearer navigation and an online demo
 
 ### Websites (opt-in)

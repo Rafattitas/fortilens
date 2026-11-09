@@ -420,7 +420,7 @@ class CompactDifferentialTests(unittest.TestCase):
         for change in (
             {"source_id": "different-source"},
             {"vdom": "different-vdom"},
-            {"expected_devid": "FG-DIFFERENT"},
+            {"accounting_timezone": "Africa/Cairo"},
         ):
             with self.subTest(change=change):
                 with self.assertRaises(ValueError):

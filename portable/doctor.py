@@ -14,7 +14,8 @@ import urllib.request
 import base64
 
 SERVICES = ("fortigate-exporter", "prometheus", "grafana", "loki", "alloy", "node-exporter")
-LABELS = {"PASS": "Ready", "WARN": "Needs review", "FAIL": "Problem", "UNKNOWN": "Unavailable"}
+# INFO records a deliberate choice; like PASS it never lowers the overall status.
+LABELS = {"PASS": "Ready", "INFO": "Note", "WARN": "Needs review", "FAIL": "Problem", "UNKNOWN": "Unavailable"}
 
 
 def check(name, status, message, code, action="", **evidence):
@@ -314,11 +315,14 @@ def probe_policy_check(exclusions):
     optional={'Log/Fortianalyzer/Status','System/Interface/Transceivers','System/SensorInfo'}
     selected=sorted(set(exclusions)&optional)
     custom=any(name not in optional for name in exclusions)
-    return [check('exporter_probe_policy','WARN',
+    # Omitting the listed optional capabilities is a choice made in Settings;
+    # only rules outside that list still need a review.
+    return [check('exporter_probe_policy','WARN' if custom else 'INFO',
         'A custom exporter exclusion policy needs review; aggregate success does not cover excluded capabilities.' if custom else
-        'Optional capabilities are explicitly not collected: '+', '.join(selected)+'. Selected-probe success does not establish their availability.',
+        'Not collected, as chosen in Settings: '+', '.join(selected)+'. Required interface, device and SLA probes are unaffected.',
         'exporter_custom_probe_policy' if custom else 'exporter_optional_probes_excluded',
-        'Retain required interface, device and Virtual WAN/SLA probes. Review omitted capabilities separately; do not infer that FortiGate is unreachable.',
+        'Retain required interface, device and Virtual WAN/SLA probes. Review omitted capabilities separately; do not infer that FortiGate is unreachable.' if custom else
+        'To collect them again, clear these options under Settings > Monitoring & Syslog > Optional exporter capabilities.',
         excluded_optional_probes=selected,custom_exclusions_present=custom)]
 
 
@@ -361,11 +365,16 @@ def accounting_checks(report,now,freshness):
         'Usage processing is near the present.' if caught_up else 'Usage processing is catching up or its checkpoint is unavailable.',
         'accounting_caught_up' if caught_up else 'accounting_backfill_or_stale',
         '' if caught_up else 'Allow bounded backfill to finish and review storage limits. Older summaries are not current-period proof.'))
-    for name,key,label in [('accounting_metadata','inventory_available','Interface metadata'),('accounting_source','source_identity_bound','Expected source-device filter')]:
-        ok=report.get(key) is True
-        result.append(check(name,'PASS' if ok else 'WARN',label+(' is configured/available.' if ok else ' is not established.'),
-            name+'_available' if ok else name+'_unavailable',
-            '' if ok else 'Review read permissions, exact interface/VDOM metadata and source binding; do not infer VLANs from IP subnets.'))
+    ok=report.get('inventory_available') is True
+    result.append(check('accounting_metadata','PASS' if ok else 'WARN','Interface metadata'+(' is configured/available.' if ok else ' is not established.'),
+        'accounting_metadata_available' if ok else 'accounting_metadata_unavailable',
+        '' if ok else 'Review read permissions and exact interface/VDOM metadata; do not infer VLANs from IP subnets.'))
+    ok=report.get('source_identity_bound') is True
+    result.append(check('accounting_source','PASS' if ok else 'WARN',
+        'Usage is counted only from the FortiGate with the bound serial number.' if ok else
+        'No FortiGate serial number is bound, so logs from any other FortiGate sent to this listener would be counted too.',
+        'accounting_source_available' if ok else 'accounting_source_unavailable',
+        '' if ok else 'Run Settings > FortiGate Connection > Test Connection, enter the serial number it shows under Settings > Monitoring & Syslog > Expected FortiGate serial number, then Review & Apply. Usage already counted is kept. Leave it unbound on an HA cluster, whose members log with different serials.'))
     if report.get('inventory_error') in {'api_http_401','api_http_403'}:
         result.append(check('accounting_inventory_permissions','FAIL','The interface inventory API rejected authentication or read permissions.',
             report['inventory_error'],'Review the existing API account and VDOM scope; response bodies and tokens are hidden.'))

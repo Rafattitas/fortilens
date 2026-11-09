@@ -157,7 +157,7 @@
     }
     function view() {
       return {settings, configured: true, revision: 7, applied_revision: 7, pending_changes: false,
-        scope_locked: true, secret_status: {api_token_present: true, custom_ca_present: true}, active_monitoring: settings.monitoring,
+        scope_locked: true, accounting_scope: {vdom: settings.vdom, accounting_timezone: settings.accounting_timezone, expected_devid: settings.expected_devid}, secret_status: {api_token_present: true, custom_ca_present: true}, active_monitoring: settings.monitoring,
         active_sla: settings.sla, discovery: {required: true, current: true, reason: 'Synthetic discovery matches this fixture.', changed_fields: []}};
     }
     const diagnostics = dashboard => ({system: system(dashboard), monitoring: {status: 'Recorded evidence', checks: [
@@ -167,6 +167,7 @@
       {id: 'accounting_lag', status: 'PASS', message: 'Synthetic usage processing is near the present.'},
       {id: 'accounting_metadata', status: 'WARN', message: 'Some retained records have unknown segment mappings.', action: 'Inspect Data quality; do not infer historical VLANs from the current IP subnet.'},
       {id: 'fortigate_tls', status: 'PASS', message: 'Certificate verification is enabled in this synthetic configuration.'},
+      {id: 'exporter_probe_policy', status: 'INFO', message: 'Not collected, as chosen in Settings: System/SensorInfo. Required interface, device and SLA probes are unaffected.', action: 'To collect them again, clear these options under Settings > Monitoring & Syslog > Optional exporter capabilities.'},
       {id: 'completeness', status: 'UNKNOWN', message: 'Received records do not certify complete traffic collection.', action: 'Compare sender, listener and processing evidence before interpreting totals.'},
     ]}, collection: {latest_log_at: new Date(now - 12000).toISOString(), latest_metric_at: new Date(now - 15000).toISOString(), processing_lag_seconds: 4, log_timestamp_kind: 'receipt time'}});
 
