@@ -204,7 +204,7 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  const device=expectedDevice||'FG-SYNTHETIC-TRUSTED';
  let signedIn=false,bootstrapRequired=bootstrap,revision=scopeLocked?7:0,connectionTests=0,storedToken=false;
  let currentSettings={...structuredClone(settings),retention:{...settings.retention,database_bytes:9294967296},fortigate_host:'',wan_interfaces:[],wan_confirmed:false,expected_devid:expectedDevice};
- const currentView=()=>({settings:structuredClone(currentSettings),configured:scopeLocked,revision,applied_revision:scopeLocked?7:null,pending_changes:!scopeLocked||revision!==7,scope_locked:scopeLocked,secret_status:{api_token_present:storedToken,custom_ca_present:false},active_monitoring:currentSettings.monitoring,discovery:{required:false,current:true,changed_fields:[],reason:'Synthetic first-run connection.'}});
+ const currentView=()=>({settings:structuredClone(currentSettings),configured:scopeLocked,revision,applied_revision:scopeLocked?7:null,pending_changes:!scopeLocked||revision!==7,scope_locked:scopeLocked,accounting_scope:scopeLocked?{vdom:settings.vdom,accounting_timezone:settings.accounting_timezone,expected_devid:expectedDevice}:null,secret_status:{api_token_present:storedToken,custom_ca_present:false},active_monitoring:currentSettings.monitoring,discovery:{required:false,current:true,changed_fields:[],reason:'Synthetic first-run connection.'}});
  page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/api/**',async route=>{
   const request=route.request(),pathname=new URL(request.url()).pathname;let payload,status=200;

@@ -473,8 +473,14 @@ class ManagementTests(unittest.TestCase):
 
     def test_identity_and_retention_reductions_require_explicit_migration(self):
         c=self.existing();view=c.view()
-        for field,value in [('accounting_timezone','Africa/Cairo'),('vdom','other'),('expected_devid','DIFFERENT')]:
+        for field,value in [('accounting_timezone','Africa/Cairo'),('vdom','other')]:
             settings=deepcopy(view['settings']);settings[field]=value
+            with self.assertRaises(Problem):c.save({'revision':view['revision'],'settings':settings})
+        # A bound serial cannot be changed or removed.
+        atomic(c.control/'accounting-contract.json',json.dumps({'vdom':'root','accounting_timezone':'fortigate','expected_devid':'FG-BOUND'}).encode())
+        view=c.view();self.assertEqual(view['accounting_scope']['expected_devid'],'FG-BOUND')
+        for value in ('DIFFERENT',''):
+            settings=deepcopy(view['settings']);settings['expected_devid']=value
             with self.assertRaises(Problem):c.save({'revision':view['revision'],'settings':settings})
         settings=deepcopy(view['settings']);settings['retention']['loki_days']=1
         with self.assertRaises(Problem):c.save({'revision':view['revision'],'settings':settings})
@@ -489,6 +495,54 @@ class ManagementTests(unittest.TestCase):
         self.assertEqual(saved['settings']['accounting_timezone'],'fortigate')
         settings=deepcopy(saved['settings']);settings['accounting_timezone']='Africa/Cairo'
         with self.assertRaises(Problem):c.save({'revision':saved['revision'],'settings':settings})
+
+    def apply(self,view):
+        plan=self.ops.dispatch('prepare',{'revision':view['revision']})
+        with patch.object(setup,'import_dashboard'),patch.object(setup,'connect_portal'):
+            return self.wait_job(self.ops.dispatch('apply',{'revision':view['revision'],'plan_id':plan['plan_id'],'confirm':True}))
+
+    def test_an_unbound_source_binds_only_the_serial_the_fortigate_reports(self):
+        view=self.save();self.assertEqual(self.apply(view)['status'],'complete')
+        view=self.c.view();self.assertTrue(view['scope_locked']);self.assertEqual(view['accounting_scope']['expected_devid'],'')
+        # A serial the FortiGate does not report fails Test Connection.
+        view=self.save(expected_devid='FG-WRONG')
+        with self.assertRaises(Problem) as wrong:self.ops.dispatch('test',{'revision':view['revision']})
+        self.assertEqual(wrong.exception.code,'device_identity_mismatch')
+        # Apply refuses a binding that Test Connection has not confirmed.
+        view=self.save(expected_devid='FG-SYNTHETIC')
+        (self.c.control/'connection-test.json').unlink()
+        job=self.apply(view);self.assertEqual(job['status'],'failed',job)
+        self.assertIn('Run Test Connection with these saved settings first',job['message'])
+        self.assertEqual(load(self.c.control/'accounting-contract.json')['expected_devid'],'')
+        self.ops.dispatch('test',{'revision':view['revision']})
+        self.assertEqual(self.apply(self.c.view())['status'],'complete')
+        self.assertEqual(load(self.c.control/'accounting-contract.json')['expected_devid'],'FG-SYNTHETIC')
+        self.assertEqual(self.c.view()['accounting_scope']['expected_devid'],'FG-SYNTHETIC')
+        with self.assertRaises(Problem):self.save(expected_devid='')
+        script=(ROOT/'management/static/app.js').read_text(encoding='utf-8')
+        self.assertIn("$('accounting-timezone').readOnly=!!scope&&scope.accounting_timezone==='fortigate';$('expected-devid').readOnly=!!scope&&!!scope.expected_devid;",script)
+
+    def test_direct_api_shows_the_last_test_connection(self):
+        view=self.save();settings=Settings.model_validate(self.c.state()['settings'])
+        check=lambda now=None:self.ops.connection_test_check(settings,self.c.state()['revision'],now)
+        self.assertEqual((check()['status'],check()['code']),('INFO','connection_test_not_run'))
+        self.ops.dispatch('test',{'revision':view['revision']})
+        tested=load(self.c.control/'connection-test.json')['at']
+        # A success stays valid long after the old five-minute window.
+        result=check(tested+86400)
+        self.assertEqual((result['status'],result['code']),('PASS','last_read_only_api_test'))
+        self.assertEqual(result['evidence']['age_seconds'],86400)
+        self.assertRegex(result['evidence']['tested_at'],r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$')
+        # Changed connection settings make it out of date.
+        self.save(fortigate_host='192.0.2.9');changed=Settings.model_validate(self.c.state()['settings'])
+        self.assertEqual(self.ops.connection_test_check(changed,self.c.state()['revision'])['code'],'connection_test_outdated')
+        # A failure is current for a few minutes, then asks for a new test.
+        revision=self.c.state()['revision']
+        atomic(self.c.control/'connection-test.json',json.dumps({'at':time.time(),'revision':revision,'result':{'status':'failed','message':'Synthetic failure.','code':'api_timeout'}}).encode())
+        self.assertEqual(self.ops.connection_test_check(changed,revision)['status'],'FAIL')
+        self.assertEqual(self.ops.connection_test_check(changed,revision,time.time()+600)['status'],'INFO')
+        atomic(self.c.control/'connection-test.json',b'[]')
+        self.assertEqual(self.ops.connection_test_check(changed,revision)['code'],'connection_test_not_run')
 
     def test_external_file_edits_and_path_traversal_fail_closed(self):
         view=self.save();plan=self.c.prepare(view['revision'])

@@ -150,8 +150,9 @@ class FollowFortiGateTests(unittest.TestCase):
                 a.Store(path, CONFIG, INVENTORY)
             with self.assertRaises(ValueError):
                 a.Store(path, {**FOLLOW, "vdom": "other"}, INVENTORY)
+            # Switching zones never permits changing a bound serial.
             utc = Path(folder) / "utc.sqlite"
-            a.Store(utc, CONFIG, INVENTORY).close()
+            a.Store(utc, {**CONFIG, "expected_devid": "FG-FIXTURE"}, INVENTORY).close()
             with self.assertRaises(ValueError):
                 a.Store(utc, {**FOLLOW, "expected_devid": "FG-OTHER"}, INVENTORY)
 

@@ -187,11 +187,31 @@ def zone_of(config):
     return config.get("_zone") or tz(config["accounting_timezone"])
 
 
+def contract_change_allowed(existing, contract):
+    """Forward-only changes an existing store accepts.
+
+    A fixed accounting zone may start following the FortiGate, and a store
+    with no bound serial may bind one. Nothing counted earlier is rewritten;
+    every other change, and every way back, needs a rebuilt database."""
+    if existing is None or existing == contract:
+        return True
+    for key in set(existing) | set(contract):
+        old, new = existing.get(key), contract.get(key)
+        if old == new:
+            continue
+        if key == "accounting_timezone" and new == FORTIGATE_ZONE and old not in (None, FORTIGATE_ZONE):
+            continue
+        if key == "expected_devid" and not old and new:
+            continue
+        return False
+    return True
+
+
 def follows_fortigate_from(existing, contract):
-    """A fixed-zone contract may switch to following the FortiGate, forward only."""
+    """A fixed-zone contract switching to following the FortiGate, forward only."""
     return (existing is not None and contract["accounting_timezone"] == FORTIGATE_ZONE
             and existing.get("accounting_timezone") not in (None, FORTIGATE_ZONE)
-            and {k: v for k, v in existing.items() if k != "accounting_timezone"} == {k: v for k, v in contract.items() if k != "accounting_timezone"})
+            and contract_change_allowed(existing, contract))
 
 
 def zone_fields(config, at_ns):
@@ -553,7 +573,7 @@ class Store:
             contract = {k: config.get(k) for k in ("accounting_timezone", "source_id", "vdom", "expected_devid")}
             existing = self.state("contract")
             follow = follows_fortigate_from(existing, contract)
-            if existing is not None and existing != contract and not follow:
+            if not contract_change_allowed(existing, contract):
                 raise ValueError("Accounting identity/timezone contract changed; use an explicitly rebuilt database")
             with self.db:
                 self.db.execute(APP_SCHEMA)
@@ -646,7 +666,7 @@ class Store:
             contract = {key: config.get(key) for key in ('accounting_timezone', 'source_id', 'vdom', 'expected_devid')}
             existing = reader.state('contract')
             follow = follows_fortigate_from(existing, contract)
-            if existing is not None and existing != contract and not follow:
+            if not contract_change_allowed(existing, contract):
                 raise ValueError('Accounting identity/timezone contract changed; use an explicitly rebuilt database')
             reader._load_zone([[None, existing['accounting_timezone']]] if follow else None)
         except Exception:

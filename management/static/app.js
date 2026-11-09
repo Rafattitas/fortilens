@@ -173,7 +173,9 @@ function fillSettings(){
  $('workspace').classList.toggle('configured',state.view.configured);renderDraftInputs();
  $('token-status').textContent=state.view.secret_status.api_token_present?'Stored token configured. It is never returned to the browser.':'No stored API token.';
  $('replace-token').checked=!state.view.secret_status.api_token_present;$('wizard-intro').hidden=state.view.configured;$('site-label').textContent=state.view.settings.site_name;
- for(const id of ['vdom','accounting-timezone','expected-devid'])$(id).readOnly=state.view.scope_locked;
+ // Counted usage locks its scope; only the forward-only moves stay open.
+ const scope=state.view.scope_locked?state.view.accounting_scope||{}:null;
+ $('vdom').readOnly=!!scope;$('accounting-timezone').readOnly=!!scope&&scope.accounting_timezone==='fortigate';$('expected-devid').readOnly=!!scope&&!!scope.expected_devid;
  $('revision').textContent=state.view.pending_changes?'Draft revision '+state.view.revision:state.view.configured?'Applied revision '+state.view.applied_revision:'Not configured';
  $('revision').className='pill '+(state.view.pending_changes?'warn':state.view.configured?'good':'');$('insecure-row').hidden=$('verify-tls').checked;
  for(const link of document.querySelectorAll('[data-page]'))link.hidden=state.view.configured&&!pageEnabled(link.dataset.page);
@@ -291,8 +293,8 @@ async function runDiagnostics(){
   $('diagnostic-checks').replaceChildren();
   for(const c of d.monitoring.checks){
    const row=E('section',undefined,'panel diagnostic'),title=E('h3',c.id.replaceAll('_',' '));
-   title.append(E('span',c.status,'pill '+(c.status==='PASS'?'good':c.status==='FAIL'?'bad':'warn')));
-   row.append(title,E('p',c.message));if(c.action)row.append(E('small',c.action));
+   title.append(E('span',c.status,'pill '+(c.status==='PASS'?'good':c.status==='FAIL'?'bad':c.status==='INFO'?'idle':'warn')));
+   row.append(title,E('p',c.message+(c.evidence?.tested_at?' Tested '+stamp(c.evidence.tested_at)+'.':'')));if(c.action)row.append(E('small',c.action));
    $('diagnostic-checks').append(row);
   }
  }catch(e){
@@ -345,7 +347,7 @@ function renderJobHistory(job){
  $('history-stage').textContent=job.failed_step||job.phase||'Unavailable';
  renderJobEvents($('history-events'),job);
  $('history-warnings').replaceChildren();
- for(const check of job.diagnostics?.monitoring?.checks||[]){if(check.status!=='PASS')$('history-warnings').append(E('li',check.status+' · '+check.message))}
+ for(const check of job.diagnostics?.monitoring?.checks||[]){if(check.status!=='PASS'&&check.status!=='INFO')$('history-warnings').append(E('li',check.status+' · '+check.message))}
  $('history-rollback').hidden=!job.rollback_available;
  $('history-rollback').dataset.planId=job.plan_id||'';
  updateDeploymentControls();
@@ -416,7 +418,7 @@ for(const input of document.querySelectorAll('[data-optional-probe]'))input.addE
 });
 for(const id of ['api-token','custom-ca','replace-token','replace-ca','insecure-ack'])for(const type of ['input','change'])$(id).addEventListener(type,event=>{const input=$(id);if(!intentionalDraftEdit(input,event))return;if(id==='api-token')state.apiTokenDraft=input.value;if(id==='custom-ca')state.customCADraft=input.value;dirty();connectionDraftChanged()});
 $('connection-secrets-form').addEventListener('submit',event=>{event.preventDefault();action($('save'),saveDraft)});
-$('test-connection').addEventListener('click',()=>action($('test-connection'),async()=>{$('connection-result').textContent='Testing saved connection…';await saveDraft();const d=await api('/api/connection/test',{revision:state.view.revision});$('connection-result').textContent=d.message+(Object.keys(d.device).length?' '+Object.values(d.device).join(' · '):'')}));
+$('test-connection').addEventListener('click',()=>action($('test-connection'),async()=>{$('connection-result').textContent='Testing saved connection…';await saveDraft();const d=await api('/api/connection/test',{revision:state.view.revision});$('connection-result').textContent=d.message+(Object.keys(d.device).length?' '+[d.device.model,d.device.version,d.device.serial&&'Serial number '+d.device.serial].filter(Boolean).join(' · '):'')}));
 $('discover-interfaces').addEventListener('click',()=>action($('discover-interfaces'),async()=>{state.inventory=[];renderInterfaces();$('inventory-caption').textContent='Discovery in progress. Previous selections require confirmation against this connection.';await saveDraft();const report=await api('/api/interfaces/discover',{revision:state.view.revision});await reloadSettings();state.discoveryStale=false;state.inventory=report.interfaces;renderInterfaces();renderWorkflowReadiness();$('inventory-caption').textContent=report.coverage+' · '+report.notes.join(' ')}));$('interface-search').addEventListener('input',renderInterfaces);
 $('prepare').addEventListener('click',()=>action($('prepare'),async()=>{await saveDraft();state.plan=await api('/api/configuration/prepare',{revision:state.view.revision});$('plan-files').replaceChildren(...state.plan.changed_files.map(p=>E('li',p)));$('plan-warnings').replaceChildren(...state.plan.warnings.map(p=>E('li',p)));$('plan-review').hidden=false;$('approve-plan').checked=false;if(state.plan.discovery)state.view.discovery=state.plan.discovery;renderWorkflowReadiness()}));
 $('apply').addEventListener('click',()=>action($('apply'),async()=>{if(!state.plan||!$('approve-plan').checked)throw safeError('Review the candidate and approve its changes first.');if(discoveryBlocked())throw safeError('Save, test and discover interfaces for this connection before applying.');await beginDeployment('/api/configuration/apply',{revision:state.plan.revision,plan_id:state.plan.plan_id,confirm:true})}));

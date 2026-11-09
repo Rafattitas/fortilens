@@ -154,8 +154,8 @@ preserved. After changing SLA, explicitly Apply before assessing that scope.
 Optional exporter exclusions are a deliberate capability decision, not an API
 connectivity repair. The supported selections are `Log/Fortianalyzer/Status`,
 `System/Interface/Transceivers` and `System/SensorInfo`. Excluding one means it is
-not collected; diagnostics continues to show that omission even when selected
-probes succeed. A null/unchanged policy preserves the existing exporter policy;
+not collected; diagnostics shows that omission as `INFO` even when selected
+probes succeed. Other custom exclusions remain `WARN`. A null/unchanged policy preserves the existing exporter policy;
 an explicit empty list removes only these three known names from exclusions.
 Other custom include/exclude rules, other targets and the token remain intact;
 those retained rules still govern collection. Review explicit selections in the
@@ -191,10 +191,19 @@ installed gateway remains available. Disabling a view does not rewrite existing
 Grafana panels or delete old data.
 
 VDOM, accounting timezone and expected source ID are locked once a worker/source
-contract exists. Changing them requires a separately designed migration. The one
-exception: an installation that counts days in UTC or another fixed zone can switch
-accounting days to `fortigate`. The change applies from the next local day the
-FortiGate reports; days already counted keep their zone. Retention
+contract exists. Changing them requires a separately designed migration. Two
+forward-only moves stay open, and neither can be undone:
+
+- An installation that counts days in UTC or another fixed zone can switch
+  accounting days to `fortigate`. The change applies from the next local day the
+  FortiGate reports; days already counted keep their zone.
+- An installation with no expected serial number can bind one. Run Test
+  Connection first: Apply refuses a serial the FortiGate did not report for the
+  saved connection. From then on only that FortiGate's logs are counted; usage
+  already counted is kept. Leave it empty on an HA cluster, whose members log
+  with different serials.
+
+Retention
 and database-ceiling reductions are rejected in the web UI to avoid unexpected
 deletion. A host operator must independently back up data, inspect actual oldest
 records, estimate the impact and perform a reviewed policy reduction. Configuration
@@ -253,7 +262,15 @@ therefore opens Settings directly without rerunning the initial setup wizard.
 Diagnostics calls the existing Python `doctor.run` logic through a restricted
 service adapter. It distinguishes service availability, exporter scrape/probe
 evidence, recent metric samples, logs, accounting lag and storage. Direct FortiGate
-connection tests are explicit, cached briefly, and tied to the saved connection.
+connection tests are explicit and tied to the saved connection: `direct_api` shows
+the last Test Connection result and when it ran, until the address, VDOM, TLS
+choice, token or CA change. A failure counts for a few minutes; after that it is a
+prompt to test again. The exporter and usage-engine checks show whether the API
+answers right now.
+
+Each check is `PASS`, `INFO`, `WARN`, `FAIL` or `UNKNOWN`. `INFO` records a choice
+made in Settings, such as an omitted optional capability, or a test not run yet.
+Like `PASS`, it does not lower the overall status.
 Failed collection never becomes a WAN outage. Settings, sign-in and health remain
 available when Grafana, Loki or Docker is unavailable; helper unavailability is
 reported without taking down sign-in.

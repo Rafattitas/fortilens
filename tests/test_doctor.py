@@ -99,6 +99,30 @@ class DoctorTests(unittest.TestCase):
     def item(self, report, name):
         return next(x for x in report["checks"] if x["id"] == name)
 
+    def test_an_unbound_source_explains_what_binding_changes(self):
+        details={'last_attempt':NOW-10,'last_poll_ok':True,'processing_lag_seconds':5,'inventory_available':True,
+            'source_identity_bound':False,'loki_timestamps_at_receipt':True,'last_delivery_ns':(NOW-20)*10**9}
+        item=next(x for x in doctor.accounting_checks(details,NOW,300) if x['id']=='accounting_source')
+        self.assertEqual((item['status'],item['code']),('WARN','accounting_source_unavailable'))
+        self.assertIn('any other FortiGate',item['message'])
+        self.assertIn('Test Connection',item['action']);self.assertIn('HA cluster',item['action'])
+
+    def test_deliberate_choices_are_info_and_keep_the_overall_status(self):
+        r = self.run_report(probe_exclusions=["System/SensorInfo"])
+        self.assertEqual(self.item(r, "exporter_probe_policy")["status"], "INFO")
+        self.assertEqual(r["status"], "PASS")
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(doctor.print_report(r), 0)
+        self.assertIn("[Note] Not collected, as chosen in Settings: System/SensorInfo.", output.getvalue())
+        r = self.run_report(probe_exclusions=["System/SensorInfo", "Custom/Endpoint"])
+        self.assertEqual(self.item(r, "exporter_probe_policy")["status"], "WARN")
+        self.assertEqual(r["status"], "WARN")
+        services = [doctor.check("service:alloy", "INFO", "alloy: noted", "service_state")]
+        with patch.object(doctor.subprocess, "run", return_value=docker_result()):
+            r = doctor.run(Path("/test"), CONFIG, FakeRequest(), lambda p, *a: ["docker", *a], "fm-prometheus", "fm-loki",
+                           now=NOW, service_reader=lambda *a: services)
+        self.assertEqual(self.item(r, "service:alloy")["status"], "INFO")
+
     def test_received_zero_wan_state_is_data_not_collection_failure(self):
         fake = FakeRequest()
         r = self.run_report(fake)

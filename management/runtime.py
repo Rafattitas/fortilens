@@ -567,13 +567,7 @@ class Operations:
             report=doctor.run(self.c.root,c,request,lambda *a:[],setup.PROM_UID,setup.LOKI_UID,
                               service_reader=lambda *a,**k:checks,usage_request=lambda *a:self.accounting_diagnostics(c),probe_exclusions=exclusions,
                               native_receiver_request=native_receiver_request)
-            previous=load(self.c.control/'connection-test.json',{})
-            recent=previous and time.time()-previous['at']<300
-            same=recent and previous.get('scope')==self.inventory_scope(settings)
-            test=previous.get('result',{}) if same or recent and previous.get('revision')==state['revision'] else {}
-            report['checks'].append(doctor.check('direct_api','PASS' if same and test.get('status')=='success' else 'FAIL' if test.get('status')=='failed' else 'UNKNOWN',
-                test.get('message','A recent direct API test has not been established.'),'last_read_only_api_test',
-                'Use Settings > FortiGate Connection > Test Connection. A system/status read does not verify all API permissions.'))
+            report['checks'].append(self.connection_test_check(settings,state['revision']))
             report['status']=next((v for v in ('FAIL','WARN','UNKNOWN') if any(x['status']==v for x in report['checks'])),'PASS')
         except (Problem,OSError,ValueError,TypeError):
             report={'status':'UNKNOWN','checks':[{'id':'monitoring','status':'UNKNOWN','message':'Monitoring diagnostics are unavailable. The management portal is still running.','action':'Review service status, Docker permissions and disk capacity.'}]}
@@ -594,6 +588,42 @@ class Operations:
         return {'monitoring':report,'system':self.status(),'collection':collection,'read_only':True,
                 'observed_revision':state.get('applied_revision') if state['configured'] else None,
                 'saved_revision':state['revision']}
+
+    def confirm_serial(self,settings):
+        """Binding existing usage to a serial cannot be undone, so the FortiGate must report it first."""
+        test=load(self.c.control/'connection-test.json',{})
+        test=test if isinstance(test,dict) else {}
+        result=test.get('result')
+        device=result.get('device') if isinstance(result,dict) else None
+        reported=device.get('serial') if isinstance(device,dict) else None
+        if test.get('scope')!=self.inventory_scope(settings) or not reported or reported!=settings.expected_devid:
+            raise Problem('serial_confirmation_required','Run Test Connection with these saved settings first. Binding cannot be undone, so the FortiGate must report the serial number you entered.')
+
+    def connection_test_check(self,settings,revision,now=None):
+        """The last Test Connection result for these connection settings, with its age.
+
+        A success stays valid until the address, VDOM, TLS choice, token or CA
+        change; the exporter and usage-engine checks show whether the API is
+        answering right now. A failure is current only for a few minutes."""
+        now=time.time() if now is None else now
+        previous=load(self.c.control/'connection-test.json',{})
+        previous=previous if isinstance(previous,dict) else {}
+        test=previous.get('result',{})
+        at=previous.get('at')
+        action='Use Settings > FortiGate Connection > Test Connection. A system/status read does not verify all API permissions.'
+        if not isinstance(at,(int,float)) or not isinstance(test,dict):
+            return doctor.check('direct_api','INFO','Test Connection has not been run for this installation yet.','connection_test_not_run',action)
+        tested=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(at))
+        if test.get('status')=='success':
+            if previous.get('scope')!=self.inventory_scope(settings):
+                return doctor.check('direct_api','INFO','The connection settings changed after the last successful Test Connection.',
+                    'connection_test_outdated',action,tested_at=tested)
+            return doctor.check('direct_api','PASS','The last Test Connection succeeded. It reads system/status only; interface and SLA permissions may differ.',
+                'last_read_only_api_test',action,tested_at=tested,age_seconds=round(now-at))
+        if test.get('status')=='failed' and now-at<300 and previous.get('revision')==revision:
+            return doctor.check('direct_api','FAIL',test.get('message','The last Test Connection failed.'),'last_read_only_api_test',action,tested_at=tested)
+        return doctor.check('direct_api','INFO','The last Test Connection did not succeed. Run it again to see the current result.',
+            'connection_test_failed_earlier',action,tested_at=tested)
 
     def accounting_diagnostics(self,c):
         compose=self.c.compose() or {}
@@ -670,6 +700,8 @@ class Operations:
                     if not inventory or inventory.get('scope')!=self.inventory_scope(Settings.model_validate(plan['settings'])):
                         raise Problem('discovery_required','Discover interfaces for this saved revision before deployment.')
                     interfaces.selected_names(inventory['report'],plan['settings']['wan_interfaces'],plan['settings']['vdom'])
+                if plan['settings']['monitoring']['accounting'] and not plan['fresh'] and not previous.get('expected_devid') and plan['settings']['expected_devid']:
+                    self.confirm_serial(Settings.model_validate(plan['settings']))
                 self._progress(job,'backup','Saving a private configuration backup; monitoring data is not copied or migrated.')
                 install_attempted=True
                 self.c.install_files(request.plan_id);installed=True
