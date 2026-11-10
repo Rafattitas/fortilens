@@ -67,6 +67,15 @@
   the project name from the containers started from the installation's compose
   file.
 
+### Documentation
+
+- New [console guide](docs/getting-started/CONSOLE_GUIDE.md): what each page
+  shows, where its numbers come from, and what to open when the Internet is slow.
+- New [Diagnostics reference](docs/operations/DIAGNOSTICS.md) covering every
+  check, its statuses and what to do.
+- New [reporting API](docs/architecture/REPORTING_API.md) reference: periods,
+  parameters, response fields and error codes.
+
 ### Grafana
 
 - Removed the Grafana panels that read raw syslog from Loki for a whole period:

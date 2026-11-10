@@ -179,6 +179,17 @@ retains the current 4 KiB/format-1 defaults: further tested reductions introduce
 read/write tradeoffs. Compaction remains reviewed offline maintenance rather
 than an automatic settings/report side effect.
 
+Report reads are bounded so one slow request cannot stall the console. A period
+that ends now ends after the newest received record when the FortiGate clock is
+ahead of the server's, which keeps it on daily summaries; a request waits at most
+10 seconds for the single snapshot reader and a raw-record scan stops after 15,
+each with a named error (`reports_busy`, `report_scan_too_long`). The console
+gateway's own limit is 30 seconds (`console_timeout`). Diagnostics measures the
+clock difference as `clock_offset`. The endpoints are described in the
+[reporting API](../architecture/REPORTING_API.md) and the checks in the
+[Diagnostics reference](../operations/DIAGNOSTICS.md). The reader is still
+single: concurrent long custom ranges take turns.
+
 Managed Devices and Reports are distinct presentations of the same received
 accounting evidence. Devices focuses on the searchable/paginated endpoint
 table and per-device history. Reports shows period totals, a top-five consumer
