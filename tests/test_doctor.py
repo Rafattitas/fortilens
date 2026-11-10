@@ -201,6 +201,34 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(checks[0]["code"], "service_not_ready")
         self.assertEqual(checks[-1]["code"], "service_missing")
 
+    def test_services_are_found_under_the_project_that_runs_the_compose_file(self):
+        # A web-managed or adopted stack runs under its own Compose project name.
+        empty = subprocess.CompletedProcess([], 0, "", "")
+        def docker(projects):
+            calls = []
+            def run(command, **kwargs):
+                calls.append(command)
+                if command[:2] == ["docker", "ps"]:
+                    return subprocess.CompletedProcess([], 0, "\n".join(projects), "")
+                return docker_result() if "-p" in command and command[command.index("-p") + 1] == "fortilens-registered" else empty
+            return run, calls
+        path = Path("/test")
+        run, calls = docker(["fortilens-registered"] * 3)
+        with patch.object(doctor.subprocess, "run", side_effect=run):
+            checks = doctor.service_checks(path, lambda p, *a: ["docker", "compose", "-p", "forti-monitor-derived", *a])
+        self.assertTrue(all(x["code"] == "service_running" for x in checks), checks)
+        self.assertEqual(calls[1][:4], ["docker", "ps", "--all", "--filter"])
+        self.assertEqual(calls[1][4], "label=com.docker.compose.project.config_files=" + str(path / "compose.yaml"))
+        self.assertEqual(calls[2][:6], ["docker", "compose", "-p", "fortilens-registered", "-f", str(path / "compose.yaml")])
+        # No other project, several projects or an unusable name: still reported as missing.
+        for projects in ([], ["one", "two"], ["Bad Name"]):
+            with self.subTest(projects=projects):
+                run, calls = docker(projects)
+                with patch.object(doctor.subprocess, "run", side_effect=run):
+                    checks = doctor.service_checks(path, lambda p, *a: ["docker", "compose", "-p", "forti-monitor-derived", *a])
+                self.assertTrue(all(x["code"] == "service_missing" for x in checks))
+                self.assertEqual(len(calls), 2)
+
     def test_direct_api_status_and_network_errors_are_distinguished(self):
         with tempfile.TemporaryDirectory() as parent:
             p = Path(parent); (p / "secrets").mkdir()

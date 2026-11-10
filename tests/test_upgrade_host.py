@@ -23,6 +23,7 @@ class FakeHost:
         self.registry = registry
         self.fail = fail
         self.calls = []
+        self.images = []
 
     def _maybe_fail(self, name):
         if self.fail == name:
@@ -42,6 +43,13 @@ class FakeHost:
 
     def tag(self, source, target):
         self.calls.append(("tag", source, target))
+
+    def image_tags(self, repository):
+        self._maybe_fail("image_tags")
+        return [image for image in self.images if image.startswith(repository + ":")]
+
+    def untag(self, image):
+        self.calls.append(("untag", image))
 
     def compose(self, *args, **kwargs):
         self.calls.append(("compose",) + args)
@@ -182,6 +190,37 @@ class UpgradeTests(unittest.TestCase):
         # Unchanged requirements keep the existing environment.
         self.assertEqual((self.prefix / "venv/marker").read_text(), "old")
         self.assertIsNone(upgrade.upgrade(ROOT, self.prefix, host=FakeHost(self.registry)))
+
+    def test_only_the_latest_previous_image_is_kept(self):
+        host = FakeHost(self.registry)
+        host.images = [
+            "fortilens-usage:fortilens-test",
+            "fortilens-usage:fortilens-test-pre-20261106T144001Z",
+            "fortilens-usage:fortilens-test-pre-20261109T124405Z",
+            "fortilens-syslog:fortilens-test-pre-20261106T144001Z",
+            # Not this project's, or not an upgrade copy: never touched.
+            "fortilens-usage:another-project-pre-20261106T144001Z",
+            "fortilens-usage:fortilens-test-pre-manual",
+            "fortilens-usage:local",
+        ]
+        journal = upgrade.upgrade(ROOT, self.prefix, host=host, now=1_800_000_000)
+        older = [
+            "fortilens-syslog:fortilens-test-pre-20261106T144001Z",
+            "fortilens-usage:fortilens-test-pre-20261106T144001Z",
+            "fortilens-usage:fortilens-test-pre-20261109T124405Z",
+        ]
+        self.assertEqual([c[1] for c in host.calls if c[0] == "untag"], older)
+        # The copy this upgrade can roll back to stays.
+        host.images.append("fortilens-usage:fortilens-test-pre-" + journal["id"])
+        self.assertEqual(
+            upgrade.prune_previous_images(host, "fortilens-test", journal["id"]), older
+        )
+
+    def test_a_failure_while_tidying_images_does_not_fail_the_upgrade(self):
+        host = FakeHost(self.registry, fail="image_tags")
+        journal = upgrade.upgrade(ROOT, self.prefix, host=host, now=1_800_000_000)
+        self.assertEqual(journal["status"], "COMPLETE")
+        self.assertEqual(self.journal()["status"], "COMPLETE")
 
     def test_failed_service_restores_previous_source_code_and_image(self):
         host = FakeHost(self.registry, fail="healthy:fortilens-usage")
