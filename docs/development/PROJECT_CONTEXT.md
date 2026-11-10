@@ -60,7 +60,7 @@ documentation refresh.
 | `portable/upgrade.py` | Existing reviewed CLI upgrade/rollback; do not run concurrently with management deployment. |
 | `tests/`, `.github/workflows/ci.yml` | Unit/security/regression checks, isolated real Docker and Ubuntu installer acceptance. |
 | `tools/check_repository.py`, `pyproject.toml`, `requirements-dev.txt` | Development-only grammar/link/YAML/source checks, narrow Ruff rules and measured branch coverage. No production dependencies or package/import migration. |
-| `tools/release.py`, `.github/workflows/release.yml` | Reproducible allowlisted full source and compatible portable distributions, checksums and extracted-artifact acceptance; publication remains an explicit maintainer action. |
+| `tools/release.py`, `.github/workflows/release.yml` | Reproducible allowlisted full source and compatible portable distributions, checksums and extracted-artifact acceptance; a unit test keeps the allowlist equal to `git ls-files` minus `SOURCE_ONLY`; publication remains an explicit maintainer action. |
 
 ## Deployment identities and defaults
 
