@@ -400,7 +400,7 @@ class ManagementTests(unittest.TestCase):
         view=self.c.save({'revision':view['revision'],'settings':settings})
         # Saved revisions may change while the discovered connection identity stays the same.
         plan=self.ops.dispatch('prepare',{'revision':view['revision']})
-        with patch.object(setup,'import_dashboard'),patch.object(setup,'connect_portal'):
+        with patch.object(setup,'import_dashboard'),patch.object(setup,'connect_portal'),patch.object(setup,'retire_saved_panels'):
             job=self.wait_job(self.ops.dispatch('apply',{'revision':view['revision'],'plan_id':plan['plan_id'],'confirm':True}))
         self.assertEqual(job['status'],'complete',job)
 
@@ -421,12 +421,30 @@ class ManagementTests(unittest.TestCase):
         config=load(folder/'candidate/site.json')
         self.assertTrue(config['loki_receive_timestamps']);self.assertEqual(config['accounting_timezone'],'fortigate')
         self.assertFalse((self.c.root/'compose.yaml').exists())
-        with patch.object(setup,'import_dashboard') as dashboard,patch.object(setup,'connect_portal'):
+        with patch.object(setup,'import_dashboard') as dashboard,patch.object(setup,'connect_portal'),patch.object(setup,'retire_saved_panels') as retire:
             job=self.wait_job(self.ops.dispatch('apply',{'revision':view['revision'],'plan_id':plan['plan_id'],'confirm':True}))
         self.assertEqual(job['status'],'complete',job)
-        dashboard.assert_called_once();self.assertTrue(self.c.view()['configured'])
+        dashboard.assert_called_once();retire.assert_not_called();self.assertTrue(self.c.view()['configured'])
         self.assertTrue(any(c[0]=='start' for c in self.docker.calls))
         self.assertFalse(self.c.view()['pending_changes'])
+
+    def test_later_applies_only_retire_old_usage_panels_and_never_fail_on_them(self):
+        self.assertEqual(self.apply(self.save())['status'],'complete')
+        view=self.save(site_name='Renamed company')
+        plan=self.ops.dispatch('prepare',{'revision':view['revision']})
+        with patch.object(setup,'import_dashboard') as dashboard,patch.object(setup,'connect_portal'),patch.object(setup,'retire_saved_panels') as retire:
+            job=self.wait_job(self.ops.dispatch('apply',{'revision':view['revision'],'plan_id':plan['plan_id'],'confirm':True}))
+        self.assertEqual(job['status'],'complete',job)
+        dashboard.assert_not_called();retire.assert_called_once()
+        self.assertEqual(retire.call_args.args[0],self.c.root)
+        self.assertIn('dashboard',[e['phase'] for e in job['events']])
+        # Services are already running: a Grafana failure here is logged, not a failed deployment.
+        view=self.save(site_name='Renamed again')
+        plan=self.ops.dispatch('prepare',{'revision':view['revision']})
+        with patch.object(setup,'import_dashboard'),patch.object(setup,'connect_portal'),patch.object(setup,'retire_saved_panels',side_effect=OSError('grafana down')):
+            job=self.wait_job(self.ops.dispatch('apply',{'revision':view['revision'],'plan_id':plan['plan_id'],'confirm':True}))
+        self.assertEqual(job['status'],'complete',job)
+        self.assertNotIn('grafana down',json.dumps(job))
 
     def test_existing_secrets_dashboards_volumes_and_identity_are_preserved(self):
         c=self.existing();original={str(p.relative_to(c.root)):p.read_bytes() for p in c.root.rglob('*') if p.is_file()}
@@ -498,7 +516,7 @@ class ManagementTests(unittest.TestCase):
 
     def apply(self,view):
         plan=self.ops.dispatch('prepare',{'revision':view['revision']})
-        with patch.object(setup,'import_dashboard'),patch.object(setup,'connect_portal'):
+        with patch.object(setup,'import_dashboard'),patch.object(setup,'connect_portal'),patch.object(setup,'retire_saved_panels'):
             return self.wait_job(self.ops.dispatch('apply',{'revision':view['revision'],'plan_id':plan['plan_id'],'confirm':True}))
 
     def test_an_unbound_source_binds_only_the_serial_the_fortigate_reports(self):

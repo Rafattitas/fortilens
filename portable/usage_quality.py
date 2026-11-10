@@ -1,6 +1,5 @@
-"""Received-record diagnostics and an offline sample audit, not a collector."""
+"""Offline sample audit of received usage records, not a collector."""
 from collections import Counter, defaultdict
-from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -9,7 +8,6 @@ import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 FIELDS = "type, subtype, logid, vd, dstintfrole, mastersrcmac, srcip, srcname, sentdelta, rcvddelta, sentbyte, rcvdbyte"
-PERIODS = (("today", "now/d", "Today"), ("week", "7d", "Last 7 Days"), ("month", "now/M", "This Month"))
 CATEGORIES = {
     "included_delta": "Included: both delta fields",
     "included_cumulative_fallback": "Included: end-record cumulative fallback",
@@ -21,92 +19,6 @@ CATEGORIES = {
     "unscoped_missing_vdom": "Unscoped: missing VDOM",
     "unscoped_parse_error": "Unscoped: parse error; VDOM may be unknown",
 }
-
-GUIDE = """### Reporting periods and evidence
-- **Today:** start of the day. **Last 7 Days:** rolling seven days. **This Month:** start of the calendar month.
-- Period boundaries use the dashboard timezone. An absolute time range overrides relative panel periods; inspect each panel's displayed range.
-- Totals are **recorded device bytes**, grouped by MAC/IP/name. IP or name changes can split rows. These are not authenticated-user accounts.
-- Expand **Usage Data Quality** to review received records and exclusion reasons. Counts describe the received logs, not complete traffic coverage. Missing categories are not proof of zero events.
-- Cumulative fallback and delta intervals can cross a reporting boundary. Replayed logs can inflate totals. Neither issue is repaired by displaying a successful query.
-- VDOM filters usage; FortiGate, SLA and WAN selectors do not. Missing VDOM/parser-error counts are explicitly unscoped.
-"""
-
-
-def enhance_dashboard(source):
-    result = deepcopy(source)
-    spec, elements = result["spec"], result["spec"]["elements"]
-    if "panel-42" in elements:
-        if elements["panel-42"]["spec"].get("title") == "Reporting Periods & Evidence" and all(
-                "panel-" + str(i) in elements for i in (43, 44, 45)):
-            return result
-        raise ValueError("Panel ID42 is already used; preserve the existing dashboard")
-    if any("panel-" + str(i) in elements for i in (43, 44, 45)):
-        raise ValueError("Usage-quality panel IDs are already used")
-    rows = spec["layout"]["spec"]["rows"]
-    usage_rows = [r for r in rows if any(i["spec"].get("element", {}).get("name") == "panel-1"
-                  for i in r["spec"]["layout"]["spec"].get("items", []))]
-    if len(usage_rows) != 1:
-        raise ValueError("Expected one device-usage row")
-    def item(pid, x, y, width, height):
-        return {"kind": "GridLayoutItem", "spec": {"x": x, "y": y, "width": width, "height": height,
-                "element": {"kind": "ElementReference", "name": "panel-" + str(pid)}}}
-    elements["panel-42"] = {"kind": "Panel", "spec": {"id": 42, "title": "Reporting Periods & Evidence",
-        "description": "How periods, identity and received-log evidence affect usage totals.", "links": [],
-        "data": {"kind": "QueryGroup", "spec": {"queries": [], "transformations": [], "queryOptions": {}}},
-        "vizConfig": {"kind": "VizConfig", "group": "text", "version": "13.2.2", "spec": {
-            "options": {"mode": "markdown", "content": GUIDE}, "fieldConfig": {"defaults": {}, "overrides": []}}}}}
-    usage_items = usage_rows[0]["spec"]["layout"]["spec"]["items"]
-    for existing in usage_items:
-        existing["spec"]["y"] += 7
-    usage_items.insert(0, item(42, 0, 0, 24, 7))
-    quality_items = []
-    for pid, (_, relative, title) in zip((43, 44, 45), PERIODS):
-        panel = deepcopy(elements["panel-1"])
-        p = panel["spec"]
-        p.update(id=pid, title="Received Usage Records — " + title,
-            description="Counts of received records, including exclusion reasons. Same relative period as the matching usage table. "
-            "Selected VDOM plus explicitly unscoped missing-VDOM/parser-error records. Other known VDOMs excluded. "
-            "Strict parsing flags malformed input; the unchanged usage formula may tolerate such input. "
-            "Not traffic completeness, deduplication, or WAN availability. No results means unavailable evidence. "
-            "Large scans can be expensive; this diagnostic row is collapsed by default.")
-        p["data"]["spec"]["queries"][0]["spec"]["query"]["spec"]["expr"] = quality_query()
-        p["data"]["spec"]["queryOptions"] = {"timeFrom": relative}
-        p["data"]["spec"]["transformations"] = [{"kind": "Transformation", "group": "organize", "spec": {"options": {
-            "excludeByName": {"Time": True}, "indexByName": {"usage_quality": 0, "Value #A": 1},
-            "renameByName": {"usage_quality": "Record classification", "Value #A": "Received records"}}}}]
-        p["vizConfig"]["spec"]["options"] = {"cellHeight": "md", "showHeader": True,
-            "sortBy": [{"desc": True, "displayName": "Received records"}]}
-        p["vizConfig"]["spec"]["fieldConfig"] = {"defaults": {"unit": "none", "decimals": 0, "mappings": [
-            {"type": "value", "options": {k: {"text": text} for k, text in CATEGORIES.items()}}]}, "overrides": []}
-        elements["panel-" + str(pid)] = panel
-        quality_items.append(item(pid, 0, (pid - 43) * 9, 24, 9))
-    rows.insert(rows.index(usage_rows[0]) + 1, {"kind": "RowsLayoutRow", "spec": {
-        "title": "Usage Data Quality — Expand to inspect received records", "collapse": True,
-        "hideHeader": False, "fillScreen": False, "layout": {"kind": "GridLayout", "spec": {"items": quality_items}}}})
-    return result
-
-
-def quality_query():
-    # Existing byte selection for well-formed records, including zero and the
-    # quoted logid gate. Diagnostics deliberately use stricter parsing.
-    # Classification happens before clearing parser errors;
-    # otherwise malformed input would disappear from the diagnostics.
-    # Literal containment replaces the two-log-ID regexp. Nonempty strings
-    # trimmed by the ASCII digit set are empty iff they contain only digits.
-    # Local template variables avoid two intermediate label-format stages and
-    # defer directional fallback until the record passes the cheap scope gates.
-    category = (r'''{{if .__error__}}unscoped_parse_error{{else if not .vd}}unscoped_missing_vdom{{else if not (and (eq .type "traffic") (eq .subtype "forward"))}}excluded_type'''
-        r'''{{else if or (not (or (eq .logid "0000000013") (eq .logid "0000000020"))) (not (or (contains "logid=\"0000000013\"" (__line__)) (contains "logid=\"0000000020\"" (__line__))))}}excluded_event'''
-        r'''{{else if ne .dstintfrole "wan"}}excluded_role{{else if not .mastersrcmac}}excluded_missing_mac{{else}}'''
-        r'''{{$tx := .sentdelta}}{{$rx := .rcvddelta}}{{if eq .logid "0000000013"}}{{if not $tx}}{{$tx = .sentbyte}}{{end}}{{if not $rx}}{{$rx = .rcvdbyte}}{{end}}{{end}}'''
-        r'''{{if or (not $tx) (not $rx) (ne (trimAll "0123456789" $tx) "") (ne (trimAll "0123456789" $rx) "")}}excluded_invalid_bytes'''
-        r'''{{else if or (not .sentdelta) (not .rcvddelta)}}included_cumulative_fallback{{else}}included_delta{{end}}{{end}}''')
-    return ("sum by (usage_quality) (count_over_time(\n"
-        '  {job="fortigate-syslog"}\n  | logfmt --strict\n'
-        '  | vd="${vdom}" or vd="" or __error__!=""\n'
-        '  | label_format usage_quality=`' + category + '`\n'
-        '  | drop __error__, __error_details__\n'
-        '  | keep usage_quality\n  [$__range]\n))')
 
 
 def parse_time(value):

@@ -146,7 +146,7 @@ class PortableSetupTests(unittest.TestCase):
         for old in ["legacy-site.example.test", "legacy-sla", "legacy-datasource-uid"]:
             self.assertNotIn(old, text)
         self.assertEqual(d["metadata"], {"name": "forti-monitor"})
-        self.assertEqual(len(d["spec"]["elements"]), 31)
+        self.assertEqual(len(d["spec"]["elements"]), 24)
         self.assertEqual(len(d["spec"]["variables"]), 4)
         wan = d["spec"]["variables"][3]["spec"]
         self.assertNotIn("allValue", wan)

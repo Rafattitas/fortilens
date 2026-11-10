@@ -37,6 +37,22 @@
   traffic are listed without a warning.
 - Test Connection labels the serial number it reports.
 
+### Grafana
+
+- Removed the Grafana panels that read raw syslog from Loki for a whole period:
+  recorded device usage for Today, Last 7 days and This month, their help text,
+  and the received-record counts. The weekly and monthly ones took 30 to 55
+  seconds each, and 134 to 170 seconds when opened together, so they showed
+  errors after the console gateway's 30-second limit. Reports and Data quality
+  in the console show the same evidence from the accounting store.
+- The first configuration apply after upgrading removes these panels from the
+  running dashboard, only where they still match what FortiLens generated, and
+  the rows they leave empty, and updates the header text if it is unedited.
+  Everything else in the saved dashboard is kept, and the previous dashboard is
+  saved privately first.
+- `prepare-usage-quality` is removed; `prepare-dashboard-style` leaves the
+  retired panels out of its candidate.
+
 ## v0.5.0 — 2026-11-08 — websites, clearer navigation and an online demo
 
 ### Websites (opt-in)

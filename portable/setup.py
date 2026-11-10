@@ -232,7 +232,6 @@ def discovery(label, selector, values, selection, scope, restrict_scope=False):
 
 
 def make_dashboard(c):
-    from usage_quality import enhance_dashboard
     from dashboard_style import polish_dashboard
     result = load(ROOT / "templates/dashboard.json")
     spec = result["spec"]
@@ -273,7 +272,7 @@ def make_dashboard(c):
                 "Names may be available without SLA samples; choices never fabricate measurements. "
                 "Other VDOMs require separate review. This does not change FortiGate roles or usage-accounting filters."
             )
-    result=polish_dashboard(enhance_dashboard(result))
+    result=polish_dashboard(result)
     if c["accounting_enabled"]:
         host=c["usage_bind"] if c["usage_bind"]!="0.0.0.0" else c["grafana_bind"] if c["grafana_bind"]!="0.0.0.0" else "127.0.0.1"
         result["spec"]["links"].append({"title":"Device & VLAN reports","type":"link","url":c["public_usage_url"] or f"http://{host}:{c['usage_port']}","icon":"external link","tooltip":"Fixed-period upload/download, device details, VLAN analytics and WAN evidence","tags":[],"asDropdown":False,"targetBlank":True,"includeVars":False,"keepTime":False})
@@ -477,21 +476,61 @@ def grafana_request(p, c, path, method="GET", body=None, timeout=100):
         return value
 
 
-def import_dashboard(p, c):
-    route = "/apis/dashboard.grafana.app/v2/namespaces/default/dashboards"
+DASHBOARD_ROUTE = "/apis/dashboard.grafana.app/v2/namespaces/default/dashboards"
+
+
+def saved_dashboard(p, c):
+    """The running FortiLens dashboard, or None when Grafana has none under its UID."""
     try:
-        existing = grafana_request(p, c, route + "/" + UID)
+        existing = grafana_request(p, c, DASHBOARD_ROUTE + "/" + UID)
     except urllib.error.HTTPError as e:
         if e.code != 404:
             raise
-    else:
-        if not isinstance(existing, dict) or not isinstance(existing.get("spec"), dict) or not isinstance(existing["spec"].get("tags", []), list):
-            raise SetupError("Grafana returned an unsupported dashboard response; nothing overwritten")
-        if "forti-monitor" not in existing.get("spec", {}).get("tags", []):
-            raise SetupError("Dashboard UID belongs to another dashboard; nothing overwritten")
+        return None
+    if not isinstance(existing, dict) or not isinstance(existing.get("spec"), dict) or not isinstance(existing["spec"].get("tags", []), list) \
+            or not isinstance(existing["spec"].get("elements", {}), dict) or not isinstance(existing.get("metadata"), dict):
+        raise SetupError("Grafana returned an unsupported dashboard response; nothing overwritten")
+    if "forti-monitor" not in existing.get("spec", {}).get("tags", []):
+        raise SetupError("Dashboard UID belongs to another dashboard; nothing overwritten")
+    return existing
+
+
+def retire_saved_panels(p, c, existing=None):
+    """Remove FortiLens's former raw-log usage panels from the running dashboard.
+
+    Saved dashboards are otherwise never overwritten. This removes only panels
+    that still match what FortiLens generated, and the rows they leave empty;
+    every other panel, row, selector and permission is kept. The previous
+    dashboard is saved privately first. A missing dashboard is not re-created.
+    """
+    from dashboard_style import retire_usage_panels
+    existing = saved_dashboard(p, c) if existing is None else existing
+    if existing is None:
+        return {"removed": [], "kept": []}
+    candidate, removed, kept = retire_usage_panels(existing)
+    for name in kept:
+        print("Kept " + name + ": it no longer matches the panel FortiLens generated. Remove it in Grafana if it is not needed.")
+    if not removed:
         print("Existing dashboard preserved (no overwrite).")
+        return {"removed": [], "kept": kept}
+    write_file(p, "grafana/dashboard.before-retired-panels-" + str(time.time_ns()) + ".json", dumps(existing), mode=0o600)
+    # Send back what Grafana returned, with only the panels changed. Its
+    # resourceVersion makes Grafana refuse the update if someone saved meanwhile.
+    update = deepcopy(existing)
+    update["spec"] = candidate["spec"]
+    result = grafana_request(p, c, DASHBOARD_ROUTE + "/" + UID, "PUT", update)
+    if not isinstance(result, dict) or not isinstance(result.get("metadata"), dict) or result["metadata"].get("name") != UID:
+        raise SetupError("Dashboard update returned an unexpected identifier")
+    print("Removed retired usage panels from the saved dashboard (" + str(len(removed)) + "); other panels were kept.")
+    return {"removed": removed, "kept": kept}
+
+
+def import_dashboard(p, c):
+    existing = saved_dashboard(p, c)
+    if existing is not None:
+        retire_saved_panels(p, c, existing)
         return
-    result = grafana_request(p, c, route, "POST", load(p / "grafana/dashboard.json"))
+    result = grafana_request(p, c, DASHBOARD_ROUTE, "POST", load(p / "grafana/dashboard.json"))
     if not isinstance(result, dict) or not isinstance(result.get("metadata"), dict) or result["metadata"].get("name") != UID:
         raise SetupError("Dashboard import returned an unexpected identifier")
     print("Dashboard imported: /d/" + UID)
@@ -759,8 +798,6 @@ def main(argv=None):
     audit_parser.add_argument("--vdom", required=True)
     audit_parser.add_argument("--at", help="ISO8601 window end with an explicit offset; defaults to now")
     audit_parser.add_argument("--json", action="store_true")
-    candidate_parser = sub.add_parser("prepare-usage-quality", help="Create a local candidate from the saved dashboard; never overwrite Grafana")
-    candidate_parser.add_argument("--output", type=Path, default=ROOT / "local")
     style_parser=sub.add_parser("prepare-dashboard-style",help="Create a reviewed visual candidate without overwriting Grafana")
     style_parser.add_argument("--output",type=Path,default=ROOT/"local")
     style_parser.add_argument("--input",type=Path,help="Latest exported dashboard; otherwise use the saved generated source")
@@ -830,22 +867,10 @@ def main(argv=None):
                 return doctor.print_report(report, args.json)
             elif args.command == "interfaces":
                 interface_command(p, c, args)
-            elif args.command == "prepare-usage-quality":
-                import usage_quality
-                source = load(p / "grafana/dashboard.json")
-                candidate = usage_quality.enhance_dashboard(source)
-                if candidate == source:
-                    print("The saved dashboard already includes usage-quality panels; nothing changed.")
-                else:
-                    path = "grafana/dashboard.usage-quality-" + str(time.time_ns()) + ".json"
-                    write_file(p, path, dumps(candidate))
-                    print("Review/import the local candidate: " + str(p / path))
-                    print("The running Grafana dashboard and saved source were not changed. Export live edits before importing.")
             elif args.command == "prepare-dashboard-style":
-                from usage_quality import enhance_dashboard
                 from dashboard_style import polish_dashboard
                 source=load(args.input or p/"grafana/dashboard.json")
-                candidate=polish_dashboard(enhance_dashboard(source))
+                candidate=polish_dashboard(source)
                 path="grafana/dashboard.visual-"+str(time.time_ns())+".json"
                 write_file(p,path,dumps(candidate))
                 print("Review/import visual candidate: "+str(p/path))

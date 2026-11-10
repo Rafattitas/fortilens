@@ -48,6 +48,11 @@ python3 setup.py connect-portal
 An already-used dashboard UID or a custom installation requires its actual UID;
 do not import the generated dashboard over customer edits as a migration shortcut.
 
+The one change FortiLens makes to a saved dashboard is to remove its former
+raw-log device-usage and received-record panels, on the first configuration apply
+after upgrading, and only where they still match what it generated. It saves the
+dashboard privately first. See [retired Grafana panels](../architecture/USAGE_QUALITY.md#retired-grafana-panels).
+
 ## Components and authentication
 
 The existing six monitoring services and optional accounting worker remain.

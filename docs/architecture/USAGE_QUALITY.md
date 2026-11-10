@@ -1,36 +1,14 @@
 # Legacy Loki diagnostics and offline sample auditing
 
-For persistent device/VLAN totals, use the [optional stateful engine](ACCOUNTING_ENGINE.md) and protected reports. This page documents the retained legacy Grafana/Loki path; its formulas and absolute-time-range behavior are not the new engine’s accounting contract.
+For persistent device/VLAN totals, use the [optional stateful engine](ACCOUNTING_ENGINE.md) and protected reports. Received-log evidence is on the console's **Data quality** page. This page documents the offline sample audit that remains from the legacy Grafana/Loki path; its formulas are not the engine's accounting contract.
 
-The dashboard now explains report periods and adds three received-record diagnostic tables: Today, Last 7 Days, and This Month. The diagnostics use the same relative panel periods as the matching usage tables. An absolute Grafana time range overrides relative periods. The dashboard timezone defines calendar boundaries.
+## Retired Grafana panels
 
-The diagnostic row is **collapsed by default**. Expand it when investigating a report; monthly scans can be expensive. It is not an alert or a background collector.
+Releases up to v0.5.0 generated seven Grafana panels that read raw syslog from Loki for a whole period every time they were shown: recorded device usage for Today, Last 7 Days and This Month (panel IDs 1, 41 and 2), their help text (42) and received-record counts for the same three periods (43 to 45). On a real installation the weekly and monthly panels took 30 to 55 seconds each, and 134 to 170 seconds when opened together. The console gateway closes a Grafana request after 30 seconds, so they showed errors, and they slow down further every day of a month. The console's Reports and Data quality pages show the same evidence from the accounting store, so these panels are no longer generated.
 
-Classification uses literal log-ID checks, ASCII digit checks and local template variables to avoid repeated regular-expression compilation and intermediate label formatting per record. Full strict parsing and the existing byte formulas are preserved. A read-only Loki-engine comparison checked 25 synthetic cases, including explicit zero, fallback, invalid numbers, unquoted IDs and a trailing parser error, against the previous classification query.
+A saved dashboard is otherwise never overwritten. On the first configuration apply after the upgrade, FortiLens removes these panels from the running dashboard, but only those that still match what it generated (ID, title and query). Rows they leave empty go with them, and the header text, if it is still the one FortiLens wrote, stops pointing at the removed sections. Every other panel, row, selector, variable and permission stays as it is, and a retired ID whose panel was edited is kept and reported. The dashboard as it was is saved first to a private `grafana/dashboard.before-retired-panels-*.json`, which can be imported in Grafana to restore it. The portable `start` and `import-dashboard` commands do the same for an existing dashboard. A dashboard that no longer exists is not re-created.
 
-New installations allow three minutes for a Loki query, 210 seconds for its HTTP response and 240 seconds in the Grafana Loki datasource. A historical weekly diagnostic reached the previous one-minute deadline, so query success alone on a short sample is insufficient. These are bounded timeouts, not precomputed summaries or a speed guarantee; several simultaneous large scans still compete for resources. Existing installations need a separately reviewed configuration update; importing a dashboard does not update datasource or Loki deadlines.
-
-## What the tables tell you
-
-Each table counts received records by classification: both delta fields, end-record cumulative fallback, missing master MAC, invalid/missing byte contributions, non-WAN role, unsupported event/format, non-forward traffic, missing VDOM, and parsing errors.
-
-Counts display as whole integers without K/M abbreviations, so the visible value can be compared directly with an audit reference.
-
-The selected VDOM applies to well-formed scoped records. Missing-VDOM and parser-error records are explicitly **unscoped** and can include other devices/VDOMs whose identity cannot be established. Other known VDOMs are excluded. FortiGate/SLA/WAN dropdown selections do not filter accounting.
-
-Diagnostics use strict logfmt parsing to flag malformed input. The existing byte formula remains unchanged and uses selective permissive parsing, so a malformed record might be accepted by the byte query while flagged by the diagnostic. These counts are not an independent certification of byte totals. Count categories that are absent are not filled with invented zeros; no results means unavailable evidence.
-
-Received records cannot establish complete traffic coverage. Silence might mean quiet traffic, failed delivery, or expired data. No coverage percentage or green completeness badge is inferred. The tables do not remove duplicates, restore missing logs, merge device identities, or redistribute cross-boundary sessions.
-
-## Existing installations
-
-New `init` installations include the new panels. For an existing installation:
-
-```bash
-python3 setup.py prepare-usage-quality
-```
-
-This creates a uniquely named local `grafana/dashboard.usage-quality-*.json` candidate from the saved generated dashboard. It preserves the source and never writes to running Grafana. Export/review your live edits before importing the candidate. `start` continues to preserve an existing dashboard. The same limitation applies to saved interface-selection candidates; use your latest reviewed dashboard as the basis for a manual merge when necessary.
+`prepare-dashboard-style` drops the retired panels from its local candidate too. The `prepare-usage-quality` command, which added the received-record panels to a saved dashboard, is removed.
 
 ## Offline audit of a normalized sample
 
@@ -71,8 +49,8 @@ The report always retains `coverage=UNKNOWN`. Exit code 2 means unavailable evid
 
 ## Verification
 
-Regression cases cover explicit zero delta, mixed-direction/end-only fallback, missing/invalid fields, replay candidates, IP/name changes, VDOM scope, no-data behavior, exact range edges, rolling week/calendar month, leap years, timezone boundaries, and crossing sessions. Existing measurement expressions are preserved.
+Regression cases cover explicit zero delta, mixed-direction/end-only fallback, missing/invalid fields, replay candidates, IP/name changes, VDOM scope, no-data behavior, exact range edges, rolling week/calendar month, leap years, timezone boundaries, and crossing sessions.
 
-A separate Linux Docker lab using the pinned Loki 3.7.0/Grafana 13.2.2 images classified 14 synthetic records, matched all expected buckets, and matched the existing usage query to an independent 1410-byte reference. The 30-template dashboard imported through APIv2 and its quality query executed through Grafana. Real full-period reconciliation remains pending; these fixture checks do not prove a complete live week/month.
+Retirement is covered by tests on a dashboard shaped like the v0.5.0 one: only matching panels are removed, edited ones and operator panels stay, emptied rows go, the update carries Grafana's `resourceVersion`, a second apply changes nothing and a missing dashboard is not re-created. It was also checked against the pinned Grafana image on the test server.
 
-References: [Loki parsing and label stages](https://grafana.com/docs/loki/latest/query/log_queries/), [Grafana panel time overrides](https://grafana.com/docs/grafana/latest/visualizations/panels-visualizations/query-transform-data/).
+References: [Loki parsing and label stages](https://grafana.com/docs/loki/latest/query/log_queries/).

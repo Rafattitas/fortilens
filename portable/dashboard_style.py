@@ -2,9 +2,107 @@
 from copy import deepcopy
 
 MUTED = "#A8B5C5"
-BASE_IDS = {1, 2, 3, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-            20, 21, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45}
+BASE_IDS = {3, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+            20, 21, 34, 35, 36, 37, 38, 39, 40}
+# Former device-usage tables (1, 41, 2), their help text (42) and received-record
+# counts (43-45). Each scanned raw Loki logs for its whole period on every view,
+# which outran the console gateway; the console's Reports and Data quality pages
+# show the same evidence from the accounting store.
+RETIRED_IDS = {1, 2, 41, 42, 43, 44, 45}
 HEADER_TITLE = "FortiLens / Network operations"
+HEADER_LEAD = ("Monitor the selected firewall and interfaces. **NO DATA** means telemetry is unavailable; "
+               "it does not mean zero usage.\n\n**Scope:** WAN selectors apply to performance and interface traffic. ")
+HEADER_CONTENT = HEADER_LEAD + ("Expand the sections below for availability, history and host resources. "
+    "Recorded device usage is in the FortiLens console under Reports, and received-log evidence under Data quality.")
+# The header up to v0.5.0 pointed at the retired sections.
+PREVIOUS_HEADER_CONTENT = HEADER_LEAD + ("Device reports use the selected VDOM. "
+    "Expand the sections below for weekly reports, history and data-quality evidence.")
+
+
+def panel_id(name):
+    prefix, _, number = name.partition("-")
+    return int(number) if prefix == "panel" and number.isdigit() else None
+
+
+def is_retired_panel(name, element):
+    """A retired panel exactly as FortiLens generated it: ID, title and content.
+
+    Anything else with one of those IDs is treated as an operator's panel."""
+    pid = panel_id(name)
+    spec = element.get("spec") if isinstance(element, dict) else None
+    if pid not in RETIRED_IDS or not isinstance(spec, dict) or spec.get("id") != pid:
+        return False
+    title = spec.get("title") if isinstance(spec.get("title"), str) else ""
+    data = spec.get("data") if isinstance(spec.get("data"), dict) else {}
+    queries = (data.get("spec") or {}).get("queries") or []
+    if pid == 42:
+        return title == "Reporting Periods & Evidence" and not queries
+    found = [((q.get("spec") or {}).get("query") or {}) for q in queries if isinstance(q, dict)]
+    exprs = [(query.get("spec") or {}).get("expr") for query in found]
+    if not found or len(found) != len(queries) or any(query.get("group") != "loki" for query in found) or not all(
+            isinstance(expr, str) and '{job="fortigate-syslog"}' in expr for expr in exprs):
+        return False
+    if pid in (43, 44, 45):
+        return title.startswith("Received Usage Records") and all("usage_quality" in expr for expr in exprs)
+    return title.startswith(("Recorded Internet Usage by Device", "Recorded device usage")) and all(
+        "mastersrcmac" in expr for expr in exprs)
+
+
+def references(value):
+    """Element names a layout subtree places on the dashboard."""
+    if isinstance(value, list):
+        return [name for child in value for name in references(child)]
+    if not isinstance(value, dict):
+        return []
+    if value.get("kind") == "ElementReference" and isinstance(value.get("name"), str):
+        return [value["name"]]
+    return [name for child in value.values() for name in references(child)]
+
+
+def drop_references(layout, names):
+    """Remove layout items for the given elements, and any row or tab left with none."""
+    if isinstance(layout, list):
+        for child in layout:
+            drop_references(child, names)
+        return
+    if not isinstance(layout, dict):
+        return
+    spec = layout.get("spec")
+    if not isinstance(spec, dict):
+        return
+    if isinstance(spec.get("items"), list):
+        spec["items"] = [i for i in spec["items"] if not set(references(i)) & names]
+    for key in ("rows", "tabs"):
+        if isinstance(spec.get(key), list):
+            kept = []
+            for child in spec[key]:
+                emptied = bool(set(references(child)) & names)
+                drop_references(child, names)
+                if not (emptied and not references(child)):
+                    kept.append(child)
+            spec[key] = kept
+    drop_references(spec.get("layout"), names)
+
+
+def retire_usage_panels(source):
+    """Remove the retired panels and their emptied rows; leave everything else as it is.
+
+    Returns the dashboard, the removed panel names and any retired IDs that were
+    left because their content no longer matches what FortiLens generated."""
+    result = deepcopy(source)
+    spec = result["spec"]
+    elements = spec["elements"]
+    removed = sorted(name for name, element in elements.items() if is_retired_panel(name, element))
+    kept = sorted(name for name in elements if name not in removed and panel_id(name) in RETIRED_IDS)
+    for name in removed:
+        del elements[name]
+    drop_references(spec.get("layout"), set(removed))
+    # Update the generated header only if it is still word for word what FortiLens wrote.
+    header = ((elements.get("panel-46") or {}).get("spec") or {})
+    options = (((header.get("vizConfig") or {}).get("spec") or {}).get("options") or {})
+    if removed and header.get("title") == HEADER_TITLE and options.get("content") == PREVIOUS_HEADER_CONTENT:
+        options["content"] = HEADER_CONTENT
+    return result, removed, kept
 
 
 def item(pid, x, y, width, height):
@@ -26,7 +124,8 @@ def override(name, **properties):
 
 
 def polish_dashboard(source):
-    result = deepcopy(source)
+    # A saved dashboard from an older release still carries the retired panels.
+    result = retire_usage_panels(source)[0]
     spec, elements = result["spec"], result["spec"]["elements"]
     expected = {"panel-" + str(i) for i in BASE_IDS}
     if set(elements) - expected - {"panel-46"} or expected - set(elements):
@@ -82,20 +181,6 @@ def polish_dashboard(source):
                 rule["properties"].extend([{"id": "decimals", "value": 1},
                     {"id": "color", "value": {"mode": "fixed", "fixedColor": "blue" if rule["matcher"]["options"] == "Download" else "purple"}}])
 
-    for pid in (1, 2, 41):
-        p = panel(pid)
-        p["title"] = {1: "Recorded device usage / Today", 41: "Recorded device usage / Last 7 days", 2: "Recorded device usage / This month"}[pid]
-        config = fields(pid)
-        config["defaults"].update(unit="none", decimals=2, noValue="NO DATA",
-            color={"mode": "fixed", "fixedColor": "blue"},
-            thresholds={"mode": "absolute", "steps": [{"value": 0, "color": "blue"}]})
-        config["overrides"] = [override("Name", custom__minWidth=180),
-            override("IP Address", custom__width=160), override("MAC Address", custom__width=180),
-            override("Internet Usage", displayName="Total (GB)", custom__width=180, custom__align="right",
-                     custom__cellOptions={"type": "gauge", "mode": "basic", "valueDisplayMode": "text"})]
-        p["vizConfig"]["spec"]["options"] = {"cellHeight": "md", "showHeader": True,
-            "sortBy": [{"desc": True, "displayName": "Total (GB)"}]}
-
     for pid in (7, 8):
         p = panel(pid)
         p["title"] = "Interface traffic / " + ("Today" if pid == 7 else "This month")
@@ -107,10 +192,6 @@ def polish_dashboard(source):
         config["overrides"] = [override("WAN", displayName="Interface", custom__width=180),
             override("Usage (GB)", displayName="Total (GB)", custom__align="right",
                      custom__cellOptions={"type": "gauge", "mode": "basic", "valueDisplayMode": "text"})]
-    for pid in (43, 44, 45):
-        config = fields(pid)
-        config["defaults"].update(unit="none", decimals=0, noValue="NO DATA")
-        config["overrides"] = [override("Received records", custom__width=180, custom__align="right")]
     for pid in (13, 35, 36, 37):
         p = panel(pid)
         opts = p["vizConfig"]["spec"]["options"]
@@ -125,21 +206,16 @@ def polish_dashboard(source):
     elements["panel-46"] = {"kind": "Panel", "spec": {"id": 46, "title": HEADER_TITLE, "description": "Dashboard navigation and scope at a glance.", "links": [],
         "data": {"kind": "QueryGroup", "spec": {"queries": [], "transformations": [], "queryOptions": {}}},
         "vizConfig": {"kind": "VizConfig", "group": "text", "version": "13.2.2", "spec": {
-            "options": {"mode": "markdown", "content": "Monitor the selected firewall and interfaces. **NO DATA** means telemetry is unavailable; it does not mean zero usage.\n\n**Scope:** WAN selectors apply to performance and interface traffic. Device reports use the selected VDOM. Expand the sections below for weekly reports, history and data-quality evidence."},
+            "options": {"mode": "markdown", "content": HEADER_CONTENT},
             "fieldConfig": {"defaults": {}, "overrides": []}}}}}
     spec["layout"] = {"kind": "RowsLayout", "spec": {"rows": [
         row("Start here", [item(46, 0, 0, 24, 4)], hidden=True),
         row("Overview", [item(9, 0, 0, 6, 4), item(14, 6, 0, 6, 4), item(10, 12, 0, 4, 4), item(11, 16, 0, 4, 4), item(12, 20, 0, 4, 4)]),
         row("WAN quality / ${wan}", [item(18, 0, 0, 6, 4), item(19, 6, 0, 6, 4), item(20, 12, 0, 6, 4), item(21, 18, 0, 6, 4)], repeat=True),
         row("Traffic overview", [item(13, 0, 0, 24, 8), item(7, 0, 8, 12, 7), item(8, 12, 8, 12, 7)]),
-        row("Device usage / Today", [item(1, 0, 0, 24, 10)]),
-        row("Device usage / Last 7 days", [item(41, 0, 0, 24, 12)], collapsed=True),
-        row("Device usage / This month", [item(2, 0, 0, 24, 12)], collapsed=True),
         row("Availability & sample coverage", [item(38, 0, 0, 8, 6), item(39, 8, 0, 8, 6), item(40, 16, 0, 8, 6)], collapsed=True),
         row("Performance history / Last 30 days", [item(34, 0, 0, 24, 6), item(35, 0, 6, 12, 8), item(36, 12, 6, 12, 8), item(37, 0, 14, 24, 7)], collapsed=True),
         row("Physical interface / ${wan}", [item(3, 0, 0, 24, 5)], collapsed=True, repeat=True),
         row("Monitoring host / Resources", [item(15, 0, 0, 8, 4), item(16, 8, 0, 8, 4), item(17, 16, 0, 8, 4)], collapsed=True),
-        row("Usage Data Quality / Received records", [item(43, 0, 0, 24, 8), item(44, 0, 8, 24, 8), item(45, 0, 16, 24, 8)], collapsed=True),
-        row("Help / Reporting periods & evidence", [item(42, 0, 0, 24, 9)], collapsed=True),
     ]}}
     return result
