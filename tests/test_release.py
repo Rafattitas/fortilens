@@ -8,6 +8,7 @@ import io
 import json
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -48,6 +49,24 @@ class ReleaseTests(unittest.TestCase):
                 self.assertIn(name, packaged)
                 self.assertEqual(packaged[name], (ROOT / name).read_bytes())
                 self.assertIn("!" + name, context_rules)
+
+    def test_every_tracked_file_is_packaged_or_named_as_source_only(self):
+        if not (ROOT / ".git").exists() or shutil.which("git") is None:
+            self.skipTest("Needs the Git checkout; an extracted archive has no file list")
+        listing = subprocess.run(
+            ["git", "ls-files", "-z"], cwd=ROOT, check=True, capture_output=True, timeout=30
+        )
+        tracked = {name for name in listing.stdout.decode("utf-8").split("\0") if name}
+        packaged = set(release.full_sources(ROOT))
+        source_only = set(release.SOURCE_ONLY)
+        self.assertEqual(len(source_only), len(release.SOURCE_ONLY), "SOURCE_ONLY has duplicates")
+        self.assertEqual(sorted(source_only & packaged), [], "Packaged files are not source-only")
+        self.assertEqual(sorted(source_only - tracked), [], "SOURCE_ONLY names untracked files")
+        self.assertEqual(
+            sorted(tracked - packaged - source_only),
+            [],
+            "Tracked files missing from the full archive; add them to PUBLIC_FILES or SOURCE_ONLY",
+        )
 
     def test_versions_are_semantic_and_cannot_inject_paths(self):
         for value in ("v0.3.0", "v1.2.3-rc.1", "v1.0.0+build.2"):

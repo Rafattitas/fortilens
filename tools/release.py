@@ -132,6 +132,7 @@ PUBLIC_FILES = (
     "tools/release.py",
     "tools/check_repository.py",
     "tools/capture_screenshots.cjs",
+    "tools/render_icons.cjs",
     "tools/build_demo.cjs",
     "tools/check_demo.cjs",
     "demo/fixtures.js",
@@ -178,6 +179,25 @@ PUBLIC_FILES = (
     "tests/test_usage_quality.py",
     "tests/test_usage_service.py",
     "tests/test_wan_health.py",
+    "tests/test_applications.py",
+    "tests/test_clock_skew.py",
+    "tests/test_favicon.py",
+    "tests/test_fortios_compat.py",
+    "tests/test_live.py",
+    "tests/test_poll_window.py",
+    "tests/test_rollup_batch.py",
+    "tests/test_source_binding.py",
+    "tests/test_timezones.py",
+    "tests/test_upgrade_host.py",
+    "tests/test_websites.py",
+)
+
+# Tracked files deliberately kept out of every release package. A unit test
+# compares the two lists with `git ls-files`, so a new tracked file must be
+# added to PUBLIC_FILES (or the installer list) or named here.
+SOURCE_ONLY = (
+    "docs/design/a-precision-prototype.html",
+    "docs/design/backend-gaps.md",
 )
 
 

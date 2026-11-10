@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Release packaging
+
+- The full source archive now includes the 11 test files and the icon
+  rendering tool that were added after the archive list was last updated. The
+  v0.6.0 archive left them out; the application and installer files were
+  complete, but the packaged-source check ran 30 of 41 test modules.
+- A unit test compares the archive list with `git ls-files`. Every tracked file
+  must be packaged or named in `SOURCE_ONLY` in `tools/release.py`, so a new
+  file can no longer be left out silently.
+
 ## v0.6.0 — 2026-11-10 — FortiGate-time accounting days, clearer Diagnostics and sturdier reports
 
 ### Time zones

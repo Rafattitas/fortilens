@@ -75,7 +75,10 @@ SQLite databases, customer exports, private site screenshots, Git history and
 unlisted notes are excluded. Only the explicitly reviewed synthetic
 [documentation captures](../design/screenshots/README.md) are included in the full
 source archive; they are excluded from installer and Docker runtime inputs.
-Missing files and symlinks fail the build. Adding a required
+A unit test compares the packaged list with `git ls-files`: every tracked file
+must be in the full archive or named in `SOURCE_ONLY` (currently the A Precision
+prototype and its backend notes). Add a new test or tool to `PUBLIC_FILES` in the
+same change. Missing files and symlinks fail the build. Adding a required
 runtime file requires reviewing the installer, Docker and release allowlists
 together and extending their regression checks; never broaden a directory copy.
 

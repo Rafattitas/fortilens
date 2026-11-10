@@ -249,6 +249,23 @@ Not verified: entry and reload of the live console in a browser (the test host
 uses a self-signed certificate), and totals against an independently known
 transfer.
 
+### Record: 2026-11-10, release `v0.6.0` from `bf99856`
+
+- CI on `bf99856` failed once in the Docker step of `Web management / Python
+  3.12` during a GitHub incident (the commit changed only CHANGELOG and README).
+  The re-run passed; the other checks passed on the first run.
+- The tag was created on `bf99856` and the release published. The release
+  workflow rebuilt both archives from the tag, ran the packaged-source checks and
+  attached them. Downloaded assets matched `SHA256SUMS.txt`; README download links
+  returned 200.
+- The ZIP matched the candidate built on the test server byte for byte. The full
+  archive differs only in `RELEASE-MANIFEST.json`, which records the Git revision
+  when built from a checkout.
+- Found afterwards: the full archive left out 11 test modules and
+  `tools/render_icons.cjs`, so the packaged-source check ran 30 of 41 test
+  modules. Runtime and installer files were complete. Fixed for the next release;
+  published assets are not replaced.
+
 ## Real FortiGate source checks
 
 When an authorized source is reachable, run the optional read-only compatibility
