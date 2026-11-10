@@ -202,6 +202,23 @@ class Host:
     def tag(self, source, target):
         self.run("docker", "image", "tag", source, target, timeout=60)
 
+    def image_tags(self, repository):
+        result = self.run(
+            "docker",
+            "image",
+            "ls",
+            "--format",
+            "{{.Repository}}:{{.Tag}}",
+            repository,
+            check=False,
+            timeout=60,
+        )
+        return result.stdout.split() if result.returncode == 0 else []
+
+    def untag(self, image):
+        # Removes the name only; Docker keeps any layer another image still uses.
+        self.run("docker", "image", "rm", image, check=False, timeout=120)
+
     def wait_healthy(self, service):
         name = self.registry["project"] + "-" + service + "-1"
         state = "missing"
@@ -312,6 +329,24 @@ def refresh_stack(host, source, stack, changes, project, label):
         for service in shared:
             host.compose("up", "-d", "--no-deps", "--force-recreate", service, timeout=300)
             host.wait_healthy(service)
+
+
+def prune_previous_images(host, project, keep):
+    """Remove the image copies kept for upgrades before the one named `keep`.
+
+    Every upgrade tags the image it replaces as `-pre-<time>`. Only the latest
+    can be rolled back to, so older tags are dead weight that grows with every
+    upgrade. Best effort: a failure here never fails a finished upgrade.
+    """
+    removed = []
+    for repository in sorted(set(IMAGES.values())):
+        pattern = re.compile(re.escape(repository + ":" + project) + r"-pre-(\d{8}T\d{6}Z)")
+        for image in host.image_tags(repository):
+            match = pattern.fullmatch(image)
+            if match and match.group(1) != keep:
+                host.untag(image)
+                removed.append(image)
+    return removed
 
 
 def restore_stack(host, stack, folder, journal):
@@ -463,6 +498,12 @@ def upgrade(source, prefix, host=None, now=None):
     journal["status"] = "COMPLETE"
     journal["step"] = "done"
     write_journal(control, journal)
+    try:
+        prune_previous_images(host, registry["project"], label)
+    except (Exception, UpgradeError):
+        # The upgrade is complete; a host error (UpgradeError is a SystemExit)
+        # while tidying old image names must not turn it into a failure.
+        pass
     print(
         "FortiLens upgraded. Management restarted; refreshed services: "
         + (", ".join(affected(changes)) or "none")

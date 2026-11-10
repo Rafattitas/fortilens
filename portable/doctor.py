@@ -4,6 +4,7 @@ import http.client
 import json
 import math
 from pathlib import Path
+import re
 import socket
 import ssl
 import subprocess
@@ -23,10 +24,28 @@ def check(name, status, message, code, action="", **evidence):
             "action": action, "evidence": evidence}
 
 
+def registered_project(p):
+    """The Compose project that actually runs this installation's compose file, if exactly one does.
+
+    The CLI names its project after the installation directory. The web console
+    registers its own name, and an adopted stack keeps the one it was started
+    with, so the directory-derived name finds no containers there. Compose
+    labels every container with the compose file it came from. Read-only.
+    """
+    r = subprocess.run(["docker", "ps", "--all", "--filter",
+                        "label=com.docker.compose.project.config_files=" + str(p / "compose.yaml"),
+                        "--format", '{{.Label "com.docker.compose.project"}}'],
+                       capture_output=True, text=True, timeout=10)
+    names = set(r.stdout.split()) if r.returncode == 0 else set()
+    if len(names) != 1:
+        return None
+    name = names.pop()
+    return name if re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,62}", name) else None
+
+
 def service_checks(p, compose_command, services=SERVICES):
-    try:
-        r = subprocess.run(compose_command(p, "ps", "--all", "--format", "json"),
-                           capture_output=True, text=True, timeout=10)
+    def rows_for(command):
+        r = subprocess.run(command, capture_output=True, text=True, timeout=10)
         if r.returncode:
             raise ValueError("docker_unavailable")
         text = r.stdout.strip()
@@ -35,6 +54,16 @@ def service_checks(p, compose_command, services=SERVICES):
             raise ValueError("docker_response_invalid")
         if any(not isinstance(x.get('Name',''),str) or not isinstance(x.get('Service',''),str) for x in rows):
             raise ValueError('docker_response_invalid')
+        return rows
+    try:
+        rows = rows_for(compose_command(p, "ps", "--all", "--format", "json"))
+        if not rows:
+            # Nothing under the CLI's own project name: the stack may run under a
+            # name registered by the web console or kept from an adopted deployment.
+            project = registered_project(p)
+            if project:
+                rows = rows_for(["docker", "compose", "-p", project, "-f", str(p / "compose.yaml"),
+                                 "ps", "--all", "--format", "json"])
     except (OSError, ValueError, subprocess.TimeoutExpired):
         return [check("service:" + name, "UNKNOWN", name + ": Docker status could not be read.",
                       "docker_unavailable", "Check Docker availability and your account permissions. This does not prove the service is stopped.") for name in services]

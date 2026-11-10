@@ -56,6 +56,17 @@
   range. When the console's 30-second limit is reached it says so and points to
   Diagnostics, instead of "Monitoring is unavailable".
 
+### Upgrades and the CLI
+
+- An upgrade now removes the `-pre-<time>` image copies left by earlier
+  upgrades and keeps only its own, the one a rollback uses. A test server had
+  collected 28 of them.
+- `setup.py doctor` finds the services of a web-managed or adopted installation.
+  It looked only under the CLI's own Compose project name and reported "no
+  container found" for every service while they were all running. It now reads
+  the project name from the containers started from the installation's compose
+  file.
+
 ### Grafana
 
 - Removed the Grafana panels that read raw syslog from Loki for a whole period:
