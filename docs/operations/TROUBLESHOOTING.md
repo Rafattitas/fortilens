@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Run `python3 setup.py doctor --json` from the package directory, with `--output /path/to/installation` when needed. It is read-only. Credentials, raw logs and upstream error bodies are excluded. Review the specific check and suggested action; a successful check does not certify end-to-end traffic completeness.
+Run `python3 setup.py doctor --json` from the package directory, with `--output /path/to/installation` when needed. It is read-only. Credentials, raw logs and upstream error bodies are excluded. Review the specific check and suggested action; a successful check does not certify end-to-end traffic completeness. The [Diagnostics reference](DIAGNOSTICS.md) explains every check by name.
 
 | Symptom | Interpretation and next check |
 |---|---|

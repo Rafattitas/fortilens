@@ -225,6 +225,30 @@ unless specifically needed and authorized for the live change. Do not stop live
 Grafana/Loki, inject logs, trigger notifications, delete volumes or change firewall
 policies to prove a test case. Document the distinction in the delivery report.
 
+### Record: 2026-11-10, source head `772c7bf`
+
+On the test installation (web-managed, FortiOS 7.2.14 source), after
+`install.sh --upgrade` from this head:
+
+- The unit suite (601 tests) and CI passed on the head before deployment.
+- Management restarted and the accounting service and gateway returned healthy.
+  Settings, secrets and data volumes were not changed.
+- Today, This month and Recent 5 minutes reports answered in under a second.
+  Before the fix, with the server clock about nine minutes behind the FortiGate,
+  Today took 215 seconds and requests queued behind it.
+- `clock_offset` reported PASS after the server clock was corrected.
+- The saved Grafana dashboard lost the seven retired raw-log panels and kept its
+  other 24, its folder and its permissions. The previous dashboard was saved
+  privately first.
+- Read-only comparison for 2026-11-09, 08:00 to 22:00 local: download bytes in
+  the received traffic logs were 84% to 107% of the WAN interface counters in
+  every 30-minute window. In four readings the FortiGate's realtime per-device
+  estimates explained 19% to 42% of the link total.
+
+Not verified: entry and reload of the live console in a browser (the test host
+uses a self-signed certificate), and totals against an independently known
+transfer.
+
 ## Real FortiGate source checks
 
 When an authorized source is reachable, run the optional read-only compatibility

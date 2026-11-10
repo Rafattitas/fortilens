@@ -37,6 +37,7 @@ Read [release preparation](development/RELEASING.md) before choosing or building
 | [Accounting engine contract](architecture/ACCOUNTING_ENGINE.md) | Identity, direction, counters, replay/late-data handling, exact VLAN evidence and calendar periods. |
 | [Compact accounting storage](architecture/COMPACT_ACCOUNTING.md) | Optional lossless ledger layout, verified offline copy, acceptance checks and matched runtime/database rollback. |
 | [Legacy usage diagnostics](architecture/USAGE_QUALITY.md) | Retired Grafana usage panels and bounded offline normalized-sample auditing. |
+| [Reporting API](architecture/REPORTING_API.md) | The read-only endpoints behind the console's pages: periods, parameters, response fields and error codes. |
 | [Project context](development/PROJECT_CONTEXT.md) | Maintainer source map, supported defaults and invariants; not a deployment snapshot. |
 
 ## Operations and troubleshooting
@@ -46,6 +47,8 @@ Read [release preparation](development/RELEASING.md) before choosing or building
 | [Capacity and sizing](operations/CAPACITY.md) | Measured processing rate, storage per record and sizing by number of devices. |
 | [FortiOS compatibility](operations/COMPATIBILITY.md) | Checked FortiOS versions, what depends on the version, and how a different version is shown. |
 | [Website usage](operations/WEBSITES.md) | Opt-in per-device website usage: what is kept, where it comes from, coverage and retention. |
+| [Console guide](getting-started/CONSOLE_GUIDE.md) | What each console page shows, where its numbers come from, and what to open when the Internet is slow. |
+| [Diagnostics reference](operations/DIAGNOSTICS.md) | Every Diagnostics check: what it looks at, what each status means and what to do. |
 | [Troubleshooting](operations/TROUBLESHOOTING.md) | Read-only doctor evidence, missing telemetry, processing lag and storage failures. |
 | [Native FortiGate UDP reception](operations/SYSLOG_NATIVE_UDP.md) | Explicit managed native UDP profile, bounded delivery evidence and the separate legacy rsyslog alternative. |
 | [Upgrade from v0.1.0](operations/UPGRADE.md) | Reviewed accounting migration and hash-guarded configuration rollback. |
