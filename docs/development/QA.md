@@ -96,7 +96,7 @@ From the repository root:
 python -m pip install -r requirements-dev.txt
 python -m ruff check .
 python -m ruff check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py --extend-select I
-python -m ruff format --check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py
+python -m ruff format --check .
 python tools/check_repository.py
 python -m coverage run -m unittest discover -s tests -v
 python -m coverage report -m
@@ -104,8 +104,8 @@ python -m coverage xml
 python -m pip_audit --strict -r requirements-dev.txt
 ```
 
-Ruff formatting/import-order enforcement starts with the new tooling/tests;
-runtime-wide formatting is a separate change. The repository checker validates
+Ruff formatting is enforced for every Python file. Import-order enforcement
+starts with the new tooling/tests. The repository checker validates
 local documentation links and repository configuration without contacting a
 firewall. Coverage reports executed paths and does not prove live compatibility;
 dependency-audit findings require a separately reviewed dependency update.

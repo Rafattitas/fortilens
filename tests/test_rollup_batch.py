@@ -26,11 +26,19 @@ class RollupBatchTests(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.addCleanup(self.folder.cleanup)
-        self.store = a.Store(Path(self.folder.name) / "usage.sqlite", CONFIG, INVENTORY, storage_format="compact")
+        self.store = a.Store(
+            Path(self.folder.name) / "usage.sqlite", CONFIG, INVENTORY, storage_format="compact"
+        )
         self.addCleanup(self.store.close)
 
     def test_failed_batch_changes_nothing_and_the_next_batch_is_complete(self):
-        self.store.ingest([labelled(sessionid="a1", appid="41540", app="ChatGPT", appcat="GenAI", osname="Android")])
+        self.store.ingest(
+            [
+                labelled(
+                    sessionid="a1", appid="41540", app="ChatGPT", appcat="GenAI", osname="Android"
+                )
+            ]
+        )
         before = dump(self.store)
         calls = {"n": 0}
         original = self.store.ledger.insert_fact
@@ -41,10 +49,23 @@ class RollupBatchTests(unittest.TestCase):
                 raise RuntimeError("synthetic failure")
             return original(fact, session)
 
-        batch = [labelled(sessionid="b1", appid="52618", app="Claude", appcat="GenAI", mastersrcmac="02:00:00:00:00:07",
-                          osname="Windows"),
-                 labelled("2026-10-20T12:05:00Z", sessionid="b2", appid="41540", app="ChatGPT", appcat="GenAI")]
-        with mock.patch.object(self.store.ledger, "insert_fact", fail_later), self.assertRaises(RuntimeError):
+        batch = [
+            labelled(
+                sessionid="b1",
+                appid="52618",
+                app="Claude",
+                appcat="GenAI",
+                mastersrcmac="02:00:00:00:00:07",
+                osname="Windows",
+            ),
+            labelled(
+                "2026-10-20T12:05:00Z", sessionid="b2", appid="41540", app="ChatGPT", appcat="GenAI"
+            ),
+        ]
+        with (
+            mock.patch.object(self.store.ledger, "insert_fact", fail_later),
+            self.assertRaises(RuntimeError),
+        ):
             self.store.ingest(batch)
         self.assertEqual(dump(self.store), before)
         self.assertIsNone(self.store._batch)
@@ -56,13 +77,25 @@ class RollupBatchTests(unittest.TestCase):
         self.assertEqual(len(report["devices"]), 2)
 
     def test_one_batch_and_many_small_batches_store_the_same_rows(self):
-        rows = [labelled("2026-10-20T12:%02d:00Z" % m, sessionid="s%d" % (m % 3), appid=str(41540 + m % 2),
-                         app=("ChatGPT", "Claude")[m % 2], appcat="GenAI", mastersrcmac="02:00:00:00:00:0%d" % (m % 3),
-                         logid="0000000013" if m in (7, 8) else "0000000020", sentdelta=str(100 + m), rcvddelta=str(900 + m))
-                for m in range(10)]
+        rows = [
+            labelled(
+                "2026-10-20T12:%02d:00Z" % m,
+                sessionid="s%d" % (m % 3),
+                appid=str(41540 + m % 2),
+                app=("ChatGPT", "Claude")[m % 2],
+                appcat="GenAI",
+                mastersrcmac="02:00:00:00:00:0%d" % (m % 3),
+                logid="0000000013" if m in (7, 8) else "0000000020",
+                sentdelta=str(100 + m),
+                rcvddelta=str(900 + m),
+            )
+            for m in range(10)
+        ]
         self.store.ingest(rows)
         whole = dump(self.store)
-        other = a.Store(Path(self.folder.name) / "other.sqlite", CONFIG, INVENTORY, storage_format="compact")
+        other = a.Store(
+            Path(self.folder.name) / "other.sqlite", CONFIG, INVENTORY, storage_format="compact"
+        )
         self.addCleanup(other.close)
         for row in rows:
             other.ingest([row])

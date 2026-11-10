@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """FortiLens single-device setup. Standard library only; secrets stay in local/."""
+
 import argparse
 import base64
 from copy import deepcopy
@@ -26,22 +27,48 @@ UID = "forti-monitor"
 PROM_UID = "fm-prometheus"
 LOKI_UID = "fm-loki"
 DEFAULTS = {
-    "schema_version": 1, "site_name": "My company", "fortigate_host": "",
-    "api_port": 443, "api_tls_verify": True, "api_ca_file": "",
-    "vdom": "root", "sla": "", "wan_interfaces": [],
+    "schema_version": 1,
+    "site_name": "My company",
+    "fortigate_host": "",
+    "api_port": 443,
+    "api_tls_verify": True,
+    "api_ca_file": "",
+    "vdom": "root",
+    "sla": "",
+    "wan_interfaces": [],
     "confirmed_wan_interfaces": [],
-    "syslog_port": 1514, "syslog_protocol": "tcp", "syslog_format": "rfc5424",
-    "syslog_bind": "0.0.0.0", "grafana_port": 3001,
+    "syslog_port": 1514,
+    "syslog_protocol": "tcp",
+    "syslog_format": "rfc5424",
+    "syslog_bind": "0.0.0.0",
+    "grafana_port": 3001,
     "syslog_network": "bridge",
-    "grafana_bind": "127.0.0.1", "timezone": "browser",
-    "accounting_enabled": False, "accounting_websites": False, "accounting_timezone": "fortigate", "source_id": "dedicated-listener", "expected_devid": "",
-    "usage_bind": "127.0.0.1", "usage_port": 3002, "public_usage_url": "",
-    "portal_enabled": False, "portal_secure_cookie": False,
-    "accounting_poll_seconds": 30, "accounting_backfill_days": 31, "accounting_step_seconds": 120,
-    "accounting_overlap_seconds": 30, "accounting_settle_seconds": 5, "accounting_ledger_days": 3,
-    "accounting_summary_days": 400, "accounting_max_bytes": 4294967296, "accounting_metrics_rows": 5000,
-    "loki_receive_timestamps": False, "route_lookup_enabled": True, "route_probe_destination": "1.1.1.1",
-    "wan_latency_warning_ms": 150, "wan_loss_warning_pct": 5,
+    "grafana_bind": "127.0.0.1",
+    "timezone": "browser",
+    "accounting_enabled": False,
+    "accounting_websites": False,
+    "accounting_timezone": "fortigate",
+    "source_id": "dedicated-listener",
+    "expected_devid": "",
+    "usage_bind": "127.0.0.1",
+    "usage_port": 3002,
+    "public_usage_url": "",
+    "portal_enabled": False,
+    "portal_secure_cookie": False,
+    "accounting_poll_seconds": 30,
+    "accounting_backfill_days": 31,
+    "accounting_step_seconds": 120,
+    "accounting_overlap_seconds": 30,
+    "accounting_settle_seconds": 5,
+    "accounting_ledger_days": 3,
+    "accounting_summary_days": 400,
+    "accounting_max_bytes": 4294967296,
+    "accounting_metrics_rows": 5000,
+    "loki_receive_timestamps": False,
+    "route_lookup_enabled": True,
+    "route_probe_destination": "1.1.1.1",
+    "wan_latency_warning_ms": 150,
+    "wan_loss_warning_pct": 5,
 }
 
 
@@ -50,7 +77,9 @@ class SetupError(Exception):
 
 
 OPTIONAL_EXPORTER_PROBES = (
-    'Log/Fortianalyzer/Status', 'System/Interface/Transceivers', 'System/SensorInfo',
+    "Log/Fortianalyzer/Status",
+    "System/Interface/Transceivers",
+    "System/SensorInfo",
 )
 
 
@@ -60,35 +89,45 @@ def exclude_optional_probes(record, exclusions):
     Names match the pinned exporter 1.25 registry. Callers verify capabilities
     before explicitly selecting exclusions. Credentials and existing rules stay.
     """
-    if (not isinstance(record, dict) or not isinstance(exclusions, list)
-            or any(name not in OPTIONAL_EXPORTER_PROBES for name in exclusions)):
-        raise SetupError('Choose only individually verified optional exporter probes')
+    if (
+        not isinstance(record, dict)
+        or not isinstance(exclusions, list)
+        or any(name not in OPTIONAL_EXPORTER_PROBES for name in exclusions)
+    ):
+        raise SetupError("Choose only individually verified optional exporter probes")
     result = deepcopy(record)
-    profile = result.get('probes')
-    if profile is None:profile = {}
-    if not isinstance(profile, dict) or set(profile)-{'include','exclude'}:
-        raise SetupError('Review the existing exporter probe policy before changing it')
+    profile = result.get("probes")
+    if profile is None:
+        profile = {}
+    if not isinstance(profile, dict) or set(profile) - {"include", "exclude"}:
+        raise SetupError("Review the existing exporter probe policy before changing it")
     for names in profile.values():
-        if (not isinstance(names, list) or any(not isinstance(name,str) or len(name)>128
-                or not re.fullmatch(r'[A-Za-z0-9_/-]*',name) for name in names)):
-            raise SetupError('Review the existing exporter probe policy before changing it')
+        if not isinstance(names, list) or any(
+            not isinstance(name, str)
+            or len(name) > 128
+            or not re.fullmatch(r"[A-Za-z0-9_/-]*", name)
+            for name in names
+        ):
+            raise SetupError("Review the existing exporter probe policy before changing it")
     if exclusions:
-        profile.setdefault('exclude',[])
-        profile['exclude'].extend(name for name in exclusions if name not in profile['exclude'])
-        result['probes'] = profile
+        profile.setdefault("exclude", [])
+        profile["exclude"].extend(name for name in exclusions if name not in profile["exclude"])
+        result["probes"] = profile
     return result
 
 
 def exporter_probe_exclusions(installation, config):
     """Read generated JSON profiles only; unknown/custom formats stay unknown."""
     try:
-        record=load(Path(installation)/'secrets/fortigate-key.yaml')[target_url(config)]
-        profile=record.get('probes')
-        if profile is None:return []
-        if not isinstance(profile,dict):return None
-        names=profile.get('exclude',[])
-        return names if isinstance(names,list) and all(isinstance(x,str) for x in names) else None
-    except (OSError,ValueError,KeyError,TypeError,AttributeError):
+        record = load(Path(installation) / "secrets/fortigate-key.yaml")[target_url(config)]
+        profile = record.get("probes")
+        if profile is None:
+            return []
+        if not isinstance(profile, dict):
+            return None
+        names = profile.get("exclude", [])
+        return names if isinstance(names, list) and all(isinstance(x, str) for x in names) else None
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return None
 
 
@@ -121,28 +160,40 @@ def validate_config(raw):
     except ValueError:
         if not re.fullmatch(r"(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?", host):
             raise SetupError("fortigate_host must be an IP or hostname, without https:// or a port")
-        if any(not part or len(part) > 63 or part.startswith("-") or part.endswith("-") for part in host.split(".")):
+        if any(
+            not part or len(part) > 63 or part.startswith("-") or part.endswith("-")
+            for part in host.split(".")
+        ):
             raise SetupError("Invalid hostname")
     c["fortigate_host"] = host
     for key in ["api_port", "syslog_port", "grafana_port", "usage_port"]:
         port(c[key], key)
     if type(c["api_tls_verify"]) is not bool:
         raise SetupError("api_tls_verify must be true or false")
-    if c["syslog_protocol"] not in ["tcp", "udp"] or c["syslog_format"] not in ["rfc5424", "rfc3164", "fortigate"]:
+    if c["syslog_protocol"] not in ["tcp", "udp"] or c["syslog_format"] not in [
+        "rfc5424",
+        "rfc3164",
+        "fortigate",
+    ]:
         raise SetupError("Supported syslog: tcp/udp and rfc5424/rfc3164/fortigate")
     if c["syslog_format"] == "fortigate" and c["syslog_protocol"] != "udp":
         raise SetupError("Native FortiGate syslog requires UDP")
-    if c['syslog_network'] not in ('bridge', 'host'):
-        raise SetupError('syslog_network must be bridge or host')
-    if c['syslog_network'] == 'host':
-        if c['syslog_format'] != 'fortigate' or c['syslog_protocol'] != 'udp':
-            raise SetupError('Host networking requires native FortiGate UDP')
+    if c["syslog_network"] not in ("bridge", "host"):
+        raise SetupError("syslog_network must be bridge or host")
+    if c["syslog_network"] == "host":
+        if c["syslog_format"] != "fortigate" or c["syslog_protocol"] != "udp":
+            raise SetupError("Host networking requires native FortiGate UDP")
         try:
-            ipaddress.IPv4Address(c['fortigate_host'])
+            ipaddress.IPv4Address(c["fortigate_host"])
         except ValueError:
-            raise SetupError('Host reception requires the actual FortiGate IPv4 address') from None
-        if c['syslog_port'] >= 65535 or {c['syslog_port'], c['syslog_port']+1} & {c['grafana_port'], c['usage_port']}:
-            raise SetupError('Native host TCP handoff and adjacent health ports must be free and distinct from UI ports')
+            raise SetupError("Host reception requires the actual FortiGate IPv4 address") from None
+        if c["syslog_port"] >= 65535 or {c["syslog_port"], c["syslog_port"] + 1} & {
+            c["grafana_port"],
+            c["usage_port"],
+        }:
+            raise SetupError(
+                "Native host TCP handoff and adjacent health ports must be free and distinct from UI ports"
+            )
     for key in ["grafana_bind", "syslog_bind", "usage_bind"]:
         try:
             ipaddress.IPv4Address(c[key])
@@ -160,47 +211,85 @@ def validate_config(raw):
     for key in ["wan_interfaces", "confirmed_wan_interfaces"]:
         if not isinstance(c[key], list) or len(c[key]) > 64:
             raise SetupError(key + " must be a list (maximum 64)")
-        if any(not isinstance(v, str) or not re.fullmatch(r"[A-Za-z0-9_.:@+-]{1,80}", v) for v in c[key]):
+        if any(
+            not isinstance(v, str) or not re.fullmatch(r"[A-Za-z0-9_.:@+-]{1,80}", v)
+            for v in c[key]
+        ):
             raise SetupError("Invalid WAN interface name")
         c[key] = list(dict.fromkeys(c[key]))
     if c["wan_interfaces"] and not c["sla"]:
         raise SetupError("Set the SLA name when supplying fallback WAN interfaces")
     if c["api_ca_file"] and not c["api_tls_verify"]:
         raise SetupError("A custom CA requires api_tls_verify=true")
-    for key in ("accounting_enabled", "accounting_websites", "route_lookup_enabled", "loki_receive_timestamps", "portal_enabled", "portal_secure_cookie"):
+    for key in (
+        "accounting_enabled",
+        "accounting_websites",
+        "route_lookup_enabled",
+        "loki_receive_timestamps",
+        "portal_enabled",
+        "portal_secure_cookie",
+    ):
         if type(c[key]) is not bool:
             raise SetupError(key + " must be true or false")
     if c["portal_enabled"] and not c["accounting_enabled"]:
         raise SetupError("The unified portal requires accounting_enabled=true")
     if c["accounting_websites"] and not c["accounting_enabled"]:
         raise SetupError("Website usage requires accounting_enabled=true")
-    limits={"accounting_poll_seconds":(5,3600),"accounting_backfill_days":(1,90),"accounting_step_seconds":(10,3600),
-        "accounting_overlap_seconds":(0,3600),"accounting_settle_seconds":(1,300),"accounting_ledger_days":(1,365),
-        "accounting_summary_days":(31,3650),"accounting_max_bytes":(67108864,1099511627776),"accounting_metrics_rows":(100,50000),
-        "wan_latency_warning_ms":(1,60000),"wan_loss_warning_pct":(1,100)}
-    for key,(minimum,maximum) in limits.items():
-        if type(c[key]) is not int or not minimum<=c[key]<=maximum:
+    limits = {
+        "accounting_poll_seconds": (5, 3600),
+        "accounting_backfill_days": (1, 90),
+        "accounting_step_seconds": (10, 3600),
+        "accounting_overlap_seconds": (0, 3600),
+        "accounting_settle_seconds": (1, 300),
+        "accounting_ledger_days": (1, 365),
+        "accounting_summary_days": (31, 3650),
+        "accounting_max_bytes": (67108864, 1099511627776),
+        "accounting_metrics_rows": (100, 50000),
+        "wan_latency_warning_ms": (1, 60000),
+        "wan_loss_warning_pct": (1, 100),
+    }
+    for key, (minimum, maximum) in limits.items():
+        if type(c[key]) is not int or not minimum <= c[key] <= maximum:
             raise SetupError(key + " is outside its supported range")
-    if c["accounting_summary_days"]<c["accounting_ledger_days"]:
+    if c["accounting_summary_days"] < c["accounting_ledger_days"]:
         raise SetupError("Summary retention must cover the event ledger")
-    if c["accounting_enabled"] and c["usage_port"] in (c["grafana_port"],c["syslog_port"] if c["syslog_protocol"]=="tcp" else -1):
+    if c["accounting_enabled"] and c["usage_port"] in (
+        c["grafana_port"],
+        c["syslog_port"] if c["syslog_protocol"] == "tcp" else -1,
+    ):
         raise SetupError("Accounting web port must differ from Grafana and TCP syslog")
-    if not isinstance(c["source_id"],str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,64}",c["source_id"]):
+    if not isinstance(c["source_id"], str) or not re.fullmatch(
+        r"[A-Za-z0-9_.:-]{1,64}", c["source_id"]
+    ):
         raise SetupError("Invalid accounting source ID")
-    if not isinstance(c["expected_devid"],str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{0,128}",c["expected_devid"]):
+    if not isinstance(c["expected_devid"], str) or not re.fullmatch(
+        r"[A-Za-z0-9_.:-]{0,128}", c["expected_devid"]
+    ):
         raise SetupError("Invalid expected FortiGate device ID")
     from accounting import tz
+
     try:
         tz(c["accounting_timezone"])
         ipaddress.IPv4Address(c["route_probe_destination"])
-    except (ValueError,TypeError):
-        raise SetupError("Choose an explicit installed accounting timezone and IPv4 route-probe destination") from None
-    if not isinstance(c["public_usage_url"],str):
+    except (ValueError, TypeError):
+        raise SetupError(
+            "Choose an explicit installed accounting timezone and IPv4 route-probe destination"
+        ) from None
+    if not isinstance(c["public_usage_url"], str):
         raise SetupError("Invalid public usage URL")
     if c["public_usage_url"]:
-        url=urllib.parse.urlsplit(c["public_usage_url"])
-        if url.scheme not in ("http","https") or not url.hostname or url.username or url.password or url.query or url.fragment:
-            raise SetupError("Public usage URL must be HTTP(S), without credentials, query or fragment")
+        url = urllib.parse.urlsplit(c["public_usage_url"])
+        if (
+            url.scheme not in ("http", "https")
+            or not url.hostname
+            or url.username
+            or url.password
+            or url.query
+            or url.fragment
+        ):
+            raise SetupError(
+                "Public usage URL must be HTTP(S), without credentials, query or fragment"
+            )
     return c
 
 
@@ -213,17 +302,24 @@ def target_url(c):
 
 def discovery(label, selector, values, selection, scope, restrict_scope=False):
     live = f"count by ({label}) ({selector})"
-    gate = 'label_replace(vector(0), "setup_scope", ' + json.dumps(selection) + ', "__name__", ".*")'
+    gate = (
+        'label_replace(vector(0), "setup_scope", ' + json.dumps(selection) + ', "__name__", ".*")'
+    )
     if restrict_scope:
-        fixed = 'label_replace(vector(0), "setup_scope", ' + json.dumps(scope) + ', "__name__", ".*")'
+        fixed = (
+            'label_replace(vector(0), "setup_scope", ' + json.dumps(scope) + ', "__name__", ".*")'
+        )
         live = f"(({live}) and on() ({gate} and on(setup_scope) {fixed}))"
     if values:
         choices = []
         for value in values:
             choices.append(
                 'label_replace(label_replace(vector(0), "setup_scope", '
-                + json.dumps(scope) + ', "__name__", ".*"), '
-                + json.dumps(label) + ', ' + json.dumps(value)
+                + json.dumps(scope)
+                + ', "__name__", ".*"), '
+                + json.dumps(label)
+                + ", "
+                + json.dumps(value)
                 + ', "__name__", ".*")'
             )
         fallback = " or ".join(choices)
@@ -233,6 +329,7 @@ def discovery(label, selector, values, selection, scope, restrict_scope=False):
 
 def make_dashboard(c):
     from dashboard_style import polish_dashboard
+
     result = load(ROOT / "templates/dashboard.json")
     spec = result["spec"]
     spec["title"] = "FortiLens — " + c["site_name"]
@@ -243,13 +340,42 @@ def make_dashboard(c):
     if confirmed:
         wan_selector += ",interface=~" + json.dumps("|".join(re.escape(x) for x in confirmed))
     wan_selector += "}"
-    wan_query = discovery("interface", wan_selector, confirmed or c["wan_interfaces"],
+    wan_query = discovery(
+        "interface",
+        wan_selector,
+        confirmed or c["wan_interfaces"],
         "${fortigate}/${vdom}" if confirmed else "${fortigate}/${vdom}/${sla}",
-        c["fortigate_host"] + "/" + c["vdom"] + ("" if confirmed else "/" + c["sla"]), restrict_scope=bool(confirmed))
+        c["fortigate_host"] + "/" + c["vdom"] + ("" if confirmed else "/" + c["sla"]),
+        restrict_scope=bool(confirmed),
+    )
     definitions = [
-        ("fortigate", 'label_values(up{job="fortigate"}, instance)', c["fortigate_host"], [c["fortigate_host"]], ""),
-        ("vdom", discovery("vdom", base + "}", [c["vdom"]], "${fortigate}", c["fortigate_host"]), c["vdom"], [c["vdom"]], '/vdom="([^"]+)"/'),
-        ("sla", discovery("sla", base + ',vdom="${vdom}"}', [c["sla"]] if c["sla"] else [], "${fortigate}/${vdom}", c["fortigate_host"] + "/" + c["vdom"]), c["sla"], [c["sla"]] if c["sla"] else [], '/sla="([^"]+)"/'),
+        (
+            "fortigate",
+            'label_values(up{job="fortigate"}, instance)',
+            c["fortigate_host"],
+            [c["fortigate_host"]],
+            "",
+        ),
+        (
+            "vdom",
+            discovery("vdom", base + "}", [c["vdom"]], "${fortigate}", c["fortigate_host"]),
+            c["vdom"],
+            [c["vdom"]],
+            '/vdom="([^"]+)"/',
+        ),
+        (
+            "sla",
+            discovery(
+                "sla",
+                base + ',vdom="${vdom}"}',
+                [c["sla"]] if c["sla"] else [],
+                "${fortigate}/${vdom}",
+                c["fortigate_host"] + "/" + c["vdom"],
+            ),
+            c["sla"],
+            [c["sla"]] if c["sla"] else [],
+            '/sla="([^"]+)"/',
+        ),
         ("wan", wan_query, "$__all", confirmed or c["wan_interfaces"], '/interface="([^"]+)"/'),
     ]
     for v, (name, query, current, values, regex) in zip(spec["variables"], definitions):
@@ -272,10 +398,29 @@ def make_dashboard(c):
                 "Names may be available without SLA samples; choices never fabricate measurements. "
                 "Other VDOMs require separate review. This does not change FortiGate roles or usage-accounting filters."
             )
-    result=polish_dashboard(result)
+    result = polish_dashboard(result)
     if c["accounting_enabled"]:
-        host=c["usage_bind"] if c["usage_bind"]!="0.0.0.0" else c["grafana_bind"] if c["grafana_bind"]!="0.0.0.0" else "127.0.0.1"
-        result["spec"]["links"].append({"title":"Device & VLAN reports","type":"link","url":c["public_usage_url"] or f"http://{host}:{c['usage_port']}","icon":"external link","tooltip":"Fixed-period upload/download, device details, VLAN analytics and WAN evidence","tags":[],"asDropdown":False,"targetBlank":True,"includeVars":False,"keepTime":False})
+        host = (
+            c["usage_bind"]
+            if c["usage_bind"] != "0.0.0.0"
+            else c["grafana_bind"]
+            if c["grafana_bind"] != "0.0.0.0"
+            else "127.0.0.1"
+        )
+        result["spec"]["links"].append(
+            {
+                "title": "Device & VLAN reports",
+                "type": "link",
+                "url": c["public_usage_url"] or f"http://{host}:{c['usage_port']}",
+                "icon": "external link",
+                "tooltip": "Fixed-period upload/download, device details, VLAN analytics and WAN evidence",
+                "tags": [],
+                "asDropdown": False,
+                "targetBlank": True,
+                "includeVars": False,
+                "keepTime": False,
+            }
+        )
     return result
 
 
@@ -305,30 +450,51 @@ def render(c, output, token, admin_password=None, inventory_report=None):
     if native:
         compose["services"]["alloy"].pop("ports", None)
         compose["services"]["fortilens-syslog"] = {
-            "build":{"context":"./syslog","dockerfile":"Dockerfile"},
-            "image":"fortilens-syslog:local","platform":"linux/amd64",
-            "user":"10001:10001","restart":"unless-stopped",
-            "command":["python","/app/syslog_receiver.py","--config","/config/site.json"],
-            "ports":[f"{c['syslog_bind']}:{c['syslog_port']}:1514/udp"],
-            "volumes":["./site.json:/config/site.json:ro"],"depends_on":["alloy"],
-            "read_only":True,"tmpfs":["/tmp:rw,noexec,nosuid,size=16m"],"cap_drop":["ALL"],
-            "security_opt":["no-new-privileges:true"],"cpus":"0.5","mem_limit":"128m",
-            "healthcheck":{"test":["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)"],"interval":"30s","timeout":"5s","retries":3},
-            "logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}},
+            "build": {"context": "./syslog", "dockerfile": "Dockerfile"},
+            "image": "fortilens-syslog:local",
+            "platform": "linux/amd64",
+            "user": "10001:10001",
+            "restart": "unless-stopped",
+            "command": ["python", "/app/syslog_receiver.py", "--config", "/config/site.json"],
+            "ports": [f"{c['syslog_bind']}:{c['syslog_port']}:1514/udp"],
+            "volumes": ["./site.json:/config/site.json:ro"],
+            "depends_on": ["alloy"],
+            "read_only": True,
+            "tmpfs": ["/tmp:rw,noexec,nosuid,size=16m"],
+            "cap_drop": ["ALL"],
+            "security_opt": ["no-new-privileges:true"],
+            "cpus": "0.5",
+            "mem_limit": "128m",
+            "healthcheck": {
+                "test": [
+                    "CMD",
+                    "python",
+                    "-c",
+                    "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)",
+                ],
+                "interval": "30s",
+                "timeout": "5s",
+                "retries": 3,
+            },
+            "logging": {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}},
         }
-        if c['syslog_network'] == 'host':
-            receiver = compose['services']['fortilens-syslog']
-            receiver.pop('ports')
-            receiver['network_mode'] = 'host'
-            receiver['command'].append('--host-network')
-            receiver['user'] = '0:0'
-            receiver['cap_add'] = ['NET_BIND_SERVICE', 'SETUID', 'SETGID']
-            receiver['healthcheck']['test'][-1] = (
+        if c["syslog_network"] == "host":
+            receiver = compose["services"]["fortilens-syslog"]
+            receiver.pop("ports")
+            receiver["network_mode"] = "host"
+            receiver["command"].append("--host-network")
+            receiver["user"] = "0:0"
+            receiver["cap_add"] = ["NET_BIND_SERVICE", "SETUID", "SETGID"]
+            receiver["healthcheck"]["test"][-1] = (
                 "import urllib.request; urllib.request.urlopen('http://127.0.0.1:"
-                + str(c['syslog_port']+1) + "/health',timeout=3)")
-            compose['services']['alloy']['ports'] = [f"127.0.0.1:{c['syslog_port']}:1514/tcp"]
+                + str(c["syslog_port"] + 1)
+                + "/health',timeout=3)"
+            )
+            compose["services"]["alloy"]["ports"] = [f"127.0.0.1:{c['syslog_port']}:1514/tcp"]
     else:
-        compose["services"]["alloy"]["ports"] = [f"{c['syslog_bind']}:{c['syslog_port']}:1514/{c['syslog_protocol']}"]
+        compose["services"]["alloy"]["ports"] = [
+            f"{c['syslog_bind']}:{c['syslog_port']}:1514/{c['syslog_protocol']}"
+        ]
     exporter = compose["services"]["fortigate-exporter"]
     if not c["api_tls_verify"]:
         exporter["command"].append("-insecure")
@@ -339,39 +505,86 @@ def render(c, output, token, admin_password=None, inventory_report=None):
     prom["scrape_configs"][0]["static_configs"][0]["targets"] = [target_url(c)]
     prom["scrape_configs"][0]["relabel_configs"][1]["replacement"] = c["fortigate_host"]
     alloy = (ROOT / "templates/config.alloy").read_text(encoding="utf-8")
-    alloy = alloy.replace("__PROTOCOL__", "tcp" if native else c["syslog_protocol"]).replace("__FORMAT__", "rfc5424" if native else c["syslog_format"])
+    alloy = alloy.replace("__PROTOCOL__", "tcp" if native else c["syslog_protocol"]).replace(
+        "__FORMAT__", "rfc5424" if native else c["syslog_format"]
+    )
     if native:
-        alloy=alloy.replace("    use_incoming_timestamp = true", "    max_message_length     = 65536\n    use_incoming_timestamp = true")
-        if c['syslog_network'] == 'bridge':
-            prom["scrape_configs"].append({"job_name":"fortilens-syslog","static_configs":[{"targets":["fortilens-syslog:8080"]}]})
+        alloy = alloy.replace(
+            "    use_incoming_timestamp = true",
+            "    max_message_length     = 65536\n    use_incoming_timestamp = true",
+        )
+        if c["syslog_network"] == "bridge":
+            prom["scrape_configs"].append(
+                {
+                    "job_name": "fortilens-syslog",
+                    "static_configs": [{"targets": ["fortilens-syslog:8080"]}],
+                }
+            )
     if c["accounting_enabled"]:
-        c={**c,"loki_receive_timestamps":True}
-        alloy=alloy.replace("use_incoming_timestamp = true","use_incoming_timestamp = false")
-        compose["services"]["fortilens-usage"]={
-            "build":{"context":"./usage","dockerfile":"Dockerfile"},"image":"fortilens-usage:local","platform":"linux/amd64",
-            "restart":"unless-stopped","ports":[f"{c['usage_bind']}:{c['usage_port']}:8080"],
-            "volumes":["usage-data:/data","./site.json:/config/site.json:ro"],
-            "secrets":["usage_admin_password","fortigate_api_token"],"depends_on":["loki","prometheus"],
-            "read_only":True,"tmpfs":["/tmp:rw,noexec,nosuid,size=16m"],"cap_drop":["ALL"],
-            "security_opt":["no-new-privileges:true"],"cpus":"0.5","mem_limit":"192m",
-            "healthcheck":{"test":["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)"],"interval":"30s","timeout":"5s","retries":3},
-            "logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}}
-        if ca:compose["services"]["fortilens-usage"]["volumes"].append("./secrets/fortigate-ca.pem:/config/secrets/fortigate-ca.pem:ro")
-        compose["volumes"]["usage-data"]={}
-        compose["secrets"]["usage_admin_password"]={"file":"./secrets/usage_admin_password"}
-        compose["secrets"]["fortigate_api_token"]={"file":"./secrets/fortigate_api_token"}
-        compose["services"]["prometheus"].setdefault("secrets",[]).append("usage_admin_password")
-        prom["scrape_configs"].append({"job_name":"fortilens-accounting","static_configs":[{"targets":["fortilens-usage:8080"]}],"basic_auth":{"username":"admin","password_file":"/run/secrets/usage_admin_password"},"scrape_timeout":"30s"})
+        c = {**c, "loki_receive_timestamps": True}
+        alloy = alloy.replace("use_incoming_timestamp = true", "use_incoming_timestamp = false")
+        compose["services"]["fortilens-usage"] = {
+            "build": {"context": "./usage", "dockerfile": "Dockerfile"},
+            "image": "fortilens-usage:local",
+            "platform": "linux/amd64",
+            "restart": "unless-stopped",
+            "ports": [f"{c['usage_bind']}:{c['usage_port']}:8080"],
+            "volumes": ["usage-data:/data", "./site.json:/config/site.json:ro"],
+            "secrets": ["usage_admin_password", "fortigate_api_token"],
+            "depends_on": ["loki", "prometheus"],
+            "read_only": True,
+            "tmpfs": ["/tmp:rw,noexec,nosuid,size=16m"],
+            "cap_drop": ["ALL"],
+            "security_opt": ["no-new-privileges:true"],
+            "cpus": "0.5",
+            "mem_limit": "192m",
+            "healthcheck": {
+                "test": [
+                    "CMD",
+                    "python",
+                    "-c",
+                    "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)",
+                ],
+                "interval": "30s",
+                "timeout": "5s",
+                "retries": 3,
+            },
+            "logging": {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}},
+        }
+        if ca:
+            compose["services"]["fortilens-usage"]["volumes"].append(
+                "./secrets/fortigate-ca.pem:/config/secrets/fortigate-ca.pem:ro"
+            )
+        compose["volumes"]["usage-data"] = {}
+        compose["secrets"]["usage_admin_password"] = {"file": "./secrets/usage_admin_password"}
+        compose["secrets"]["fortigate_api_token"] = {"file": "./secrets/fortigate_api_token"}
+        compose["services"]["prometheus"].setdefault("secrets", []).append("usage_admin_password")
+        prom["scrape_configs"].append(
+            {
+                "job_name": "fortilens-accounting",
+                "static_configs": [{"targets": ["fortilens-usage:8080"]}],
+                "basic_auth": {
+                    "username": "admin",
+                    "password_file": "/run/secrets/usage_admin_password",
+                },
+                "scrape_timeout": "30s",
+            }
+        )
     if c["portal_enabled"]:
         import portal
+
         portal.configure(compose, c)
     dashboard = make_dashboard(c)
     public_c = {**c, "api_ca_file": "secrets/fortigate-ca.pem" if ca else ""}
     files = {
-        "compose.yaml": dumps(compose), "site.json": dumps(public_c),
-        "prometheus/prometheus.yml": dumps(prom), "alloy/config.alloy": alloy,
+        "compose.yaml": dumps(compose),
+        "site.json": dumps(public_c),
+        "prometheus/prometheus.yml": dumps(prom),
+        "alloy/config.alloy": alloy,
         "loki/loki-config.yaml": (ROOT / "templates/loki.json").read_text(encoding="utf-8"),
-        "grafana/provisioning/datasources/sources.yaml": (ROOT / "templates/datasources.json").read_text(encoding="utf-8"),
+        "grafana/provisioning/datasources/sources.yaml": (
+            ROOT / "templates/datasources.json"
+        ).read_text(encoding="utf-8"),
         "grafana/dashboard.json": dumps(dashboard),
         "secrets/fortigate-key.yaml": dumps({target_url(c): {"token": token}}),
         "secrets/grafana_admin_password": (admin_password or secrets.token_urlsafe(24)) + "\n",
@@ -380,14 +593,28 @@ def render(c, output, token, admin_password=None, inventory_report=None):
     if ca:
         files["secrets/fortigate-ca.pem"] = ca
     if c["accounting_enabled"]:
-        files["secrets/usage_admin_password"]=secrets.token_urlsafe(24)+"\n"
-        files["secrets/fortigate_api_token"]=token+"\n"
-        for name in ("accounting.py","accounting_storage.py","interfaces.py","wan_health.py","usage_service.py","portal.py","reporting.html"):
-            files["usage/"+name]=(ROOT/name).read_text(encoding="utf-8")
-        files["usage/Dockerfile"]=(ROOT/"templates/Dockerfile.usage").read_text(encoding="utf-8")
+        files["secrets/usage_admin_password"] = secrets.token_urlsafe(24) + "\n"
+        files["secrets/fortigate_api_token"] = token + "\n"
+        for name in (
+            "accounting.py",
+            "accounting_storage.py",
+            "interfaces.py",
+            "wan_health.py",
+            "usage_service.py",
+            "portal.py",
+            "reporting.html",
+        ):
+            files["usage/" + name] = (ROOT / name).read_text(encoding="utf-8")
+        files["usage/Dockerfile"] = (ROOT / "templates/Dockerfile.usage").read_text(
+            encoding="utf-8"
+        )
     if native:
-        files["syslog/syslog_receiver.py"]=(ROOT/"syslog_receiver.py").read_text(encoding="utf-8")
-        files["syslog/Dockerfile"]=(ROOT/"templates/Dockerfile.syslog").read_text(encoding="utf-8")
+        files["syslog/syslog_receiver.py"] = (ROOT / "syslog_receiver.py").read_text(
+            encoding="utf-8"
+        )
+        files["syslog/Dockerfile"] = (ROOT / "templates/Dockerfile.syslog").read_text(
+            encoding="utf-8"
+        )
     if inventory_report is not None:
         files["interface-inventory.json"] = dumps(inventory_report)
     output.mkdir(parents=True, mode=0o700)
@@ -417,19 +644,41 @@ def wizard():
     c["api_tls_verify"] = verification == "yes"
     c["syslog_port"] = int(ask("Syslog receive port on monitoring server", "1514"))
     c["syslog_protocol"] = ask("Syslog protocol tcp/udp", "tcp").lower()
-    c["syslog_format"] = ask("Syslog format rfc5424/rfc3164/fortigate (native UDP)", "rfc5424").lower()
+    c["syslog_format"] = ask(
+        "Syslog format rfc5424/rfc3164/fortigate (native UDP)", "rfc5424"
+    ).lower()
     c["vdom"] = ask("Default VDOM (configuration choice until discovered)", "root")
     c["sla"] = ask("SLA check name (blank = discover when metrics arrive)")
-    c["wan_interfaces"] = [v.strip() for v in ask("Fallback WAN names for the SLA above (blank = discover/review inventory later)").split(",") if v.strip()]
-    c["grafana_bind"] = ask("Grafana listen IPv4 (127.0.0.1 = this server only; use server LAN IP for LAN access)", "127.0.0.1")
+    c["wan_interfaces"] = [
+        v.strip()
+        for v in ask(
+            "Fallback WAN names for the SLA above (blank = discover/review inventory later)"
+        ).split(",")
+        if v.strip()
+    ]
+    c["grafana_bind"] = ask(
+        "Grafana listen IPv4 (127.0.0.1 = this server only; use server LAN IP for LAN access)",
+        "127.0.0.1",
+    )
     c["grafana_port"] = int(ask("Grafana port", "3001"))
-    c["accounting_enabled"]=ask("Enable persistent device/VLAN accounting and protected reports? yes/no","yes").lower()=="yes"
+    c["accounting_enabled"] = (
+        ask("Enable persistent device/VLAN accounting and protected reports? yes/no", "yes").lower()
+        == "yes"
+    )
     if c["accounting_enabled"]:
-        c["portal_enabled"]=ask("Use FortiLens as the main console with embedded Grafana? yes/no","yes").lower()=="yes"
-        c["accounting_timezone"]=ask("Accounting days: fortigate (follow the FortiGate clock), UTC or an IANA name","fortigate")
-        c["usage_bind"]=ask("Reports listen IPv4 (loopback by default)","127.0.0.1")
-        c["usage_port"]=int(ask("Reports port","3002"))
-        c["expected_devid"]=ask("Expected FortiGate serial/device ID (blank = source binding unverified)")
+        c["portal_enabled"] = (
+            ask("Use FortiLens as the main console with embedded Grafana? yes/no", "yes").lower()
+            == "yes"
+        )
+        c["accounting_timezone"] = ask(
+            "Accounting days: fortigate (follow the FortiGate clock), UTC or an IANA name",
+            "fortigate",
+        )
+        c["usage_bind"] = ask("Reports listen IPv4 (loopback by default)", "127.0.0.1")
+        c["usage_port"] = int(ask("Reports port", "3002"))
+        c["expected_devid"] = ask(
+            "Expected FortiGate serial/device ID (blank = source binding unverified)"
+        )
     return validate_config(c)
 
 
@@ -449,10 +698,13 @@ def compose_command(p, *args):
 
 def run_compose(p, *args, timeout=600):
     """Keep failed engine output private and bound each explicit operation."""
-    result = subprocess.run(compose_command(p, *args), check=True,
-        capture_output=True, text=True, timeout=timeout)
-    if result.stdout:print(result.stdout, end="")
-    if result.stderr:print(result.stderr, end="", file=sys.stderr)
+    result = subprocess.run(
+        compose_command(p, *args), check=True, capture_output=True, text=True, timeout=timeout
+    )
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
     return result
 
 
@@ -460,15 +712,18 @@ def grafana_request(p, c, path, method="GET", body=None, timeout=100):
     host = c["grafana_bind"] if c["grafana_bind"] != "0.0.0.0" else "127.0.0.1"
     password = (p / "secrets/grafana_admin_password").read_text(encoding="utf-8").strip()
     auth = base64.b64encode(("admin:" + password).encode()).decode()
-    prefix = '/grafana' if c.get('portal_enabled') else ''
-    req = urllib.request.Request(f"http://{host}:{c['grafana_port']}" + prefix + path,
+    prefix = "/grafana" if c.get("portal_enabled") else ""
+    req = urllib.request.Request(
+        f"http://{host}:{c['grafana_port']}" + prefix + path,
         data=dumps(body).encode() if body is not None else None,
-        headers={"Authorization": "Basic " + auth, "Content-Type": "application/json"}, method=method)
+        headers={"Authorization": "Basic " + auth, "Content-Type": "application/json"},
+        method=method,
+    )
     # Never send initial admin credentials through an environment HTTP proxy.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(req, timeout=timeout) as response:
-        payload = response.read(16*1024*1024+1)
-        if len(payload)>16*1024*1024:
+        payload = response.read(16 * 1024 * 1024 + 1)
+        if len(payload) > 16 * 1024 * 1024:
             raise SetupError("Grafana returned a response above the safe size limit")
         value = json.loads(payload)
         if not isinstance(value, (dict, list)):
@@ -487,8 +742,13 @@ def saved_dashboard(p, c):
         if e.code != 404:
             raise
         return None
-    if not isinstance(existing, dict) or not isinstance(existing.get("spec"), dict) or not isinstance(existing["spec"].get("tags", []), list) \
-            or not isinstance(existing["spec"].get("elements", {}), dict) or not isinstance(existing.get("metadata"), dict):
+    if (
+        not isinstance(existing, dict)
+        or not isinstance(existing.get("spec"), dict)
+        or not isinstance(existing["spec"].get("tags", []), list)
+        or not isinstance(existing["spec"].get("elements", {}), dict)
+        or not isinstance(existing.get("metadata"), dict)
+    ):
         raise SetupError("Grafana returned an unsupported dashboard response; nothing overwritten")
     if "forti-monitor" not in existing.get("spec", {}).get("tags", []):
         raise SetupError("Dashboard UID belongs to another dashboard; nothing overwritten")
@@ -504,24 +764,42 @@ def retire_saved_panels(p, c, existing=None):
     dashboard is saved privately first. A missing dashboard is not re-created.
     """
     from dashboard_style import retire_usage_panels
+
     existing = saved_dashboard(p, c) if existing is None else existing
     if existing is None:
         return {"removed": [], "kept": []}
     candidate, removed, kept = retire_usage_panels(existing)
     for name in kept:
-        print("Kept " + name + ": it no longer matches the panel FortiLens generated. Remove it in Grafana if it is not needed.")
+        print(
+            "Kept "
+            + name
+            + ": it no longer matches the panel FortiLens generated. Remove it in Grafana if it is not needed."
+        )
     if not removed:
         print("Existing dashboard preserved (no overwrite).")
         return {"removed": [], "kept": kept}
-    write_file(p, "grafana/dashboard.before-retired-panels-" + str(time.time_ns()) + ".json", dumps(existing), mode=0o600)
+    write_file(
+        p,
+        "grafana/dashboard.before-retired-panels-" + str(time.time_ns()) + ".json",
+        dumps(existing),
+        mode=0o600,
+    )
     # Send back what Grafana returned, with only the panels changed. Its
     # resourceVersion makes Grafana refuse the update if someone saved meanwhile.
     update = deepcopy(existing)
     update["spec"] = candidate["spec"]
     result = grafana_request(p, c, DASHBOARD_ROUTE + "/" + UID, "PUT", update)
-    if not isinstance(result, dict) or not isinstance(result.get("metadata"), dict) or result["metadata"].get("name") != UID:
+    if (
+        not isinstance(result, dict)
+        or not isinstance(result.get("metadata"), dict)
+        or result["metadata"].get("name") != UID
+    ):
         raise SetupError("Dashboard update returned an unexpected identifier")
-    print("Removed retired usage panels from the saved dashboard (" + str(len(removed)) + "); other panels were kept.")
+    print(
+        "Removed retired usage panels from the saved dashboard ("
+        + str(len(removed))
+        + "); other panels were kept."
+    )
     return {"removed": removed, "kept": kept}
 
 
@@ -531,7 +809,11 @@ def import_dashboard(p, c):
         retire_saved_panels(p, c, existing)
         return
     result = grafana_request(p, c, DASHBOARD_ROUTE, "POST", load(p / "grafana/dashboard.json"))
-    if not isinstance(result, dict) or not isinstance(result.get("metadata"), dict) or result["metadata"].get("name") != UID:
+    if (
+        not isinstance(result, dict)
+        or not isinstance(result.get("metadata"), dict)
+        or result["metadata"].get("name") != UID
+    ):
         raise SetupError("Dashboard import returned an unexpected identifier")
     print("Dashboard imported: /d/" + UID)
 
@@ -539,14 +821,27 @@ def import_dashboard(p, c):
 def start(p, c):
     if sys.platform != "linux":
         raise SetupError("Run start on a Linux Docker host; init also works on Windows")
-    if c.get('syslog_network')=='host':
+    if c.get("syslog_network") == "host":
         try:
-            info=json.loads(subprocess.run(['docker','info','--format','{{json .}}'],check=True,capture_output=True,text=True,timeout=15).stdout)
-            if (info.get('OSType')!='linux' or 'docker desktop' in info.get('OperatingSystem','').lower()
-                    or any('rootless' in item.lower() for item in info.get('SecurityOptions',[]))):
+            info = json.loads(
+                subprocess.run(
+                    ["docker", "info", "--format", "{{json .}}"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                ).stdout
+            )
+            if (
+                info.get("OSType") != "linux"
+                or "docker desktop" in info.get("OperatingSystem", "").lower()
+                or any("rootless" in item.lower() for item in info.get("SecurityOptions", []))
+            ):
                 raise ValueError()
-        except (OSError,ValueError,subprocess.SubprocessError):
-            raise SetupError('Native host reception requires an available rootful Linux Docker Engine, not Desktop or rootless networking') from None
+        except (OSError, ValueError, subprocess.SubprocessError):
+            raise SetupError(
+                "Native host reception requires an available rootful Linux Docker Engine, not Desktop or rootless networking"
+            ) from None
     run_compose(p, "config", "--quiet", timeout=30)
     run_compose(p, "up", "-d", "--build")
     for _ in range(60):
@@ -554,7 +849,13 @@ def start(p, c):
             health = grafana_request(p, c, "/api/health", timeout=5)
             if isinstance(health, dict) and health.get("database") == "ok":
                 break
-        except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError, http.client.HTTPException):
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            ConnectionError,
+            ValueError,
+            http.client.HTTPException,
+        ):
             pass
         time.sleep(2)
     else:
@@ -565,110 +866,186 @@ def start(p, c):
                 health = grafana_request(p, c, "/api/datasources/uid/" + uid + "/health", timeout=5)
                 if isinstance(health, dict) and health.get("status") == "OK":
                     break
-            except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError, http.client.HTTPException):
+            except (
+                urllib.error.URLError,
+                TimeoutError,
+                ConnectionError,
+                ValueError,
+                http.client.HTTPException,
+            ):
                 pass
             time.sleep(2)
         else:
-            raise SetupError(f"Datasource {uid} is not ready; inspect this installation's container logs")
+            raise SetupError(
+                f"Datasource {uid} is not ready; inspect this installation's container logs"
+            )
     import_dashboard(p, c)
-    if c.get('portal_enabled'):
+    if c.get("portal_enabled"):
         connect_portal(p, c)
-    print("Login: admin; password is in secrets/grafana_admin_password inside the output directory.")
-    print("FortiGate syslog destination: this server's reachable LAN IP and configured syslog port/protocol.")
+    print(
+        "Login: admin; password is in secrets/grafana_admin_password inside the output directory."
+    )
+    print(
+        "FortiGate syslog destination: this server's reachable LAN IP and configured syslog port/protocol."
+    )
     if c["accounting_enabled"]:
-        print(("FortiLens console" if c.get('portal_enabled') else "Usage reports") + ": configured reporting address/port; admin password is in secrets/usage_admin_password.")
+        print(
+            ("FortiLens console" if c.get("portal_enabled") else "Usage reports")
+            + ": configured reporting address/port; admin password is in secrets/usage_admin_password."
+        )
 
 
 def connect_portal(p, c):
     """Bootstrap the fixed Viewer and grant only this dashboard's read permission."""
-    if not c.get('portal_enabled'):
-        raise SetupError('Enable the unified portal before connecting it')
+    if not c.get("portal_enabled"):
+        raise SetupError("Enable the unified portal before connecting it")
     from portal import VIEWER
-    host = c['usage_bind'] if c['usage_bind'] != '0.0.0.0' else '127.0.0.1'
+
+    host = c["usage_bind"] if c["usage_bind"] != "0.0.0.0" else "127.0.0.1"
     base = f"http://{host}:{c['usage_port']}"
-    password = (p / 'secrets/usage_admin_password').read_text().strip()
+    password = (p / "secrets/usage_admin_password").read_text().strip()
+
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *args, **kwargs):
             return None
+
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-    session_cookie = ''
+    session_cookie = ""
+
     def request(path, body=None):
         nonlocal session_cookie
-        req = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(),
-            headers={'Content-Type': 'application/json', 'X-FortiLens-Request': '1', 'Cookie': session_cookie})
+        req = urllib.request.Request(
+            base + path,
+            data=None if body is None else json.dumps(body).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "X-FortiLens-Request": "1",
+                "Cookie": session_cookie,
+            },
+        )
         with opener.open(req, timeout=15) as response:
             # Administrative client for the private listener, including when
             # HTTPS terminates at a separate trusted reverse proxy.
-            for value in response.headers.get_all('Set-Cookie', []):
-                try:jar = http.cookies.SimpleCookie(value)
+            for value in response.headers.get_all("Set-Cookie", []):
+                try:
+                    jar = http.cookies.SimpleCookie(value)
                 except http.cookies.CookieError:
-                    raise SetupError('The portal returned an invalid session cookie; review service readiness') from None
-                if 'fortilens_session' in jar:
-                    session_cookie = 'fortilens_session=' + jar['fortilens_session'].value
-            payload=response.read(1024*1024+1)
-            if len(payload)>1024*1024:
-                raise SetupError('The portal response exceeded the safe size limit')
-            value=json.loads(payload)
-            if not isinstance(value,dict):
-                raise SetupError('The portal returned an unsupported response; review service readiness')
+                    raise SetupError(
+                        "The portal returned an invalid session cookie; review service readiness"
+                    ) from None
+                if "fortilens_session" in jar:
+                    session_cookie = "fortilens_session=" + jar["fortilens_session"].value
+            payload = response.read(1024 * 1024 + 1)
+            if len(payload) > 1024 * 1024:
+                raise SetupError("The portal response exceeded the safe size limit")
+            value = json.loads(payload)
+            if not isinstance(value, dict):
+                raise SetupError(
+                    "The portal returned an unsupported response; review service readiness"
+                )
             return value
+
     try:
-        request('/api/session', {'username': 'admin', 'password': password})
-        if not request('/api/monitoring-status').get('available'):
-            raise SetupError('The portal Viewer identity could not be verified')
-        users=grafana_request(p,c,'/api/org/users')
-        if not isinstance(users,list) or not all(isinstance(row,dict) for row in users):
-            raise SetupError('Grafana returned an unsupported identity response; no dashboard permissions changed')
-        user = next((u for u in users if u.get('login') == VIEWER), None)
-        if not user or user.get('role') != 'Viewer':
-            raise SetupError('The portal identity must have the Viewer role')
-        if type(user.get('userId')) is not int or user['userId']<=0:
-            raise SetupError('The portal Viewer identifier is invalid; no dashboard permissions changed')
-        route = '/api/dashboards/uid/' + UID + '/permissions'
+        request("/api/session", {"username": "admin", "password": password})
+        if not request("/api/monitoring-status").get("available"):
+            raise SetupError("The portal Viewer identity could not be verified")
+        users = grafana_request(p, c, "/api/org/users")
+        if not isinstance(users, list) or not all(isinstance(row, dict) for row in users):
+            raise SetupError(
+                "Grafana returned an unsupported identity response; no dashboard permissions changed"
+            )
+        user = next((u for u in users if u.get("login") == VIEWER), None)
+        if not user or user.get("role") != "Viewer":
+            raise SetupError("The portal identity must have the Viewer role")
+        if type(user.get("userId")) is not int or user["userId"] <= 0:
+            raise SetupError(
+                "The portal Viewer identifier is invalid; no dashboard permissions changed"
+            )
+        route = "/api/dashboards/uid/" + UID + "/permissions"
         existing = grafana_request(p, c, route)
-        if not isinstance(existing,list) or not all(isinstance(row,dict) for row in existing):
-            raise SetupError('Grafana returned an unsupported permissions response; nothing overwritten')
-        if any(row.get('userId') == user['userId'] and row.get('permission') == 1 and not row.get('isInherited') for row in existing):
+        if not isinstance(existing, list) or not all(isinstance(row, dict) for row in existing):
+            raise SetupError(
+                "Grafana returned an unsupported permissions response; nothing overwritten"
+            )
+        if any(
+            row.get("userId") == user["userId"]
+            and row.get("permission") == 1
+            and not row.get("isInherited")
+            for row in existing
+        ):
             return
-        items = [{key: row[key] for key in ('userId', 'teamId', 'role', 'permission') if row.get(key)}
-                 for row in existing if not row.get('isInherited') and row.get('userId') != user['userId']]
-        items.append({'userId': user['userId'], 'permission': 1})
-        write_file(p, 'grafana/portal-permissions-before-' + str(time.time_ns()) + '.json', dumps(existing), mode=0o600)
-        grafana_request(p, c, route, 'POST', {'items': items})
+        items = [
+            {key: row[key] for key in ("userId", "teamId", "role", "permission") if row.get(key)}
+            for row in existing
+            if not row.get("isInherited") and row.get("userId") != user["userId"]
+        ]
+        items.append({"userId": user["userId"], "permission": 1})
+        write_file(
+            p,
+            "grafana/portal-permissions-before-" + str(time.time_ns()) + ".json",
+            dumps(existing),
+            mode=0o600,
+        )
+        grafana_request(p, c, route, "POST", {"items": items})
     finally:
         try:
-            request('/api/session/logout', {})
+            request("/api/session/logout", {})
         except (SetupError, OSError, ValueError, http.client.HTTPException):
             pass
 
 
 def discover(p, c):
     expr = 'count by (vdom, sla, interface) (fortigate_virtual_wan_status{job="fortigate"})'
-    path = f"/api/datasources/proxy/uid/{PROM_UID}/api/v1/query?" + urllib.parse.urlencode({"query": expr})
+    path = f"/api/datasources/proxy/uid/{PROM_UID}/api/v1/query?" + urllib.parse.urlencode(
+        {"query": expr}
+    )
     result = grafana_request(p, c, path)
-    if not isinstance(result,dict) or result.get("status") != "success":
+    if not isinstance(result, dict) or result.get("status") != "success":
         raise SetupError("Discovery query failed")
-    if not isinstance(result.get('data'),dict) or not isinstance(result['data'].get('result'),list) or not all(isinstance(row,dict) and isinstance(row.get('metric'),dict) for row in result['data']['result']):
-        raise SetupError("Discovery returned an unsupported response; no interface choices were changed")
+    if (
+        not isinstance(result.get("data"), dict)
+        or not isinstance(result["data"].get("result"), list)
+        or not all(
+            isinstance(row, dict) and isinstance(row.get("metric"), dict)
+            for row in result["data"]["result"]
+        )
+    ):
+        raise SetupError(
+            "Discovery returned an unsupported response; no interface choices were changed"
+        )
     groups = {}
     for row in result["data"]["result"]:
         labels = row["metric"]
         key = (labels.get("vdom", ""), labels.get("sla", ""))
         if all(key) and labels.get("interface"):
             groups.setdefault(key, set()).add(labels["interface"])
-    print(dumps({"source": "received SLA metric labels; not link state or VLAN classification",
-        "sla_checks": [{"vdom": v, "sla": s, "interfaces": sorted(ports)} for (v, s), ports in sorted(groups.items())]}))
+    print(
+        dumps(
+            {
+                "source": "received SLA metric labels; not link state or VLAN classification",
+                "sla_checks": [
+                    {"vdom": v, "sla": s, "interfaces": sorted(ports)}
+                    for (v, s), ports in sorted(groups.items())
+                ],
+            }
+        )
+    )
     if not groups:
-        print("No current SLA labels received. Existing manual choices are configuration only; do not infer WAN DOWN.")
+        print(
+            "No current SLA labels received. Existing manual choices are configuration only; do not infer WAN DOWN."
+        )
     return groups
 
 
 def inventory_setup(c, token, args, interactive):
     import interfaces
+
     report = None
     requested = bool(args.inventory_file or args.discover_interfaces)
     if interactive and not args.skip_interface_discovery and not requested:
-        requested = ask("Read interface inventory from FortiGate now? yes/no", "yes").lower() == "yes"
+        requested = (
+            ask("Read interface inventory from FortiGate now? yes/no", "yes").lower() == "yes"
+        )
     if requested:
         report = interfaces.collect(c, token, response_file=args.inventory_file)
         if interactive and not args.select_wan:
@@ -677,8 +1054,15 @@ def inventory_setup(c, token, args, interactive):
             interfaces.print_table(report)
     if args.select_wan:
         if report is None or not args.confirm_wan:
-            raise SetupError("Select from a discovered/offline inventory and add --confirm-wan to save the choice")
-        c = {**c, "confirmed_wan_interfaces": interfaces.selected_names(report, split_names(args.select_wan), c["vdom"])}
+            raise SetupError(
+                "Select from a discovered/offline inventory and add --confirm-wan to save the choice"
+            )
+        c = {
+            **c,
+            "confirmed_wan_interfaces": interfaces.selected_names(
+                report, split_names(args.select_wan), c["vdom"]
+            ),
+        }
     elif args.confirm_wan:
         raise SetupError("--confirm-wan requires --select-wan")
     return validate_config(c), report
@@ -690,6 +1074,7 @@ def split_names(raw):
 
 def interface_command(p, c, args):
     import interfaces
+
     token = ""
     if not args.metrics_only and not args.inventory_file:
         auth = load(p / "secrets/fortigate-key.yaml")
@@ -699,8 +1084,15 @@ def interface_command(p, c, args):
         token = record.get("token")
         if not isinstance(token, str) or not token or any(ord(x) < 33 for x in token):
             raise SetupError("Invalid local API token file")
-    report = interfaces.collect(c, token, request=grafana_request, installation=p, prom_uid=PROM_UID,
-                                use_api=not args.metrics_only, response_file=args.inventory_file)
+    report = interfaces.collect(
+        c,
+        token,
+        request=grafana_request,
+        installation=p,
+        prom_uid=PROM_UID,
+        use_api=not args.metrics_only,
+        response_file=args.inventory_file,
+    )
     if args.select_wan:
         if not args.confirm_wan:
             raise SetupError("Add --confirm-wan to save the selected interfaces for this project")
@@ -710,20 +1102,28 @@ def interface_command(p, c, args):
         # Grafana dashboard unchanged so existing user edits remain reviewable.
         candidate = dumps(make_dashboard(updated))
         import shutil
+
         backup = p / "backups" / ("interfaces-" + str(time.time_ns()))
         backup.mkdir(parents=True, mode=0o700)
         shutil.copy2(p / "site.json", backup / "site.json")
-        for path, contents in [("interface-inventory.json", dumps(report)),
-                               ("grafana/dashboard.interfaces-candidate.json", candidate), ("site.json", dumps(updated))]:
+        for path, contents in [
+            ("interface-inventory.json", dumps(report)),
+            ("grafana/dashboard.interfaces-candidate.json", candidate),
+            ("site.json", dumps(updated)),
+        ]:
             dest = p / path
             if dest.exists() and path != "site.json":
                 shutil.copy2(dest, backup / dest.name)
             tmp = dest.with_name(dest.name + ".pending")
             write_file(p, str(tmp.relative_to(p)), contents)
             tmp.replace(dest)
-        report["selection"] = {"vdom": c["vdom"], "names": names, "confirmed": True,
-                               "live_dashboard_changed": False,
-                               "candidate": "grafana/dashboard.interfaces-candidate.json"}
+        report["selection"] = {
+            "vdom": c["vdom"],
+            "names": names,
+            "confirmed": True,
+            "live_dashboard_changed": False,
+            "candidate": "grafana/dashboard.interfaces-candidate.json",
+        }
     elif args.confirm_wan:
         raise SetupError("--confirm-wan requires --select-wan")
     if args.json:
@@ -731,7 +1131,9 @@ def interface_command(p, c, args):
     else:
         interfaces.print_table(report)
         if args.select_wan:
-            print("Selection saved. Review/import grafana/dashboard.interfaces-candidate.json to update an existing dashboard.")
+            print(
+                "Selection saved. Review/import grafana/dashboard.interfaces-candidate.json to update an existing dashboard."
+            )
     return report
 
 
@@ -739,9 +1141,44 @@ def bundle(destination):
     # Deliberate allowlist: never zip the workspace, local installations, exports,
     # handover documents, screenshots or credentials.
     import zipfile
-    allowed = [ROOT / name for name in ("setup.py","doctor.py","interfaces.py","usage_quality.py","dashboard_style.py","accounting.py","accounting_storage.py","accounting_migrate.py","wan_health.py","usage_service.py","portal.py","upgrade.py","alerts.py","syslog_receiver.py","reporting.html","site.example.json","README.md",".gitignore","LICENSE")]
-    allowed.extend(ROOT / "templates" / name for name in [
-        "dashboard.json", "compose.json", "prometheus.json", "loki.json", "datasources.json", "config.alloy", "Dockerfile.usage", "Dockerfile.syslog"])
+
+    allowed = [
+        ROOT / name
+        for name in (
+            "setup.py",
+            "doctor.py",
+            "interfaces.py",
+            "usage_quality.py",
+            "dashboard_style.py",
+            "accounting.py",
+            "accounting_storage.py",
+            "accounting_migrate.py",
+            "wan_health.py",
+            "usage_service.py",
+            "portal.py",
+            "upgrade.py",
+            "alerts.py",
+            "syslog_receiver.py",
+            "reporting.html",
+            "site.example.json",
+            "README.md",
+            ".gitignore",
+            "LICENSE",
+        )
+    ]
+    allowed.extend(
+        ROOT / "templates" / name
+        for name in [
+            "dashboard.json",
+            "compose.json",
+            "prometheus.json",
+            "loki.json",
+            "datasources.json",
+            "config.alloy",
+            "Dockerfile.usage",
+            "Dockerfile.syslog",
+        ]
+    )
     destination = Path(destination).resolve()
     if destination.exists():
         raise SetupError("Bundle destination already exists")
@@ -757,8 +1194,10 @@ def bundle(destination):
         complete = True
     finally:
         if created and not complete:
-            try:destination.unlink(missing_ok=True)
-            except OSError:pass  # Keep the original failure; never remove existing outputs.
+            try:
+                destination.unlink(missing_ok=True)
+            except OSError:
+                pass  # Keep the original failure; never remove existing outputs.
     print("Created portable-only bundle: " + str(destination))
 
 
@@ -767,62 +1206,133 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init", help="Interactive setup or read a non-secret JSON config")
     init.add_argument("--config", type=Path)
-    init.add_argument("--token-file", type=Path, help="Private file containing only the API token (otherwise hidden prompt)")
+    init.add_argument(
+        "--token-file",
+        type=Path,
+        help="Private file containing only the API token (otherwise hidden prompt)",
+    )
     init.add_argument("--output", type=Path, default=ROOT / "local")
-    init.add_argument("--enable-accounting", action="store_true", help="Include the optional persistent usage engine and protected reporting UI")
-    init.add_argument("--enable-portal", action="store_true", help="Enable the unified FortiLens console and accounting with read-only embedded Grafana")
-    init.add_argument("--discover-interfaces", action="store_true", help="Read interface metadata during setup")
-    init.add_argument("--skip-interface-discovery", action="store_true", help="Skip the interactive API inventory prompt")
-    init.add_argument("--inventory-file", type=Path, help="Offline FortiGate interface API JSON response; no network requests")
-    init.add_argument("--select-wan", help="Comma-separated names from the inventory in the configured VDOM")
-    init.add_argument("--confirm-wan", action="store_true", help="Explicitly confirm selected Internet interfaces for this project")
+    init.add_argument(
+        "--enable-accounting",
+        action="store_true",
+        help="Include the optional persistent usage engine and protected reporting UI",
+    )
+    init.add_argument(
+        "--enable-portal",
+        action="store_true",
+        help="Enable the unified FortiLens console and accounting with read-only embedded Grafana",
+    )
+    init.add_argument(
+        "--discover-interfaces", action="store_true", help="Read interface metadata during setup"
+    )
+    init.add_argument(
+        "--skip-interface-discovery",
+        action="store_true",
+        help="Skip the interactive API inventory prompt",
+    )
+    init.add_argument(
+        "--inventory-file",
+        type=Path,
+        help="Offline FortiGate interface API JSON response; no network requests",
+    )
+    init.add_argument(
+        "--select-wan", help="Comma-separated names from the inventory in the configured VDOM"
+    )
+    init.add_argument(
+        "--confirm-wan",
+        action="store_true",
+        help="Explicitly confirm selected Internet interfaces for this project",
+    )
     for name in ["start", "import-dashboard", "discover", "stop-accounting", "connect-portal"]:
         p = sub.add_parser(name)
         p.add_argument("--output", type=Path, default=ROOT / "local")
-    doctor_parser = sub.add_parser("doctor", help="Read-only service, collection and recent-log readiness report")
+    doctor_parser = sub.add_parser(
+        "doctor", help="Read-only service, collection and recent-log readiness report"
+    )
     doctor_parser.add_argument("--output", type=Path, default=ROOT / "local")
-    doctor_parser.add_argument("--json", action="store_true", help="Machine-readable report; no raw logs or credentials")
+    doctor_parser.add_argument(
+        "--json", action="store_true", help="Machine-readable report; no raw logs or credentials"
+    )
     doctor_parser.add_argument("--freshness-seconds", type=int, default=300)
-    doctor_parser.add_argument("--api-check", action="store_true", help="Also send one HTTPS GET to FortiGate system/status")
-    interfaces_parser = sub.add_parser("interfaces", help="Review exporter/API interface inventory; no device changes")
+    doctor_parser.add_argument(
+        "--api-check",
+        action="store_true",
+        help="Also send one HTTPS GET to FortiGate system/status",
+    )
+    interfaces_parser = sub.add_parser(
+        "interfaces", help="Review exporter/API interface inventory; no device changes"
+    )
     interfaces_parser.add_argument("--output", type=Path, default=ROOT / "local")
-    interfaces_parser.add_argument("--metrics-only", action="store_true", help="Read existing exporter metrics without direct API requests")
-    interfaces_parser.add_argument("--inventory-file", type=Path, help="Offline FortiGate interface API JSON response")
+    interfaces_parser.add_argument(
+        "--metrics-only",
+        action="store_true",
+        help="Read existing exporter metrics without direct API requests",
+    )
+    interfaces_parser.add_argument(
+        "--inventory-file", type=Path, help="Offline FortiGate interface API JSON response"
+    )
     interfaces_parser.add_argument("--json", action="store_true")
     interfaces_parser.add_argument("--select-wan")
     interfaces_parser.add_argument("--confirm-wan", action="store_true")
-    audit_parser = sub.add_parser("usage-audit", help="Offline normalized-record sample audit; no collection or device requests")
+    audit_parser = sub.add_parser(
+        "usage-audit",
+        help="Offline normalized-record sample audit; no collection or device requests",
+    )
     audit_parser.add_argument("--input", type=Path, required=True)
     audit_parser.add_argument("--period", choices=["today", "week", "month"], required=True)
-    audit_parser.add_argument("--timezone", required=True, help="Explicit UTC or installed IANA timezone, never browser")
+    audit_parser.add_argument(
+        "--timezone", required=True, help="Explicit UTC or installed IANA timezone, never browser"
+    )
     audit_parser.add_argument("--vdom", required=True)
-    audit_parser.add_argument("--at", help="ISO8601 window end with an explicit offset; defaults to now")
+    audit_parser.add_argument(
+        "--at", help="ISO8601 window end with an explicit offset; defaults to now"
+    )
     audit_parser.add_argument("--json", action="store_true")
-    style_parser=sub.add_parser("prepare-dashboard-style",help="Create a reviewed visual candidate without overwriting Grafana")
-    style_parser.add_argument("--output",type=Path,default=ROOT/"local")
-    style_parser.add_argument("--input",type=Path,help="Latest exported dashboard; otherwise use the saved generated source")
-    upgrade_parser=sub.add_parser('prepare-upgrade',help='Prepare a private reviewed v0.1.0 migration; no runtime changes')
-    upgrade_parser.add_argument('--output',type=Path,default=ROOT/'local')
-    upgrade_parser.add_argument('--enable-accounting',action='store_true')
-    upgrade_parser.add_argument('--accounting-timezone')
-    upgrade_parser.add_argument('--expected-devid')
-    alert_parser=sub.add_parser('prepare-alerts',help='Write paused optional candidates outside provisioning; no notifications')
-    alert_parser.add_argument('--output',type=Path,default=ROOT/'local')
-    alert_parser.add_argument('--notification',choices=['email','telegram'])
-    alert_parser.add_argument('--expected-log-interval-seconds',type=int)
-    for command in ('apply-upgrade','rollback-upgrade'):
-        up=sub.add_parser(command,help='Apply/restore reviewed configuration files only; never start services')
-        up.add_argument('--output',type=Path,default=ROOT/'local')
-        up.add_argument('--plan',required=True,help='Generated upgrade ID')
-        up.add_argument('--accept-config-changes',action='store_true',help='Acknowledge reviewed file changes; services are a separate action')
+    style_parser = sub.add_parser(
+        "prepare-dashboard-style",
+        help="Create a reviewed visual candidate without overwriting Grafana",
+    )
+    style_parser.add_argument("--output", type=Path, default=ROOT / "local")
+    style_parser.add_argument(
+        "--input",
+        type=Path,
+        help="Latest exported dashboard; otherwise use the saved generated source",
+    )
+    upgrade_parser = sub.add_parser(
+        "prepare-upgrade", help="Prepare a private reviewed v0.1.0 migration; no runtime changes"
+    )
+    upgrade_parser.add_argument("--output", type=Path, default=ROOT / "local")
+    upgrade_parser.add_argument("--enable-accounting", action="store_true")
+    upgrade_parser.add_argument("--accounting-timezone")
+    upgrade_parser.add_argument("--expected-devid")
+    alert_parser = sub.add_parser(
+        "prepare-alerts",
+        help="Write paused optional candidates outside provisioning; no notifications",
+    )
+    alert_parser.add_argument("--output", type=Path, default=ROOT / "local")
+    alert_parser.add_argument("--notification", choices=["email", "telegram"])
+    alert_parser.add_argument("--expected-log-interval-seconds", type=int)
+    for command in ("apply-upgrade", "rollback-upgrade"):
+        up = sub.add_parser(
+            command, help="Apply/restore reviewed configuration files only; never start services"
+        )
+        up.add_argument("--output", type=Path, default=ROOT / "local")
+        up.add_argument("--plan", required=True, help="Generated upgrade ID")
+        up.add_argument(
+            "--accept-config-changes",
+            action="store_true",
+            help="Acknowledge reviewed file changes; services are a separate action",
+        )
     b = sub.add_parser("bundle")
     b.add_argument("--destination", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "init":
             c = validate_config(load(args.config)) if args.config else wizard()
-            if args.enable_accounting:c=validate_config({**c,"accounting_enabled":True})
-            if args.enable_portal:c=validate_config({**c,"accounting_enabled":True,"portal_enabled":True})
+            if args.enable_accounting:
+                c = validate_config({**c, "accounting_enabled": True})
+            if args.enable_portal:
+                c = validate_config({**c, "accounting_enabled": True, "portal_enabled": True})
             if args.config and c["api_ca_file"] and not Path(c["api_ca_file"]).is_absolute():
                 c["api_ca_file"] = str((args.config.parent / c["api_ca_file"]).resolve())
             if args.token_file:
@@ -833,9 +1343,13 @@ def main(argv=None):
                     try:
                         token = getpass.getpass("FortiGate API token (hidden): ")
                     except getpass.GetPassWarning:
-                        raise SetupError("Hidden input unavailable; use a terminal or --token-file") from None
+                        raise SetupError(
+                            "Hidden input unavailable; use a terminal or --token-file"
+                        ) from None
             if args.skip_interface_discovery and args.discover_interfaces:
-                raise SetupError("Choose either --discover-interfaces or --skip-interface-discovery")
+                raise SetupError(
+                    "Choose either --discover-interfaces or --skip-interface-discovery"
+                )
             c, report = inventory_setup(c, token, args, interactive=args.config is None)
             render(c, args.output, token, inventory_report=report)
         elif args.command == "bundle":
@@ -843,84 +1357,149 @@ def main(argv=None):
         elif args.command == "usage-audit":
             import usage_quality
             from datetime import datetime, timezone
-            report = usage_quality.audit_file(args.input, period=args.period, zone=args.timezone,
-                at=args.at or datetime.now(timezone.utc).isoformat(), vdom=args.vdom)
+
+            report = usage_quality.audit_file(
+                args.input,
+                period=args.period,
+                zone=args.timezone,
+                at=args.at or datetime.now(timezone.utc).isoformat(),
+                vdom=args.vdom,
+            )
             return usage_quality.print_report(report, args.json)
         else:
             p, c = installation(args.output)
             if args.command == "start":
                 start(p, c)
-            elif args.command == 'connect-portal':
+            elif args.command == "connect-portal":
                 connect_portal(p, c)
-                print('Portal Viewer connected to this dashboard; existing permissions preserved.')
-            elif args.command=='stop-accounting':
-                if not c['accounting_enabled']:raise SetupError('No optional accounting service is configured')
-                run_compose(p,'stop','fortilens-usage',timeout=120)
-                print('Optional accounting worker stopped; its data volume is preserved.')
+                print("Portal Viewer connected to this dashboard; existing permissions preserved.")
+            elif args.command == "stop-accounting":
+                if not c["accounting_enabled"]:
+                    raise SetupError("No optional accounting service is configured")
+                run_compose(p, "stop", "fortilens-usage", timeout=120)
+                print("Optional accounting worker stopped; its data volume is preserved.")
             elif args.command == "discover":
                 discover(p, c)
             elif args.command == "doctor":
                 import doctor
-                report = doctor.run(p, c, grafana_request, compose_command, PROM_UID, LOKI_UID,
-                                    freshness=args.freshness_seconds, direct_api=args.api_check,
-                                    probe_exclusions=exporter_probe_exclusions(p,c))
+
+                report = doctor.run(
+                    p,
+                    c,
+                    grafana_request,
+                    compose_command,
+                    PROM_UID,
+                    LOKI_UID,
+                    freshness=args.freshness_seconds,
+                    direct_api=args.api_check,
+                    probe_exclusions=exporter_probe_exclusions(p, c),
+                )
                 return doctor.print_report(report, args.json)
             elif args.command == "interfaces":
                 interface_command(p, c, args)
             elif args.command == "prepare-dashboard-style":
                 from dashboard_style import polish_dashboard
-                source=load(args.input or p/"grafana/dashboard.json")
-                candidate=polish_dashboard(source)
-                path="grafana/dashboard.visual-"+str(time.time_ns())+".json"
-                write_file(p,path,dumps(candidate))
-                print("Review/import visual candidate: "+str(p/path))
+
+                source = load(args.input or p / "grafana/dashboard.json")
+                candidate = polish_dashboard(source)
+                path = "grafana/dashboard.visual-" + str(time.time_ns()) + ".json"
+                write_file(p, path, dumps(candidate))
+                print("Review/import visual candidate: " + str(p / path))
                 print("Measurements, selectors and running Grafana are unchanged.")
-            elif args.command=='prepare-alerts':
+            elif args.command == "prepare-alerts":
                 import alerts
-                folder=p/'alert-candidates'/str(time.time_ns())
-                for name,value in alerts.candidates(c,expected_log_interval=args.expected_log_interval_seconds,notification=args.notification).items():
-                    write_file(folder,name+'.json',dumps(value),mode=0o600)
-                print('Paused candidates prepared outside active provisioning: '+str(folder))
-                print('Review, test and enable explicitly in your environment. No rule, policy or notification was changed.')
-            elif args.command in ('prepare-upgrade','apply-upgrade','rollback-upgrade'):
+
+                folder = p / "alert-candidates" / str(time.time_ns())
+                for name, value in alerts.candidates(
+                    c,
+                    expected_log_interval=args.expected_log_interval_seconds,
+                    notification=args.notification,
+                ).items():
+                    write_file(folder, name + ".json", dumps(value), mode=0o600)
+                print("Paused candidates prepared outside active provisioning: " + str(folder))
+                print(
+                    "Review, test and enable explicitly in your environment. No rule, policy or notification was changed."
+                )
+            elif args.command in ("prepare-upgrade", "apply-upgrade", "rollback-upgrade"):
                 import upgrade
-                module=sys.modules[__name__]
-                if args.command=='prepare-upgrade':
-                    plan=upgrade.prepare(module,p,c,enable_accounting=args.enable_accounting,
-                        zone=args.accounting_timezone,expected_devid=args.expected_devid)
-                    print('Review private plan: '+str(p/'.upgrades'/plan['id']/'plan.json'))
-                    print('Upgrade ID: '+plan['id'])
+
+                module = sys.modules[__name__]
+                if args.command == "prepare-upgrade":
+                    plan = upgrade.prepare(
+                        module,
+                        p,
+                        c,
+                        enable_accounting=args.enable_accounting,
+                        zone=args.accounting_timezone,
+                        expected_devid=args.expected_devid,
+                    )
+                    print("Review private plan: " + str(p / ".upgrades" / plan["id"] / "plan.json"))
+                    print("Upgrade ID: " + plan["id"])
                 else:
                     if not args.accept_config_changes:
-                        raise SetupError('Review the plan/backup and add --accept-config-changes. No runtime actions are automatic')
-                    operation=upgrade.apply if args.command=='apply-upgrade' else upgrade.rollback
-                    plan=operation(module,p,args.plan)
-                    print('Configuration '+plan['status']+'. Runtime services have not been changed.')
-                    if args.command=='rollback-upgrade':
-                        print('Stop the optional worker before rollback; restart the original services explicitly. Keep usage-data for recovery.')
+                        raise SetupError(
+                            "Review the plan/backup and add --accept-config-changes. No runtime actions are automatic"
+                        )
+                    operation = (
+                        upgrade.apply if args.command == "apply-upgrade" else upgrade.rollback
+                    )
+                    plan = operation(module, p, args.plan)
+                    print(
+                        "Configuration "
+                        + plan["status"]
+                        + ". Runtime services have not been changed."
+                    )
+                    if args.command == "rollback-upgrade":
+                        print(
+                            "Stop the optional worker before rollback; restart the original services explicitly. Keep usage-data for recovery."
+                        )
                     else:
-                        print('Review Compose config and the dashboard candidate, then explicitly run start when migration is approved.')
+                        print(
+                            "Review Compose config and the dashboard candidate, then explicitly run start when migration is approved."
+                        )
             else:
                 import_dashboard(p, c)
         return 0
     except urllib.error.HTTPError as e:
-        print(f"HTTP {e.code}: request failed; response body suppressed to protect credentials.", file=sys.stderr)
-        try:e.close()
-        except OSError:pass
+        print(
+            f"HTTP {e.code}: request failed; response body suppressed to protect credentials.",
+            file=sys.stderr,
+        )
+        try:
+            e.close()
+        except OSError:
+            pass
     except SetupError as e:
         print(f"Setup failed: {e}", file=sys.stderr)
     except EOFError:
-        print("Setup failed: Terminal input ended. Use a terminal or the documented config/token-file options.", file=sys.stderr)
+        print(
+            "Setup failed: Terminal input ended. Use a terminal or the documented config/token-file options.",
+            file=sys.stderr,
+        )
     except UnicodeError:
-        print("Setup failed: A required file or service response is not valid UTF-8. Input contents are suppressed.", file=sys.stderr)
+        print(
+            "Setup failed: A required file or service response is not valid UTF-8. Input contents are suppressed.",
+            file=sys.stderr,
+        )
     except subprocess.SubprocessError:
-        print("Setup failed: The required host operation failed or timed out. Review Docker readiness and local prerequisites; process output is suppressed.", file=sys.stderr)
+        print(
+            "Setup failed: The required host operation failed or timed out. Review Docker readiness and local prerequisites; process output is suppressed.",
+            file=sys.stderr,
+        )
     except (OSError, http.client.HTTPException):
-        print("Setup failed: Required files or services are unavailable. Review permissions, storage, connectivity and TLS; private details are suppressed.", file=sys.stderr)
+        print(
+            "Setup failed: Required files or services are unavailable. Review permissions, storage, connectivity and TLS; private details are suppressed.",
+            file=sys.stderr,
+        )
     except ValueError as e:
         from interfaces import InventoryError
         from upgrade import UpgradeError
-        message = str(e) if isinstance(e, (InventoryError, UpgradeError)) else "Input or service response could not be validated. Review the supported configuration and response format; input contents are suppressed."
+
+        message = (
+            str(e)
+            if isinstance(e, (InventoryError, UpgradeError))
+            else "Input or service response could not be validated. Review the supported configuration and response format; input contents are suppressed."
+        )
         print("Setup failed: " + message, file=sys.stderr)
     except KeyboardInterrupt:
         print("Setup cancelled.", file=sys.stderr)

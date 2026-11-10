@@ -42,9 +42,15 @@ def snapshot(store):
     tables = {}
     for table in ("daily", "app_daily", "quality", "device_profile", "app_catalog"):
         if store.db.execute("SELECT 1 FROM sqlite_master WHERE name=?", (table,)).fetchone():
-            tables[table] = sorted(json.dumps([*row], sort_keys=True) for row in store.db.execute("SELECT * FROM " + table))
-    tables["state"] = sorted(json.dumps([k, v], sort_keys=True) for k, v in store.db.execute("SELECT key,value FROM state")
-                             if k not in VOLATILE_STATE)
+            tables[table] = sorted(
+                json.dumps([*row], sort_keys=True)
+                for row in store.db.execute("SELECT * FROM " + table)
+            )
+    tables["state"] = sorted(
+        json.dumps([k, v], sort_keys=True)
+        for k, v in store.db.execute("SELECT key,value FROM state")
+        if k not in VOLATILE_STATE
+    )
     facts = []
     for fact, labels in store.ledger.range_facts_labels(0, 2**63 - 1):
         facts.append(json.dumps([fact, labels], sort_keys=True))
@@ -68,14 +74,20 @@ def feed(module, folder, batches, inventory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--old", required=True, help="portable/ directory of the reference implementation")
-    parser.add_argument("--new", required=True, help="portable/ directory of the changed implementation")
+    parser.add_argument(
+        "--old", required=True, help="portable/ directory of the reference implementation"
+    )
+    parser.add_argument(
+        "--new", required=True, help="portable/ directory of the changed implementation"
+    )
     parser.add_argument("--output", required=True, help="Empty directory for the two databases")
     parser.add_argument("--synthetic", help="DEVICES:SESSIONS:LOCALS:MINUTES")
     parser.add_argument("--records", help="JSON lines exported from Loki")
     parser.add_argument("--batch", type=int, default=30000)
     parser.add_argument("--inventory", help="Interface inventory JSON for real records")
-    parser.add_argument("--config", help="Accounting config JSON for real records (timezone, WAN, source)")
+    parser.add_argument(
+        "--config", help="Accounting config JSON for real records (timezone, WAN, source)"
+    )
     args = parser.parse_args()
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
@@ -83,11 +95,11 @@ def main():
         parser.error("--output must be empty")
     inventory = json.loads(Path(args.inventory).read_text()) if args.inventory else INVENTORY
     if args.config:
-
         CONFIG.update(json.loads(Path(args.config).read_text()))
     if args.synthetic:
         sys.path.insert(0, str(HERE.parent))
         import benchmark_scale
+
         devices, sessions, locals_per_device, minutes = (int(x) for x in args.synthetic.split(":"))
 
         def batches():
@@ -95,11 +107,12 @@ def main():
             for tick in range(minutes):
                 pending += benchmark_scale.minute(devices, sessions, 5, tick, locals_per_device)
                 while len(pending) >= args.batch:
-                    yield pending[:args.batch]
-                    pending = pending[args.batch:]
+                    yield pending[: args.batch]
+                    pending = pending[args.batch :]
             if pending:
                 yield pending
     else:
+
         def batches():
             pending = []
             with open(args.records, encoding="utf-8") as stream:
@@ -110,24 +123,34 @@ def main():
                         pending = []
             if pending:
                 yield pending
+
     results = {}
     for name in ("old", "new"):
         module = load(Path(getattr(args, name)).resolve(), "accounting_" + name)
         (output / name).mkdir()
         results[name] = feed(module, output / name, batches, inventory)
     old, new = results["old"][0], results["new"][0]
-    report = {"records": results["new"][1], "old_seconds": round(results["old"][2], 2), "new_seconds": round(results["new"][2], 2),
-              "speedup": round(results["old"][2] / results["new"][2], 2) if results["new"][2] else None, "tables": {}}
+    report = {
+        "records": results["new"][1],
+        "old_seconds": round(results["old"][2], 2),
+        "new_seconds": round(results["new"][2], 2),
+        "speedup": round(results["old"][2] / results["new"][2], 2) if results["new"][2] else None,
+        "tables": {},
+    }
     identical = True
     for table in sorted(set(old) | set(new)):
         a, b = old.get(table, []), new.get(table, [])
         same = a == b
         identical &= same
-        report["tables"][table] = {"rows": len(b), "identical": same,
-                                   "sha256": hashlib.sha256("\n".join(b).encode()).hexdigest()[:16]}
+        report["tables"][table] = {
+            "rows": len(b),
+            "identical": same,
+            "sha256": hashlib.sha256("\n".join(b).encode()).hexdigest()[:16],
+        }
         if not same:
             report["tables"][table]["first_difference"] = next(
-                ([x, y] for x, y in zip(a, b) if x != y), ["rows", len(a), len(b)])
+                ([x, y] for x, y in zip(a, b) if x != y), ["rows", len(a), len(b)]
+            )
     report["identical"] = identical
     print(json.dumps(report, indent=2))
     sys.exit(0 if identical else 1)

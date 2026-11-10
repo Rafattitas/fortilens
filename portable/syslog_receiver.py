@@ -456,36 +456,48 @@ def host_endpoints(path):
     relying on Docker DNS or globally reserved auxiliary ports.
     """
     try:
-        with Path(path).open('rb') as stream:
+        with Path(path).open("rb") as stream:
             data = stream.read(256 * 1024 + 1)
         if len(data) > 256 * 1024:
             raise ValueError()
         config = json.loads(data)
-        port = config['syslog_port']
-        bind = str(ipaddress.IPv4Address(config['syslog_bind']))
-        if (config.get('syslog_network') != 'host'
-                or config.get('syslog_format') != 'fortigate'
-                or config.get('syslog_protocol') != 'udp'
-                or type(port) is not int or not 1 <= port < 65535):
+        port = config["syslog_port"]
+        bind = str(ipaddress.IPv4Address(config["syslog_bind"]))
+        if (
+            config.get("syslog_network") != "host"
+            or config.get("syslog_format") != "fortigate"
+            or config.get("syslog_protocol") != "udp"
+            or type(port) is not int
+            or not 1 <= port < 65535
+        ):
             raise ValueError()
-        return (bind, port), ('127.0.0.1', port), ('127.0.0.1', port + 1)
+        return (bind, port), ("127.0.0.1", port), ("127.0.0.1", port + 1)
     except (OSError, ValueError, KeyError, TypeError):
-        raise ConfigurationError('Invalid host receiver configuration') from None
+        raise ConfigurationError("Invalid host receiver configuration") from None
 
 
 def drop_host_privileges():
     """Permanently drop the Linux bind bootstrap before handling input."""
-    if sys.platform != 'linux' or os.geteuid() != 0:
-        raise ConfigurationError('Host receiver requires the managed Linux bootstrap')
+    if sys.platform != "linux" or os.geteuid() != 0:
+        raise ConfigurationError("Host receiver requires the managed Linux bootstrap")
     os.setgroups([])
     os.setgid(10001)
     os.setuid(10001)
-    status = dict(line.split(':', 1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)
-    if (os.getuid() != 10001 or os.geteuid() != 10001
-            or os.getgid() != 10001 or os.getegid() != 10001 or os.getgroups()
-            or status.get('NoNewPrivs','').strip() != '1'
-            or any(int(status[key].strip(), 16) for key in ('CapInh', 'CapPrm', 'CapEff', 'CapAmb'))):
-        raise ConfigurationError('Host receiver privilege drop failed')
+    status = dict(
+        line.split(":", 1)
+        for line in Path("/proc/self/status").read_text().splitlines()
+        if ":" in line
+    )
+    if (
+        os.getuid() != 10001
+        or os.geteuid() != 10001
+        or os.getgid() != 10001
+        or os.getegid() != 10001
+        or os.getgroups()
+        or status.get("NoNewPrivs", "").strip() != "1"
+        or any(int(status[key].strip(), 16) for key in ("CapInh", "CapPrm", "CapEff", "CapAmb"))
+    ):
+        raise ConfigurationError("Host receiver privilege drop failed")
 
 
 def main(argv=None):
@@ -500,7 +512,7 @@ def main(argv=None):
         http_address = HTTP_ADDRESS
         if args.host_network:
             udp, upstream, http_address = host_endpoints(args.config)
-            options = {'udp_address': udp, 'upstream': upstream}
+            options = {"udp_address": udp, "upstream": upstream}
         receiver = Receiver(load_config(args.config), **options)
         server = ThreadingHTTPServer(http_address, handler(receiver))
         server.daemon_threads = True

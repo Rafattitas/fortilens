@@ -1,4 +1,5 @@
 """Readiness must distinguish missing data, probe failures and auth boundaries."""
+
 import contextlib
 from copy import deepcopy
 import importlib.util
@@ -19,19 +20,38 @@ spec = importlib.util.spec_from_file_location("doctor", ROOT / "portable/doctor.
 doctor = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(doctor)
 NOW = 1800000000
-CONFIG = {"fortigate_host": "fw.example.test", "api_port": 8443, "vdom": "Office",
-          "sla": "ISP_Health", "wan_interfaces": ["uplink.100"], "api_ca_file": "", "api_tls_verify": True}
+CONFIG = {
+    "fortigate_host": "fw.example.test",
+    "api_port": 8443,
+    "vdom": "Office",
+    "sla": "ISP_Health",
+    "wan_interfaces": ["uplink.100"],
+    "api_ca_file": "",
+    "api_tls_verify": True,
+}
 
 
 def point(metric, value=1, age=10, **labels):
-    return {"metric": {"__name__": metric, "job": "fortigate", "instance": "fw.example.test", **labels},
-            "values": [[NOW - age, str(value)]]}
+    return {
+        "metric": {"__name__": metric, "job": "fortigate", "instance": "fw.example.test", **labels},
+        "values": [[NOW - age, str(value)]],
+    }
 
 
 def healthy_points():
-    return [point("up"), point("probe_success"),
-            point("fortigate_virtual_wan_status", 0, vdom="Office", sla="ISP_Health", interface="uplink.100", state="up"),
-            point("fortigate_interface_link_up", 0, name="uplink.100")]
+    return [
+        point("up"),
+        point("probe_success"),
+        point(
+            "fortigate_virtual_wan_status",
+            0,
+            vdom="Office",
+            sla="ISP_Health",
+            interface="uplink.100",
+            state="up",
+        ),
+        point("fortigate_interface_link_up", 0, name="uplink.100"),
+    ]
 
 
 class FakeRequest:
@@ -48,50 +68,98 @@ class FakeRequest:
             return {"status": "OK"}
         if route.startswith("/api/datasources/proxy/"):
             query = urllib.parse.parse_qs(urllib.parse.urlsplit(route).query)["query"][0]
-            assert '[600s]' in query and 'instance="fw.example.test"' in query
+            assert "[600s]" in query and 'instance="fw.example.test"' in query
             return {"status": "success", "data": {"resultType": "matrix", "result": self.points}}
         if route == "/api/ds/query":
             assert method == "POST" and "count_over_time" in body["queries"][0]["expr"]
-            frames = [] if self.logs is None else [{"schema": {"fields": [{"type": "time"}, {"type": "number"}]},
-                      "data": {"values": [[NOW * 1000], [self.logs]]}}]
+            frames = (
+                []
+                if self.logs is None
+                else [
+                    {
+                        "schema": {"fields": [{"type": "time"}, {"type": "number"}]},
+                        "data": {"values": [[NOW * 1000], [self.logs]]},
+                    }
+                ]
+            )
             return {"results": {"A": {"status": 200, "frames": frames}}}
         raise AssertionError("Unexpected or mutating request: " + route)
 
 
 def docker_result():
-    rows = [{"Name": "test-" + name + "-1", "Service": name, "State": "running", "Health": ""} for name in doctor.SERVICES]
+    rows = [
+        {"Name": "test-" + name + "-1", "Service": name, "State": "running", "Health": ""}
+        for name in doctor.SERVICES
+    ]
     return subprocess.CompletedProcess([], 0, "\n".join(json.dumps(x) for x in rows), "")
 
 
 class DoctorTests(unittest.TestCase):
     def test_accounting_checks_report_processing_without_certifying_traffic_coverage(self):
-        details={'last_attempt':NOW-10,'last_poll_ok':True,'processing_lag_seconds':5,
-            'inventory_available':True,'source_identity_bound':True,'loki_timestamps_at_receipt':True,
-            'last_delivery_ns':(NOW-20)*10**9}
-        checks=doctor.accounting_checks(details,NOW,300)
-        self.assertTrue(all(x['status']=='PASS' for x in checks))
-        details.update(inventory_available=False,inventory_error='api_http_403',parser_rejections=2,processing_lag_seconds=900)
-        checks=doctor.accounting_checks(details,NOW,300)
-        self.assertEqual(next(x for x in checks if x['id']=='accounting_inventory_permissions')['status'],'FAIL')
-        self.assertEqual(next(x for x in checks if x['id']=='accounting_lag')['status'],'WARN')
-        self.assertNotIn('SECRET',json.dumps(checks))
+        details = {
+            "last_attempt": NOW - 10,
+            "last_poll_ok": True,
+            "processing_lag_seconds": 5,
+            "inventory_available": True,
+            "source_identity_bound": True,
+            "loki_timestamps_at_receipt": True,
+            "last_delivery_ns": (NOW - 20) * 10**9,
+        }
+        checks = doctor.accounting_checks(details, NOW, 300)
+        self.assertTrue(all(x["status"] == "PASS" for x in checks))
+        details.update(
+            inventory_available=False,
+            inventory_error="api_http_403",
+            parser_rejections=2,
+            processing_lag_seconds=900,
+        )
+        checks = doctor.accounting_checks(details, NOW, 300)
+        self.assertEqual(
+            next(x for x in checks if x["id"] == "accounting_inventory_permissions")["status"],
+            "FAIL",
+        )
+        self.assertEqual(next(x for x in checks if x["id"] == "accounting_lag")["status"], "WARN")
+        self.assertNotIn("SECRET", json.dumps(checks))
 
     def test_reporting_auth_failure_is_not_fortigate_auth_failure(self):
-        config={**CONFIG,'accounting_enabled':True}
-        def reject(*args):raise urllib.error.HTTPError('http://local/',401,'SECRET',{},None)
-        with patch.object(doctor.subprocess,'run',return_value=docker_result()):
-            result=doctor.run(Path('/test'),config,FakeRequest(),lambda p,*a:['docker',*a],
-                'fm-prometheus','fm-loki',now=NOW,usage_request=reject)
-        self.assertEqual(self.item(result,'accounting_api')['code'],'accounting_auth_rejected')
-        self.assertEqual(self.item(result,'fortigate_api')['status'],'PASS')
-        self.assertNotIn('SECRET',json.dumps(result))
+        config = {**CONFIG, "accounting_enabled": True}
+
+        def reject(*args):
+            raise urllib.error.HTTPError("http://local/", 401, "SECRET", {}, None)
+
+        with patch.object(doctor.subprocess, "run", return_value=docker_result()):
+            result = doctor.run(
+                Path("/test"),
+                config,
+                FakeRequest(),
+                lambda p, *a: ["docker", *a],
+                "fm-prometheus",
+                "fm-loki",
+                now=NOW,
+                usage_request=reject,
+            )
+        self.assertEqual(self.item(result, "accounting_api")["code"], "accounting_auth_rejected")
+        self.assertEqual(self.item(result, "fortigate_api")["status"], "PASS")
+        self.assertNotIn("SECRET", json.dumps(result))
 
     def run_report(self, request=None, **kwargs):
-        with patch.object(doctor.subprocess, "run", return_value=docker_result()) as run, \
-             patch.object(doctor, "api_check") as api:
-            r = doctor.run(Path("/test"), CONFIG, request or FakeRequest(), lambda p, *a: ["docker", "compose", *a],
-                           "fm-prometheus", "fm-loki", now=NOW, **kwargs)
-            self.assertEqual(run.call_args.args[0], ["docker", "compose", "ps", "--all", "--format", "json"])
+        with (
+            patch.object(doctor.subprocess, "run", return_value=docker_result()) as run,
+            patch.object(doctor, "api_check") as api,
+        ):
+            r = doctor.run(
+                Path("/test"),
+                CONFIG,
+                request or FakeRequest(),
+                lambda p, *a: ["docker", "compose", *a],
+                "fm-prometheus",
+                "fm-loki",
+                now=NOW,
+                **kwargs,
+            )
+            self.assertEqual(
+                run.call_args.args[0], ["docker", "compose", "ps", "--all", "--format", "json"]
+            )
             if not kwargs.get("direct_api"):
                 api.assert_not_called()
             return r
@@ -100,12 +168,22 @@ class DoctorTests(unittest.TestCase):
         return next(x for x in report["checks"] if x["id"] == name)
 
     def test_an_unbound_source_explains_what_binding_changes(self):
-        details={'last_attempt':NOW-10,'last_poll_ok':True,'processing_lag_seconds':5,'inventory_available':True,
-            'source_identity_bound':False,'loki_timestamps_at_receipt':True,'last_delivery_ns':(NOW-20)*10**9}
-        item=next(x for x in doctor.accounting_checks(details,NOW,300) if x['id']=='accounting_source')
-        self.assertEqual((item['status'],item['code']),('WARN','accounting_source_unavailable'))
-        self.assertIn('any other FortiGate',item['message'])
-        self.assertIn('Test Connection',item['action']);self.assertIn('HA cluster',item['action'])
+        details = {
+            "last_attempt": NOW - 10,
+            "last_poll_ok": True,
+            "processing_lag_seconds": 5,
+            "inventory_available": True,
+            "source_identity_bound": False,
+            "loki_timestamps_at_receipt": True,
+            "last_delivery_ns": (NOW - 20) * 10**9,
+        }
+        item = next(
+            x for x in doctor.accounting_checks(details, NOW, 300) if x["id"] == "accounting_source"
+        )
+        self.assertEqual((item["status"], item["code"]), ("WARN", "accounting_source_unavailable"))
+        self.assertIn("any other FortiGate", item["message"])
+        self.assertIn("Test Connection", item["action"])
+        self.assertIn("HA cluster", item["action"])
 
     def test_deliberate_choices_are_info_and_keep_the_overall_status(self):
         r = self.run_report(probe_exclusions=["System/SensorInfo"])
@@ -113,14 +191,24 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(r["status"], "PASS")
         with contextlib.redirect_stdout(io.StringIO()) as output:
             self.assertEqual(doctor.print_report(r), 0)
-        self.assertIn("[Note] Not collected, as chosen in Settings: System/SensorInfo.", output.getvalue())
+        self.assertIn(
+            "[Note] Not collected, as chosen in Settings: System/SensorInfo.", output.getvalue()
+        )
         r = self.run_report(probe_exclusions=["System/SensorInfo", "Custom/Endpoint"])
         self.assertEqual(self.item(r, "exporter_probe_policy")["status"], "WARN")
         self.assertEqual(r["status"], "WARN")
         services = [doctor.check("service:alloy", "INFO", "alloy: noted", "service_state")]
         with patch.object(doctor.subprocess, "run", return_value=docker_result()):
-            r = doctor.run(Path("/test"), CONFIG, FakeRequest(), lambda p, *a: ["docker", *a], "fm-prometheus", "fm-loki",
-                           now=NOW, service_reader=lambda *a: services)
+            r = doctor.run(
+                Path("/test"),
+                CONFIG,
+                FakeRequest(),
+                lambda p, *a: ["docker", *a],
+                "fm-prometheus",
+                "fm-loki",
+                now=NOW,
+                service_reader=lambda *a: services,
+            )
         self.assertEqual(self.item(r, "service:alloy")["status"], "INFO")
 
     def test_received_zero_wan_state_is_data_not_collection_failure(self):
@@ -178,7 +266,10 @@ class DoctorTests(unittest.TestCase):
 
     def test_grafana_auth_does_not_become_fortigate_auth_and_hides_body(self):
         def rejected(*args, **kwargs):
-            raise urllib.error.HTTPError("http://grafana/", 401, "SECRET_IN_REASON", {}, io.BytesIO(b"SECRET_IN_BODY"))
+            raise urllib.error.HTTPError(
+                "http://grafana/", 401, "SECRET_IN_REASON", {}, io.BytesIO(b"SECRET_IN_BODY")
+            )
+
         r = self.run_report(rejected)
         self.assertEqual(self.item(r, "grafana")["code"], "grafana_auth_rejected")
         self.assertEqual(self.item(r, "fortigate_api")["status"], "UNKNOWN")
@@ -204,44 +295,77 @@ class DoctorTests(unittest.TestCase):
     def test_services_are_found_under_the_project_that_runs_the_compose_file(self):
         # A web-managed or adopted stack runs under its own Compose project name.
         empty = subprocess.CompletedProcess([], 0, "", "")
+
         def docker(projects):
             calls = []
+
             def run(command, **kwargs):
                 calls.append(command)
                 if command[:2] == ["docker", "ps"]:
                     return subprocess.CompletedProcess([], 0, "\n".join(projects), "")
-                return docker_result() if "-p" in command and command[command.index("-p") + 1] == "fortilens-registered" else empty
+                return (
+                    docker_result()
+                    if "-p" in command
+                    and command[command.index("-p") + 1] == "fortilens-registered"
+                    else empty
+                )
+
             return run, calls
+
         path = Path("/test")
         run, calls = docker(["fortilens-registered"] * 3)
         with patch.object(doctor.subprocess, "run", side_effect=run):
-            checks = doctor.service_checks(path, lambda p, *a: ["docker", "compose", "-p", "forti-monitor-derived", *a])
+            checks = doctor.service_checks(
+                path, lambda p, *a: ["docker", "compose", "-p", "forti-monitor-derived", *a]
+            )
         self.assertTrue(all(x["code"] == "service_running" for x in checks), checks)
         self.assertEqual(calls[1][:4], ["docker", "ps", "--all", "--filter"])
-        self.assertEqual(calls[1][4], "label=com.docker.compose.project.config_files=" + str(path / "compose.yaml"))
-        self.assertEqual(calls[2][:6], ["docker", "compose", "-p", "fortilens-registered", "-f", str(path / "compose.yaml")])
+        self.assertEqual(
+            calls[1][4],
+            "label=com.docker.compose.project.config_files=" + str(path / "compose.yaml"),
+        )
+        self.assertEqual(
+            calls[2][:6],
+            ["docker", "compose", "-p", "fortilens-registered", "-f", str(path / "compose.yaml")],
+        )
         # No other project, several projects or an unusable name: still reported as missing.
         for projects in ([], ["one", "two"], ["Bad Name"]):
             with self.subTest(projects=projects):
                 run, calls = docker(projects)
                 with patch.object(doctor.subprocess, "run", side_effect=run):
-                    checks = doctor.service_checks(path, lambda p, *a: ["docker", "compose", "-p", "forti-monitor-derived", *a])
+                    checks = doctor.service_checks(
+                        path, lambda p, *a: ["docker", "compose", "-p", "forti-monitor-derived", *a]
+                    )
                 self.assertTrue(all(x["code"] == "service_missing" for x in checks))
                 self.assertEqual(len(calls), 2)
 
     def test_direct_api_status_and_network_errors_are_distinguished(self):
         with tempfile.TemporaryDirectory() as parent:
-            p = Path(parent); (p / "secrets").mkdir()
+            p = Path(parent)
+            (p / "secrets").mkdir()
             token = "PRIVATE_TEST_TOKEN"
-            (p / "secrets/fortigate-key.yaml").write_text(json.dumps({"https://fw.example.test:8443": {"token": token}}))
-            errors = [(urllib.error.HTTPError("https://fw/", 401, token, {}, None), "api_auth_rejected"),
-                      (urllib.error.HTTPError("https://fw/", 403, token, {}, None), "api_access_forbidden"),
-                      (urllib.error.HTTPError("https://fw/", 302, token, {}, None), "api_redirect_rejected"),
-                      (urllib.error.URLError(ssl.SSLCertVerificationError(token)), "api_tls_error"),
-                      (urllib.error.URLError(socket.gaierror(token)), "api_dns_error"),
-                      (urllib.error.URLError(TimeoutError(token)), "api_timeout")]
+            (p / "secrets/fortigate-key.yaml").write_text(
+                json.dumps({"https://fw.example.test:8443": {"token": token}})
+            )
+            errors = [
+                (urllib.error.HTTPError("https://fw/", 401, token, {}, None), "api_auth_rejected"),
+                (
+                    urllib.error.HTTPError("https://fw/", 403, token, {}, None),
+                    "api_access_forbidden",
+                ),
+                (
+                    urllib.error.HTTPError("https://fw/", 302, token, {}, None),
+                    "api_redirect_rejected",
+                ),
+                (urllib.error.URLError(ssl.SSLCertVerificationError(token)), "api_tls_error"),
+                (urllib.error.URLError(socket.gaierror(token)), "api_dns_error"),
+                (urllib.error.URLError(TimeoutError(token)), "api_timeout"),
+            ]
             for error, expected in errors:
-                with self.subTest(expected=expected), patch.object(doctor.urllib.request, "build_opener") as build:
+                with (
+                    self.subTest(expected=expected),
+                    patch.object(doctor.urllib.request, "build_opener") as build,
+                ):
                     build.return_value.open.side_effect = error
                     item = doctor.api_check(p, CONFIG)
                     self.assertEqual(item["code"], expected)
@@ -249,7 +373,9 @@ class DoctorTests(unittest.TestCase):
                     req = build.return_value.open.call_args.args[0]
                     self.assertNotIn(token, req.full_url)
                     self.assertEqual(req.get_header("Authorization"), "Bearer " + token)
-                    self.assertTrue(any(isinstance(x, doctor.NoRedirect) for x in build.call_args.args))
+                    self.assertTrue(
+                        any(isinstance(x, doctor.NoRedirect) for x in build.call_args.args)
+                    )
 
     def test_exit_codes_and_json_output(self):
         r = self.run_report()

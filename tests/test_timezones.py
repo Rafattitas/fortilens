@@ -1,4 +1,5 @@
 """Accounting days that follow the FortiGate clock, and viewer-local display time."""
+
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import sys
@@ -8,6 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "portable"))
 import accounting as a
+
 sys.path.insert(0, str(ROOT / "tests"))
 from test_accounting import CONFIG, INVENTORY, record  # noqa: E402
 
@@ -35,7 +37,9 @@ class OffsetTests(unittest.TestCase):
 
     def test_offset_never_changes_event_identity(self):
         plain, stamped = record(), record(tz="+0200")
-        self.assertEqual(a.normalize(plain, "fixture")["uid"], a.normalize(stamped, "fixture")["uid"])
+        self.assertEqual(
+            a.normalize(plain, "fixture")["uid"], a.normalize(stamped, "fixture")["uid"]
+        )
         self.assertEqual(a.normalize(stamped, "fixture")["utc_offset"], 7200)
         self.assertNotIn("utc_offset", a.normalize(plain, "fixture"))
 
@@ -43,27 +47,35 @@ class OffsetTests(unittest.TestCase):
 class TimelineTests(unittest.TestCase):
     def test_fixed_offset_day_boundaries(self):
         zone = a.ZoneTimeline.load([[None, 7200]])
-        self.assertEqual(datetime.fromtimestamp(at("2026-11-08T21:59:59Z"), zone).date(), date(2026, 11, 8))
-        self.assertEqual(datetime.fromtimestamp(at("2026-11-08T22:00:00Z"), zone).date(), date(2026, 11, 9))
+        self.assertEqual(
+            datetime.fromtimestamp(at("2026-11-08T21:59:59Z"), zone).date(), date(2026, 11, 8)
+        )
+        self.assertEqual(
+            datetime.fromtimestamp(at("2026-11-08T22:00:00Z"), zone).date(), date(2026, 11, 9)
+        )
         first, last = a.period_bounds("today", "2026-11-09T10:00:00Z", zone)
-        self.assertEqual(first, at("2026-11-08T22:00:00Z")*NS)
+        self.assertEqual(first, at("2026-11-08T22:00:00Z") * NS)
 
     def test_eastward_change_shortens_only_the_last_old_day(self):
         zone = a.ZoneTimeline.load([[None, "UTC"], ["2026-11-09", 7200]])
         # 8 November stays a UTC day but ends where 9 November starts in UTC+2.
-        self.assertEqual(datetime.fromtimestamp(at("2026-11-08T21:30:00Z"), zone).date(), date(2026, 11, 8))
-        self.assertEqual(datetime.fromtimestamp(at("2026-11-08T22:30:00Z"), zone).date(), date(2026, 11, 9))
+        self.assertEqual(
+            datetime.fromtimestamp(at("2026-11-08T21:30:00Z"), zone).date(), date(2026, 11, 8)
+        )
+        self.assertEqual(
+            datetime.fromtimestamp(at("2026-11-08T22:30:00Z"), zone).date(), date(2026, 11, 9)
+        )
         start8 = a.period_bounds("today", "2026-11-08T12:00:00Z", zone)[0]
         start9 = a.period_bounds("today", "2026-11-09T12:00:00Z", zone)[0]
-        self.assertEqual(start8, at("2026-11-08T00:00:00Z")*NS)
-        self.assertEqual(start9, at("2026-11-08T22:00:00Z")*NS)
-        self.assertEqual((start9-start8)//NS, 22*3600)
+        self.assertEqual(start8, at("2026-11-08T00:00:00Z") * NS)
+        self.assertEqual(start9, at("2026-11-08T22:00:00Z") * NS)
+        self.assertEqual((start9 - start8) // NS, 22 * 3600)
 
     def test_westward_change_lengthens_the_last_old_day(self):
         zone = a.ZoneTimeline.load([[None, 10800], ["2026-11-09", 7200]])
         start8 = a.period_bounds("today", "2026-11-08T12:00:00Z", zone)[0]
         start9 = a.period_bounds("today", "2026-11-09T12:00:00Z", zone)[0]
-        self.assertEqual((start9-start8)//NS, 25*3600)
+        self.assertEqual((start9 - start8) // NS, 25 * 3600)
         # The extra hour, 21:00-22:00 UTC, still belongs to 8 November.
         extra = datetime.fromtimestamp(at("2026-11-08T21:30:00Z"), zone)
         self.assertEqual(extra.date(), date(2026, 11, 8))
@@ -72,7 +84,7 @@ class TimelineTests(unittest.TestCase):
     def test_week_spans_a_change(self):
         zone = a.ZoneTimeline.load([[None, "UTC"], ["2026-11-09", 7200]])
         first, last = a.period_bounds("week", "2026-11-10T12:00:00Z", zone)
-        self.assertEqual(first, at("2026-11-04T00:00:00Z")*NS)
+        self.assertEqual(first, at("2026-11-04T00:00:00Z") * NS)
 
 
 class FollowFortiGateTests(unittest.TestCase):
@@ -130,7 +142,9 @@ class FollowFortiGateTests(unittest.TestCase):
                 self.assertEqual(follow.state("zone_timeline"), [[None, "UTC"]])
                 self.assertEqual(follow.state("contract")["accounting_timezone"], "fortigate")
                 follow.ingest([record("2026-11-09T08:00:00Z", sessionid="2", tz="+0200")])
-                self.assertEqual(follow.state("zone_timeline"), [[None, "UTC"], ["2026-11-10", 7200]])
+                self.assertEqual(
+                    follow.state("zone_timeline"), [[None, "UTC"], ["2026-11-10", 7200]]
+                )
                 # 9 November is still a UTC day; 10 November starts at 22:00 UTC.
                 follow.ingest([record("2026-11-09T22:30:00Z", sessionid="3", tz="+0200")])
                 self.assertEqual(days(follow), ["2026-11-08", "2026-11-09", "2026-11-10"])
@@ -138,7 +152,10 @@ class FollowFortiGateTests(unittest.TestCase):
                 follow.close()
             reader = a.Store.open_readonly(path, FOLLOW, INVENTORY)
             try:
-                self.assertEqual(datetime.fromtimestamp(at("2026-11-09T22:30:00Z"), reader.zone()).date(), date(2026, 11, 10))
+                self.assertEqual(
+                    datetime.fromtimestamp(at("2026-11-09T22:30:00Z"), reader.zone()).date(),
+                    date(2026, 11, 10),
+                )
             finally:
                 reader.close()
 
@@ -190,7 +207,10 @@ class SettingsTests(unittest.TestCase):
 
     def test_console_formats_browser_as_the_viewer_zone(self):
         script = (ROOT / "management/static/app.js").read_text(encoding="utf-8")
-        self.assertIn("function displayZone(){const zone=state.view?.settings.timezone;return zone&&zone!=='browser'?zone:undefined}", script)
+        self.assertIn(
+            "function displayZone(){const zone=state.view?.settings.timezone;return zone&&zone!=='browser'?zone:undefined}",
+            script,
+        )
         self.assertNotIn("settings.timezone||'UTC'", script)
 
 

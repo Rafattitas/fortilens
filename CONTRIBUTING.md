@@ -66,9 +66,8 @@ Run from the repository root:
 python -m unittest discover -s tests -v
 python -m ruff check .
 python -m ruff check portable/accounting_storage.py portable/accounting_migrate.py tests/test_compact_accounting.py tests/test_accounting_migrate.py tests/support/benchmark_accounting.py --extend-select I
-python -m ruff format --check portable/accounting_storage.py portable/accounting_migrate.py tests/test_compact_accounting.py tests/test_accounting_migrate.py tests/support/benchmark_accounting.py
 python -m ruff check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py --extend-select I
-python -m ruff format --check tools management/upgrade.py tests/test_upgrade_host.py tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py
+python -m ruff format --check .
 python tools/check_repository.py
 python tests/support/check_frontend.py
 python -m coverage run -m unittest discover -s tests -v

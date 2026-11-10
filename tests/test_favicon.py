@@ -20,14 +20,18 @@ class FaviconTests(unittest.TestCase):
         index = (STATIC / "index.html").read_text(encoding="utf-8")
         head = index[: index.index("</head>")]
         self.assertIn('<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">', head)
-        self.assertIn('<link rel="icon" href="/static/favicon-32.png" sizes="32x32" type="image/png">', head)
+        self.assertIn(
+            '<link rel="icon" href="/static/favicon-32.png" sizes="32x32" type="image/png">', head
+        )
         self.assertIn('<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">', head)
         self.assertEqual(png_size(STATIC / "favicon-32.png"), (32, 32))
         self.assertEqual(png_size(STATIC / "apple-touch-icon.png"), (180, 180))
 
     def test_report_page_icon_matches_console_icon(self):
         page = (ROOT / "portable/reporting.html").read_text(encoding="utf-8")
-        match = re.search(r'<link rel="icon" type="image/svg\+xml" href="data:image/svg\+xml,([^"]+)">', page)
+        match = re.search(
+            r'<link rel="icon" type="image/svg\+xml" href="data:image/svg\+xml,([^"]+)">', page
+        )
         self.assertIsNotNone(match, "The standalone report page carries its own icon")
         inline = urllib.parse.unquote(match.group(1)).replace("'", '"')
         console = (STATIC / "favicon.svg").read_text(encoding="utf-8").strip()
