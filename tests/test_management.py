@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -571,6 +571,18 @@ class ManagementTests(unittest.TestCase):
         folder,_=self.c.plan(plan['plan_id']);(folder/'candidate/site.json').write_text('{}')
         with self.assertRaises(Problem):self.c.install_files(plan['plan_id'])
         self.assertFalse((self.c.root/'site.json').exists())
+
+    def test_gateway_timeout_names_its_likely_cause(self):
+        self.assertEqual(self.apply(self.save())['status'],'complete')
+        request={'path':'/api/report?period=today','method':'GET','body':'','content_type':'application/json'}
+        for failure,code,status in ((TimeoutError('synthetic'),'console_timeout',504),(ConnectionRefusedError('synthetic'),'console_unavailable',503)):
+            with self.subTest(code=code):
+                connection=Mock();connection.request.side_effect=failure
+                with patch('management.runtime.http.client.HTTPConnection',return_value=connection),self.assertRaises(Problem) as caught:
+                    self.ops.dispatch('console',request)
+                self.assertEqual((caught.exception.code,caught.exception.status),(code,status))
+                self.assertNotIn('synthetic',caught.exception.message)
+                if code=='console_timeout':self.assertIn('clock difference',caught.exception.message)
 
     def test_failed_apply_restores_config_and_keeps_portal_accessible(self):
         self.administrator();view=self.save();plan=self.ops.dispatch('prepare',{'revision':view['revision']});self.docker.fail=True

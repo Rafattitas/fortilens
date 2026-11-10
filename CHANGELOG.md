@@ -37,6 +37,25 @@
   traffic are listed without a warning.
 - Test Connection labels the serial number it reports.
 
+### Clock differences and slow reports
+
+- A FortiGate clock ahead of the server no longer stops the console. Its newest
+  records carried times after the server's "now", so every report for a period
+  ending now (Today, Last 7 days, This month, This year, Recent 5 minutes) cut
+  the current day short and read all of its raw records. On a test server 9
+  minutes behind, Today took 215 seconds instead of 0.03, and requests queued
+  behind it until every page showed "Monitoring is unavailable". These periods
+  now end after the newest received record, from the daily summaries.
+- New `clock_offset` check in Diagnostics: it compares FortiGate log times with
+  the server's clock, says which one is ahead and by how much, and how to fix it.
+  `WARN` above one minute, `FAIL` above five. Reports show the same note when
+  the FortiGate is ahead.
+- One slow request no longer blocks every page. A report request waits at most
+  10 seconds for another to finish and then answers that the service is busy; a
+  raw-record scan stops after 15 seconds and asks for whole days or a shorter
+  range. When the console's 30-second limit is reached it says so and points to
+  Diagnostics, instead of "Monitoring is unavailable".
+
 ### Grafana
 
 - Removed the Grafana panels that read raw syslog from Loki for a whole period:

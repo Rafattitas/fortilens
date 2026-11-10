@@ -232,6 +232,68 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+# Clocks kept by NTP agree within seconds. Beyond these, report periods that end
+# now and day boundaries visibly shift; past five minutes the accounting engine
+# also flags each record's timestamp.
+CLOCK_WARN_SECONDS = 60
+CLOCK_FAIL_SECONDS = 300
+CLOCK_ACTION = ("Synchronize both clocks with NTP. On this server, timedatectl should show "
+                "'System clock synchronized: yes'; with chrony, sudo chronyc makestep corrects a large "
+                "difference at once. On the FortiGate, check its NTP settings. Until both agree, report "
+                "periods and day boundaries are off by the difference.")
+
+
+def eventtime_seconds(value):
+    """FortiOS eventtime in seconds, milliseconds, microseconds or nanoseconds, as seconds."""
+    for digits, scale in ((18, 1e9), (15, 1e6), (12, 1e3)):
+        if value >= 10 ** digits:
+            return value / scale
+    return value
+
+
+def duration_text(seconds):
+    seconds = round(abs(seconds))
+    return f"{seconds} seconds" if seconds < 120 else f"{seconds // 60} min {seconds % 60} s"
+
+
+def clock_check(p, c, request, loki_uid, now):
+    """Compare the FortiGate's log times with this server's clock.
+
+    With receipt timestamps, Loki holds when this server received each line,
+    so the newest FortiGate event time among lines received in the last two
+    minutes is close to this server's now plus the clock difference.
+    """
+    if not c.get("loki_receive_timestamps"):
+        return check("clock_offset", "INFO", "The FortiGate clock is not compared with this server's: logs keep the FortiGate's own timestamps.",
+                     "clock_not_measured", "Receipt timestamps let FortiLens measure the difference between the two clocks.")
+    expr = ('max(max_over_time({job="fortigate-syslog"} |= "eventtime=" '
+            '| regexp `eventtime="?(?P<eventtime>[0-9]{10,19})` | unwrap eventtime | __error__="" [2m]))')
+    body = {"from": str(int((now - 120) * 1000)), "to": str(int(now * 1000)),
+            "queries": [{"refId": "A", "datasource": {"uid": loki_uid, "type": "loki"}, "expr": expr,
+                         "queryType": "instant", "intervalMs": 60000, "maxDataPoints": 1}]}
+    response = request(p, c, "/api/ds/query", "POST", body, timeout=20)
+    result = (response.get("results") or {}).get("A") if isinstance(response, dict) else None
+    if not isinstance(result, dict) or result.get("error") or result.get("status", 200) >= 400:
+        raise ValueError("Loki query failed")
+    values = []
+    for frame in result.get("frames") or []:
+        fields, data = frame["schema"]["fields"], frame["data"]["values"]
+        for i, field in enumerate(fields):
+            if field.get("type") == "number":
+                values.extend(float(v) for v in data[i] if v is not None and math.isfinite(float(v)))
+    if not values:
+        return check("clock_offset", "UNKNOWN", "No log received in the last two minutes carried a FortiGate event time, so the clocks could not be compared.",
+                     "clock_not_observed", "This check needs recent logs. See recent_logs.")
+    offset = eventtime_seconds(max(values)) - now
+    direction = "ahead of" if offset > 0 else "behind"
+    if abs(offset) <= CLOCK_WARN_SECONDS:
+        return check("clock_offset", "PASS", "FortiGate log times and this server's clock agree within a minute.",
+                     "clock_in_sync", offset_seconds=round(offset, 1))
+    return check("clock_offset", "FAIL" if abs(offset) > CLOCK_FAIL_SECONDS else "WARN",
+                 f"FortiGate log times are {duration_text(offset)} {direction} this server's clock.",
+                 "clock_offset", CLOCK_ACTION, offset_seconds=round(offset, 1))
+
+
 def api_check(p, c):
     try:
         host = c["fortigate_host"]
@@ -552,6 +614,10 @@ def run(p, c, request, compose_command, prom_uid, loki_uid, *, freshness=300, di
             checks.append(logs_check(p, c, request, loki_uid, now, freshness))
         except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, urllib.error.URLError, http.client.HTTPException) as exc:
             checks.append(request_failure("recent_logs", exc))
+        try:
+            checks.append(clock_check(p, c, request, loki_uid, now))
+        except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, urllib.error.URLError, http.client.HTTPException) as exc:
+            checks.append(request_failure("clock_offset", exc))
     else:
         checks.append(check("recent_logs", "UNKNOWN", "Logs cannot be checked until Loki is readable.", "loki_prerequisite_unavailable"))
     if direct_api:

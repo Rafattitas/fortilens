@@ -48,7 +48,21 @@ ERROR_CODES = frozenset({
     'loki_record_budget_exhausted', 'device_endpoint_not_allowlisted',
     'accounting_storage_limit', 'wan_history_window_outside_budget',
     'unexpected_prometheus_response', 'report_template_unavailable',
+    'reports_busy', 'report_scan_too_long',
 })
+# The console gateway gives up on a request after 30 seconds. Reads share one
+# snapshot connection, so one slow report queues everything behind it: a request
+# waits this long for its turn, and a raw-record scan runs at most this long,
+# so either one ends with its reason instead of a gateway timeout.
+READ_WAIT_SECONDS=10
+REPORT_SCAN_SECONDS=15
+# Readers see these instead of the generic "evidence unavailable".
+ERROR_MESSAGES = {
+    'reports_busy': 'The report service is busy with another long request. Try again in a minute. '
+        'If this keeps happening, open Diagnostics: a clock difference between this server and the FortiGate is a common cause.',
+    'report_scan_too_long': 'This range needs more raw records than can be read in time. '
+        'Choose whole days, or a shorter part of today.',
+}
 
 
 def fetch_json(base, route, params=None, *, timeout=25, headers=None, context=None, budget=32*1024*1024):
@@ -295,7 +309,11 @@ class Engine:
             with self.lock:
                 yield self.store,None
             return
-        with self.read_lock:
+        # Waiting without a limit let requests pile up behind one slow report
+        # until every page timed out; a bounded wait answers with the reason.
+        if not self.read_lock.acquire(timeout=READ_WAIT_SECONDS):
+            raise ServiceError('reports_busy')
+        try:
             info=self.store.path.stat();identity=(info.st_dev,info.st_ino)
             if self._reader is None or self._reader_identity!=identity:
                 if self._reader is not None:self._reader.close()
@@ -317,6 +335,27 @@ class Engine:
                 yield reader,version
             finally:
                 reader.db.rollback()
+        finally:
+            self.read_lock.release()
+
+    def _bounds(self,store,period,at,start,end):
+        """Period bounds, and how far the newest record is ahead of this server's clock.
+
+        Received records cannot come from the future. When the FortiGate clock runs
+        ahead of this server's, its newest records carry later times than this
+        server's now. A period ending at now would then cut today short and read
+        every raw record of the day, so a period that ends now ends after the
+        newest record instead. Explicit ends and custom ranges are kept as given.
+        """
+        ahead=0
+        if at is None:
+            at=time.time_ns()
+            newest=store.newest_record_ns() if period!='custom' else None
+            if newest is not None and newest>=at:
+                ahead=(newest-at)/accounting.NS
+                at=newest+accounting.NS
+        first,last=accounting.period_bounds(period,at,accounting.zone_of(self.config),start=start,end=end)
+        return first,last,ahead
 
     def close(self):
         with self.read_lock:
@@ -568,16 +607,16 @@ class Engine:
         return target>=end
 
     def report(self,period='today',*,at=None,start=None,end=None,vlan=None,device=None,search='',include_history=False):
-        at=at or datetime.now(timezone.utc).isoformat()
-        first,last=accounting.period_bounds(period,at,accounting.zone_of(self.config),start=start,end=end)
         with self._read_snapshot() as (store,version):
+            first,last,ahead=self._bounds(store,period,at,start,end)
             key=(version,period,first,last,vlan,device,search,include_history)
             cached=self._report_cache.get(key) if version is not None else None
             if cached is not None:
                 self._report_cache.move_to_end(key)
                 result=json.loads(cached)
             else:
-                result=store.report(first,last,vlan=vlan,device=device,search=search)
+                try:result=store.report(first,last,vlan=vlan,device=device,search=search,deadline=time.monotonic()+REPORT_SCAN_SECONDS)
+                except accounting.ReportTooLarge:raise ServiceError('report_scan_too_long') from None
                 if include_history:
                     result['daily_history']=store.history(device)
                     result['monthly_history']=store.history(device,months=True,limit=36)
@@ -589,19 +628,22 @@ class Engine:
                         while len(self._report_cache)>4:self._report_cache.popitem(last=False)
             result['processing']=self._snapshot_diagnostics(store,version)
         result['period']=period
+        result['source_clock_ahead_seconds']=round(ahead)
         return result
 
     def websites(self,period='today',*,at=None,start=None,end=None,site=None,device=None,vlan=None):
         now=datetime.now(timezone.utc).isoformat()
-        first,last=accounting.period_bounds(period,at or now,accounting.zone_of(self.config),start=start,end=end)
         with self._read_snapshot() as (store,version):
+            first,last,_ahead=self._bounds(store,period,at,start,end)
             key=('websites',version,period,first,last,site,device,vlan)
             cached=self._report_cache.get(key) if version is not None else None
             if cached is not None:
                 self._report_cache.move_to_end(key)
                 result=json.loads(cached)
             else:
-                result=store.websites(first,last,now=now,site=site,device=device,vlan=vlan)
+                # A period that ends now is the current day, wherever its end moved.
+                current=last if at is None and period!='custom' else now
+                result=store.websites(first,last,now=current,site=site,device=device,vlan=vlan)
                 if version is not None:
                     encoded=json.dumps(result,ensure_ascii=False)
                     if len(encoded.encode('utf-8','surrogatepass'))<=2*1024*1024:
@@ -611,9 +653,8 @@ class Engine:
         return result
 
     def applications(self,period='today',*,at=None,start=None,end=None,app=None,category=None,device=None,vlan=None):
-        at=at or datetime.now(timezone.utc).isoformat()
-        first,last=accounting.period_bounds(period,at,accounting.zone_of(self.config),start=start,end=end)
         with self._read_snapshot() as (store,version):
+            first,last,_ahead=self._bounds(store,period,at,start,end)
             key=('applications',version,period,first,last,app,category,device,vlan)
             cached=self._report_cache.get(key) if version is not None else None
             if cached is not None:
@@ -798,6 +839,11 @@ def handler(engine,password,root):
             self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff')
             self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
             self.end_headers();self.wfile.write(data)
+        def fail_service(self,exc):
+            code=safe_error(exc)
+            # A request that cannot finish in time is the range's limit, not missing evidence.
+            self.fail(400 if code=='report_scan_too_long' else 503,{'error':code,
+                'message':ERROR_MESSAGES.get(code,'Required evidence is unavailable; no outage or zero usage is inferred.')})
         def fail(self,status,payload):
             if self.response_started:
                 self.close_connection=True
@@ -849,7 +895,7 @@ def handler(engine,password,root):
             except ServiceError as exc:
                 if str(exc)=='wan_history_window_outside_budget':
                     self.fail(400,{'error':'invalid_or_unavailable_report_range','message':'Review the period, timezone and retained detail. Expired partial-day detail is not returned as zero.'})
-                else:self.fail(503,{'error':safe_error(exc),'message':'Required evidence is unavailable; no outage or zero usage is inferred.'})
+                else:self.fail_service(exc)
             except ValueError:
                 self.fail(400,{'error':'invalid_or_unavailable_report_range','message':'Review the period, timezone and retained detail. Expired partial-day detail is not returned as zero.'})
             except Exception as exc:
@@ -865,7 +911,7 @@ def handler(engine,password,root):
                 self.close_connection=True
             except ServiceError as exc:
                 log_failure('accounting_request_failed',safe_error(exc))
-                self.fail(503,{'error':safe_error(exc),'message':'Required evidence is unavailable; no outage or zero usage is inferred.'})
+                self.fail_service(exc)
             except ValueError:
                 self.fail(400,{'error':'invalid_or_unavailable_report_range','message':'Review the period, timezone and retained detail. Expired partial-day detail is not returned as zero.'})
             except Exception as exc:
