@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.6.0 — 2026-11-10 — FortiGate-time accounting days, clearer Diagnostics and sturdier reports
 
 ### Time zones
 
