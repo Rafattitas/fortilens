@@ -36,14 +36,23 @@ class BusyLoki:
             item = record(sessionid="s%d" % (stamp // NS), sentdelta="1", rcvddelta="1")
             item.pop("timestamp")
             item["timestamp_ns"] = stamp
-            rows.append({"timestamp_ns": stamp, "line": " ".join('%s="%s"' % kv for kv in item["fields"].items())})
+            rows.append(
+                {
+                    "timestamp_ns": stamp,
+                    "line": " ".join('%s="%s"' % kv for kv in item["fields"].items()),
+                }
+            )
         return rows, {"requests": 1, "records": len(rows)}
 
 
 class PollWindowTests(unittest.TestCase):
     def engine(self, per_second):
-        store = a.Store(":memory:", {**CONFIG, "accounting_step_seconds": 120, "accounting_overlap_seconds": 30}, INVENTORY,
-                        storage_format="compact")
+        store = a.Store(
+            ":memory:",
+            {**CONFIG, "accounting_step_seconds": 120, "accounting_overlap_seconds": 30},
+            INVENTORY,
+            storage_format="compact",
+        )
         self.addCleanup(store.close)
         engine = u.Engine(store)
         engine.loki = BusyLoki(per_second)

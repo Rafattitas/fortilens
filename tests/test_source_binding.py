@@ -1,4 +1,5 @@
 """Binding an existing accounting store to the FortiGate's serial, forward only."""
+
 from pathlib import Path
 import sys
 import tempfile
@@ -7,6 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "portable"))
 import accounting as a
+
 sys.path.insert(0, str(ROOT / "tests"))
 from test_accounting import CONFIG, INVENTORY, record  # noqa: E402
 
@@ -16,20 +18,36 @@ START, END = "2026-10-20T00:00:00Z", "2026-10-21T00:00:00Z"
 
 class ContractTests(unittest.TestCase):
     def test_only_forward_moves_are_allowed(self):
-        old = {"accounting_timezone": "UTC", "source_id": "fixture", "vdom": "root", "expected_devid": ""}
+        old = {
+            "accounting_timezone": "UTC",
+            "source_id": "fixture",
+            "vdom": "root",
+            "expected_devid": "",
+        }
         allowed = a.contract_change_allowed
         self.assertTrue(allowed(None, old))
         self.assertTrue(allowed(old, old))
         self.assertTrue(allowed(old, {**old, "expected_devid": "FG-1"}))
         self.assertTrue(allowed({**old, "expected_devid": None}, {**old, "expected_devid": "FG-1"}))
-        self.assertTrue(allowed(old, {**old, "expected_devid": "FG-1", "accounting_timezone": "fortigate"}))
+        self.assertTrue(
+            allowed(old, {**old, "expected_devid": "FG-1", "accounting_timezone": "fortigate"})
+        )
         bound = {**old, "expected_devid": "FG-1"}
-        for change in ({"expected_devid": "FG-2"}, {"expected_devid": ""}, {"vdom": "other"},
-                       {"source_id": "other"}, {"accounting_timezone": "Africa/Cairo"}):
+        for change in (
+            {"expected_devid": "FG-2"},
+            {"expected_devid": ""},
+            {"vdom": "other"},
+            {"source_id": "other"},
+            {"accounting_timezone": "Africa/Cairo"},
+        ):
             self.assertFalse(allowed(bound, {**bound, **change}), change)
         self.assertFalse(allowed({**old, "accounting_timezone": "fortigate"}, old))
         self.assertFalse(a.follows_fortigate_from(old, {**old, "expected_devid": "FG-1"}))
-        self.assertTrue(a.follows_fortigate_from(old, {**old, "expected_devid": "FG-1", "accounting_timezone": "fortigate"}))
+        self.assertTrue(
+            a.follows_fortigate_from(
+                old, {**old, "expected_devid": "FG-1", "accounting_timezone": "fortigate"}
+            )
+        )
 
 
 class BindingTests(unittest.TestCase):
@@ -53,8 +71,12 @@ class BindingTests(unittest.TestCase):
             try:
                 self.assertEqual(bound.state("contract")["expected_devid"], "FG-FIXTURE")
                 self.assertTrue(bound.diagnostics()["source_identity_bound"])
-                bound.ingest([record("2026-10-20T13:00:00Z", sessionid="3"),
-                              record("2026-10-20T13:00:00Z", sessionid="4", devid="FG-OTHER")])
+                bound.ingest(
+                    [
+                        record("2026-10-20T13:00:00Z", sessionid="3"),
+                        record("2026-10-20T13:00:00Z", sessionid="4", devid="FG-OTHER"),
+                    ]
+                )
                 after = bound.report(START, END)
             finally:
                 bound.close()

@@ -1,4 +1,5 @@
 """Period, duplicate and identity evidence must not become coverage guarantees."""
+
 from copy import deepcopy
 import contextlib
 import importlib.util
@@ -14,6 +15,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "portable"))
 import usage_quality as usage
+
 spec = importlib.util.spec_from_file_location("usage_setup", ROOT / "portable/setup.py")
 setup = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(setup)
@@ -21,36 +23,90 @@ AT = "2026-10-28T12:00:00Z"
 
 
 def record(stamp="2026-10-28T11:00:00Z", **fields):
-    return {"timestamp": stamp, "fields": {"type": "traffic", "subtype": "forward", "vd": "root",
-        "logid": "0000000020", "dstintfrole": "wan", "mastersrcmac": "02:00:00:00:00:01",
-        "srcip": "192.0.2.20", "srcname": "demo-device", "sessionid": "100",
-        "sentdelta": "100", "rcvddelta": "200", **fields}}
+    return {
+        "timestamp": stamp,
+        "fields": {
+            "type": "traffic",
+            "subtype": "forward",
+            "vd": "root",
+            "logid": "0000000020",
+            "dstintfrole": "wan",
+            "mastersrcmac": "02:00:00:00:00:01",
+            "srcip": "192.0.2.20",
+            "srcname": "demo-device",
+            "sessionid": "100",
+            "sentdelta": "100",
+            "rcvddelta": "200",
+            **fields,
+        },
+    }
 
 
 def report(records, **options):
-    return usage.audit(records, **{"period": "today", "zone": "UTC", "at": AT, "vdom": "root", **options})
+    return usage.audit(
+        records, **{"period": "today", "zone": "UTC", "at": AT, "vdom": "root", **options}
+    )
 
 
 class UsageQualityTests(unittest.TestCase):
     def test_zero_delta_is_not_replaced_by_cumulative(self):
-        r = report([record(logid="0000000013", sentdelta="0", rcvddelta="0", sentbyte="9000", rcvdbyte="8000")])
+        r = report(
+            [
+                record(
+                    logid="0000000013",
+                    sentdelta="0",
+                    rcvddelta="0",
+                    sentbyte="9000",
+                    rcvdbyte="8000",
+                )
+            ]
+        )
         self.assertEqual(r["sample_recorded_bytes"], 0)
         self.assertEqual(r["categories"], {"included_delta": 1})
 
     def test_end_only_and_mixed_direction_fallback(self):
-        r = report([record(logid="0000000013", sentdelta="", sentbyte="400"),
-                    record("2026-10-28T11:01:00Z", logid="0000000013", sentdelta="", rcvddelta="", sentbyte="5", rcvdbyte="6")])
+        r = report(
+            [
+                record(logid="0000000013", sentdelta="", sentbyte="400"),
+                record(
+                    "2026-10-28T11:01:00Z",
+                    logid="0000000013",
+                    sentdelta="",
+                    rcvddelta="",
+                    sentbyte="5",
+                    rcvdbyte="6",
+                ),
+            ]
+        )
         self.assertEqual(r["sample_recorded_bytes"], 611)
         self.assertEqual(r["categories"], {"included_cumulative_fallback": 2})
 
     def test_stats_without_delta_and_invalid_deltas_are_excluded(self):
-        r = report([record(sentdelta="", sentbyte="9000"), record(sentdelta="-1"), record(sentdelta="bad"), record(sentdelta="1.5")])
+        r = report(
+            [
+                record(sentdelta="", sentbyte="9000"),
+                record(sentdelta="-1"),
+                record(sentdelta="bad"),
+                record(sentdelta="1.5"),
+            ]
+        )
         self.assertEqual(r["categories"], {"excluded_invalid_bytes": 4})
         self.assertIsNone(r["sample_recorded_bytes"])
 
     def test_cumulative_is_never_added_to_existing_delta(self):
-        r = report([record(sentbyte="100000", rcvdbyte="200000"),
-                    record("2026-10-28T11:01:00Z", logid="0000000013", sentdelta="10", rcvddelta="20", sentbyte="100010", rcvdbyte="200020")])
+        r = report(
+            [
+                record(sentbyte="100000", rcvdbyte="200000"),
+                record(
+                    "2026-10-28T11:01:00Z",
+                    logid="0000000013",
+                    sentdelta="10",
+                    rcvddelta="20",
+                    sentbyte="100010",
+                    rcvdbyte="200020",
+                ),
+            ]
+        )
         self.assertEqual(r["sample_recorded_bytes"], 330)
 
     def test_replayed_sample_is_flagged_but_dashboard_total_not_silently_deduplicated(self):
@@ -66,7 +122,9 @@ class UsageQualityTests(unittest.TestCase):
         self.assertEqual(r["replay_candidate_records"], 0)
 
     def test_ip_and_name_changes_are_flagged_without_unverified_person_merge(self):
-        r = report([record(), record("2026-10-28T11:01:00Z", srcip="192.0.2.21", srcname="demo-renamed")])
+        r = report(
+            [record(), record("2026-10-28T11:01:00Z", srcip="192.0.2.21", srcname="demo-renamed")]
+        )
         self.assertEqual(r["macs_with_multiple_ip_name_combinations"], 1)
         text = json.dumps(r)
         for value in ("192.0.2.20", "demo-device", "02:00:00:00:00:01"):
@@ -78,8 +136,18 @@ class UsageQualityTests(unittest.TestCase):
         self.assertEqual(r["replay_candidate_records"], 0)
 
     def test_missing_mac_role_and_log_type_are_separate(self):
-        r = report([record(mastersrcmac=""), record(dstintfrole="undefined"), record(logid="0000000011"), record(type="event")])
-        self.assertEqual(set(r["categories"]), {"excluded_missing_mac", "excluded_role", "excluded_event", "excluded_type"})
+        r = report(
+            [
+                record(mastersrcmac=""),
+                record(dstintfrole="undefined"),
+                record(logid="0000000011"),
+                record(type="event"),
+            ]
+        )
+        self.assertEqual(
+            set(r["categories"]),
+            {"excluded_missing_mac", "excluded_role", "excluded_event", "excluded_type"},
+        )
 
     def test_vdom_scope_and_unscoped_evidence(self):
         r = report([record(vd="other"), record(vd=""), record(vd="other", parse_error="true")])
@@ -94,13 +162,15 @@ class UsageQualityTests(unittest.TestCase):
         self.assertEqual(r["coverage"], "UNKNOWN")
 
     def test_exact_time_edges_match_loki_start_exclusive_end_inclusive(self):
-        r = report([record("2026-10-28T00:00:00Z"), record(AT), record("2026-10-28T12:00:00.000001Z")])
+        r = report(
+            [record("2026-10-28T00:00:00Z"), record(AT), record("2026-10-28T12:00:00.000001Z")]
+        )
         self.assertEqual(r["sample_recorded_bytes"], 300)
         self.assertEqual(r["outside_window"], 2)
 
     def test_rolling_week_is_168_hours_and_calendar_month_is_not_30_days(self):
         a, b, _ = usage.window("week", "UTC", "2026-10-28T12:00:00Z")
-        self.assertEqual((b-a).total_seconds(), 168*3600)
+        self.assertEqual((b - a).total_seconds(), 168 * 3600)
         a, _, _ = usage.window("month", "UTC", "2026-03-31T12:00:00Z")
         self.assertEqual(a.isoformat(), "2026-03-01T00:00:00+00:00")
         a, _, _ = usage.window("month", "UTC", "2028-02-29T12:00:00Z")
@@ -111,26 +181,55 @@ class UsageQualityTests(unittest.TestCase):
             ZoneInfo("Africa/Cairo")
         except ZoneInfoNotFoundError:
             self.skipTest("IANA database unavailable on this configuration-generation host")
-        r = report([record("2026-09-30T22:00:00Z", logid="0000000013", sentdelta="", rcvddelta="", sentbyte="7", rcvdbyte="9")],
-                   period="month", zone="Africa/Cairo", at="2026-10-01T01:01:00+03:00")
+        r = report(
+            [
+                record(
+                    "2026-09-30T22:00:00Z",
+                    logid="0000000013",
+                    sentdelta="",
+                    rcvddelta="",
+                    sentbyte="7",
+                    rcvdbyte="9",
+                )
+            ],
+            period="month",
+            zone="Africa/Cairo",
+            at="2026-10-01T01:01:00+03:00",
+        )
         self.assertEqual(r["period"]["start_utc"], "2026-09-30T21:00:00+00:00")
         self.assertEqual(r["sample_recorded_bytes"], 16)
         self.assertTrue(any("not redistributed" in w for w in r["warnings"]))
 
     def test_unknown_browser_timezone_and_naive_timestamps_are_rejected(self):
-        for change in ({"zone": "browser"}, {"zone": "Invalid/Zone"}, {"at": "2026-10-28T12:00:00"}):
+        for change in (
+            {"zone": "browser"},
+            {"zone": "Invalid/Zone"},
+            {"at": "2026-10-28T12:00:00"},
+        ):
             with self.assertRaises(ValueError):
                 report([], **change)
 
     def test_session_crossing_week_boundary_counts_only_received_in_window_delta(self):
-        r = report([record("2026-10-21T11:59:59Z", sentdelta="1000", rcvddelta="2000"),
-                    record("2026-10-21T12:00:01Z", logid="0000000013", sentdelta="10", rcvddelta="20", sentbyte="1010", rcvdbyte="2020")], period="week")
+        r = report(
+            [
+                record("2026-10-21T11:59:59Z", sentdelta="1000", rcvddelta="2000"),
+                record(
+                    "2026-10-21T12:00:01Z",
+                    logid="0000000013",
+                    sentdelta="10",
+                    rcvddelta="20",
+                    sentbyte="1010",
+                    rcvdbyte="2020",
+                ),
+            ],
+            period="week",
+        )
         self.assertEqual(r["sample_recorded_bytes"], 30)
         self.assertEqual(r["outside_window"], 1)
 
     def test_invalid_input_errors_and_reports_hide_extra_sensitive_fields(self):
         with tempfile.TemporaryDirectory() as folder:
-            p = Path(folder)/"input.json"
+            p = Path(folder) / "input.json"
             p.write_text('{"secret":"DO_NOT_ECHO" BROKEN', encoding="utf-8")
             with self.assertRaises(ValueError) as e:
                 usage.audit_file(p, period="today", zone="UTC", at=AT, vdom="root")
@@ -142,15 +241,33 @@ class UsageQualityTests(unittest.TestCase):
                 report([record(sentdelta=value)])
 
     def test_oversized_integer_is_not_claimed_as_python_reference_match(self):
-        r = report([record(sentdelta="9"*30)])
+        r = report([record(sentdelta="9" * 30)])
         self.assertIsNone(r["sample_recorded_bytes"])
         self.assertTrue(any("Oversized" in w for w in r["warnings"]))
 
     def test_cli_is_offline_and_has_no_success_coverage_exit_code(self):
         with tempfile.TemporaryDirectory() as folder:
-            p=Path(folder)/"sample.json"
+            p = Path(folder) / "sample.json"
             p.write_text(json.dumps({"records": [record()]}), encoding="utf-8")
-            with patch.object(setup, "grafana_request", side_effect=AssertionError("No network")), contextlib.redirect_stdout(io.StringIO()) as out:
-                code = setup.main(["usage-audit", "--input", str(p), "--period", "week", "--timezone", "UTC", "--vdom", "root", "--at", AT, "--json"])
+            with (
+                patch.object(setup, "grafana_request", side_effect=AssertionError("No network")),
+                contextlib.redirect_stdout(io.StringIO()) as out,
+            ):
+                code = setup.main(
+                    [
+                        "usage-audit",
+                        "--input",
+                        str(p),
+                        "--period",
+                        "week",
+                        "--timezone",
+                        "UTC",
+                        "--vdom",
+                        "root",
+                        "--at",
+                        AT,
+                        "--json",
+                    ]
+                )
             self.assertEqual(code, 2)
             self.assertEqual(json.loads(out.getvalue())["coverage"], "UNKNOWN")

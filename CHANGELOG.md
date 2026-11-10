@@ -67,6 +67,13 @@
   the project name from the containers started from the installation's compose
   file.
 
+### Source formatting
+
+- All Python source is now formatted with `ruff format`, and CI checks it. The
+  runtime modules previously packed several statements on one line. No behavior
+  changed: every file's syntax tree is identical before and after (docstring
+  text aside), and the full test suite passes on the result.
+
 ### Documentation
 
 - New [console guide](docs/getting-started/CONSOLE_GUIDE.md): what each page

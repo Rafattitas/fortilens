@@ -30,9 +30,11 @@ insufficient reason to introduce a shared runtime package.
 ## Development standards
 
 Use the commands in [CONTRIBUTING.md](../../CONTRIBUTING.md). Correctness lint applies
-across the repository; new development tools have conventional formatting/import
-ordering. Existing dense runtime formatting is intentionally deferred to a
-dedicated mechanical change with source/AST and behavior validation. No broad
+across the repository, and every Python file is formatted with `ruff format`,
+which CI checks. The runtime's former dense formatting was converted in one
+mechanical change: every file's syntax tree was compared before and after
+(docstring text aside) and the full suite was run on the result. Import ordering
+is enforced for the newer tooling and tests only. No broad
 type-checking claim is made for existing dynamically loaded runtime modules.
 Typed internal APIs can be introduced one characterized seam at a time.
 
