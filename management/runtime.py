@@ -823,4 +823,8 @@ class Operations:
                     return {'status':response.status,'content_type':response.getheader('Content-Type','application/octet-stream'),
                             'location':response.getheader('Location'),'body':base64.b64encode(data).decode()}
                 finally:conn.close()
+        except TimeoutError:
+            # Distinct from a stopped service: the reader should look for what keeps it busy.
+            raise Problem('console_timeout','The report service did not answer within 30 seconds. Open Diagnostics for the cause; '
+                'a clock difference between this server and the FortiGate is a common one. Settings and Diagnostics remain accessible.',504) from None
         except (OSError,http.client.HTTPException):raise Problem('console_unavailable','Monitoring is unavailable; Settings and Diagnostics remain accessible.',503) from None

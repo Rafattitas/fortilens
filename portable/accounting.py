@@ -94,6 +94,10 @@ UINT64 = 2**64 - 1
 NS = 1000000000
 
 
+class ReportTooLarge(Exception):
+    """A report needed more raw partial-day records than its time budget allows."""
+
+
 FORTIGATE_ZONE = "fortigate"
 
 
@@ -1376,7 +1380,17 @@ class Store:
         """Return the historical list interface for direct callers."""
         return list(self._iter_range_rows(start, end))
 
-    def _iter_range_rows(self, start, end):
+    def newest_record_ns(self):
+        """Event time of the newest received record, from the two latest daily summaries."""
+        latest = self.db.execute("SELECT MAX(day) FROM daily").fetchone()[0]
+        if not latest:
+            return None
+        first = (datetime.fromisoformat(latest).date()-timedelta(days=1)).isoformat()
+        stamps = [json.loads(p).get("event_ns") for (p,) in self.db.execute("SELECT payload FROM daily WHERE day>=?", (first,))]
+        stamps = [s for s in stamps if type(s) is int]
+        return max(stamps) if stamps else None
+
+    def _iter_range_rows(self, start, end, deadline=None):
         # A partial day can contain millions of facts. Reports consume each row
         # immediately rather than keeping a second complete ledger in memory.
         zone = self.zone()
@@ -1405,16 +1419,20 @@ class Store:
                     elif last >= a and first < b:
                         partial = True
                 if partial:
-                    for value in self.ledger.range_facts(a, b, classification="INTERNET"):
+                    for count, value in enumerate(self.ledger.range_facts(a, b, classification="INTERNET")):
+                        # Reading raw records is the one unbounded step: stop
+                        # before a caller's gateway gives up, and say why.
+                        if deadline is not None and count % 1000 == 0 and time.monotonic() > deadline:
+                            raise ReportTooLarge("Partial-day detail did not finish in time")
                         if value["classification"] == "INTERNET" and (value["device_id"], value["vlan"]["key"]) not in included:
                             yield {**value, "records": 1, "flag_counts": {k: 1 for k in value["flags"]}}
 
-    def report(self, start, end, *, vlan=None, device=None, search=""):
+    def report(self, start, end, *, vlan=None, device=None, search="", deadline=None):
         start, end = timestamp_ns(start), timestamp_ns(end)
         if start >= end:
             raise ValueError("Report start must precede its end")
         grouped, flags = {}, defaultdict(int)
-        for row in self._iter_range_rows(start, end):
+        for row in self._iter_range_rows(start, end, deadline):
             if vlan and row["vlan"]["key"] != vlan or device and row["device_id"] != device:
                 continue
             if search and search.casefold() not in " ".join(str(row.get(k, "")) for k in ("ip", "mac", "hostname", "device_id")).casefold():

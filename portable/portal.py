@@ -39,9 +39,14 @@ REPORT_FAILURE_CODES = frozenset({
     'loki_paging_budget_exhausted', 'loki_timestamp_overflow',
     'loki_record_budget_exhausted', 'device_endpoint_not_allowlisted',
     'accounting_storage_limit', 'wan_history_window_outside_budget',
-    'unexpected_prometheus_response',
+    'unexpected_prometheus_response', 'reports_busy',
 })
 REPORT_FAILURE_MESSAGE = 'Required evidence is unavailable; no outage or zero usage is inferred.'
+# The worker's fixed explanations for codes that have one; anything else stays generic.
+REPORT_FAILURE_MESSAGES = {
+    'reports_busy': 'The report service is busy with another long request. Try again in a minute. '
+        'If this keeps happening, open Diagnostics: a clock difference between this server and the FortiGate is a common cause.',
+}
 
 
 class UpstreamError(ValueError):
@@ -254,7 +259,8 @@ def handler(portal):
                         except (ValueError,UnicodeError):failure=None
                         if isinstance(failure,dict) and set(failure)<= {'error','message'}:
                             code=failure.get('error')
-                            if isinstance(code,str) and (code in REPORT_FAILURE_CODES or re.fullmatch(r'http_[1-5][0-9]{2}',code)) and failure.get('message',REPORT_FAILURE_MESSAGE)==REPORT_FAILURE_MESSAGE:
+                            expected=REPORT_FAILURE_MESSAGES.get(code,REPORT_FAILURE_MESSAGE) if isinstance(code,str) else REPORT_FAILURE_MESSAGE
+                            if isinstance(code,str) and (code in REPORT_FAILURE_CODES or re.fullmatch(r'http_[1-5][0-9]{2}',code)) and failure.get('message',expected)==expected:
                                 return self.send(503,failure)
                     return self.send(503, {'error': 'upstream_unavailable'})
                 if grafana:
