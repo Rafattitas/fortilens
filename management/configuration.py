@@ -5,6 +5,7 @@ and project identity are supplied by the host installer, never by HTTP clients.
 """
 
 from copy import deepcopy
+from dataclasses import dataclass, field
 import hashlib
 import json
 import os
@@ -102,6 +103,56 @@ def prometheus_policy(data, interval, *, update_global=True):
                 )
             job["scrape_timeout"] = str(interval - 1) + "s"
     return data
+
+
+def _container_port(binding):
+    """The container side of a short-syntax Compose port, e.g. 1514 in 0.0.0.0:514:1514/udp."""
+    return binding.rsplit(":", 1)[-1].split("/")[0]
+
+
+def _syslog_bindings(ports):
+    """The short-syntax bindings that publish the syslog listener's container port."""
+    return [x for x in ports if isinstance(x, str) and _container_port(x) == "1514"]
+
+
+@dataclass
+class _Candidate:
+    """One Prepare on a registered installation: its inputs and the files it changes.
+
+    ``compose`` and ``c`` are edited in place. ``files`` maps installation paths
+    to candidate bytes in the order they are written, which is the plan's order.
+    """
+
+    stage: Path
+    settings: Settings
+    c: dict
+    compose: dict
+    generated: dict
+    active: dict
+    site_file: str
+    applied: dict
+    endpoint_changed: bool
+    files: dict = field(default_factory=dict)
+
+    @property
+    def native(self):
+        return self.settings.syslog_format == "fortigate"
+
+    @property
+    def was_native(self):
+        return self.active.get("syslog_format") == "fortigate"
+
+    @property
+    def host(self):
+        return self.native and self.settings.syslog_network == "host"
+
+    @property
+    def was_host(self):
+        return self.was_native and self.active.get("syslog_network", "bridge") == "host"
+
+    @property
+    def old_port(self):
+        return self.active.get("syslog_port", 1514)
 
 
 class Configuration:
@@ -540,6 +591,14 @@ class Configuration:
             return self.view()
 
     def _patch(self, stage, settings, c):
+        """Candidate files for this revision, keyed by installation path.
+
+        A fresh installation takes the rendered template as it is. A registered
+        one keeps its identity, images, data volumes and customizations; only
+        the fields FortiLens manages are changed, and a file that does not look
+        as FortiLens left it stops Prepare with a review code. The steps run in
+        a fixed order, which is also the order of the plan's files.
+        """
         compose = self.compose()
         if not compose:
             return {
@@ -548,112 +607,132 @@ class Configuration:
                 if p.is_file()
             }
         generated = setup.load(stage / "compose.yaml")
-        files = {}
-        active = load(self.root / self.state()["site_file"], {})
-        native = settings.syslog_format == "fortigate"
-        was_native = active.get("syslog_format") == "fortigate"
-        if native:
-            receiver = deepcopy(generated["services"]["fortilens-syslog"])
-            receiver["image"] = "fortilens-syslog:" + self.project
-            receiver["volumes"] = ["./" + self.state()["site_file"] + ":/config/site.json:ro"]
-            existing = compose["services"].get("fortilens-syslog")
-            if existing and existing.get("image") == "fortilens-syslog:local":
-                receiver["image"] = existing["image"]
-            # Compare against the old managed profile, not the requested one.
-            # Only these fixed transport fields may change during a transition.
-            expected = deepcopy(receiver)
-            expected.pop("network_mode", None)
-            expected.pop("cap_add", None)
-            expected["user"] = "10001:10001"
-            expected["command"] = [x for x in expected["command"] if x != "--host-network"]
-            health_port = 8080
-            if was_native and active.get("syslog_network", "bridge") == "host":
-                expected["network_mode"] = "host"
-                expected["user"] = "0:0"
-                expected["cap_add"] = ["NET_BIND_SERVICE", "SETUID", "SETGID"]
-                expected["command"].append("--host-network")
-                health_port = active["syslog_port"] + 1
-            expected["healthcheck"]["test"][-1] = (
-                "import urllib.request; urllib.request.urlopen('http://127.0.0.1:"
-                + str(health_port)
-                + "/health',timeout=3)"
+        state = self.state()
+        active = load(self.root / state["site_file"], {})
+        p = _Candidate(
+            stage=stage,
+            settings=settings,
+            c=c,
+            compose=compose,
+            generated=generated,
+            active=active,
+            site_file=state["site_file"],
+            applied=state.get("applied") or {},
+            endpoint_changed=setup.target_url(c) != setup.target_url({**setup.DEFAULTS, **active}),
+        )
+        if p.native:
+            self._patch_native_receiver(p)
+        self._patch_accounting_services(p)
+        self._patch_prometheus(p)
+        set_accounting_cpus(compose, settings.accounting_cpus)
+        self._patch_loki(p)
+        self._patch_alloy(p)
+        self._patch_syslog_listener(p)
+        self._patch_exporter(p)
+        self._patch_token_file(p)
+        self._patch_published_ports(p)
+        p.files[self.compose_name] = yaml.safe_dump(compose, sort_keys=False).encode()
+        return p.files
+
+    def _patch_native_receiver(self, p):
+        """Use the rendered native receiver, if the installed one is unmodified."""
+        receiver = deepcopy(p.generated["services"]["fortilens-syslog"])
+        receiver["image"] = "fortilens-syslog:" + self.project
+        receiver["volumes"] = ["./" + p.site_file + ":/config/site.json:ro"]
+        existing = p.compose["services"].get("fortilens-syslog")
+        if existing and existing.get("image") == "fortilens-syslog:local":
+            receiver["image"] = existing["image"]
+        # Compare against the old managed profile, not the requested one.
+        # Only these fixed transport fields may change during a transition.
+        expected = deepcopy(receiver)
+        expected.pop("network_mode", None)
+        expected.pop("cap_add", None)
+        expected["user"] = "10001:10001"
+        expected["command"] = [x for x in expected["command"] if x != "--host-network"]
+        health_port = 8080
+        if p.was_host:
+            expected["network_mode"] = "host"
+            expected["user"] = "0:0"
+            expected["cap_add"] = ["NET_BIND_SERVICE", "SETUID", "SETGID"]
+            expected["command"].append("--host-network")
+            health_port = p.active["syslog_port"] + 1
+        expected["healthcheck"]["test"][-1] = (
+            "import urllib.request; urllib.request.urlopen('http://127.0.0.1:"
+            + str(health_port)
+            + "/health',timeout=3)"
+        )
+        if existing and (
+            {k: v for k, v in existing.items() if k != "ports"}
+            != {k: v for k, v in expected.items() if k != "ports"}
+        ):
+            raise Problem(
+                "custom_syslog_review",
+                "Review the existing native receiver service before replacing its runtime.",
             )
-            if existing and (
-                {k: v for k, v in existing.items() if k != "ports"}
-                != {k: v for k, v in expected.items() if k != "ports"}
-            ):
-                raise Problem(
-                    "custom_syslog_review",
-                    "Review the existing native receiver service before replacing its runtime.",
-                )
-            if (
-                existing
-                and was_native
-                and active.get("syslog_network", "bridge") == "host"
-                and existing.get("ports")
-            ):
-                raise Problem(
-                    "custom_syslog_review",
-                    "Review unexpected published ports on the host receiver.",
-                )
-            compose["services"]["fortilens-syslog"] = receiver
-            for path in (stage / "syslog").iterdir():
-                files["syslog/" + path.name] = path.read_bytes()
-        endpoint_changed = setup.target_url(c) != setup.target_url({**setup.DEFAULTS, **active})
+        if existing and p.was_host and existing.get("ports"):
+            raise Problem(
+                "custom_syslog_review",
+                "Review unexpected published ports on the host receiver.",
+            )
+        p.compose["services"]["fortilens-syslog"] = receiver
+        for path in (p.stage / "syslog").iterdir():
+            p.files["syslog/" + path.name] = path.read_bytes()
+
+    def _patch_accounting_services(self, p):
+        """Add the accounting writer if it is missing; record which services exist."""
+        compose, c = p.compose, p.c
         for service in ("fortilens-usage", "fortilens-portal"):
-            if service not in compose["services"] and service in generated["services"]:
-                if service == "fortilens-portal":
-                    # Existing Grafana authentication is not silently reconfigured.
-                    # The independent management UI can still link to native Grafana.
-                    c["portal_enabled"] = False
-                    continue
-                compose["services"][service] = generated["services"][service]
-                compose["services"][service]["image"] = "fortilens-usage:" + self.project
-                if service == "fortilens-usage":
-                    volumes = compose["services"][service]["volumes"]
-                    volumes[:] = [
-                        ("./" + self.state()["site_file"] + ":/config/site.json:ro")
-                        if v == "./site.json:/config/site.json:ro"
-                        else v
-                        for v in volumes
-                        if "fortigate-ca.pem:" not in v
-                    ]
-                    if c["api_ca_file"]:
-                        volumes.append(
-                            "./" + c["api_ca_file"] + ":/config/" + c["api_ca_file"] + ":ro"
-                        )
-                compose.setdefault("volumes", {}).setdefault("usage-data", {})
-                for key in ("usage_admin_password", "fortigate_api_token"):
-                    compose.setdefault("secrets", {}).setdefault(key, generated["secrets"][key])
-                    relative = "secrets/" + key
-                    if not (self.root / relative).exists():
-                        files[relative] = (stage / relative).read_bytes()
-                for p in (stage / "usage").iterdir():
-                    files["usage/" + p.name] = p.read_bytes()
+            if service in compose["services"] or service not in p.generated["services"]:
+                continue
+            if service == "fortilens-portal":
+                # Existing Grafana authentication is not silently reconfigured.
+                # The independent management UI can still link to native Grafana.
+                continue
+            compose["services"][service] = p.generated["services"][service]
+            compose["services"][service]["image"] = "fortilens-usage:" + self.project
+            volumes = compose["services"][service]["volumes"]
+            volumes[:] = [
+                ("./" + p.site_file + ":/config/site.json:ro")
+                if v == "./site.json:/config/site.json:ro"
+                else v
+                for v in volumes
+                if "fortigate-ca.pem:" not in v
+            ]
+            if c["api_ca_file"]:
+                volumes.append("./" + c["api_ca_file"] + ":/config/" + c["api_ca_file"] + ":ro")
+            compose.setdefault("volumes", {}).setdefault("usage-data", {})
+            for key in ("usage_admin_password", "fortigate_api_token"):
+                compose.setdefault("secrets", {}).setdefault(key, p.generated["secrets"][key])
+                relative = "secrets/" + key
+                if not (self.root / relative).exists():
+                    p.files[relative] = (p.stage / relative).read_bytes()
+            for path in (p.stage / "usage").iterdir():
+                p.files["usage/" + path.name] = path.read_bytes()
         # Keep an existing source-contract identity, ports, data volumes and images.
-        c["portal_enabled"] = active.get("portal_enabled", False)
+        c["portal_enabled"] = p.active.get("portal_enabled", False)
         if "fortilens-portal" in compose["services"]:
             c["portal_enabled"] = True
         if "fortilens-usage" in compose["services"]:
             # Worker config keeps its source scope, even when the service is stopped.
             c["accounting_enabled"] = True
+
+    def _patch_prometheus(self, p):
+        """Scrape target, accounting and receiver jobs, interval and retention."""
+        settings, compose = p.settings, p.compose
         prom = self.bound_file(compose, "prometheus", "/etc/prometheus/prometheus.yml")
         pdata = yaml.safe_load(prom.read_text())
         for job in pdata["scrape_configs"]:
             if job.get("job_name") == "fortigate":
-                if endpoint_changed:
-                    job["static_configs"][0]["targets"] = [setup.target_url(c)]
+                if p.endpoint_changed:
+                    job["static_configs"][0]["targets"] = [setup.target_url(p.c)]
                 for relabel in job.get("relabel_configs", []):
                     if relabel.get("target_label") == "instance":
-                        relabel["replacement"] = c["fortigate_host"]
+                        relabel["replacement"] = p.c["fortigate_host"]
         if settings.monitoring.accounting and not any(
             j.get("job_name") == "fortilens-accounting" for j in pdata["scrape_configs"]
         ):
-            pdata["scrape_configs"].append(
-                generated_job := setup.load(stage / "prometheus/prometheus.yml")["scrape_configs"][
-                    -1
-                ]
-            )
+            generated_job = setup.load(p.stage / "prometheus/prometheus.yml")["scrape_configs"][-1]
+            pdata["scrape_configs"].append(generated_job)
             if generated_job.get("job_name") != "fortilens-accounting":
                 raise Problem(
                     "accounting_job_missing",
@@ -662,7 +741,6 @@ class Configuration:
             compose["services"]["prometheus"].setdefault("secrets", []).append(
                 "usage_admin_password"
             )
-        applied = self.state().get("applied") or {}
         native_jobs = [
             job for job in pdata["scrape_configs"] if job.get("job_name") == "fortilens-syslog"
         ]
@@ -675,18 +753,18 @@ class Configuration:
                 "custom_syslog_review",
                 "Review the existing native receiver scrape job before changing its collection profile.",
             )
-        if native and settings.syslog_network == "bridge" and not native_jobs:
+        if p.native and settings.syslog_network == "bridge" and not native_jobs:
             pdata["scrape_configs"].append(expected_job)
-        if not native or settings.syslog_network == "host":
+        if not p.native or settings.syslog_network == "host":
             pdata["scrape_configs"] = [
                 job for job in pdata["scrape_configs"] if job.get("job_name") != "fortilens-syslog"
             ]
         prometheus_policy(
             pdata,
             settings.monitoring_interval,
-            update_global=settings.monitoring_interval != applied.get("monitoring_interval"),
+            update_global=settings.monitoring_interval != p.applied.get("monitoring_interval"),
         )
-        files[str(prom.relative_to(self.root))] = yaml.safe_dump(pdata, sort_keys=False).encode()
+        p.files[str(prom.relative_to(self.root))] = yaml.safe_dump(pdata, sort_keys=False).encode()
         service = compose["services"]["prometheus"]
         service["command"] = [
             ("--storage.tsdb.retention.time=" + str(settings.retention.prometheus_days) + "d")
@@ -694,14 +772,19 @@ class Configuration:
             else arg
             for arg in service["command"]
         ]
-        set_accounting_cpus(compose, settings.accounting_cpus)
-        loki = self.bound_file(compose, "loki", "/etc/loki/local-config.yaml")
+
+    def _patch_loki(self, p):
+        loki = self.bound_file(p.compose, "loki", "/etc/loki/local-config.yaml")
         ldata = yaml.safe_load(loki.read_text())
         ldata.setdefault("limits_config", {})["retention_period"] = (
-            str(settings.retention.loki_days) + "d"
+            str(p.settings.retention.loki_days) + "d"
         )
-        files[str(loki.relative_to(self.root))] = yaml.safe_dump(ldata, sort_keys=False).encode()
-        alloy = self.bound_file(compose, "alloy", "/etc/alloy/config.alloy")
+        p.files[str(loki.relative_to(self.root))] = yaml.safe_dump(ldata, sort_keys=False).encode()
+
+    def _patch_alloy(self, p):
+        """Syslog protocol and format, the native message limit and log timestamps."""
+        settings, native = p.settings, p.native
+        alloy = self.bound_file(p.compose, "alloy", "/etc/alloy/config.alloy")
         text = alloy.read_text()
         for name, value in [
             ("protocol", "tcp" if native else settings.syslog_protocol),
@@ -709,7 +792,7 @@ class Configuration:
         ]:
             pattern = rf'(?m)^(\s*{name}\s*=\s*)"[^"]*"'
             if len(re.findall(pattern, text)) != 1:
-                if native or value != active.get(name):
+                if native or value != p.active.get(name):
                     raise Problem(
                         "custom_alloy_review",
                         "Custom syslog syntax requires a controlled host-side migration.",
@@ -732,24 +815,33 @@ class Configuration:
                     "custom_alloy_review",
                     "Review the native receiver message limit in the existing Alloy configuration.",
                 )
-        elif was_native:
+        elif p.was_native:
             text = re.sub(r"(?m)^\s*max_message_length\s*=\s*65536\s*\n", "", text)
-        files[str(alloy.relative_to(self.root))] = text.encode()
-        if settings.monitoring.accounting and not active.get("accounting_enabled"):
-            files[str(alloy.relative_to(self.root))] = re.sub(
+        path = str(alloy.relative_to(self.root))
+        p.files[path] = text.encode()
+        if settings.monitoring.accounting and not p.active.get("accounting_enabled"):
+            p.files[path] = re.sub(
                 r"(?m)^(\s*use_incoming_timestamp\s*=\s*)true\s*$", lambda m: m[1] + "false", text
             ).encode()
-            c["loki_receive_timestamps"] = True
-        old_port = active.get("syslog_port", 1514)
-        was_host = was_native and active.get("syslog_network", "bridge") == "host"
-        host = native and settings.syslog_network == "host"
+            p.c["loki_receive_timestamps"] = True
+
+    def _patch_syslog_listener(self, p):
+        """Move the syslog listener between Alloy and the native receiver.
+
+        The registered binding keeps its address; only its port and protocol
+        change. A binding FortiLens did not create stops Prepare for review.
+        """
+        settings = p.settings
+        native, was_native, was_host = p.native, p.was_native, p.was_host
+        old_port = p.old_port
         port_owner = "fortilens-syslog" if was_native else "alloy"
+        # The installed file, not the candidate: the receiver may already be replaced.
         ports = (
-            [f"{active.get('syslog_bind', '0.0.0.0')}:{old_port}:1514/udp"]
+            [f"{p.active.get('syslog_bind', '0.0.0.0')}:{old_port}:1514/udp"]
             if was_host
             else (self.compose()["services"].get(port_owner) or {}).get("ports", [])
         )
-        if ports and not all(isinstance(p, str) for p in ports):
+        if ports and not all(isinstance(x, str) for x in ports):
             raise Problem(
                 "custom_ports_review", "Custom published-port syntax requires a host-side review."
             )
@@ -772,96 +864,97 @@ class Configuration:
         if not receiver_found and (
             native != was_native
             or settings.syslog_port != old_port
-            or settings.syslog_protocol != active.get("syslog_protocol", "tcp")
+            or settings.syslog_protocol != p.active.get("syslog_protocol", "tcp")
         ):
             raise Problem(
                 "custom_ports_review",
                 "Register the actual syslog target port before changing its listener.",
             )
         if native:
-            if host:
-                compose["services"]["fortilens-syslog"].pop("ports", None)
-            else:
-                compose["services"]["fortilens-syslog"]["ports"] = [
-                    binding
-                    for binding in replaced
-                    if binding.rsplit(":", 1)[-1].split("/")[0] == "1514"
-                ]
-            alloy_ports = compose["services"]["alloy"].get("ports", [])
-            if was_host and [
-                p
-                for p in alloy_ports
-                if isinstance(p, str) and p.rsplit(":", 1)[-1].split("/")[0] == "1514"
-            ] != [f"127.0.0.1:{old_port}:1514/tcp"]:
+            self._listen_on_receiver(p, replaced)
+        else:
+            self._listen_on_alloy(p, replaced)
+
+    def _listen_on_receiver(self, p, replaced):
+        """The native receiver takes the listener; Alloy keeps only a host handoff."""
+        compose, old_port = p.compose, p.old_port
+        if p.host:
+            compose["services"]["fortilens-syslog"].pop("ports", None)
+        else:
+            compose["services"]["fortilens-syslog"]["ports"] = [
+                binding for binding in replaced if _container_port(binding) == "1514"
+            ]
+        alloy_ports = compose["services"]["alloy"].get("ports", [])
+        if p.was_host and _syslog_bindings(alloy_ports) != [f"127.0.0.1:{old_port}:1514/tcp"]:
+            raise Problem(
+                "custom_ports_review",
+                "Review the host receiver loopback handoff before changing profiles.",
+            )
+        compose["services"]["alloy"]["ports"] = [
+            binding
+            for binding in alloy_ports
+            if isinstance(binding, str) and _container_port(binding) != "1514"
+        ]
+        if any(not isinstance(binding, str) for binding in alloy_ports):
+            raise Problem(
+                "custom_ports_review",
+                "Review custom Alloy port bindings before changing its receiver.",
+            )
+        if p.host:
+            compose["services"]["alloy"]["ports"].append(
+                f"127.0.0.1:{p.settings.syslog_port}:1514/tcp"
+            )
+
+    def _listen_on_alloy(self, p, replaced):
+        """Alloy takes the listener; a native receiver definition stays, disabled."""
+        compose, was_native = p.compose, p.was_native
+        unrelated = compose["services"]["alloy"].get("ports", []) if was_native else []
+        if p.was_host:
+            expected_binding = f"127.0.0.1:{p.old_port}:1514/tcp"
+            if _syslog_bindings(unrelated) != [expected_binding]:
                 raise Problem(
                     "custom_ports_review",
                     "Review the host receiver loopback handoff before changing profiles.",
                 )
-            compose["services"]["alloy"]["ports"] = [
-                binding
-                for binding in alloy_ports
-                if isinstance(binding, str) and binding.rsplit(":", 1)[-1].split("/")[0] != "1514"
-            ]
-            if any(not isinstance(binding, str) for binding in alloy_ports):
-                raise Problem(
-                    "custom_ports_review",
-                    "Review custom Alloy port bindings before changing its receiver.",
-                )
-            if host:
-                compose["services"]["alloy"]["ports"].append(
-                    f"127.0.0.1:{settings.syslog_port}:1514/tcp"
-                )
-        else:
-            unrelated = compose["services"]["alloy"].get("ports", []) if was_native else []
-            if was_host:
-                expected_binding = f"127.0.0.1:{old_port}:1514/tcp"
-                if [
-                    p
-                    for p in unrelated
-                    if isinstance(p, str) and p.rsplit(":", 1)[-1].split("/")[0] == "1514"
-                ] != [expected_binding]:
-                    raise Problem(
-                        "custom_ports_review",
-                        "Review the host receiver loopback handoff before changing profiles.",
-                    )
-                unrelated = [binding for binding in unrelated if binding != expected_binding]
-            if was_native and any(
-                not isinstance(binding, str) or binding.rsplit(":", 1)[-1].split("/")[0] == "1514"
-                for binding in unrelated
-            ):
-                raise Problem(
-                    "custom_ports_review",
-                    "Review unexpected Alloy syslog bindings before leaving the native profile.",
-                )
-            compose["services"]["alloy"]["ports"] = unrelated + replaced
-            if "fortilens-syslog" in compose["services"]:
-                disabled = compose["services"]["fortilens-syslog"]
-                disabled["ports"] = []
-                disabled.pop("network_mode", None)
-                disabled.pop("cap_add", None)
-                disabled["user"] = "10001:10001"
-                disabled["command"] = [x for x in disabled["command"] if x != "--host-network"]
-                disabled["healthcheck"]["test"][-1] = (
-                    "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)"
-                )
-        exporter = compose["services"]["fortigate-exporter"]
+            unrelated = [binding for binding in unrelated if binding != expected_binding]
+        if was_native and any(
+            not isinstance(binding, str) or _container_port(binding) == "1514"
+            for binding in unrelated
+        ):
+            raise Problem(
+                "custom_ports_review",
+                "Review unexpected Alloy syslog bindings before leaving the native profile.",
+            )
+        compose["services"]["alloy"]["ports"] = unrelated + replaced
+        if "fortilens-syslog" in compose["services"]:
+            disabled = compose["services"]["fortilens-syslog"]
+            disabled["ports"] = []
+            disabled.pop("network_mode", None)
+            disabled.pop("cap_add", None)
+            disabled["user"] = "10001:10001"
+            disabled["command"] = [x for x in disabled["command"] if x != "--host-network"]
+            disabled["healthcheck"]["test"][-1] = (
+                "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)"
+            )
+
+    def _patch_exporter(self, p):
+        """Exporter credential record, TLS verification and the custom CA."""
+        settings, c = p.settings, p.c
+        exporter = p.compose["services"]["fortigate-exporter"]
         cmd = exporter.get("command", [])
         destination = next(
             (cmd[i + 1] for i, x in enumerate(cmd[:-1]) if x == "-auth-file"),
             "/config/fortigate-key.yaml",
         )
-        authfile = self.bound_file(compose, "fortigate-exporter", destination)
+        authfile = self.bound_file(p.compose, "fortigate-exporter", destination)
         auth = yaml.safe_load(authfile.read_text())
-        if (
-            endpoint_changed
-            or load(self.secret_path, {}).get("token")
-            or settings.optional_exporter_exclusions is not None
-        ):
-            old_key = self.auth_key(auth, active)
-            key = setup.target_url(c) if endpoint_changed else old_key
-            if endpoint_changed:
+        pending_token = load(self.secret_path, {}).get("token")
+        if p.endpoint_changed or pending_token or settings.optional_exporter_exclusions is not None:
+            old_key = self.auth_key(auth, p.active)
+            key = setup.target_url(c) if p.endpoint_changed else old_key
+            if p.endpoint_changed:
                 existing_key = self.auth_key(auth, c, optional=True)
-                if existing_key and not load(self.secret_path, {}).get("token"):
+                if existing_key and not pending_token:
                     raise Problem(
                         "token_action_required",
                         "Changing to an existing credential target requires an explicit token replacement.",
@@ -879,54 +972,62 @@ class Configuration:
                 if settings.optional_exporter_exclusions is not None
                 else record
             )
-            files[str(authfile.relative_to(self.root))] = yaml.safe_dump(auth).encode()
+            p.files[str(authfile.relative_to(self.root))] = yaml.safe_dump(auth).encode()
         exporter["command"] = [x for x in cmd if x != "-insecure"] + (
             [] if c["api_tls_verify"] else ["-insecure"]
         )
         pending = load(self.secret_path, {})
-        if "ca" in pending:
-            clean = []
-            skip = False
-            for arg in exporter["command"]:
-                if skip:
-                    skip = False
-                    continue
-                if arg == "-extra-ca-certs":
-                    skip = True
-                    continue
-                if str(arg).startswith("-extra-ca-certs="):
-                    continue
-                clean.append(arg)
-            exporter["command"] = clean
-            if pending["ca"]:
-                exporter["command"] += ["-extra-ca-certs", "/config/web-fortigate-ca.pem"]
-                mount = "./secrets/web-fortigate-ca.pem:/config/web-fortigate-ca.pem:ro"
-                if mount not in exporter["volumes"]:
-                    exporter["volumes"].append(mount)
-                if "fortilens-usage" in compose["services"]:
-                    mount = "./secrets/web-fortigate-ca.pem:/config/secrets/web-fortigate-ca.pem:ro"
-                    if mount not in compose["services"]["fortilens-usage"]["volumes"]:
-                        compose["services"]["fortilens-usage"]["volumes"].append(mount)
-        # Keep the actual worker's token file, rather than assuming a template path.
-        secret = compose.get("secrets", {}).get("fortigate_api_token", {})
-        if secret.get("file") and load(self.secret_path, {}).get("token"):
-            p = Path(secret["file"])
-            p = p if p.is_absolute() else self.root / p
-            p = guarded(self.root, p.relative_to(self.root))
-            files[str(p.relative_to(self.root))] = (self.token() + "\n").encode()
-        files[self.compose_name] = yaml.safe_dump(compose, sort_keys=False).encode()
-        for name, service in compose["services"].items():
-            ports = service.get("ports", [])
-            if name not in ("grafana", "fortilens-usage"):
+        if "ca" not in pending:
+            return
+        clean = []
+        skip = False
+        for arg in exporter["command"]:
+            if skip:
+                skip = False
                 continue
-            if not all(isinstance(p, str) for p in ports):
+            if arg == "-extra-ca-certs":
+                skip = True
+                continue
+            if str(arg).startswith("-extra-ca-certs="):
+                continue
+            clean.append(arg)
+        exporter["command"] = clean
+        if not pending["ca"]:
+            return
+        exporter["command"] += ["-extra-ca-certs", "/config/web-fortigate-ca.pem"]
+        mount = "./secrets/web-fortigate-ca.pem:/config/web-fortigate-ca.pem:ro"
+        if mount not in exporter["volumes"]:
+            exporter["volumes"].append(mount)
+        if "fortilens-usage" in p.compose["services"]:
+            mount = "./secrets/web-fortigate-ca.pem:/config/secrets/web-fortigate-ca.pem:ro"
+            if mount not in p.compose["services"]["fortilens-usage"]["volumes"]:
+                p.compose["services"]["fortilens-usage"]["volumes"].append(mount)
+
+    def _patch_token_file(self, p):
+        # Keep the actual worker's token file, rather than assuming a template path.
+        secret = p.compose.get("secrets", {}).get("fortigate_api_token", {})
+        if secret.get("file") and load(self.secret_path, {}).get("token"):
+            path = Path(secret["file"])
+            path = path if path.is_absolute() else self.root / path
+            path = guarded(self.root, path.relative_to(self.root))
+            p.files[str(path.relative_to(self.root))] = (self.token() + "\n").encode()
+
+    def _patch_published_ports(self, p):
+        """Grafana and accounting ports, and a Grafana root URL that names the old port."""
+        settings = p.settings
+        for name in ("grafana", "fortilens-usage"):
+            service = p.compose["services"].get(name)
+            if service is None:
+                continue
+            ports = service.get("ports", [])
+            if not all(isinstance(x, str) for x in ports):
                 raise Problem(
                     "custom_ports_review",
                     "A custom port binding requires host-side registration review.",
                 )
             replacements = []
             for binding in ports:
-                target = binding.rsplit(":", 1)[-1].split("/")[0]
+                target = _container_port(binding)
                 if target in ("3000", "8080", "8081"):
                     newport = settings.grafana_port if target == "3000" else settings.usage_port
                     parts = binding.rsplit(":", 2)
@@ -937,14 +1038,15 @@ class Configuration:
                     binding = ":".join(parts)
                 replacements.append(binding)
             service["ports"] = replacements
-        environment = compose["services"]["grafana"].get("environment", {})
+        environment = p.compose["services"]["grafana"].get("environment", {})
+        old_port = p.active.get("grafana_port", 3001)
         if (
             isinstance(environment, dict)
             and environment.get("GF_SERVER_ROOT_URL")
-            and settings.grafana_port != active.get("grafana_port", 3001)
+            and settings.grafana_port != old_port
         ):
             url = urllib.parse.urlsplit(environment["GF_SERVER_ROOT_URL"])
-            if url.hostname and url.port == active.get("grafana_port", 3001):
+            if url.hostname and url.port == old_port:
                 host = "[" + url.hostname + "]" if ":" in url.hostname else url.hostname
                 environment["GF_SERVER_ROOT_URL"] = urllib.parse.urlunsplit(
                     (
@@ -955,8 +1057,41 @@ class Configuration:
                         url.fragment,
                     )
                 )
-        files[self.compose_name] = yaml.safe_dump(compose, sort_keys=False).encode()
-        return files
+
+    def _fresh_candidate(self, stage, settings, files):
+        """Settings the renderer does not take, applied to a first installation.
+
+        Edits ``files`` in place and returns the rendered site configuration,
+        which the plan records as the site file.
+        """
+        c = setup.load(stage / "site.json")
+        files["compose.yaml"] = (stage / "compose.yaml").read_bytes()
+        prom = json.loads(files["prometheus/prometheus.yml"])
+        prometheus_policy(prom, settings.monitoring_interval)
+        files["prometheus/prometheus.yml"] = setup.dumps(prom).encode()
+        ldata = json.loads(files["loki/loki-config.yaml"])
+        ldata["limits_config"]["retention_period"] = str(settings.retention.loki_days) + "d"
+        files["loki/loki-config.yaml"] = setup.dumps(ldata).encode()
+        comp = json.loads(files.pop("compose.yaml"))
+        if "fortilens-syslog" in comp["services"]:
+            comp["services"]["fortilens-syslog"]["image"] = "fortilens-syslog:" + self.project
+        for name in ("fortilens-usage", "fortilens-portal"):
+            if name in comp["services"]:
+                comp["services"][name]["image"] = "fortilens-usage:" + self.project
+        comp["services"]["prometheus"]["command"] = [
+            ("--storage.tsdb.retention.time=" + str(settings.retention.prometheus_days) + "d")
+            if x.startswith("--storage.tsdb.retention.time=")
+            else x
+            for x in comp["services"]["prometheus"]["command"]
+        ]
+        set_accounting_cpus(comp, settings.accounting_cpus)
+        files[self.compose_name] = setup.dumps(comp).encode()
+        if settings.optional_exporter_exclusions is not None:
+            auth = json.loads(files["secrets/fortigate-key.yaml"])
+            key = self.auth_key(auth, c)
+            auth[key] = optional_probe_policy(auth[key], settings.optional_exporter_exclusions)
+            files["secrets/fortigate-key.yaml"] = setup.dumps(auth).encode()
+        return c
 
     def prepare(self, revision):
         with self.lock:
@@ -1003,41 +1138,7 @@ class Configuration:
             setup.render(render_config, stage, token)
             files = self._patch(stage, settings, c)
             if not self.compose():
-                c = setup.load(stage / "site.json")
-                files["compose.yaml"] = (stage / "compose.yaml").read_bytes()
-                prom = json.loads(files["prometheus/prometheus.yml"])
-                prometheus_policy(prom, settings.monitoring_interval)
-                files["prometheus/prometheus.yml"] = setup.dumps(prom).encode()
-                ldata = json.loads(files["loki/loki-config.yaml"])
-                ldata["limits_config"]["retention_period"] = str(settings.retention.loki_days) + "d"
-                files["loki/loki-config.yaml"] = setup.dumps(ldata).encode()
-                comp = json.loads(files.pop("compose.yaml"))
-                if "fortilens-syslog" in comp["services"]:
-                    comp["services"]["fortilens-syslog"]["image"] = (
-                        "fortilens-syslog:" + self.project
-                    )
-                for name in ("fortilens-usage", "fortilens-portal"):
-                    if name in comp["services"]:
-                        comp["services"][name]["image"] = "fortilens-usage:" + self.project
-                comp["services"]["prometheus"]["command"] = [
-                    (
-                        "--storage.tsdb.retention.time="
-                        + str(settings.retention.prometheus_days)
-                        + "d"
-                    )
-                    if x.startswith("--storage.tsdb.retention.time=")
-                    else x
-                    for x in comp["services"]["prometheus"]["command"]
-                ]
-                set_accounting_cpus(comp, settings.accounting_cpus)
-                files[self.compose_name] = setup.dumps(comp).encode()
-                if settings.optional_exporter_exclusions is not None:
-                    auth = json.loads(files["secrets/fortigate-key.yaml"])
-                    key = self.auth_key(auth, c)
-                    auth[key] = optional_probe_policy(
-                        auth[key], settings.optional_exporter_exclusions
-                    )
-                    files["secrets/fortigate-key.yaml"] = setup.dumps(auth).encode()
+                c = self._fresh_candidate(stage, settings, files)
             if self.compose() and "ca" in pending and pending["ca"]:
                 files["secrets/web-fortigate-ca.pem"] = pending["ca"].encode()
             files[state["site_file"]] = setup.dumps(c).encode()

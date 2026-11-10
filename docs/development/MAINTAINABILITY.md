@@ -13,7 +13,7 @@ contracts instead of changing them.
 |---|---|---|
 | `management/app.py` | HTTP/auth boundaries, fixed routes, trusted initial-view launch and hosted-report presentation. | Separate presentation constants only after native mount, cache policy, frame entry/reload and packaging tests; preserve import names/routes. |
 | `management/auth.py`, `models.py` | Private auth state, session/CSRF contracts and strict validated browser/helper inputs. | Keep management and gateway/service authentication separate; characterize errors and session persistence first. |
-| `management/configuration.py` | Import existing layout, revisions, candidate merge, fingerprints and file-only recovery. | Characterize every accepted existing mount/config form before splitting candidate serialization from transactions. |
+| `management/configuration.py` | Import existing layout, revisions, candidate merge, fingerprints and file-only recovery. Prepare patches a registered installation in one step per installed file (`_patch_*`), in a fixed order that is also the plan order. | `tests/test_configuration_patch.py` pins Prepare's candidate files for 56 settings changes; it must pass unchanged before candidate serialization is split from transactions. Add a scenario for any newly accepted mount or config form. |
 | `management/runtime.py` | Fixed Docker operations, readiness, diagnostics, apply jobs and read-only console bridge. | Separate gateway/device adapters behind existing injected interfaces; retain peer/helper registry and fixed command boundaries. |
 | `management/common.py` | Safety primitives and deliberate loading of portable setup. | Preserve standard-library CLI paths and copied-worker imports; test both installed and source contexts before changing loading. |
 | `portable/setup.py` | Configuration validation, rendering, CLI, dashboard import and portable bundle. | Keep command/argument/error compatibility and install output unchanged; isolated extraction needs explicit installer/bundle/Docker file updates. |
@@ -45,7 +45,10 @@ extracted distribution has been tested.
 
 ## Verification before a future refactor
 
-1. Capture accepted inputs, outputs, observed errors and CLI help/arguments.
+1. Capture accepted inputs, outputs, observed errors and CLI help/arguments in a
+   characterization test, committed before the code changes and passing
+   unchanged afterwards. Regenerate a recording only for an intended behavior
+   change, and say why in that commit.
 2. Include existing-layout adoption, external edits, interrupted Apply/recovery,
    database restart/replay and saved dashboard preservation as applicable.
 3. Demonstrate extracted portable and full installation behavior on their supported

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Internal
+
+- Prepare's file patching for a registered installation (`_patch` in
+  `management/configuration.py`, 418 lines in one method) is split into one
+  step per installed file. No behavior changed: a new characterization test,
+  committed first, records the candidate files of 56 settings changes on fresh,
+  web-managed and CLI-adopted installations, including the refusals for
+  customized files, and passes unchanged on the new code.
+
 ### Release packaging
 
 - The full source archive now includes the 11 test files and the icon

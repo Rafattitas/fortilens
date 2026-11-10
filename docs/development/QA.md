@@ -266,6 +266,21 @@ transfer.
   modules. Runtime and installer files were complete. Fixed for the next release;
   published assets are not replaced.
 
+### Record: 2026-11-11, refactor stage 1: Prepare's file patching
+
+- The characterization test `tests/test_configuration_patch.py` was committed
+  before the code change (`4c83ad5`). Its 56 scenarios were recorded twice with
+  identical results and reach 241 of the 243 statements of the old `_patch`.
+- On the split code it passed unchanged, together with the management,
+  native-host, repair, CA and runtime-error suites (88 tests).
+- From a Git checkout in `python:3.12-slim` on the test server: ruff, the
+  repository checks and 607 tests passed; `management/configuration.py`
+  coverage rose from 85% to 91.7%. Both archives built and verified, and the
+  extracted full archive ran the same 607 tests.
+
+Not verified: an Apply on the test installation. Prepare's output is
+byte-identical, so the installed files would not change.
+
 ## Real FortiGate source checks
 
 When an authorized source is reachable, run the optional read-only compatibility
