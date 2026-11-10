@@ -715,6 +715,13 @@ class Operations:
                     c=setup.validate_config(load(self.c.root/self.c.state()['site_file']))
                     setup.import_dashboard(self.c.root,c)
                     if c.get('portal_enabled'):setup.connect_portal(self.c.root,c)
+                else:
+                    # Saved dashboards are kept, except the former raw-log usage
+                    # panels, which outran the gateway. Services are already
+                    # running, so a failure here must not undo the deployment.
+                    self._progress(job,'dashboard','Removing retired usage panels from the saved Grafana dashboard; other panels are kept.')
+                    try:setup.retire_saved_panels(self.c.root,setup.validate_config(load(self.c.root/self.c.state()['site_file'])))
+                    except Exception as exc:report_failure('dashboard_panel_retirement_failed',exc)
                 self._progress(job,'diagnostics','Checking collection evidence. Missing FortiGate data is not a deployment failure.')
                 # Services are already running, so failed evidence must not undo the deployment.
                 try:diagnostic=self.diagnostics()

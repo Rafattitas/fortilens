@@ -135,7 +135,7 @@ python3 setup.py prepare-dashboard-style --input /private/latest-dashboard.json
 
 Alert files are paused candidates outside active provisioning. No notification policy or destination is changed. Supply environment secrets privately only when explicitly provisioning/testing your chosen contact point. Quiet syslog has no alert by default; `--expected-log-interval-seconds` is an explicit expectation, not an inference of lost traffic. Review candidates in an isolated Grafana before enabling.
 
-The style command creates a unique local candidate preserving query groups/selectors; it never overwrites live Grafana. Legacy usage diagnostics/audit remain available via `prepare-usage-quality` and `usage-audit`. Full limits and procedures are in the linked source documentation.
+The style command creates a unique local candidate preserving query groups/selectors; it never overwrites live Grafana. The former raw-log device-usage and received-record panels are no longer generated, and `start`/`import-dashboard` remove them from an existing dashboard only where they still match what FortiLens generated, after a private backup. Use the reports for device usage; the offline `usage-audit` remains. Full limits and procedures are in the linked source documentation.
 
 ## Troubleshooting and packaging
 

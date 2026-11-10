@@ -36,7 +36,7 @@ Read [release preparation](development/RELEASING.md) before choosing or building
 | [Accounting paths](architecture/ACCOUNTING.md) | Choosing persistent reports, legacy Loki diagnostics or offline sample auditing. |
 | [Accounting engine contract](architecture/ACCOUNTING_ENGINE.md) | Identity, direction, counters, replay/late-data handling, exact VLAN evidence and calendar periods. |
 | [Compact accounting storage](architecture/COMPACT_ACCOUNTING.md) | Optional lossless ledger layout, verified offline copy, acceptance checks and matched runtime/database rollback. |
-| [Legacy usage diagnostics](architecture/USAGE_QUALITY.md) | Existing Loki query behavior and bounded offline normalized-sample auditing. |
+| [Legacy usage diagnostics](architecture/USAGE_QUALITY.md) | Retired Grafana usage panels and bounded offline normalized-sample auditing. |
 | [Project context](development/PROJECT_CONTEXT.md) | Maintainer source map, supported defaults and invariants; not a deployment snapshot. |
 
 ## Operations and troubleshooting

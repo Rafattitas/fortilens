@@ -147,7 +147,9 @@ or replace existing release assets.
   reductions need a data-preservation review. Rollback restores files, not history
   already deleted or incompatible database migrations.
 - Individual WAN/SLA/interface views share the existing exporter; all must be off
-  to stop it. Native saved dashboards are preserved. Worker-off keeps data but
+  to stop it. Native saved dashboards are preserved, except that an apply removes
+  the retired raw-log usage panels (IDs 1, 2, 41-45) where they still match what
+  FortiLens generated, after a private backup. Worker-off keeps data but
   prevents live report queries until re-enabled.
 - The gateway supports ordinary native queries/refresh, not Grafana Live WebSocket
   streaming. The helper supports one registered local installation, not remote

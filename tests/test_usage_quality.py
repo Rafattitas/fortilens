@@ -154,31 +154,3 @@ class UsageQualityTests(unittest.TestCase):
                 code = setup.main(["usage-audit", "--input", str(p), "--period", "week", "--timezone", "UTC", "--vdom", "root", "--at", AT, "--json"])
             self.assertEqual(code, 2)
             self.assertEqual(json.loads(out.getvalue())["coverage"], "UNKNOWN")
-
-    def test_dashboard_adds_collapsed_diagnostics_and_preserves_existing_measurements(self):
-        source = setup.load(ROOT/"portable/templates/dashboard.json")
-        candidate = usage.enhance_dashboard(source)
-        self.assertEqual(source["spec"]["elements"], {k: v for k, v in candidate["spec"]["elements"].items() if k in source["spec"]["elements"]})
-        row = next(r["spec"] for r in candidate["spec"]["layout"]["spec"]["rows"] if r["spec"]["title"].startswith("Usage Data Quality"))
-        self.assertTrue(row["collapse"])
-        self.assertEqual(usage.enhance_dashboard(candidate), candidate)
-        for pid, relative in ((43,"now/d"),(44,"7d"),(45,"now/M")):
-            panel=candidate["spec"]["elements"][f"panel-{pid}"]["spec"]
-            self.assertEqual(panel["data"]["spec"]["queryOptions"]["timeFrom"], relative)
-            self.assertNotIn("vector(0)", panel["data"]["spec"]["queries"][0]["spec"]["query"]["spec"]["expr"])
-
-    def test_candidate_command_preserves_source_and_never_calls_grafana(self):
-        with tempfile.TemporaryDirectory() as folder:
-            p=Path(folder)/"installation"
-            with contextlib.redirect_stdout(io.StringIO()):
-                setup.render({"fortigate_host":"fw.example.test"}, p, "FAKE_TEST_TOKEN")
-            source=setup.load(ROOT/"portable/templates/dashboard.json")
-            path=p/"grafana/dashboard.json"
-            path.write_text(json.dumps(source), encoding="utf-8")
-            before=path.read_bytes()
-            with patch.object(setup,"grafana_request",side_effect=AssertionError("No network")), contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(setup.main(["prepare-usage-quality","--output",str(p)]),0)
-            self.assertEqual(path.read_bytes(),before)
-            candidates=list((p/"grafana").glob("dashboard.usage-quality-*.json"))
-            self.assertEqual(len(candidates),1)
-            self.assertEqual(len(setup.load(candidates[0])["spec"]["elements"]),30)
