@@ -6,8 +6,9 @@ settings changes on fresh, managed and adopted installations. It exists so that
 the code can be restructured with byte-identical results.
 
 The expected results live in ``tests/fixtures/configuration_patch.json`` as one
-SHA-256 per candidate file, in the order the plan lists them. Regenerate them
-only for an intended behavior change, and review the reason in the same change:
+SHA-256 per candidate file, sorted by path: the plan's order follows directory
+listings, which differ between file systems. Regenerate them only for an
+intended behavior change, and review the reason in the same change:
 
     FORTILENS_UPDATE_GOLDEN=1 python -m unittest tests.test_configuration_patch
 
@@ -463,7 +464,6 @@ class PrepareCharacterization(unittest.TestCase):
         except Problem as problem:
             return {"problem": problem.code}
         folder, plan = c.plan(review["plan_id"])
-        # The plan keeps the order in which files are written, so it is pinned too.
         # A file copied unchanged from the rendered template is recorded as such,
         # so edits to the template sources do not count as a Prepare change.
         files = []
@@ -476,7 +476,7 @@ class PrepareCharacterization(unittest.TestCase):
             data = data.replace(str(self.base).encode(), b"<BASE>")
             data = data.replace(review["plan_id"].encode(), b"<PLAN>")
             files.append([record["path"], hashlib.sha256(data).hexdigest()])
-        return {"files": files}
+        return {"files": sorted(files)}
 
     def test_prepare_candidates_match_the_recorded_results(self):
         actual = {}
