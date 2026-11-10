@@ -1,0 +1,1386 @@
+{
+  "adopted-cli-native": {
+    "files": [
+      [
+        "syslog/syslog_receiver.py",
+        "copied from the rendered template"
+      ],
+      [
+        "syslog/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "29e091c4520c56735dc9f3b6e0621a1c48eecbcdb39a4f8b9dd01a8be46eaa13"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "70e7fbd61cea8e4616efa7a4ed2089a72e920207137aa1ab44e0affb1a6e8888"
+      ],
+      [
+        "compose.yaml",
+        "c16a43365abc30e1f30ad6fe2ca7a2634c79516266e8888931dfb1657e4342bc"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "adopted-display-name": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "8d7d0e7139748332832ff0c22569481e89155e8f1cf52cf6a7f8106966d13222"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "adopted-endpoint": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "3944e8deb137c730b05e6a32c0a799405137149d1aa93ce7306acfa9c2f111f1"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate-key.yaml",
+        "6bd8ae45e84b0fae22412725bd75ac238cb0c022d597e93ce5c59de64ac803fc"
+      ],
+      [
+        "compose.yaml",
+        "8d7d0e7139748332832ff0c22569481e89155e8f1cf52cf6a7f8106966d13222"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "adopted-minimal-accounting-on": {
+    "files": [
+      [
+        "secrets/usage_admin_password",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate_api_token",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/usage_service.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/accounting.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/reporting.html",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/accounting_storage.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/portal.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/interfaces.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/wan_health.py",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "2243e290e5e7f89c2fe0fe3a9d7a8385c973e627239b9303f3abbe31101d5b27"
+      ],
+      [
+        "site.json",
+        "f9078d2bfa6b97c35ded13f194611815480e1e73cb201c02202975ce08dfe790"
+      ]
+    ]
+  },
+  "adopted-minimal-ca-accounting-on": {
+    "files": [
+      [
+        "secrets/usage_admin_password",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate_api_token",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/usage_service.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/accounting.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/reporting.html",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/accounting_storage.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/portal.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/interfaces.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/wan_health.py",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "f6ecaab451fbf7e63a5ad2409201c8403f6cfa4d19368b2d73e9675139eb39f7"
+      ],
+      [
+        "site.json",
+        "4092b97e385d0f0525e56fc577c826dc70cd2ca2305ab0d51da16500116882a5"
+      ]
+    ]
+  },
+  "adopted-minimal-display-name": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6723ba3a28668d371f88d78925100902d2d46efbc1f5179ebb26e336ff2ab467"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "b7682dcdee2a9953d9a335bd29a6b97dc1f185d2a07ad81b314a98966cab88fb"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "adopted-native-bridge": {
+    "files": [
+      [
+        "syslog/syslog_receiver.py",
+        "copied from the rendered template"
+      ],
+      [
+        "syslog/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "32b2b9f47dc32615932307e855f475cab42040957e39fdd3f7d08baf68ff8ebd"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "70e7fbd61cea8e4616efa7a4ed2089a72e920207137aa1ab44e0affb1a6e8888"
+      ],
+      [
+        "compose.yaml",
+        "f1d41968a527efa9cfaf1cd5fad74391e1b17f83b137943d93456461fba0c1af"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "adopted-native-host": {
+    "files": [
+      [
+        "syslog/syslog_receiver.py",
+        "copied from the rendered template"
+      ],
+      [
+        "syslog/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "70e7fbd61cea8e4616efa7a4ed2089a72e920207137aa1ab44e0affb1a6e8888"
+      ],
+      [
+        "compose.yaml",
+        "f49408816509e7a3754fb2684b9e979e5636f0f95dca2b1f9951644adb98d995"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "adopted-retention-ports": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "536fd8277eb95bbd37421b51dc10d9e32e7f624cf7916a0b0a92c894a1844443"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "376f85fe4792836a3c6a71ec8d77ac89f0132063fc19dc79d18a25978123ecdd"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "fresh": {
+    "files": [
+      [
+        ".gitignore",
+        "copied from the rendered template"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/usage_admin_password",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate-key.yaml",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate_api_token",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/grafana_admin_password",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/usage_service.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/accounting.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/reporting.html",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/accounting_storage.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/portal.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/interfaces.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/wan_health.py",
+        "copied from the rendered template"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "grafana/dashboard.json",
+        "copied from the rendered template"
+      ],
+      [
+        "grafana/provisioning/datasources/sources.yaml",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "d292668b604d7b02aa72b78d026aa472bed95c36cb2b71cb899edeb512492b8b"
+      ]
+    ]
+  },
+  "fresh-exclusions": {
+    "files": [
+      [
+        ".gitignore",
+        "copied from the rendered template"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/usage_admin_password",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate-key.yaml",
+        "73d86909c559d48d5c16d6a4d4e56cae13914a5a5f12dce30566a481a509096f"
+      ],
+      [
+        "secrets/fortigate_api_token",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/grafana_admin_password",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/usage_service.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/accounting.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/reporting.html",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/accounting_storage.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/portal.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/interfaces.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/wan_health.py",
+        "copied from the rendered template"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "grafana/dashboard.json",
+        "copied from the rendered template"
+      ],
+      [
+        "grafana/provisioning/datasources/sources.yaml",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "d292668b604d7b02aa72b78d026aa472bed95c36cb2b71cb899edeb512492b8b"
+      ]
+    ]
+  },
+  "fresh-native": {
+    "files": [
+      [
+        ".gitignore",
+        "copied from the rendered template"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/usage_admin_password",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate-key.yaml",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate_api_token",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/grafana_admin_password",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "copied from the rendered template"
+      ],
+      [
+        "syslog/syslog_receiver.py",
+        "copied from the rendered template"
+      ],
+      [
+        "syslog/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/usage_service.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/accounting.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/reporting.html",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/accounting_storage.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/portal.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/interfaces.py",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "usage/wan_health.py",
+        "copied from the rendered template"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "grafana/dashboard.json",
+        "copied from the rendered template"
+      ],
+      [
+        "grafana/provisioning/datasources/sources.yaml",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "21ec3a5f0e72ba887f3b25266f70ccf4cb1504c8d1d328c88d9a67b56d122633"
+      ]
+    ]
+  },
+  "managed-accounting-back-on": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-accounting-off": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "9360becca6bd00edbbbb32b6f5aa24837ab5a5776a6fe2b4328f901ad31b51b0"
+      ],
+      [
+        "compose.yaml",
+        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+      ],
+      [
+        "site.json",
+        "58a78578e43ee1d8889dc70db8b78eaea4df802852b1b804abab831f12ec51b4"
+      ]
+    ]
+  },
+  "managed-alloy-extra-port": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "9c829b26b214bfc83c956bda38fb7762724de3f028f2677d15535fb28137e1b4"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-ca-added": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "f170dfb8375d8e04e4e32096d4475c48001fd57607721a34104f00a507346238"
+      ],
+      [
+        "secrets/web-fortigate-ca.pem",
+        "36e68e205b53c67c7a013894e0d5c8583063468118d1ce78ecbc2200d1dd185c"
+      ],
+      [
+        "site.json",
+        "618dcbb12843be9b9e5c85596fcc07fca1c43ebbfda541182f2e84e9bdd8d084"
+      ]
+    ]
+  },
+  "managed-ca-removed": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "a397d0d02ab4ee9f800555db0dcb7a75e3ef6dc4eecae600067eec495190b352"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-cpus": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "4bf3928d85855d40a478d3564d3525e872cec553ba29c4994ecc00e8fe046a2c"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-display-name": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-endpoint": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "a6e3fa9fb0b2d4e67a509b93357feb987d51c82050e779b7a560b781ff2f0f43"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate-key.yaml",
+        "e5f0a872bba35d43be92f914f15d972ce96fad71fcfbc6e8727872ca1ff66f5e"
+      ],
+      [
+        "compose.yaml",
+        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-endpoint-and-token": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "b91495b15d19a675b22296d9dce32d9bb46d7a262cd2e4150eaef444fd74f730"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate-key.yaml",
+        "a54b8e2193b6daf49f100d08b85c2c9ad67bbc06d54b37691dcb48f299e89034"
+      ],
+      [
+        "secrets/fortigate_api_token",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-exclusions": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate-key.yaml",
+        "e1abeca1759f833fd3bd45db995c7e474e95d5252f2b23f99422a20275e8946f"
+      ],
+      [
+        "compose.yaml",
+        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-exclusions-cleared": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate-key.yaml",
+        "5dc0bc2ecec9a45378bc4e390c3fab4974478aa86380d127317507326313541b"
+      ],
+      [
+        "compose.yaml",
+        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-insecure-tls": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "702f9777b92d28289da082701de405e12f570d8f029ab723c2e26eca87015096"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-interval-only-global": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "054baa2314eecc9489b376d09cbeba49aafff2725fcae1ab06e79a5f0fd8e02c"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-native-bridge": {
+    "files": [
+      [
+        "syslog/syslog_receiver.py",
+        "copied from the rendered template"
+      ],
+      [
+        "syslog/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "32b2b9f47dc32615932307e855f475cab42040957e39fdd3f7d08baf68ff8ebd"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "70e7fbd61cea8e4616efa7a4ed2089a72e920207137aa1ab44e0affb1a6e8888"
+      ],
+      [
+        "compose.yaml",
+        "0c0ac28d5046056452257f603878b4f28fe387e5a00b5258f1c0ade98d039507"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-native-bridge-to-host": {
+    "files": [
+      [
+        "syslog/syslog_receiver.py",
+        "copied from the rendered template"
+      ],
+      [
+        "syslog/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "70e7fbd61cea8e4616efa7a4ed2089a72e920207137aa1ab44e0affb1a6e8888"
+      ],
+      [
+        "compose.yaml",
+        "6b3bd0a447c8423ea78c839dbfc97b262a5175efc24062dc5753fa1db8af1d0a"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-native-bridge-to-legacy": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "0053d885dc3d3607e098dc2aa9e712398172a57c8b12313cb84158f4598f8407"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-native-host": {
+    "files": [
+      [
+        "syslog/syslog_receiver.py",
+        "copied from the rendered template"
+      ],
+      [
+        "syslog/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "70e7fbd61cea8e4616efa7a4ed2089a72e920207137aa1ab44e0affb1a6e8888"
+      ],
+      [
+        "compose.yaml",
+        "6b3bd0a447c8423ea78c839dbfc97b262a5175efc24062dc5753fa1db8af1d0a"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-native-host-port": {
+    "files": [
+      [
+        "syslog/syslog_receiver.py",
+        "copied from the rendered template"
+      ],
+      [
+        "syslog/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "70e7fbd61cea8e4616efa7a4ed2089a72e920207137aa1ab44e0affb1a6e8888"
+      ],
+      [
+        "compose.yaml",
+        "5aab64b16713457af4f5e3e6c73c1657b50a9b077e5550f31185d2523f9fcfde"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-native-host-to-bridge": {
+    "files": [
+      [
+        "syslog/syslog_receiver.py",
+        "copied from the rendered template"
+      ],
+      [
+        "syslog/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "70e7fbd61cea8e4616efa7a4ed2089a72e920207137aa1ab44e0affb1a6e8888"
+      ],
+      [
+        "compose.yaml",
+        "ba92aa4c06c15591aca6334189157ecb89ee36fe5b9b833983b137a138c18da9"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-native-host-to-legacy": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "d207f0dfbc2e165709465a802eadeb865bd99f69ffa18da50dabf13887a993cb"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-native-reenable-host": {
+    "files": [
+      [
+        "syslog/syslog_receiver.py",
+        "copied from the rendered template"
+      ],
+      [
+        "syslog/Dockerfile",
+        "copied from the rendered template"
+      ],
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "70e7fbd61cea8e4616efa7a4ed2089a72e920207137aa1ab44e0affb1a6e8888"
+      ],
+      [
+        "compose.yaml",
+        "6b3bd0a447c8423ea78c839dbfc97b262a5175efc24062dc5753fa1db8af1d0a"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-ports": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "fd2a72ad027899605cbe24b0d67a6b1382ebce7fa36282836cb0a9e6a6cce1e7"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-retention-interval": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "a20aea5c0be3cc69b48648b18447b1cea6da702da4e92644a7928dee8e855e29"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "7f6a5c2beda51ef960712ca8415e43c7d0a1f030cc5f5e4b982b0788e0156cf6"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "503e55a8329bcf989397d14e19478ac1f6d5f00b55461aa331d78390f2facacb"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-root-url-port": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "e5557eaef9f38ff95bf9396b5d25bdc01a0e8b580145a4e01b76be967b4a8e75"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-short-grafana-binding": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "d1b255ce7249fa241ecca1e3dbe9db54b6cb735c7d90bf502f233d5f229a9acf"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-syslog-udp-port": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "7a46eea08db950a7b469276cde3a068155ab5c76db9541f7d02c9b1e4352db31"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-token-only": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "secrets/fortigate-key.yaml",
+        "cc2c6601c79242ecd8592ef8a6f17a60070306969a7248ae3f3bb9e35aa1e8a7"
+      ],
+      [
+        "secrets/fortigate_api_token",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "managed-websites": {
+    "files": [
+      [
+        "prometheus/prometheus.yml",
+        "6e68cb2dec47cde3241bdb76c84ee61698532dafe75cd930f6b5d8395e9fefbc"
+      ],
+      [
+        "loki/loki-config.yaml",
+        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+      ],
+      [
+        "alloy/config.alloy",
+        "copied from the rendered template"
+      ],
+      [
+        "compose.yaml",
+        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+      ],
+      [
+        "site.json",
+        "copied from the rendered template"
+      ]
+    ]
+  },
+  "refuse-alloy-mapping-ports": {
+    "problem": "custom_ports_review"
+  },
+  "refuse-custom-alloy-syntax": {
+    "problem": "custom_alloy_review"
+  },
+  "refuse-custom-receiver": {
+    "problem": "custom_syslog_review"
+  },
+  "refuse-custom-scrape-job": {
+    "problem": "custom_syslog_review"
+  },
+  "refuse-endpoint-to-known-target": {
+    "problem": "token_action_required"
+  },
+  "refuse-extra-host-handoff": {
+    "problem": "custom_ports_review"
+  },
+  "refuse-grafana-mapping-ports": {
+    "problem": "custom_ports_review"
+  },
+  "refuse-host-receiver-published-port": {
+    "problem": "custom_syslog_review"
+  },
+  "refuse-insecure-tls-with-ca": {
+    "problem": "tls_ca_conflict"
+  },
+  "refuse-leave-host-with-extra-handoff": {
+    "problem": "custom_ports_review"
+  },
+  "refuse-leave-native-with-alloy-receiver": {
+    "problem": "custom_ports_review"
+  },
+  "refuse-native-alloy-mapping-port": {
+    "problem": "custom_ports_review"
+  },
+  "refuse-native-receiver-extra-port": {
+    "problem": "custom_syslog_review"
+  },
+  "refuse-native-without-receiver-limits": {
+    "problem": "custom_alloy_review"
+  },
+  "refuse-unreadable-credential-record": {
+    "problem": "secret_unavailable"
+  },
+  "refuse-unregistered-port": {
+    "problem": "custom_ports_review"
+  }
+}

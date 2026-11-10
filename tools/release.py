@@ -155,6 +155,8 @@ PUBLIC_FILES = (
     "tests/test_alerts.py",
     "tests/test_cli_errors.py",
     "tests/test_configuration_ca.py",
+    "tests/test_configuration_patch.py",
+    "tests/fixtures/configuration_patch.json",
     "tests/test_dashboard_style.py",
     "tests/test_doctor.py",
     "tests/test_frontend_errors.py",
