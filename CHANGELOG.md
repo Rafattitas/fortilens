@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Reports and live usage
+
+- Choosing another period while a report is loading no longer loses the
+  choice when the earlier request fails. The failure of the period already
+  left is ignored and the new period is requested; a failure for the period
+  still selected is shown and not retried, as before.
+- Pause on Live usage now discards a reading that was already on its way, so
+  nothing changes on the page after Pause. Resume starts a new reading.
+
 ### Internal
 
 - Prepare's file patching for a registered installation (`_patch` in

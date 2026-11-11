@@ -235,5 +235,100 @@ process.stdin.on('end',()=>{
         self.run_case("reporting", "report_cleanup")
 
 
+# Each request is a deferred promise, so a test decides when, and in which
+# order, replies and failures arrive.
+ORDER_HARNESS = r"""
+const assert=require('node:assert/strict'),vm=require('node:vm');
+let input='';process.stdin.setEncoding('utf8');process.stdin.on('data',s=>input+=s);
+process.stdin.on('end',async()=>{
+ const config=JSON.parse(input);
+ const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{disabled:false,textContent:'',hidden:false,value:'',replaceChildren(){},setAttribute(){}});return nodes.get(id)};
+ const requests=[],drawn=[];let shown='';
+ const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});return {promise,resolve,reject}};
+ const context={URLSearchParams,$:node,period:'today',
+  state:{auth:'synthetic-basic',busy:false,pending:false,report:null,view:'live',livePaused:false,liveReport:null},
+  params(){return new URLSearchParams({period:context.period})},
+  message(text){shown=text||''},errorText(){return 'Synthetic failure'},
+  api(path){const d=deferred();requests.push({path,...d});return d.promise},
+  rememberReport(){},renderStats(r){drawn.push(r.period)},renderVlans(){},renderDevices(){},
+  renderReportSummary(){},renderQuality(){},shareEvidence(){},
+  renderLive(r){drawn.push({id:r.id,paused:context.state.livePaused})},
+ };
+ vm.createContext(context);vm.runInContext(config.source,context);
+ const settle=()=>new Promise(r=>setTimeout(r,5));
+ const paths=()=>requests.map(r=>r.path);
+ try{
+  if(config.scenario==='report_failure_after_switch'){
+   const first=context.loadReport();context.period='week';await context.loadReport();
+   requests[0].reject(Error('synthetic Today failure'));await first;await settle();
+   assert.deepEqual(paths(),['/api/report?period=today','/api/report?period=week']);
+   assert.equal(shown,'');
+   requests[1].resolve({period:'week'});await settle();
+   assert.deepEqual(drawn,['week']);
+  }else if(config.scenario==='report_reply_after_switch'){
+   const first=context.loadReport();context.period='week';await context.loadReport();
+   requests[0].resolve({period:'today'});await first;await settle();
+   assert.deepEqual(paths(),['/api/report?period=today','/api/report?period=week']);
+   requests[1].resolve({period:'week'});await settle();
+   assert.deepEqual(drawn,['week']);
+  }else if(config.scenario==='report_failure_same_period'){
+   const first=context.loadReport();await context.loadReport();
+   requests[0].reject(Error('synthetic failure'));await first;await settle();
+   assert.deepEqual(paths(),['/api/report?period=today']);
+   assert.equal(shown,'Synthetic failure');assert.equal(context.state.pending,false);
+  }else if(config.scenario==='live_pause'){
+   const read=context.loadLive();context.toggleLivePause();
+   requests[0].resolve({id:'started-before-pause'});await read;await settle();
+   assert.deepEqual(drawn,[]);assert.equal(node('live-status').textContent,'Paused.');
+   context.toggleLivePause();
+   assert.equal(requests.length,2,'Resume starts a new read');
+   requests[1].resolve({id:'after-resume'});await settle();
+   assert.deepEqual(drawn,[{id:'after-resume',paused:false}]);
+   const failing=context.loadLive();context.toggleLivePause();
+   requests[2].reject(Error('synthetic failure after pause'));await failing;await settle();
+   assert(!node('live-status').textContent.includes('Synthetic failure'));
+  }else throw Error('unknown scenario');
+  assert.equal(context.state.busy===true,false);
+  process.stdout.write('PASS');
+ }catch(error){process.stderr.write(error.stack);process.exitCode=1}
+});
+"""
+
+
+@unittest.skipUnless(NODE, "Browser request-order tests require development-only Node.js.")
+class ReportRequestOrderTests(unittest.TestCase):
+    """The newest choice wins; a reply or failure for an older one never replaces it."""
+
+    def run_scenario(self, scenario):
+        text = (ROOT / "portable/reporting.html").read_text(encoding="utf-8")
+        parts = []
+        for name in ("loadReport", "loadLive", "toggleLivePause"):
+            match = re.search(r"(?m)^(?:async )?function " + name + r"\([^\n]*", text)
+            self.assertIsNotNone(match, name)
+            parts.append(match[0])
+        result = subprocess.run(
+            [NODE, "-e", ORDER_HARNESS],
+            input=json.dumps({"scenario": scenario, "source": "\n".join(parts)}),
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "PASS")
+
+    def test_failed_report_for_a_period_already_left_still_sends_the_new_period(self):
+        self.run_scenario("report_failure_after_switch")
+
+    def test_report_reply_for_a_period_already_left_is_not_drawn(self):
+        self.run_scenario("report_reply_after_switch")
+
+    def test_failed_report_for_the_same_period_is_shown_and_not_retried(self):
+        self.run_scenario("report_failure_same_period")
+
+    def test_live_reply_after_pause_is_not_drawn_and_resume_reads_again(self):
+        self.run_scenario("live_pause")
+
+
 if __name__ == "__main__":
     unittest.main()
