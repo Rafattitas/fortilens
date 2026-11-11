@@ -28,6 +28,10 @@
 
 ### Internal
 
+- The three report kinds (Reports, Websites, Applications) share one cache
+  helper, `Engine._cached`, instead of three copies of the same lookup, JSON
+  copy, 2 MiB limit and four-entry eviction. A new test, committed first, pins
+  that behavior for all three kinds; only Reports had cache tests before.
 - Prepare's file patching for a registered installation (`_patch` in
   `management/configuration.py`, 418 lines in one method) is split into one
   step per installed file. No behavior changed: a new characterization test,
