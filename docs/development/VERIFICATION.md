@@ -4,11 +4,8 @@ Verification separates source tests, synthetic integration and real deployment e
 
 ## Reproduce automated checks
 
-```bash
-python3 -m unittest discover -s tests -v
-python3 portable/setup.py bundle --destination dist/fortilens-single-device.zip
-python3 tests/integration/integration_stack.py
-```
+Run the [local checks](../../CONTRIBUTING.md#local-checks), which mirror CI, and
+the integration scenarios listed there on a disposable Linux host.
 
 The earlier portable verification record covered 118 cases. The suite has since
 grown; that historical count is not a claim about the current source. Coverage
@@ -24,7 +21,8 @@ Use the [QA procedure](QA.md) for current commands and the exact-head
 Report measured coverage and skips from the executed environment rather than
 copying a historical count.
 
-CI runs Python 3.10/3.12/3.13 on Linux and Python 3.12 on Windows. UTC works without an IANA database; one timezone case can skip on a configuration-only host without installed timezone data. Deployment remains Linux/amd64. The Docker job requires Linux Docker Compose v2 and OpenSSL; no real FortiGate is contacted.
+CI runs Python 3.10/3.12/3.13 on Linux, Python 3.12 on Windows, and the management
+suite on Python 3.11 and 3.12. UTC works without an IANA database; one timezone case can skip on a configuration-only host without installed timezone data. Deployment remains Linux/amd64. The Docker job requires Linux Docker Compose v2 and OpenSSL; no real FortiGate is contacted.
 
 ## Isolated Docker acceptance
 

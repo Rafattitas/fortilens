@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/Rafattitas/fortilens/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Rafattitas/fortilens/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-56ddb0?style=flat-square"></a>
-  <img alt="Python 3.11 or later" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square">
+  <img alt="Python 3.10 or later for the CLI, 3.11 or later for web setup" src="https://img.shields.io/badge/Python-3.10%2B_CLI_%7C_3.11%2B_web-3776AB?style=flat-square">
   <img alt="Docker Compose" src="https://img.shields.io/badge/deploy-Docker_Compose-2496ED?style=flat-square">
   <img alt="Early access" src="https://img.shields.io/badge/status-early_access-F3BB66?style=flat-square">
 </p>
@@ -40,7 +40,7 @@ your own server, with your own credentials and data.
 | Which device used the most, in which direction? | **Devices** searches endpoints and opens each device's daily and monthly history. |
 | How much did each VLAN use? | **Segments** compares exact VLAN and interface mappings, and names VLANs with no received records. |
 | Which applications used the Internet, and which devices used them? | **Applications** groups recorded usage by FortiGate Application Control label and category, with GenAI and risk filters. |
-| Which websites used the Internet, and which devices visited them? | **Websites** (opt-in, off by default) groups recorded usage by site name from FortiGate Application Control and Web Filter logs, kept 90 days. See [website usage](docs/operations/WEBSITES.md). |
+| Which websites used the Internet, and which devices visited them? | **Websites** (opt-in, off by default) groups recorded usage by site name from FortiGate Application Control and Web Filter logs, kept up to 90 days. See [website usage](docs/operations/WEBSITES.md). |
 | Who is using the Internet right now? | **Live usage** shows current download and upload per device, application, segment and WAN link from FortiGate realtime sessions, refreshed every 10 seconds. |
 | What was the total for a period? | **Reports** covers today, the last 7 days, this month, this year, recent 5 minutes or a custom range. |
 | Can I trust these numbers? | **Data quality** shows collection gaps, pending counters and identity limits. |
@@ -86,9 +86,9 @@ want link health and device or VLAN usage without sending data to a third party.
 **Not a fit today:**
 
 - Several firewalls in one installation. Use a separate installation for each.
-- Security-event analytics, or website and domain analytics. These are
-  [planned](ROADMAP.md), not shipped. Application usage is shipped and relies on
-  FortiGate Application Control labels in the traffic logs.
+- Security-event analytics, or domain analytics from DNS queries. These are
+  [planned](ROADMAP.md), not shipped. Applications and Websites are shipped; they
+  rely on FortiGate Application Control and Web Filter data in the logs.
 - Certified billing, or complete traffic capture.
 - High availability or multiple writers.
 - Sites far above about 2,000 devices without extra CPU for accounting. See
@@ -130,7 +130,8 @@ then browse to `http://127.0.0.1:3030`:
 ssh -N -L 3030:127.0.0.1:3030 user@monitoring-server
 ```
 
-Create your administrator with the one-time token that `install.sh` prints (it is\nalso in `/var/lib/fortilens/web/bootstrap.token`), then configure the
+Create your administrator with the one-time token that `install.sh` prints (it is
+also in `/var/lib/fortilens/web/bootstrap.token`), then configure the
 connection, WANs, syslog and retention in the browser. Review and Apply starts the
 monitoring stack. There is no default password.
 
@@ -172,6 +173,22 @@ Send forward traffic logs to the monitoring server. The default receiver is
 Keep browser services on loopback behind an SSH tunnel or a reviewed HTTPS proxy.
 Credentials must not cross an untrusted plain-HTTP network.
 
+### Check that data arrives
+
+Give it a few minutes after Apply (web) or `start` (portable), while there is traffic.
+
+- **Web setup:** open **Diagnostics**. `fortigate_scrape` and `fortigate_api` at
+  `PASS` mean metrics arrive; `recent_logs` at `PASS` means Loki received logs in
+  the last five minutes. With accounting on, **Data quality** then shows records
+  moving from received to processed, and **Devices** fills in.
+- **Portable CLI:** run `python3 setup.py doctor`. It checks the services, metric
+  timestamps, the scrape and recent logs, and with accounting also polling and lag.
+  `--api-check` adds one read-only FortiGate API request.
+
+If `recent_logs` stays `UNKNOWN`, no logs were seen: review the FortiGate syslog
+destination, port, protocol and format. The
+[Diagnostics reference](docs/operations/DIAGNOSTICS.md) explains every check.
+
 ## How it fits together
 
 <p align="center">
@@ -206,8 +223,9 @@ and [management architecture](docs/architecture/MANAGEMENT_ARCHITECTURE.md).
 
 The source includes accounting, identity, period, VLAN and WAN tests, a Linux and
 Windows Python matrix, and an isolated Docker pipeline. Synthetic traffic checks the
-full Alloy → Loki → accounting → Prometheus path, including replay and restart. See
-[verification](docs/development/VERIFICATION.md) for the evidence and its real-device limits.
+full Alloy → Loki → accounting → Prometheus path, including replay and restart. The
+[local checks](CONTRIBUTING.md#local-checks) list what CI runs, and
+[verification](docs/development/VERIFICATION.md) states the real-device limits.
 
 ## Contributing
 

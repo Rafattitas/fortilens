@@ -72,6 +72,16 @@ employee notice before enabling it.
 Control ID seen in a labelled Internet record to its latest name, category and
 risk. It only names IDs; it never changes totals.
 
+## Websites
+
+Website usage is opt-in (`accounting_websites`). The registrable site name comes
+from Application Control and Web Filter logs that share the traffic session key.
+The first site seen for a session is kept, and every byte that session
+contributes is also added to that site, so website totals are a subset of device
+totals and never add bytes. Site rows are kept for 90 days or the summary
+retention, whichever is shorter. Details and privacy notes:
+[website usage](../operations/WEBSITES.md).
+
 ## Live usage
 
 `/api/live` reads FortiGate realtime FortiView statistics by source and by

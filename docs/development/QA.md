@@ -69,14 +69,8 @@ scenario establishes complete production traffic collection.
 Portable CLI checks retain Python 3.10+ standard-library compatibility. Management
 uses Python 3.11+ with a separate pinned environment:
 
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r management/requirements-test.txt
-python -m unittest discover -s tests -v
-python tests/support/check_frontend.py
-python portable/setup.py bundle --destination dist/fortilens-single-device.zip
-```
+Create the environment as in [CONTRIBUTING.md](../../CONTRIBUTING.md#development-environment)
+and run its [local checks](../../CONTRIBUTING.md#local-checks).
 
 The standalone frontend syntax check uses a development Node.js executable to
 compile the console, reporting and managed-status scripts. The failure-regression
@@ -90,22 +84,11 @@ replace real browser entry, rendering and reload acceptance. See
 
 The complete development environment uses Python 3.11+ and
 `requirements-dev.txt`; this does not change the portable Python 3.10+ runtime.
-From the repository root:
-
-```bash
-python -m pip install -r requirements-dev.txt
-python -m ruff check .
-python -m ruff check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py --extend-select I
-python -m ruff format --check .
-python tools/check_repository.py
-python -m coverage run -m unittest discover -s tests -v
-python -m coverage report -m
-python -m coverage xml
-python -m pip_audit --strict -r requirements-dev.txt
-```
+The commands are listed once, in [CONTRIBUTING.md "Local checks"](../../CONTRIBUTING.md#local-checks),
+and mirror CI.
 
 Ruff formatting is enforced for every Python file. Import-order enforcement
-starts with the new tooling/tests. The repository checker validates
+covers the files listed there. The repository checker validates
 local documentation links and repository configuration without contacting a
 firewall. Coverage reports executed paths and does not prove live compatibility;
 dependency-audit findings require a separately reviewed dependency update.

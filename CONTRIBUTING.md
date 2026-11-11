@@ -60,28 +60,32 @@ supported. To exercise the dependency-free portable path, use a separate Python
 
 ## Local checks
 
-Run from the repository root:
+This is the reference list of development commands; other guides link here. It
+mirrors `.github/workflows/ci.yml`. Run from the repository root:
 
 ```bash
-python -m unittest discover -s tests -v
 python -m ruff check .
+python -m ruff format --check .
 python -m ruff check portable/accounting_storage.py portable/accounting_migrate.py tests/test_compact_accounting.py tests/test_accounting_migrate.py tests/support/benchmark_accounting.py --extend-select I
 python -m ruff check tools tests/test_repository_checks.py tests/test_release.py tests/test_cli_errors.py tests/test_frontend_errors.py tests/test_management_errors.py tests/test_runtime_errors.py tests/test_service_errors.py tests/test_configuration_ca.py tests/test_probe_diagnostics.py tests/test_repair_runtime.py --extend-select I
-python -m ruff format --check .
 python tools/check_repository.py
+python -m pip_audit --strict -r requirements-dev.txt
 python tests/support/check_frontend.py
 python -m coverage run -m unittest discover -s tests -v
 python -m coverage report -m
-python -m coverage xml
-python -m pip_audit --strict -r requirements-dev.txt
+python portable/setup.py bundle --destination dist/fortilens-single-device.zip
 ```
 
-The frontend syntax check needs a development Node.js executable; Node is not
-added to the production installation. Ruff uses a deliberately small correctness
-ruleset. Formatting initially covers the new development/release tooling and its
-tests so cleanup does not mix a repository-wide runtime reformat with engineering
-changes. Import-order/style modernization of runtime modules is separate reviewed
-work. Do not ignore a real correctness/security finding just to pass CI.
+The frontend syntax check and the browser request tests need a development
+Node.js executable; Node is not added to the production installation. In CI the
+job that installs every dependency fails if any test is skipped, because a skip
+there means a test module could not be imported. Run the suite once more on
+Python 3.11 with only `management/requirements-test.txt` installed to cover the
+oldest supported management Python.
+
+Ruff uses a deliberately small correctness ruleset, and `ruff format` formats
+every Python file. Import order is enforced for the files listed above. Do not
+ignore a real correctness/security finding just to pass CI.
 
 Coverage measures executed source paths, not traffic completeness or deployment
 compatibility. Report the actual run, environment, skipped tests and unexecuted
@@ -93,7 +97,18 @@ verified disposable Linux host with Docker Compose v2 and OpenSSL:
 
 ```bash
 python tests/integration/integration_stack.py
+python tests/integration/integration_native_host.py
 python tests/integration/integration_management.py
+```
+
+The real-browser deployment test needs Chrome and a development-only Playwright
+package outside the repository:
+
+```bash
+npm install --prefix /tmp/fortilens-browser --no-save --ignore-scripts playwright@1.62.1
+FORTILENS_PLAYWRIGHT_MODULE=/tmp/fortilens-browser/node_modules/playwright \
+FORTILENS_BROWSER_EXECUTABLE="$(command -v google-chrome)" \
+node tests/integration/browser_deployment.cjs
 ```
 
 CI also tests the real Ubuntu/systemd installer twice on an ephemeral VM. Never

@@ -80,7 +80,8 @@ Secure/HttpOnly/SameSite=Strict cookies on HTTPS, server sessions and CSRF check
 ## The seven setup steps
 
 1. **Administrator:** present the one-time token and create the first account.
-2. **General:** company/installation name, IANA timezone and preferred date format;
+2. **General:** company/installation name, display timezone (`browser` by default,
+   or an IANA name shown to every viewer) and preferred date format;
    inspect read-only host, CPU, RAM, disk and Docker information.
 3. **FortiGate Connection:** enter address, HTTPS port, VDOM and a read-only API
    token. Keep certificate verification enabled. For a private PKI, paste its PEM

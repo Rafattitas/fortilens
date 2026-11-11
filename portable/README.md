@@ -21,7 +21,7 @@ python3 setup.py doctor
 
 `init` asks for site name, FortiGate IP/hostname, HTTPS API port, TLS/custom CA, hidden API token, syslog settings, VDOM and optional SLA/WAN fallback names. It offers read-only interface discovery and asks you to confirm Internet interfaces. Missing type/role/parent/VLAN evidence stays Needs review. No FortiGate settings are changed.
 
-The accounting prompt is explicit. Choose its timezone (UTC or an installed IANA name), expected FortiGate serial/device ID and reporting address. Leave a missing serial unbound only with the displayed evidence limitation. A device-ID filter is not sender authentication. File-based configuration can enable it with `--enable-accounting`:
+The accounting prompt is explicit. Choose how days are cut: `fortigate` (the default, midnight on the FortiGate clock read from every log), `UTC` or an installed IANA name; then the expected FortiGate serial/device ID and reporting address. Leave a missing serial unbound only with the displayed evidence limitation. A device-ID filter is not sender authentication. File-based configuration can enable it with `--enable-accounting`:
 
 ```bash
 python3 setup.py init --config site.example.json --token-file /private/token --enable-accounting --output local
