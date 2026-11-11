@@ -170,6 +170,7 @@ PUBLIC_FILES = (
     "tests/test_probe_diagnostics.py",
     "tests/test_repair_runtime.py",
     "tests/test_report_concurrency.py",
+    "tests/test_report_cache.py",
     "tests/test_release.py",
     "tests/test_repository_checks.py",
     "tests/test_runtime_errors.py",
