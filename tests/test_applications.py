@@ -242,9 +242,10 @@ class ApplicationTests(unittest.TestCase):
         )
         self.assertIn("api('/api/applications?'", page)
         self.assertIn('data-view="applications"', page)
+        # Layout-independent: the page may be reformatted.
         self.assertIn(
             "['devices','vlans','reports','applications','websites','live'].includes(requestedSection)",
-            page,
+            re.sub(r"\s+", "", page),
         )
 
     def test_management_console_navigation_opens_the_applications_view(self):

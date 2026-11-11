@@ -256,7 +256,8 @@ class LiveTests(unittest.TestCase):
         page = (ROOT / "portable/reporting.html").read_text(encoding="utf-8")
         self.assertIn('data-view="live"', page)
         self.assertIn("api('/api/live')", page)
-        self.assertIn("if(route==='/api/live')", page)
+        # Layout-independent: the page may be reformatted.
+        self.assertIn("if(route==='/api/live')", re.sub(r"\s+", "", page))
         index = (ROOT / "management/static/index.html").read_text(encoding="utf-8")
         script = (ROOT / "management/static/app.js").read_text(encoding="utf-8")
         server = (ROOT / "management/app.py").read_text(encoding="utf-8")
