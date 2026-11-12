@@ -12,11 +12,9 @@ python -m pip install -r management/requirements-test.txt
 python -m unittest discover -s tests -v
 ```
 
-On November 1, 2026, **154 tests passed on Windows/Python 3.12** with the management
-dependencies installed: the existing 131 tests plus 23 management tests. The earlier
-153-test suite also passed on Ubuntu. These are historical results; the current
-suite has grown. Use the actual source head, [QA commands](QA.md), CI result and
-[cleanup validation record](../history/CLEANUP_VALIDATION.md) for a new claim. Those tests cover
+Earlier test counts are in the [validation records](../history/VALIDATION_RECORDS.md#from-developmentmanagement_verificationmd);
+for a new claim use the actual source head, its CI run and the
+[local checks](../../CONTRIBUTING.md#local-checks). The management tests cover
 first-run bootstrapping, password hashes, one-time closure, sessions, login rate
 limits, CSRF/origin/role checks, private error responses, explicit secret changes,
 revision conflicts/stale plans, file fingerprints, read-only discovery/WAN

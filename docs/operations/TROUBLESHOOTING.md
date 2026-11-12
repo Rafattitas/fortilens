@@ -24,5 +24,3 @@ Run `python3 setup.py doctor --json` from the package directory, with `--output 
 | Prometheus metric row cap | `fortilens_accounting_metrics_truncated_rows` exposes truncation. The reporting API/portal is the full report; don't use a truncated metric table as an all-device total. |
 
 SQLite keeps normalized identity/usage metadata and allowlisted event fields; raw logs remain in Loki. Protect both stores and backups. Defaults target a single writer on a small Linux host; measure actual log rate, disk growth and memory before production sizing. Never change accounting timezone/source identity in an existing database: use a separately reviewed rebuild and retain the original.
-
-For isolated development QA, `python3 tests/support/preview_reports.py` serves a labelled synthetic preview on loopback port 18767. It is not a sample production deployment and is excluded from the standalone bundle. Automated Docker acceptance uses `python3 tests/integration/integration_stack.py` on Linux with disposable project-owned resources only.

@@ -17,19 +17,11 @@ need actual browser review. Passing API tests alone does not prove these flows.
 
 For public interface images, use the [synthetic screenshot procedure](../design/screenshots/README.md).
 It renders the shipped management and hosted-report frontend without a live
-installation. The current seventeen-image set was captured twice with matching
-PNG hashes, no JavaScript errors, external requests or outer-page horizontal
-overflow, and visually reviewed in desktop/light/degraded/mobile states.
-The manifest ties images to source hashes. This is presentation evidence, not
-authentication, ingestion, native Grafana or real-device accounting acceptance.
-
-The 2026-11-05 presentation refresh passed twelve release tests and six
-repository-check tests locally, including extracted-artifact link checks and
-reproducible payload checks. Grammar, Markdown links/anchors, workflow YAML,
-Ruff lint/style and frontend/capture-script syntax checks passed. A local
-candidate full archive contained 169 files and its portable archive retained
-27 files. Runtime source, installer inputs and Docker allowlists were unchanged;
-no server deployment or live-device test was performed for this refresh.
+installation. Each capture is taken twice and must give matching PNG hashes, no
+JavaScript errors, no external requests and no outer-page horizontal overflow.
+The manifest ties the images to the source hashes at capture time. This is
+presentation evidence, not authentication, ingestion, native Grafana or
+real-device accounting acceptance.
 
 `tests/test_storage_projection.py` verifies independently calculated 24-hour
 growth, bounded persisted sampling, refresh/restart stability and invalidation
@@ -101,7 +93,7 @@ not an installation pass. Record any unavailable environment checks explicitly.
 
 ## Isolated integration environments
 
-For compact storage, follow the measured [validation record](../architecture/COMPACT_ACCOUNTING.md#validation-record-2026-11-05).
+For compact storage, follow the measured [validation record](../history/VALIDATION_RECORDS.md#validation-record-2026-11-05).
 Test migration destination sidecars and concurrent publication separately from
 accounting equivalence. Partial-day report checks must include a corpus large
 enough to expose decoded-payload accumulation: a successful small full-day
@@ -110,7 +102,7 @@ Offline compaction checks compare all six logical streams, stable report ties,
 read-only reopening, replay and subsequent late/new writes. Assert actual SQLite
 page size in layout experiments; a PRAGMA on an uninitialized empty connection
 alone does not establish the next connection's file layout. See the
-[follow-up storage review](../architecture/COMPACT_ACCOUNTING.md#further-storage-review-before-publication).
+[follow-up storage review](../history/VALIDATION_RECORDS.md#further-storage-review-before-publication).
 
 The stack lab also copies its synthetic legacy ledger into compact storage,
 checks every logical table, starts the actual accounting container on that copy,
@@ -182,6 +174,10 @@ CI additionally runs the actual Ubuntu 24.04/systemd installer twice and exercis
 its real host services. `--installed` acceptance is restricted to a disposable
 Actions VM; never point it at production. Secret/bootstrap output stays private.
 
+For a labelled synthetic report preview, `python3 tests/support/preview_reports.py`
+serves the page on loopback port 18767. It is not a sample production deployment
+and is excluded from the standalone bundle.
+
 ## Read-only live deployment acceptance
 
 Before an authorized update, record the actual project/Compose path, container
@@ -208,61 +204,7 @@ unless specifically needed and authorized for the live change. Do not stop live
 Grafana/Loki, inject logs, trigger notifications, delete volumes or change firewall
 policies to prove a test case. Document the distinction in the delivery report.
 
-### Record: 2026-11-10, source head `772c7bf`
-
-On the test installation (web-managed, FortiOS 7.2.14 source), after
-`install.sh --upgrade` from this head:
-
-- The unit suite (601 tests) and CI passed on the head before deployment.
-- Management restarted and the accounting service and gateway returned healthy.
-  Settings, secrets and data volumes were not changed.
-- Today, This month and Recent 5 minutes reports answered in under a second.
-  Before the fix, with the server clock about nine minutes behind the FortiGate,
-  Today took 215 seconds and requests queued behind it.
-- `clock_offset` reported PASS after the server clock was corrected.
-- The saved Grafana dashboard lost the seven retired raw-log panels and kept its
-  other 24, its folder and its permissions. The previous dashboard was saved
-  privately first.
-- Read-only comparison for 2026-11-09, 08:00 to 22:00 local: download bytes in
-  the received traffic logs were 84% to 107% of the WAN interface counters in
-  every 30-minute window. In four readings the FortiGate's realtime per-device
-  estimates explained 19% to 42% of the link total.
-
-Not verified: entry and reload of the live console in a browser (the test host
-uses a self-signed certificate), and totals against an independently known
-transfer.
-
-### Record: 2026-11-10, release `v0.6.0` from `bf99856`
-
-- CI on `bf99856` failed once in the Docker step of `Web management / Python
-  3.12` during a GitHub incident (the commit changed only CHANGELOG and README).
-  The re-run passed; the other checks passed on the first run.
-- The tag was created on `bf99856` and the release published. The release
-  workflow rebuilt both archives from the tag, ran the packaged-source checks and
-  attached them. Downloaded assets matched `SHA256SUMS.txt`; README download links
-  returned 200.
-- The ZIP matched the candidate built on the test server byte for byte. The full
-  archive differs only in `RELEASE-MANIFEST.json`, which records the Git revision
-  when built from a checkout.
-- Found afterwards: the full archive left out 11 test modules and
-  `tools/render_icons.cjs`, so the packaged-source check ran 30 of 41 test
-  modules. Runtime and installer files were complete. Fixed for the next release;
-  published assets are not replaced.
-
-### Record: 2026-11-11, refactor stage 1: Prepare's file patching
-
-- The characterization test `tests/test_configuration_patch.py` was committed
-  before the code change (`4c83ad5`). Its 56 scenarios were recorded twice with
-  identical results and reach 241 of the 243 statements of the old `_patch`.
-- On the split code it passed unchanged, together with the management,
-  native-host, repair, CA and runtime-error suites (88 tests).
-- From a Git checkout in `python:3.12-slim` on the test server: ruff, the
-  repository checks and 607 tests passed; `management/configuration.py`
-  coverage rose from 85% to 91.7%. Both archives built and verified, and the
-  extracted full archive ran the same 607 tests.
-
-Not verified: an Apply on the test installation. Prepare's output is
-byte-identical, so the installed files would not change.
+Dated validation records for this guide are kept in the [validation records](../history/VALIDATION_RECORDS.md#from-developmentqamd). They describe the revision they tested, not the current source.
 
 ## Real FortiGate source checks
 
