@@ -1,0 +1,2339 @@
+{
+ "adopt-existing": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ],
+   [
+    "put",
+    "<BASE>/opt/installing.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "chown",
+    "<BASE>/data/web",
+    990,
+    990
+   ],
+   [
+    "chown",
+    "<BASE>/data/control",
+    0,
+    0
+   ],
+   [
+    "put",
+    "<BASE>/opt/src/management/__init__.py",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "<PYTHON>",
+    "-m",
+    "venv",
+    "<BASE>/opt/venv"
+   ],
+   [
+    "run",
+    "<BASE>/opt/venv/bin/python",
+    "-m",
+    "pip",
+    "install",
+    "--disable-pip-version-check",
+    "-r",
+    "<BASE>/opt/src/management/requirements.txt"
+   ],
+   [
+    "put",
+    "/etc/fortilens/helper.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "<BASE>/data/web/bootstrap.token",
+    "0o600",
+    990,
+    990
+   ],
+   [
+    "put",
+    "/etc/fortilens/registry.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "validate-registration",
+    "<BASE>/opt/venv/bin/python"
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-helper.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-web.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "systemctl",
+    "daemon-reload"
+   ],
+   [
+    "run",
+    "systemctl",
+    "enable",
+    "--now",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "wait-web",
+    "127.0.0.1",
+    3030,
+    "http://127.0.0.1:3030",
+    false
+   ],
+   [
+    "put",
+    "<BASE>/opt/installation.json",
+    "0o600",
+    0,
+    0
+   ]
+  ],
+  "files": {
+   "/etc/fortilens/helper.key": "token-0\n",
+   "/etc/fortilens/registry.json": "{\n  \"installation\": \"<BASE>/existing\",\n  \"control\": \"<BASE>/data/control\",\n  \"project\": \"site-monitor\",\n  \"compose_file\": \"compose.yaml\",\n  \"socket\": \"/run/fortilens/helper.sock\",\n  \"key\": \"/etc/fortilens/helper.key\",\n  \"web_uid\": 990,\n  \"web_gid\": 990,\n  \"dashboard_uid\": \"forti-monitor\",\n  \"management_port\": 3030\n}",
+   "/etc/systemd/system/fortilens-helper.service": "[Unit]\nDescription=FortiLens restricted management helper\nAfter=docker.service\n[Service]\nUser=root\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.helper --registry /etc/fortilens/registry.json\nRuntimeDirectory=fortilens\nRuntimeDirectoryMode=0750\nReadWritePaths=<BASE>/data/control <BASE>/existing /run/fortilens\nProtectHome=read-only\nMemoryMax=512M\n[Install]\nWantedBy=multi-user.target\n",
+   "/etc/systemd/system/fortilens-web.service": "[Unit]\nDescription=FortiLens independent web management\nAfter=network.target fortilens-helper.service\nWants=fortilens-helper.service\n[Service]\nUser=fortilens\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.app --data <BASE>/data/web --bootstrap-file <BASE>/data/web/bootstrap.token --helper-socket /run/fortilens/helper.sock --helper-key /etc/fortilens/helper.key --host 127.0.0.1 --port 3030 --origin http://127.0.0.1:3030\nProtectHome=true\nReadWritePaths=<BASE>/data/web\nInaccessiblePaths=-/var/run/docker.sock <BASE>/data/control <BASE>/existing\nMemoryMax=256M\n[Install]\nWantedBy=multi-user.target\n",
+   "<BASE>/data/web/bootstrap.token": "token-1\n",
+   "<BASE>/opt/installation.json": "{\n  \"data\": \"<BASE>/data\",\n  \"origin\": \"http://127.0.0.1:3030\",\n  \"source\": {\n    \"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}",
+   "<BASE>/opt/installing.json": "{\"data\": \"<BASE>/data\", \"origin\": \"http://127.0.0.1:3030\", \"source\": {\"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"}, \"adopt\": \"<BASE>/existing\", \"project\": \"site-monitor\", \"compose_file\": \"compose.yaml\"}",
+   "<BASE>/opt/src/management/__init__.py": "\"\"\"Independent FortiLens administrative control plane; monitoring stays portable.\"\"\"\n"
+  },
+  "output": [
+   "FortiLens management: http://127.0.0.1:3030",
+   "Monitoring has not been reinitialized. Review and apply configuration in the web interface.",
+   "Administrator already configured. Existing authentication and monitoring data preserved.",
+   "SSH alternative: ssh -L 3030:127.0.0.1:3030 user@server, then open http://127.0.0.1:3030"
+  ],
+  "refusal": null
+ },
+ "fresh-ipv6-loopback": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "::1",
+     3030
+    ]
+   ],
+   [
+    "put",
+    "<BASE>/opt/installing.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "chown",
+    "<BASE>/data/web",
+    990,
+    990
+   ],
+   [
+    "chown",
+    "<BASE>/data/control",
+    0,
+    0
+   ],
+   [
+    "put",
+    "<BASE>/opt/src/management/__init__.py",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "<PYTHON>",
+    "-m",
+    "venv",
+    "<BASE>/opt/venv"
+   ],
+   [
+    "run",
+    "<BASE>/opt/venv/bin/python",
+    "-m",
+    "pip",
+    "install",
+    "--disable-pip-version-check",
+    "-r",
+    "<BASE>/opt/src/management/requirements.txt"
+   ],
+   [
+    "put",
+    "/etc/fortilens/helper.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "<BASE>/data/web/bootstrap.token",
+    "0o600",
+    990,
+    990
+   ],
+   [
+    "put",
+    "/etc/fortilens/registry.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "validate-registration",
+    "<BASE>/opt/venv/bin/python"
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-helper.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-web.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "systemctl",
+    "daemon-reload"
+   ],
+   [
+    "run",
+    "systemctl",
+    "enable",
+    "--now",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "wait-web",
+    "::1",
+    3030,
+    "http://[::1]:3030",
+    false
+   ],
+   [
+    "put",
+    "<BASE>/opt/installation.json",
+    "0o600",
+    0,
+    0
+   ]
+  ],
+  "files": {
+   "/etc/fortilens/helper.key": "token-0\n",
+   "/etc/fortilens/registry.json": "{\n  \"installation\": \"<BASE>/data/control/stack\",\n  \"control\": \"<BASE>/data/control\",\n  \"project\": \"<DEFAULT_PROJECT>\",\n  \"compose_file\": \"compose.yaml\",\n  \"socket\": \"/run/fortilens/helper.sock\",\n  \"key\": \"/etc/fortilens/helper.key\",\n  \"web_uid\": 990,\n  \"web_gid\": 990,\n  \"dashboard_uid\": \"forti-monitor\",\n  \"management_port\": 3030\n}",
+   "/etc/systemd/system/fortilens-helper.service": "[Unit]\nDescription=FortiLens restricted management helper\nAfter=docker.service\n[Service]\nUser=root\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.helper --registry /etc/fortilens/registry.json\nRuntimeDirectory=fortilens\nRuntimeDirectoryMode=0750\nReadWritePaths=<BASE>/data/control <BASE>/data/control/stack /run/fortilens\nProtectHome=read-only\nMemoryMax=512M\n[Install]\nWantedBy=multi-user.target\n",
+   "/etc/systemd/system/fortilens-web.service": "[Unit]\nDescription=FortiLens independent web management\nAfter=network.target fortilens-helper.service\nWants=fortilens-helper.service\n[Service]\nUser=fortilens\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.app --data <BASE>/data/web --bootstrap-file <BASE>/data/web/bootstrap.token --helper-socket /run/fortilens/helper.sock --helper-key /etc/fortilens/helper.key --host ::1 --port 3030 --origin http://[::1]:3030\nProtectHome=true\nReadWritePaths=<BASE>/data/web\nInaccessiblePaths=-/var/run/docker.sock <BASE>/data/control <BASE>/data/control/stack\nMemoryMax=256M\n[Install]\nWantedBy=multi-user.target\n",
+   "<BASE>/data/web/bootstrap.token": "token-1\n",
+   "<BASE>/opt/installation.json": "{\n  \"data\": \"<BASE>/data\",\n  \"origin\": \"http://[::1]:3030\",\n  \"source\": {\n    \"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}",
+   "<BASE>/opt/installing.json": "{\"data\": \"<BASE>/data\", \"origin\": \"http://[::1]:3030\", \"source\": {\"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"}, \"adopt\": null, \"project\": null, \"compose_file\": \"compose.yaml\"}",
+   "<BASE>/opt/src/management/__init__.py": "\"\"\"Independent FortiLens administrative control plane; monitoring stays portable.\"\"\"\n"
+  },
+  "output": [
+   "FortiLens management: http://[::1]:3030",
+   "Monitoring has not been reinitialized. Review and apply configuration in the web interface.",
+   "Administrator already configured. Existing authentication and monitoring data preserved.",
+   "SSH alternative: ssh -L 3030:127.0.0.1:3030 user@server, then open http://[::1]:3030"
+  ],
+  "refusal": null
+ },
+ "fresh-loopback": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ],
+   [
+    "put",
+    "<BASE>/opt/installing.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "chown",
+    "<BASE>/data/web",
+    990,
+    990
+   ],
+   [
+    "chown",
+    "<BASE>/data/control",
+    0,
+    0
+   ],
+   [
+    "put",
+    "<BASE>/opt/src/management/__init__.py",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "<PYTHON>",
+    "-m",
+    "venv",
+    "<BASE>/opt/venv"
+   ],
+   [
+    "run",
+    "<BASE>/opt/venv/bin/python",
+    "-m",
+    "pip",
+    "install",
+    "--disable-pip-version-check",
+    "-r",
+    "<BASE>/opt/src/management/requirements.txt"
+   ],
+   [
+    "put",
+    "/etc/fortilens/helper.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "<BASE>/data/web/bootstrap.token",
+    "0o600",
+    990,
+    990
+   ],
+   [
+    "put",
+    "/etc/fortilens/registry.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "validate-registration",
+    "<BASE>/opt/venv/bin/python"
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-helper.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-web.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "systemctl",
+    "daemon-reload"
+   ],
+   [
+    "run",
+    "systemctl",
+    "enable",
+    "--now",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "wait-web",
+    "127.0.0.1",
+    3030,
+    "http://127.0.0.1:3030",
+    false
+   ],
+   [
+    "put",
+    "<BASE>/opt/installation.json",
+    "0o600",
+    0,
+    0
+   ]
+  ],
+  "files": {
+   "/etc/fortilens/helper.key": "token-0\n",
+   "/etc/fortilens/registry.json": "{\n  \"installation\": \"<BASE>/data/control/stack\",\n  \"control\": \"<BASE>/data/control\",\n  \"project\": \"<DEFAULT_PROJECT>\",\n  \"compose_file\": \"compose.yaml\",\n  \"socket\": \"/run/fortilens/helper.sock\",\n  \"key\": \"/etc/fortilens/helper.key\",\n  \"web_uid\": 990,\n  \"web_gid\": 990,\n  \"dashboard_uid\": \"forti-monitor\",\n  \"management_port\": 3030\n}",
+   "/etc/systemd/system/fortilens-helper.service": "[Unit]\nDescription=FortiLens restricted management helper\nAfter=docker.service\n[Service]\nUser=root\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.helper --registry /etc/fortilens/registry.json\nRuntimeDirectory=fortilens\nRuntimeDirectoryMode=0750\nReadWritePaths=<BASE>/data/control <BASE>/data/control/stack /run/fortilens\nProtectHome=read-only\nMemoryMax=512M\n[Install]\nWantedBy=multi-user.target\n",
+   "/etc/systemd/system/fortilens-web.service": "[Unit]\nDescription=FortiLens independent web management\nAfter=network.target fortilens-helper.service\nWants=fortilens-helper.service\n[Service]\nUser=fortilens\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.app --data <BASE>/data/web --bootstrap-file <BASE>/data/web/bootstrap.token --helper-socket /run/fortilens/helper.sock --helper-key /etc/fortilens/helper.key --host 127.0.0.1 --port 3030 --origin http://127.0.0.1:3030\nProtectHome=true\nReadWritePaths=<BASE>/data/web\nInaccessiblePaths=-/var/run/docker.sock <BASE>/data/control <BASE>/data/control/stack\nMemoryMax=256M\n[Install]\nWantedBy=multi-user.target\n",
+   "<BASE>/data/web/bootstrap.token": "token-1\n",
+   "<BASE>/opt/installation.json": "{\n  \"data\": \"<BASE>/data\",\n  \"origin\": \"http://127.0.0.1:3030\",\n  \"source\": {\n    \"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}",
+   "<BASE>/opt/installing.json": "{\"data\": \"<BASE>/data\", \"origin\": \"http://127.0.0.1:3030\", \"source\": {\"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"}, \"adopt\": null, \"project\": null, \"compose_file\": \"compose.yaml\"}",
+   "<BASE>/opt/src/management/__init__.py": "\"\"\"Independent FortiLens administrative control plane; monitoring stays portable.\"\"\"\n"
+  },
+  "output": [
+   "FortiLens management: http://127.0.0.1:3030",
+   "Monitoring has not been reinitialized. Review and apply configuration in the web interface.",
+   "Administrator already configured. Existing authentication and monitoring data preserved.",
+   "SSH alternative: ssh -L 3030:127.0.0.1:3030 user@server, then open http://127.0.0.1:3030"
+  ],
+  "refusal": null
+ },
+ "fresh-new-account-and-dependencies": {
+  "events": [
+   [
+    "run",
+    "apt-get",
+    "update"
+   ],
+   [
+    "run",
+    "apt-get",
+    "install",
+    "-y",
+    "python3-venv",
+    "ca-certificates",
+    "tzdata",
+    "docker.io",
+    "docker-compose-v2"
+   ],
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ],
+   [
+    "run",
+    "useradd",
+    "--system",
+    "--user-group",
+    "--home-dir",
+    "<BASE>/data/web",
+    "--shell",
+    "/usr/sbin/nologin",
+    "fortilens"
+   ],
+   [
+    "put",
+    "<BASE>/opt/installing.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "chown",
+    "<BASE>/data/web",
+    990,
+    990
+   ],
+   [
+    "chown",
+    "<BASE>/data/control",
+    0,
+    0
+   ],
+   [
+    "put",
+    "<BASE>/opt/src/management/__init__.py",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "<PYTHON>",
+    "-m",
+    "venv",
+    "<BASE>/opt/venv"
+   ],
+   [
+    "run",
+    "<BASE>/opt/venv/bin/python",
+    "-m",
+    "pip",
+    "install",
+    "--disable-pip-version-check",
+    "-r",
+    "<BASE>/opt/src/management/requirements.txt"
+   ],
+   [
+    "put",
+    "/etc/fortilens/helper.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "<BASE>/data/web/bootstrap.token",
+    "0o600",
+    990,
+    990
+   ],
+   [
+    "put",
+    "/etc/fortilens/registry.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "validate-registration",
+    "<BASE>/opt/venv/bin/python"
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-helper.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-web.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "systemctl",
+    "daemon-reload"
+   ],
+   [
+    "run",
+    "systemctl",
+    "enable",
+    "--now",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "wait-web",
+    "127.0.0.1",
+    3030,
+    "http://127.0.0.1:3030",
+    false
+   ],
+   [
+    "put",
+    "<BASE>/opt/installation.json",
+    "0o600",
+    0,
+    0
+   ]
+  ],
+  "files": {
+   "/etc/fortilens/helper.key": "token-0\n",
+   "/etc/fortilens/registry.json": "{\n  \"installation\": \"<BASE>/data/control/stack\",\n  \"control\": \"<BASE>/data/control\",\n  \"project\": \"<DEFAULT_PROJECT>\",\n  \"compose_file\": \"compose.yaml\",\n  \"socket\": \"/run/fortilens/helper.sock\",\n  \"key\": \"/etc/fortilens/helper.key\",\n  \"web_uid\": 990,\n  \"web_gid\": 990,\n  \"dashboard_uid\": \"forti-monitor\",\n  \"management_port\": 3030\n}",
+   "/etc/systemd/system/fortilens-helper.service": "[Unit]\nDescription=FortiLens restricted management helper\nAfter=docker.service\n[Service]\nUser=root\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.helper --registry /etc/fortilens/registry.json\nRuntimeDirectory=fortilens\nRuntimeDirectoryMode=0750\nReadWritePaths=<BASE>/data/control <BASE>/data/control/stack /run/fortilens\nProtectHome=read-only\nMemoryMax=512M\n[Install]\nWantedBy=multi-user.target\n",
+   "/etc/systemd/system/fortilens-web.service": "[Unit]\nDescription=FortiLens independent web management\nAfter=network.target fortilens-helper.service\nWants=fortilens-helper.service\n[Service]\nUser=fortilens\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.app --data <BASE>/data/web --bootstrap-file <BASE>/data/web/bootstrap.token --helper-socket /run/fortilens/helper.sock --helper-key /etc/fortilens/helper.key --host 127.0.0.1 --port 3030 --origin http://127.0.0.1:3030\nProtectHome=true\nReadWritePaths=<BASE>/data/web\nInaccessiblePaths=-/var/run/docker.sock <BASE>/data/control <BASE>/data/control/stack\nMemoryMax=256M\n[Install]\nWantedBy=multi-user.target\n",
+   "<BASE>/data/web/bootstrap.token": "token-1\n",
+   "<BASE>/opt/installation.json": "{\n  \"data\": \"<BASE>/data\",\n  \"origin\": \"http://127.0.0.1:3030\",\n  \"source\": {\n    \"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}",
+   "<BASE>/opt/installing.json": "{\"data\": \"<BASE>/data\", \"origin\": \"http://127.0.0.1:3030\", \"source\": {\"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"}, \"adopt\": null, \"project\": null, \"compose_file\": \"compose.yaml\"}",
+   "<BASE>/opt/src/management/__init__.py": "\"\"\"Independent FortiLens administrative control plane; monitoring stays portable.\"\"\"\n"
+  },
+  "output": [
+   "FortiLens management: http://127.0.0.1:3030",
+   "Monitoring has not been reinitialized. Review and apply configuration in the web interface.",
+   "Administrator already configured. Existing authentication and monitoring data preserved.",
+   "SSH alternative: ssh -L 3030:127.0.0.1:3030 user@server, then open http://127.0.0.1:3030"
+  ],
+  "refusal": null
+ },
+ "fresh-tls-lan": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "load-cert",
+    "<BASE>/cert.pem"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "192.0.2.10",
+     3030
+    ]
+   ],
+   [
+    "put",
+    "<BASE>/opt/installing.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "chown",
+    "<BASE>/data/web",
+    990,
+    990
+   ],
+   [
+    "chown",
+    "<BASE>/data/control",
+    0,
+    0
+   ],
+   [
+    "put",
+    "<BASE>/opt/src/management/__init__.py",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "<PYTHON>",
+    "-m",
+    "venv",
+    "<BASE>/opt/venv"
+   ],
+   [
+    "run",
+    "<BASE>/opt/venv/bin/python",
+    "-m",
+    "pip",
+    "install",
+    "--disable-pip-version-check",
+    "-r",
+    "<BASE>/opt/src/management/requirements.txt"
+   ],
+   [
+    "put",
+    "/etc/fortilens/helper.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "<BASE>/data/web/bootstrap.token",
+    "0o600",
+    990,
+    990
+   ],
+   [
+    "put",
+    "/etc/fortilens/registry.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "validate-registration",
+    "<BASE>/opt/venv/bin/python"
+   ],
+   [
+    "put",
+    "/etc/fortilens/tls.crt",
+    "0o644",
+    0,
+    990
+   ],
+   [
+    "put",
+    "/etc/fortilens/tls.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-helper.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-web.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "systemctl",
+    "daemon-reload"
+   ],
+   [
+    "run",
+    "systemctl",
+    "enable",
+    "--now",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "wait-web",
+    "192.0.2.10",
+    3030,
+    "https://192.0.2.10:3030",
+    true
+   ],
+   [
+    "put",
+    "<BASE>/opt/installation.json",
+    "0o600",
+    0,
+    0
+   ]
+  ],
+  "files": {
+   "/etc/fortilens/helper.key": "token-0\n",
+   "/etc/fortilens/registry.json": "{\n  \"installation\": \"<BASE>/data/control/stack\",\n  \"control\": \"<BASE>/data/control\",\n  \"project\": \"<DEFAULT_PROJECT>\",\n  \"compose_file\": \"compose.yaml\",\n  \"socket\": \"/run/fortilens/helper.sock\",\n  \"key\": \"/etc/fortilens/helper.key\",\n  \"web_uid\": 990,\n  \"web_gid\": 990,\n  \"dashboard_uid\": \"forti-monitor\",\n  \"management_port\": 3030\n}",
+   "/etc/fortilens/tls.crt": "SYNTHETIC CERTIFICATE\n",
+   "/etc/fortilens/tls.key": "SYNTHETIC KEY\n",
+   "/etc/systemd/system/fortilens-helper.service": "[Unit]\nDescription=FortiLens restricted management helper\nAfter=docker.service\n[Service]\nUser=root\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.helper --registry /etc/fortilens/registry.json\nRuntimeDirectory=fortilens\nRuntimeDirectoryMode=0750\nReadWritePaths=<BASE>/data/control <BASE>/data/control/stack /run/fortilens\nProtectHome=read-only\nMemoryMax=512M\n[Install]\nWantedBy=multi-user.target\n",
+   "/etc/systemd/system/fortilens-web.service": "[Unit]\nDescription=FortiLens independent web management\nAfter=network.target fortilens-helper.service\nWants=fortilens-helper.service\n[Service]\nUser=fortilens\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.app --data <BASE>/data/web --bootstrap-file <BASE>/data/web/bootstrap.token --helper-socket /run/fortilens/helper.sock --helper-key /etc/fortilens/helper.key --host 192.0.2.10 --port 3030 --origin https://192.0.2.10:3030 --tls-cert /etc/fortilens/tls.crt --tls-key /etc/fortilens/tls.key\nProtectHome=true\nReadWritePaths=<BASE>/data/web\nInaccessiblePaths=-/var/run/docker.sock <BASE>/data/control <BASE>/data/control/stack\nMemoryMax=256M\n[Install]\nWantedBy=multi-user.target\n",
+   "<BASE>/data/web/bootstrap.token": "token-1\n",
+   "<BASE>/opt/installation.json": "{\n  \"data\": \"<BASE>/data\",\n  \"origin\": \"https://192.0.2.10:3030\",\n  \"source\": {\n    \"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}",
+   "<BASE>/opt/installing.json": "{\"data\": \"<BASE>/data\", \"origin\": \"https://192.0.2.10:3030\", \"source\": {\"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"}, \"adopt\": null, \"project\": null, \"compose_file\": \"compose.yaml\"}",
+   "<BASE>/opt/src/management/__init__.py": "\"\"\"Independent FortiLens administrative control plane; monitoring stays portable.\"\"\"\n"
+  },
+  "output": [
+   "FortiLens management: https://192.0.2.10:3030",
+   "Monitoring has not been reinitialized. Review and apply configuration in the web interface.",
+   "Administrator already configured. Existing authentication and monitoring data preserved."
+  ],
+  "refusal": null
+ },
+ "fresh-tls-named-origin": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "load-cert",
+    "<BASE>/cert.pem"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "0.0.0.0",
+     8443
+    ]
+   ],
+   [
+    "put",
+    "<BASE>/opt/installing.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "chown",
+    "<BASE>/data/web",
+    990,
+    990
+   ],
+   [
+    "chown",
+    "<BASE>/data/control",
+    0,
+    0
+   ],
+   [
+    "put",
+    "<BASE>/opt/src/management/__init__.py",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "<PYTHON>",
+    "-m",
+    "venv",
+    "<BASE>/opt/venv"
+   ],
+   [
+    "run",
+    "<BASE>/opt/venv/bin/python",
+    "-m",
+    "pip",
+    "install",
+    "--disable-pip-version-check",
+    "-r",
+    "<BASE>/opt/src/management/requirements.txt"
+   ],
+   [
+    "put",
+    "/etc/fortilens/helper.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "<BASE>/data/web/bootstrap.token",
+    "0o600",
+    990,
+    990
+   ],
+   [
+    "put",
+    "/etc/fortilens/registry.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "validate-registration",
+    "<BASE>/opt/venv/bin/python"
+   ],
+   [
+    "put",
+    "/etc/fortilens/tls.crt",
+    "0o644",
+    0,
+    990
+   ],
+   [
+    "put",
+    "/etc/fortilens/tls.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-helper.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-web.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "systemctl",
+    "daemon-reload"
+   ],
+   [
+    "run",
+    "systemctl",
+    "enable",
+    "--now",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "wait-web",
+    "0.0.0.0",
+    8443,
+    "https://monitor.example.test:8443",
+    true
+   ],
+   [
+    "put",
+    "<BASE>/opt/installation.json",
+    "0o600",
+    0,
+    0
+   ]
+  ],
+  "files": {
+   "/etc/fortilens/helper.key": "token-0\n",
+   "/etc/fortilens/registry.json": "{\n  \"installation\": \"<BASE>/data/control/stack\",\n  \"control\": \"<BASE>/data/control\",\n  \"project\": \"<DEFAULT_PROJECT>\",\n  \"compose_file\": \"compose.yaml\",\n  \"socket\": \"/run/fortilens/helper.sock\",\n  \"key\": \"/etc/fortilens/helper.key\",\n  \"web_uid\": 990,\n  \"web_gid\": 990,\n  \"dashboard_uid\": \"custom-dashboard\",\n  \"management_port\": 8443\n}",
+   "/etc/fortilens/tls.crt": "SYNTHETIC CERTIFICATE\n",
+   "/etc/fortilens/tls.key": "SYNTHETIC KEY\n",
+   "/etc/systemd/system/fortilens-helper.service": "[Unit]\nDescription=FortiLens restricted management helper\nAfter=docker.service\n[Service]\nUser=root\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.helper --registry /etc/fortilens/registry.json\nRuntimeDirectory=fortilens\nRuntimeDirectoryMode=0750\nReadWritePaths=<BASE>/data/control <BASE>/data/control/stack /run/fortilens\nProtectHome=read-only\nMemoryMax=512M\n[Install]\nWantedBy=multi-user.target\n",
+   "/etc/systemd/system/fortilens-web.service": "[Unit]\nDescription=FortiLens independent web management\nAfter=network.target fortilens-helper.service\nWants=fortilens-helper.service\n[Service]\nUser=fortilens\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.app --data <BASE>/data/web --bootstrap-file <BASE>/data/web/bootstrap.token --helper-socket /run/fortilens/helper.sock --helper-key /etc/fortilens/helper.key --host 0.0.0.0 --port 8443 --origin https://monitor.example.test:8443 --tls-cert /etc/fortilens/tls.crt --tls-key /etc/fortilens/tls.key\nProtectHome=true\nReadWritePaths=<BASE>/data/web\nInaccessiblePaths=-/var/run/docker.sock <BASE>/data/control <BASE>/data/control/stack\nMemoryMax=256M\n[Install]\nWantedBy=multi-user.target\n",
+   "<BASE>/data/web/bootstrap.token": "token-1\n",
+   "<BASE>/opt/installation.json": "{\n  \"data\": \"<BASE>/data\",\n  \"origin\": \"https://monitor.example.test:8443\",\n  \"source\": {\n    \"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}",
+   "<BASE>/opt/installing.json": "{\"data\": \"<BASE>/data\", \"origin\": \"https://monitor.example.test:8443\", \"source\": {\"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"}, \"adopt\": null, \"project\": null, \"compose_file\": \"compose.yaml\"}",
+   "<BASE>/opt/src/management/__init__.py": "\"\"\"Independent FortiLens administrative control plane; monitoring stays portable.\"\"\"\n"
+  },
+  "output": [
+   "FortiLens management: https://monitor.example.test:8443",
+   "Monitoring has not been reinitialized. Review and apply configuration in the web interface.",
+   "Administrator already configured. Existing authentication and monitoring data preserved."
+  ],
+  "refusal": null
+ },
+ "main-host-failure": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Installation could not read/update required host files or complete a host operation. Review permissions, storage, TLS and service prerequisites. Keep existing state and resume with the same reviewed options; private details are suppressed."
+ },
+ "refuse-adopt-missing-compose": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "The existing Compose file was not found. No initialization performed."
+ },
+ "refuse-adopt-without-project": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "--adopt requires the exact --project to preserve its existing Docker volume identity."
+ },
+ "refuse-bad-origin-port": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Choose a valid origin port."
+ },
+ "refuse-bind-name": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "--bind must be a literal local IP address."
+ },
+ "refuse-cert-without-key": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Provide both --tls-cert and --tls-key."
+ },
+ "refuse-compose-outside": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Compose file must be inside the registered installation."
+ },
+ "refuse-dashboard-uid": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Invalid dashboard UID."
+ },
+ "refuse-http-network-origin": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Use HTTPS for network access."
+ },
+ "refuse-invalid-project": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Invalid Compose project."
+ },
+ "refuse-invalid-registration": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ],
+   [
+    "put",
+    "<BASE>/opt/installing.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "chown",
+    "<BASE>/data/web",
+    990,
+    990
+   ],
+   [
+    "chown",
+    "<BASE>/data/control",
+    0,
+    0
+   ],
+   [
+    "put",
+    "<BASE>/opt/src/management/__init__.py",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "<PYTHON>",
+    "-m",
+    "venv",
+    "<BASE>/opt/venv"
+   ],
+   [
+    "run",
+    "<BASE>/opt/venv/bin/python",
+    "-m",
+    "pip",
+    "install",
+    "--disable-pip-version-check",
+    "-r",
+    "<BASE>/opt/src/management/requirements.txt"
+   ],
+   [
+    "put",
+    "/etc/fortilens/helper.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "<BASE>/data/web/bootstrap.token",
+    "0o600",
+    990,
+    990
+   ],
+   [
+    "put",
+    "/etc/fortilens/registry.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "validate-registration",
+    "<BASE>/opt/venv/bin/python"
+   ]
+  ],
+  "files": {
+   "/etc/fortilens/helper.key": "token-0\n",
+   "/etc/fortilens/registry.json": "{\n  \"installation\": \"<BASE>/data/control/stack\",\n  \"control\": \"<BASE>/data/control\",\n  \"project\": \"<DEFAULT_PROJECT>\",\n  \"compose_file\": \"compose.yaml\",\n  \"socket\": \"/run/fortilens/helper.sock\",\n  \"key\": \"/etc/fortilens/helper.key\",\n  \"web_uid\": 990,\n  \"web_gid\": 990,\n  \"dashboard_uid\": \"forti-monitor\",\n  \"management_port\": 3030\n}",
+   "<BASE>/data/web/bootstrap.token": "token-1\n",
+   "<BASE>/opt/installing.json": "{\"data\": \"<BASE>/data\", \"origin\": \"http://127.0.0.1:3030\", \"source\": {\"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"}, \"adopt\": null, \"project\": null, \"compose_file\": \"compose.yaml\"}",
+   "<BASE>/opt/src/management/__init__.py": "\"\"\"Independent FortiLens administrative control plane; monitoring stays portable.\"\"\"\n"
+  },
+  "output": [],
+  "refusal": "Existing configuration registration needs review. It was not reinitialized or overwritten; see the migration guide."
+ },
+ "refuse-lan-without-tls": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "LAN listeners require TLS certificate and key. Loopback/SSH is the default."
+ },
+ "refuse-missing-docker": {
+  "events": [],
+  "files": {},
+  "output": [],
+  "refusal": "Missing docker. Install the documented prerequisites or explicitly choose --install-dependencies."
+ },
+ "refuse-not-amd64": {
+  "events": [],
+  "files": {},
+  "output": [],
+  "refusal": "This release supports Ubuntu x86-64; monitoring images are pinned for linux/amd64."
+ },
+ "refuse-not-linux": {
+  "events": [],
+  "files": {},
+  "output": [],
+  "refusal": "Run this installer as root on an Ubuntu Linux server. It does not modify Windows."
+ },
+ "refuse-not-root": {
+  "events": [],
+  "files": {},
+  "output": [],
+  "refusal": "Run this installer as root on an Ubuntu Linux server. It does not modify Windows."
+ },
+ "refuse-not-ubuntu": {
+  "events": [],
+  "files": {},
+  "output": [],
+  "refusal": "This release supports Ubuntu x86-64; monitoring images are pinned for linux/amd64."
+ },
+ "refuse-origin-path": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Choose a plain HTTP(S) browser origin, without paths, credentials or query parameters."
+ },
+ "refuse-partial-other-adoption": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Resume adoption with exactly the original --adopt, --project and --compose-file options."
+ },
+ "refuse-partial-other-options": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Resume the interrupted installation with the same options."
+ },
+ "refuse-partial-other-source": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "The interrupted installation used different source. Restore that source before resuming."
+ },
+ "refuse-port-in-use": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "The management port is already in use; no service was changed."
+ },
+ "refuse-port-range": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Choose a management port from 1024 to 65535."
+ },
+ "refuse-prefix-not-empty": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "The installation prefix is not empty; nothing overwritten."
+ },
+ "refuse-previous-other-origin": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "An installation already exists with different access settings. Preserve it and use the documented host change procedure."
+ },
+ "refuse-previous-other-source": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "Installed source differs. To move the existing installation to this source, run: sudo ./install.sh --upgrade"
+ },
+ "refuse-registered-other-project": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ],
+   [
+    "chown",
+    "<BASE>/data/web",
+    990,
+    990
+   ],
+   [
+    "chown",
+    "<BASE>/data/control",
+    0,
+    0
+   ],
+   [
+    "put",
+    "/etc/fortilens/helper.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "<BASE>/data/web/bootstrap.token",
+    "0o600",
+    990,
+    990
+   ]
+  ],
+  "files": {
+   "/etc/fortilens/helper.key": "token-0\n",
+   "<BASE>/data/web/bootstrap.token": "token-1\n"
+  },
+  "output": [],
+  "refusal": "The existing installation is registered to a different project. Nothing was reinitialized."
+ },
+ "refuse-tls-http-origin": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "load-cert",
+    "<BASE>/cert.pem"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "A TLS listener needs an HTTPS origin."
+ },
+ "refuse-web-group-is-docker": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "The web user must not belong to the Docker group. Correct host permissions first."
+ },
+ "refuse-web-user-in-docker": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": "The web user must not belong to the Docker group. Correct host permissions first."
+ },
+ "rerun-installed": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ],
+   [
+    "chown",
+    "<BASE>/data/web",
+    990,
+    990
+   ],
+   [
+    "chown",
+    "<BASE>/data/control",
+    0,
+    0
+   ],
+   [
+    "put",
+    "/etc/fortilens/helper.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "<BASE>/data/web/bootstrap.token",
+    "0o600",
+    990,
+    990
+   ],
+   [
+    "validate-registration",
+    "<BASE>/opt/venv/bin/python"
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-helper.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-web.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "systemctl",
+    "daemon-reload"
+   ],
+   [
+    "run",
+    "systemctl",
+    "enable",
+    "--now",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "wait-web",
+    "127.0.0.1",
+    3030,
+    "http://127.0.0.1:3030",
+    false
+   ],
+   [
+    "put",
+    "<BASE>/opt/installation.json",
+    "0o600",
+    0,
+    0
+   ]
+  ],
+  "files": {
+   "/etc/fortilens/helper.key": "token-0\n",
+   "/etc/systemd/system/fortilens-helper.service": "[Unit]\nDescription=FortiLens restricted management helper\nAfter=docker.service\n[Service]\nUser=root\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.helper --registry /etc/fortilens/registry.json\nRuntimeDirectory=fortilens\nRuntimeDirectoryMode=0750\nReadWritePaths=<BASE>/data/control <BASE>/data/control/stack /run/fortilens\nProtectHome=read-only\nMemoryMax=512M\n[Install]\nWantedBy=multi-user.target\n",
+   "/etc/systemd/system/fortilens-web.service": "[Unit]\nDescription=FortiLens independent web management\nAfter=network.target fortilens-helper.service\nWants=fortilens-helper.service\n[Service]\nUser=fortilens\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.app --data <BASE>/data/web --bootstrap-file <BASE>/data/web/bootstrap.token --helper-socket /run/fortilens/helper.sock --helper-key /etc/fortilens/helper.key --host 127.0.0.1 --port 3030 --origin http://127.0.0.1:3030\nProtectHome=true\nReadWritePaths=<BASE>/data/web\nInaccessiblePaths=-/var/run/docker.sock <BASE>/data/control <BASE>/data/control/stack\nMemoryMax=256M\n[Install]\nWantedBy=multi-user.target\n",
+   "<BASE>/data/web/bootstrap.token": "token-1\n",
+   "<BASE>/opt/installation.json": "{\n  \"data\": \"<BASE>/data\",\n  \"origin\": \"http://127.0.0.1:3030\",\n  \"source\": {\n    \"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}"
+  },
+  "output": [
+   "FortiLens management: http://127.0.0.1:3030",
+   "Monitoring has not been reinitialized. Review and apply configuration in the web interface.",
+   "Administrator already configured. Existing authentication and monitoring data preserved.",
+   "SSH alternative: ssh -L 3030:127.0.0.1:3030 user@server, then open http://127.0.0.1:3030"
+  ],
+  "refusal": null
+ },
+ "resume-interrupted": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "probe",
+    [
+     "127.0.0.1",
+     3030
+    ]
+   ],
+   [
+    "chown",
+    "<BASE>/data/web",
+    990,
+    990
+   ],
+   [
+    "chown",
+    "<BASE>/data/control",
+    0,
+    0
+   ],
+   [
+    "put",
+    "<BASE>/opt/src/management/__init__.py",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "<PYTHON>",
+    "-m",
+    "venv",
+    "<BASE>/opt/venv"
+   ],
+   [
+    "run",
+    "<BASE>/opt/venv/bin/python",
+    "-m",
+    "pip",
+    "install",
+    "--disable-pip-version-check",
+    "-r",
+    "<BASE>/opt/src/management/requirements.txt"
+   ],
+   [
+    "put",
+    "/etc/fortilens/helper.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "<BASE>/data/web/bootstrap.token",
+    "0o600",
+    990,
+    990
+   ],
+   [
+    "put",
+    "/etc/fortilens/registry.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "validate-registration",
+    "<BASE>/opt/venv/bin/python"
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-helper.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-web.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "systemctl",
+    "daemon-reload"
+   ],
+   [
+    "run",
+    "systemctl",
+    "enable",
+    "--now",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "wait-web",
+    "127.0.0.1",
+    3030,
+    "http://127.0.0.1:3030",
+    false
+   ],
+   [
+    "put",
+    "<BASE>/opt/installation.json",
+    "0o600",
+    0,
+    0
+   ]
+  ],
+  "files": {
+   "/etc/fortilens/helper.key": "token-0\n",
+   "/etc/fortilens/registry.json": "{\n  \"installation\": \"<BASE>/data/control/stack\",\n  \"control\": \"<BASE>/data/control\",\n  \"project\": \"<DEFAULT_PROJECT>\",\n  \"compose_file\": \"compose.yaml\",\n  \"socket\": \"/run/fortilens/helper.sock\",\n  \"key\": \"/etc/fortilens/helper.key\",\n  \"web_uid\": 990,\n  \"web_gid\": 990,\n  \"dashboard_uid\": \"forti-monitor\",\n  \"management_port\": 3030\n}",
+   "/etc/systemd/system/fortilens-helper.service": "[Unit]\nDescription=FortiLens restricted management helper\nAfter=docker.service\n[Service]\nUser=root\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.helper --registry /etc/fortilens/registry.json\nRuntimeDirectory=fortilens\nRuntimeDirectoryMode=0750\nReadWritePaths=<BASE>/data/control <BASE>/data/control/stack /run/fortilens\nProtectHome=read-only\nMemoryMax=512M\n[Install]\nWantedBy=multi-user.target\n",
+   "/etc/systemd/system/fortilens-web.service": "[Unit]\nDescription=FortiLens independent web management\nAfter=network.target fortilens-helper.service\nWants=fortilens-helper.service\n[Service]\nUser=fortilens\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.app --data <BASE>/data/web --bootstrap-file <BASE>/data/web/bootstrap.token --helper-socket /run/fortilens/helper.sock --helper-key /etc/fortilens/helper.key --host 127.0.0.1 --port 3030 --origin http://127.0.0.1:3030\nProtectHome=true\nReadWritePaths=<BASE>/data/web\nInaccessiblePaths=-/var/run/docker.sock <BASE>/data/control <BASE>/data/control/stack\nMemoryMax=256M\n[Install]\nWantedBy=multi-user.target\n",
+   "<BASE>/data/web/bootstrap.token": "token-1\n",
+   "<BASE>/opt/installation.json": "{\n  \"data\": \"<BASE>/data\",\n  \"origin\": \"http://127.0.0.1:3030\",\n  \"source\": {\n    \"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}",
+   "<BASE>/opt/src/management/__init__.py": "\"\"\"Independent FortiLens administrative control plane; monitoring stays portable.\"\"\"\n"
+  },
+  "output": [
+   "FortiLens management: http://127.0.0.1:3030",
+   "Monitoring has not been reinitialized. Review and apply configuration in the web interface.",
+   "Administrator already configured. Existing authentication and monitoring data preserved.",
+   "SSH alternative: ssh -L 3030:127.0.0.1:3030 user@server, then open http://127.0.0.1:3030"
+  ],
+  "refusal": null
+ },
+ "rollback-dispatch": {
+  "events": [
+   [
+    "rollback",
+    "<BASE>/opt"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": null
+ },
+ "upgrade-dispatch": {
+  "events": [
+   [
+    "upgrade",
+    "<SOURCE>",
+    "<BASE>/opt"
+   ]
+  ],
+  "files": {},
+  "output": [],
+  "refusal": null
+ },
+ "web-already-active": {
+  "events": [
+   [
+    "run",
+    "docker",
+    "version",
+    "--format",
+    "{{.Server.Version}}"
+   ],
+   [
+    "run",
+    "docker",
+    "compose",
+    "version"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-web",
+    "unchecked"
+   ],
+   [
+    "put",
+    "<BASE>/opt/installing.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "chown",
+    "<BASE>/data/web",
+    990,
+    990
+   ],
+   [
+    "chown",
+    "<BASE>/data/control",
+    0,
+    0
+   ],
+   [
+    "put",
+    "<BASE>/opt/src/management/__init__.py",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "<PYTHON>",
+    "-m",
+    "venv",
+    "<BASE>/opt/venv"
+   ],
+   [
+    "run",
+    "<BASE>/opt/venv/bin/python",
+    "-m",
+    "pip",
+    "install",
+    "--disable-pip-version-check",
+    "-r",
+    "<BASE>/opt/src/management/requirements.txt"
+   ],
+   [
+    "put",
+    "/etc/fortilens/helper.key",
+    "0o640",
+    0,
+    990
+   ],
+   [
+    "put",
+    "<BASE>/data/web/bootstrap.token",
+    "0o600",
+    990,
+    990
+   ],
+   [
+    "put",
+    "/etc/fortilens/registry.json",
+    "0o600",
+    0,
+    0
+   ],
+   [
+    "validate-registration",
+    "<BASE>/opt/venv/bin/python"
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-helper.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "put",
+    "/etc/systemd/system/fortilens-web.service",
+    "0o644",
+    0,
+    0
+   ],
+   [
+    "run",
+    "systemctl",
+    "daemon-reload"
+   ],
+   [
+    "run",
+    "systemctl",
+    "enable",
+    "--now",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "run",
+    "systemctl",
+    "is-active",
+    "--quiet",
+    "fortilens-helper",
+    "fortilens-web"
+   ],
+   [
+    "wait-web",
+    "127.0.0.1",
+    3030,
+    "http://127.0.0.1:3030",
+    false
+   ],
+   [
+    "put",
+    "<BASE>/opt/installation.json",
+    "0o600",
+    0,
+    0
+   ]
+  ],
+  "files": {
+   "/etc/fortilens/helper.key": "token-0\n",
+   "/etc/fortilens/registry.json": "{\n  \"installation\": \"<BASE>/data/control/stack\",\n  \"control\": \"<BASE>/data/control\",\n  \"project\": \"<DEFAULT_PROJECT>\",\n  \"compose_file\": \"compose.yaml\",\n  \"socket\": \"/run/fortilens/helper.sock\",\n  \"key\": \"/etc/fortilens/helper.key\",\n  \"web_uid\": 990,\n  \"web_gid\": 990,\n  \"dashboard_uid\": \"forti-monitor\",\n  \"management_port\": 3030\n}",
+   "/etc/systemd/system/fortilens-helper.service": "[Unit]\nDescription=FortiLens restricted management helper\nAfter=docker.service\n[Service]\nUser=root\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.helper --registry /etc/fortilens/registry.json\nRuntimeDirectory=fortilens\nRuntimeDirectoryMode=0750\nReadWritePaths=<BASE>/data/control <BASE>/data/control/stack /run/fortilens\nProtectHome=read-only\nMemoryMax=512M\n[Install]\nWantedBy=multi-user.target\n",
+   "/etc/systemd/system/fortilens-web.service": "[Unit]\nDescription=FortiLens independent web management\nAfter=network.target fortilens-helper.service\nWants=fortilens-helper.service\n[Service]\nUser=fortilens\nGroup=fortilens\nWorkingDirectory=<BASE>/opt/src\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=PYTHONUNBUFFERED=1\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectKernelTunables=true\nProtectControlGroups=true\nRestrictAddressFamilies=AF_UNIX AF_INET AF_INET6\nExecStart=<BASE>/opt/venv/bin/python -m management.app --data <BASE>/data/web --bootstrap-file <BASE>/data/web/bootstrap.token --helper-socket /run/fortilens/helper.sock --helper-key /etc/fortilens/helper.key --host 127.0.0.1 --port 3030 --origin http://127.0.0.1:3030\nProtectHome=true\nReadWritePaths=<BASE>/data/web\nInaccessiblePaths=-/var/run/docker.sock <BASE>/data/control <BASE>/data/control/stack\nMemoryMax=256M\n[Install]\nWantedBy=multi-user.target\n",
+   "<BASE>/data/web/bootstrap.token": "token-1\n",
+   "<BASE>/opt/installation.json": "{\n  \"data\": \"<BASE>/data\",\n  \"origin\": \"http://127.0.0.1:3030\",\n  \"source\": {\n    \"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}",
+   "<BASE>/opt/installing.json": "{\"data\": \"<BASE>/data\", \"origin\": \"http://127.0.0.1:3030\", \"source\": {\"management/__init__.py\": \"0000000000000000000000000000000000000000000000000000000000000000\"}, \"adopt\": null, \"project\": null, \"compose_file\": \"compose.yaml\"}",
+   "<BASE>/opt/src/management/__init__.py": "\"\"\"Independent FortiLens administrative control plane; monitoring stays portable.\"\"\"\n"
+  },
+  "output": [
+   "FortiLens management: http://127.0.0.1:3030",
+   "Monitoring has not been reinitialized. Review and apply configuration in the web interface.",
+   "Administrator already configured. Existing authentication and monitoring data preserved.",
+   "SSH alternative: ssh -L 3030:127.0.0.1:3030 user@server, then open http://127.0.0.1:3030"
+  ],
+  "refusal": null
+ }
+}
