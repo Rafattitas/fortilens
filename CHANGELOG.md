@@ -34,6 +34,11 @@
 
 ### Internal
 
+- The management Diagnostics response (`Operations.diagnostics`, 200 lines) is
+  split into the doctor request adapter, the exporter probe exclusions, the
+  monitoring report and the collection summary. A characterization test,
+  committed first, pins the full response and the order of service requests
+  in seven installation states; it passes unchanged.
 - The installer's `_main()` (380 lines) is split into named steps in the same
   order: arguments, host checks, access (listener, TLS, origin), existing state,
   web account, progress record, directories, source and virtual environment,
