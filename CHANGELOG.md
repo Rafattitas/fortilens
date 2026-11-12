@@ -28,6 +28,12 @@
 
 ### Internal
 
+- The report page tracks request order with one helper, `latest()`, instead of
+  six copies of the same counter code (Live usage, Websites, Applications,
+  device details, Internet links and monitoring). Tests read shipped functions
+  with a small scanner (`tests/support/js_source.py`) instead of assuming each
+  function is on one line, and two text checks no longer depend on spacing, so
+  the page can be reformatted.
 - The three report kinds (Reports, Websites, Applications) share one cache
   helper, `Engine._cached`, instead of three copies of the same lookup, JSON
   copy, 2 MiB limit and four-entry eviction. A new test, committed first, pins

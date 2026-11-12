@@ -7,6 +7,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from support.js_source import compact, function_source
+
 ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
 HARNESS = r"""
@@ -139,9 +141,7 @@ process.stdin.on('end',()=>{
         end = text.index("// End transport boundary.", start)
         source = text[start:end]
         if extra:
-            match = re.search(r"(?m)^async function " + extra + r"\([^\n]*", text)
-            self.assertIsNotNone(match)
-            source += "\n" + match[0]
+            source += "\n" + function_source(text, extra)
         return source
 
     def run_case(self, kind, scenario, **options):
@@ -301,11 +301,10 @@ class ReportRequestOrderTests(unittest.TestCase):
 
     def run_scenario(self, scenario):
         text = (ROOT / "portable/reporting.html").read_text(encoding="utf-8")
-        parts = []
-        for name in ("loadReport", "loadLive", "toggleLivePause"):
-            match = re.search(r"(?m)^(?:async )?function " + name + r"\([^\n]*", text)
-            self.assertIsNotNone(match, name)
-            parts.append(match[0])
+        parts = [
+            function_source(text, name)
+            for name in ("latest", "invalidate", "loadReport", "loadLive", "toggleLivePause")
+        ]
         result = subprocess.run(
             [NODE, "-e", ORDER_HARNESS],
             input=json.dumps({"scenario": scenario, "source": "\n".join(parts)}),
@@ -328,6 +327,47 @@ class ReportRequestOrderTests(unittest.TestCase):
 
     def test_live_reply_after_pause_is_not_drawn_and_resume_reads_again(self):
         self.run_scenario("live_pause")
+
+
+class JavaScriptSourceTests(unittest.TestCase):
+    """The test helper finds whole functions whatever their layout."""
+
+    SAMPLE = r"""
+const before = 1;
+async function loadThing(reuse = false, { limit } = {}) {
+  const pattern = /[{}]\/(?:x)/g, text = '} still a string {', other = "it's }";
+  const template = `${reuse ? `${'}'}` : '{'} done`; // a } in a comment
+  /* a block comment with { */
+  if (reuse) { return text.replace(pattern, ''); }
+  return limit / 2 / 1;
+}
+function after() { return '{'; }
+"""
+
+    def test_whole_function_is_found_across_lines_and_literals(self):
+        source = function_source(self.SAMPLE, "loadThing")
+        self.assertTrue(source.startswith("async function loadThing("))
+        self.assertTrue(source.endswith("return limit / 2 / 1;\n}"))
+        self.assertNotIn("function after", source)
+        self.assertEqual(function_source(self.SAMPLE, "after"), "function after() { return '{'; }")
+
+    def test_every_shipped_report_function_can_be_extracted(self):
+        text = (ROOT / "portable/reporting.html").read_text(encoding="utf-8")
+        names = re.findall(r"(?m)^(?:async )?function (\w+)\(", text)
+        self.assertGreater(len(names), 50)
+        for name in names:
+            with self.subTest(function=name):
+                source = function_source(text, name)
+                self.assertTrue(source.rstrip().endswith("}"))
+                self.assertEqual(source.count("function " + name + "("), 1)
+
+    def test_compact_ignores_layout(self):
+        self.assertEqual(
+            compact("if (route === '/api/live') {\n  x();\n}"),
+            compact("if(route==='/api/live'){x()}".replace("x()", "x();")),
+        )
+        with self.assertRaises(LookupError):
+            function_source(self.SAMPLE, "missing")
 
 
 if __name__ == "__main__":

@@ -139,6 +139,7 @@ PUBLIC_FILES = (
     "demo/demo.js",
     "docs/development/DEMO.md",
     "tests/support/check_frontend.py",
+    "tests/support/js_source.py",
     "tests/integration/browser_deployment.cjs",
     "tests/integration/fixture_api.py",
     "tests/integration/integration_live_fortigate.py",
