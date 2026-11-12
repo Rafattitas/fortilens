@@ -298,24 +298,7 @@ Rsyslog's default message limit is 8 KiB; the RFC5424 envelope adds bytes before
 Alloy's own limit applies. Inspect maximum observed sizes and test their boundary
 in isolation. Do not claim all records are preserved from a short sample.
 
-### Legacy validation record
-
-An isolated check on 2026-11-02 used installed rsyslog **8.2512.0** and the pinned
-Alloy **1.19.2** image. The example configuration was used with test-address
-substitutions, and the Alloy container ran with Docker `--network none`. A
-dedicated transient systemd unit used the `syslog` user/group and the example's
-capability and sandbox restrictions while AppArmor remained enforced.
-
-The check established that the nonroot process could bind test UDP port 514,
-wrap a synthetic native message, and deliver it to the isolated Alloy parser
-without a parsing error. The parsed body retained the tested `date`, `eventtime`
-and UTF-8 content. A separate disallowed loopback sender did not forward.
-
-This validates the tested adapter/parser path and restricted service startup. It
-does not establish live sender delivery, all message-size/escaping cases, queue
-overload or crash durability, independent byte totals, traffic completeness, or
-compatibility with every Ubuntu/FortiOS version. Repeat acceptance on the intended
-host; production validation is a separate, private deployment record.
+Dated validation records for this guide are kept in the [validation records](../history/VALIDATION_RECORDS.md#from-operationssyslog_native_udpmd). They describe the revision they tested, not the current source.
 
 ### Operator installation
 

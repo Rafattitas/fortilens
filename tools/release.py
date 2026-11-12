@@ -98,6 +98,7 @@ PUBLIC_FILES = (
     "docs/development/REPAIR_VERIFICATION.md",
     "docs/history/RELIABILITY_RELEASE_PLAN.md",
     "docs/history/REPOSITORY_AUDIT.md",
+    "docs/history/VALIDATION_RECORDS.md",
     "docs/development/REPOSITORY_GOVERNANCE.md",
     "docs/operations/SYSLOG_NATIVE_UDP.md",
     "docs/operations/TROUBLESHOOTING.md",

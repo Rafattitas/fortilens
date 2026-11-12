@@ -25,6 +25,12 @@
   accounting days follow `fortigate`, and the display follows `browser`.
 - Website usage documents the portable `accounting_websites` key and uses the
   console's period names; the accounting contract gains a Websites section.
+- Dated test runs, measurements and review notes moved from QA,
+  ERROR_HANDLING, COMPACT_ACCOUNTING, SYSLOG_NATIVE_UDP, MANAGEMENT_VERIFICATION
+  and VERIFICATION to `docs/history/VALIDATION_RECORDS.md`; each guide links to
+  them. Every existing doc path is kept, and the docs index now lists the paths
+  that published packages link to. A developer preview note moved from the
+  operator troubleshooting guide to QA.
 
 ### Internal
 

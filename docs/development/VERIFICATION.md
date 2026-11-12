@@ -7,9 +7,7 @@ Verification separates source tests, synthetic integration and real deployment e
 Run the [local checks](../../CONTRIBUTING.md#local-checks), which mirror CI, and
 the integration scenarios listed there on a disposable Linux host.
 
-The earlier portable verification record covered 118 cases. The suite has since
-grown; that historical count is not a claim about the current source. Coverage
-includes configuration/packaging, original query preservation, identity conflicts
+Coverage includes configuration/packaging, original query preservation, identity conflicts
 and missing MACs, directional zero/delta/cumulative rules, session baselines/resets,
 retries/replays/restart/late arrivals, retained summaries, exact VLAN/direction/scope,
 fixed periods, missing WAN evidence, observed interval math, HTTP authentication,

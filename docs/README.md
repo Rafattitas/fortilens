@@ -11,8 +11,17 @@ Choose a guide by task. Guides are grouped by purpose:
 | `design/`, `assets/` | Interface reference, screenshots and README artwork. |
 | `history/` | Records of past work, not current guides. |
 
-The short pages left directly in this folder are pointers. The published v0.2.0
-package links to those addresses, so keep them.
+Published packages link to some of these addresses, so they must keep working:
+
+- the short pointer pages left directly in this folder, linked from the v0.2.0
+  package;
+- `architecture/ACCOUNTING_ENGINE.md`, `operations/UPGRADE.md`,
+  `operations/TROUBLESHOOTING.md`, `operations/OPTIONAL_ALERTS.md` and
+  `development/VERIFICATION.md`, linked from the portable guide in every package
+  since v0.3.0;
+- this index, linked from the issue templates.
+
+Moving one of them needs a pointer page at the old address.
 
 ## Installation and configuration
 
@@ -22,10 +31,11 @@ package links to those addresses, so keep them.
 | [Installation overview](getting-started/INSTALLATION.md) | Choosing the web or portable path and checking source prerequisites. |
 | [Portable installation and operations](../portable/README.md) | The Python 3.10+ CLI, private generated installation, commands and operational examples. |
 | [Unified console](getting-started/UNIFIED_CONSOLE.md) | Native Grafana/report gateway, authentication boundaries and explicit adoption limitations. |
+| [Console guide](getting-started/CONSOLE_GUIDE.md) | What each console page shows, where its numbers come from, and what to open when the Internet is slow. |
 
-The v0.3.0 release adds a full archive with web management and the unified console.
-The portable ZIP, including the earlier v0.2.0 one, does not include web management.
-Read [release preparation](development/RELEASING.md) before choosing or building an archive.
+Each release has a full archive (web setup and the console) and a portable ZIP
+(command line only). Read [release preparation](development/RELEASING.md) before
+choosing or building an archive.
 
 ## Architecture and data contracts
 
@@ -47,7 +57,6 @@ Read [release preparation](development/RELEASING.md) before choosing or building
 | [Capacity and sizing](operations/CAPACITY.md) | Measured processing rate, storage per record and sizing by number of devices. |
 | [FortiOS compatibility](operations/COMPATIBILITY.md) | Checked FortiOS versions, what depends on the version, and how a different version is shown. |
 | [Website usage](operations/WEBSITES.md) | Opt-in per-device website usage: what is kept, where it comes from, coverage and retention. |
-| [Console guide](getting-started/CONSOLE_GUIDE.md) | What each console page shows, where its numbers come from, and what to open when the Internet is slow. |
 | [Diagnostics reference](operations/DIAGNOSTICS.md) | Every Diagnostics check: what it looks at, what each status means and what to do. |
 | [Troubleshooting](operations/TROUBLESHOOTING.md) | Read-only doctor evidence, missing telemetry, processing lag and storage failures. |
 | [Native FortiGate UDP reception](operations/SYSLOG_NATIVE_UDP.md) | Explicit managed native UDP profile, bounded delivery evidence and the separate legacy rsyslog alternative. |
@@ -60,11 +69,12 @@ Read [release preparation](development/RELEASING.md) before choosing or building
 | Guide | Use it for |
 |---|---|
 | [Contributing](../CONTRIBUTING.md) | Development setup, quality checks, focused PRs and synthetic fixtures. |
-| [QA](development/QA.md) | Source checks, isolated Docker/systemd scenarios and bounded live acceptance. |
+| [QA](development/QA.md) | Isolated Docker/systemd scenarios, bounded live acceptance and what each kind of check proves. The commands themselves are in Contributing. |
 | [Online demo](development/DEMO.md) | How the read-only browser demo is built from the shipped UI and synthetic fixtures. |
 | [Error handling and recovery](development/ERROR_HANDLING.md) | Safe failure responses, unknown mutation outcomes, retained recovery evidence and failure-injection validation. |
 | [Verification and compatibility](development/VERIFICATION.md) | Accounting/pipeline evidence and remaining real-device limitations. |
-| [Management verification](development/MANAGEMENT_VERIFICATION.md) | Management test history, installer checks and optional read-only FortiGate validation. |
+| [Management verification](development/MANAGEMENT_VERIFICATION.md) | What the management tests cover, installer checks and optional read-only FortiGate validation. |
+| [Repair verification](development/REPAIR_VERIFICATION.md) | Boundaries kept by the repair work and how to verify them. |
 | [Release preparation](development/RELEASING.md) | Full/portable archive manifests, checksums, extracted-artifact validation and publication review. |
 | [Maintainability](development/MAINTAINABILITY.md) | Module boundaries and deliberately deferred structural work. |
 | [Repository governance](development/REPOSITORY_GOVERNANCE.md) | Suggested labels, branch protection, community channels and private reporting. |
@@ -87,6 +97,8 @@ Read [release preparation](development/RELEASING.md) before choosing or building
 The [changelog](../CHANGELOG.md) holds implemented changes and release history. These
 records in `history/` describe the revision they inspected and are not current guides:
 
+- [Validation records](history/VALIDATION_RECORDS.md): dated test runs, measurements
+  and review notes moved out of the current guides.
 - [Repository audit](history/REPOSITORY_AUDIT.md): findings, compatibility risks and
   safe follow-up recommendations for the inspected source revision.
 - [Cleanup validation](history/CLEANUP_VALIDATION.md): commands actually executed,
