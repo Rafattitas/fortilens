@@ -304,7 +304,8 @@ SCENARIOS = {
 
 
 @unittest.skipUnless(
-    sys.platform.startswith("linux"), "The installer targets Linux paths and permissions"
+    sys.platform.startswith("linux") and sys.version_info >= (3, 11),
+    "The web installer runs on Linux with Python 3.11+, as it checks itself",
 )
 class InstallFlowCharacterization(unittest.TestCase):
     maxDiff = None
