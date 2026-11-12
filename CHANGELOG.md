@@ -34,6 +34,11 @@
 
 ### Internal
 
+- The installer's `_main()` (380 lines) is split into named steps in the same
+  order: arguments, host checks, access (listener, TLS, origin), existing state,
+  web account, progress record, directories, source and virtual environment,
+  secrets, registry, registration check, systemd units, start and report. The
+  installer characterization test passes unchanged.
 - The host installer's main flow (`management/install.py`) is pinned by a
   characterization test: 41 scenarios record every command, written file
   (path, mode, owner, content) and message for fresh, TLS, adopted, resumed,
