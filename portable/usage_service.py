@@ -945,6 +945,28 @@ class Engine:
         self.last_attempt = now
         return target >= end
 
+    def _cached(self, key, version, compute):
+        """A result from the snapshot cache, or compute() stored for the next caller.
+
+        The key includes the snapshot version, so any committed write is a miss.
+        Results are kept as JSON: each caller gets its own copy and may add
+        per-request fields. At most four results, each at most 2 MiB, are kept
+        across all kinds of report. Without a version (an in-memory store)
+        nothing is cached.
+        """
+        cached = self._report_cache.get(key) if version is not None else None
+        if cached is not None:
+            self._report_cache.move_to_end(key)
+            return json.loads(cached)
+        result = compute()
+        if version is not None:
+            encoded = json.dumps(result, ensure_ascii=False)
+            if len(encoded.encode("utf-8", "surrogatepass")) <= 2 * 1024 * 1024:
+                self._report_cache[key] = encoded
+                while len(self._report_cache) > 4:
+                    self._report_cache.popitem(last=False)
+        return result
+
     def report(
         self,
         period="today",
@@ -959,12 +981,8 @@ class Engine:
     ):
         with self._read_snapshot() as (store, version):
             first, last, ahead = self._bounds(store, period, at, start, end)
-            key = (version, period, first, last, vlan, device, search, include_history)
-            cached = self._report_cache.get(key) if version is not None else None
-            if cached is not None:
-                self._report_cache.move_to_end(key)
-                result = json.loads(cached)
-            else:
+
+            def compute():
                 try:
                     result = store.report(
                         first,
@@ -979,13 +997,10 @@ class Engine:
                 if include_history:
                     result["daily_history"] = store.history(device)
                     result["monthly_history"] = store.history(device, months=True, limit=36)
-                if version is not None:
-                    encoded = json.dumps(result, ensure_ascii=False)
-                    # At most four immutable results, each at most 2 MiB.
-                    if len(encoded.encode("utf-8", "surrogatepass")) <= 2 * 1024 * 1024:
-                        self._report_cache[key] = encoded
-                        while len(self._report_cache) > 4:
-                            self._report_cache.popitem(last=False)
+                return result
+
+            key = (version, period, first, last, vlan, device, search, include_history)
+            result = self._cached(key, version, compute)
             result["processing"] = self._snapshot_diagnostics(store, version)
         result["period"] = period
         result["source_clock_ahead_seconds"] = round(ahead)
@@ -997,23 +1012,15 @@ class Engine:
         now = datetime.now(timezone.utc).isoformat()
         with self._read_snapshot() as (store, version):
             first, last, _ahead = self._bounds(store, period, at, start, end)
-            key = ("websites", version, period, first, last, site, device, vlan)
-            cached = self._report_cache.get(key) if version is not None else None
-            if cached is not None:
-                self._report_cache.move_to_end(key)
-                result = json.loads(cached)
-            else:
-                # A period that ends now is the current day, wherever its end moved.
-                current = last if at is None and period != "custom" else now
-                result = store.websites(
+            # A period that ends now is the current day, wherever its end moved.
+            current = last if at is None and period != "custom" else now
+            result = self._cached(
+                ("websites", version, period, first, last, site, device, vlan),
+                version,
+                lambda: store.websites(
                     first, last, now=current, site=site, device=device, vlan=vlan
-                )
-                if version is not None:
-                    encoded = json.dumps(result, ensure_ascii=False)
-                    if len(encoded.encode("utf-8", "surrogatepass")) <= 2 * 1024 * 1024:
-                        self._report_cache[key] = encoded
-                        while len(self._report_cache) > 4:
-                            self._report_cache.popitem(last=False)
+                ),
+            )
         result["period"] = period
         return result
 
@@ -1031,13 +1038,10 @@ class Engine:
     ):
         with self._read_snapshot() as (store, version):
             first, last, _ahead = self._bounds(store, period, at, start, end)
-            key = ("applications", version, period, first, last, app, category, device, vlan)
-            cached = self._report_cache.get(key) if version is not None else None
-            if cached is not None:
-                self._report_cache.move_to_end(key)
-                result = json.loads(cached)
-            else:
-                result = store.applications(
+            result = self._cached(
+                ("applications", version, period, first, last, app, category, device, vlan),
+                version,
+                lambda: store.applications(
                     first,
                     last,
                     app=app,
@@ -1045,13 +1049,8 @@ class Engine:
                     device=device,
                     vlan=vlan,
                     history=app is not None or category is not None,
-                )
-                if version is not None:
-                    encoded = json.dumps(result, ensure_ascii=False)
-                    if len(encoded.encode("utf-8", "surrogatepass")) <= 2 * 1024 * 1024:
-                        self._report_cache[key] = encoded
-                        while len(self._report_cache) > 4:
-                            self._report_cache.popitem(last=False)
+                ),
+            )
             result["processing"] = self._snapshot_diagnostics(store, version)
         result["period"] = period
         return result
