@@ -323,3 +323,35 @@ does not establish live sender delivery, all message-size/escaping cases, queue
 overload or crash durability, independent byte totals, traffic completeness, or
 compatibility with every Ubuntu/FortiOS version. Repeat acceptance on the intended
 host; production validation is a separate, private deployment record.
+
+## Refactor and documentation stack, 2026-11-12
+
+Eleven stacked pull requests on `bc110f0` (#50 to #60): two report page fixes,
+documentation corrections and records, one report cache helper, one request-order
+helper, the report page's script and style formatting, and characterization tests
+followed by restructuring for the installer, Diagnostics and the accounting store.
+
+- Each restructuring was preceded by a test committed alone and run on the old
+  code: Prepare candidates (56 scenarios), the installer flow (41), Diagnostics
+  (7), the report cache (5 behaviors across 3 report kinds) and the accounting
+  store (6 ingestion cases in 2 storage formats, with schema and table digests).
+  Every one passed unchanged after its restructuring.
+- The two report page fixes have tests that fail on the old functions with the
+  reported symptoms (a lost period choice, a reading drawn after Pause).
+- The formatting change was checked mechanically: markup byte-identical, the
+  script identical after esbuild minification and the stylesheet identical
+  through Lightning CSS.
+- From a Git checkout of the top branch in `python:3.12-slim` with Node 20:
+  624 tests passed, line and branch coverage 83.31% (81.14% before), both
+  archives built and verified, and the extracted full archive ran 624 tests.
+- GitHub CI passed all required checks on every pull request, including the
+  real Ubuntu installer, the packaged-source jobs, Windows and Python 3.10 to
+  3.13, the demo build and the real-browser test. CI first caught two problems,
+  both fixed at their source pull request: single quotes in the stylesheet broke
+  the demo build, and the installer test needed Python 3.11.
+- A simulation of squash-merging the eleven pull requests in order on `main`
+  gave, at each step, exactly that branch's tree; the changelog conflicts it
+  meets are resolved by keeping the branch's side.
+
+Not verified: an Apply or install on the test installation, and the console in a
+browser against a live FortiGate.

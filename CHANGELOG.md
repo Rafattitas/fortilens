@@ -34,6 +34,11 @@
 
 ### Internal
 
+- `accounting.Store` is split into its read side, `StoreReports` (reports,
+  applications, websites, histories, classifications, diagnostics and their
+  helpers), and `Store`, which adds opening, ingestion, roll-ups and pruning.
+  Methods moved without edits in the same module; the accounting
+  characterization test (results, schema and every table) passes unchanged.
 - The accounting store is pinned by a characterization test: one synthetic
   stream (outbound, inbound, local, labelled, cumulative, across midnight,
   unknown interface, other VDOM) is ingested once, twice, in reverse batches,
