@@ -34,6 +34,12 @@
 
 ### Internal
 
+- The accounting store is pinned by a characterization test: one synthetic
+  stream (outbound, inbound, local, labelled, cumulative, across midnight,
+  unknown interface, other VDOM) is ingested once, twice, in reverse batches,
+  across a restart and with a late record after pruning, in both storage
+  formats. Every report the services read and a digest of every SQLite table
+  and the schema are recorded.
 - The management Diagnostics response (`Operations.diagnostics`, 200 lines) is
   split into the doctor request adapter, the exporter probe exclusions, the
   monitoring report and the collection summary. A characterization test,

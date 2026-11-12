@@ -163,6 +163,8 @@ PUBLIC_FILES = (
     "tests/fixtures/install_flow.json",
     "tests/test_diagnostics_flow.py",
     "tests/fixtures/diagnostics_flow.json",
+    "tests/test_accounting_flow.py",
+    "tests/fixtures/accounting_flow.json",
     "tests/test_dashboard_style.py",
     "tests/test_doctor.py",
     "tests/test_frontend_errors.py",
