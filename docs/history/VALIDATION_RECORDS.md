@@ -117,7 +117,7 @@ pre-1980 ZIP timestamp failure that byte-only extraction had missed. Full archiv
 member times now use 1980-01-02 UTC; the unchanged portable bundle selector works
 from the extracted source, and all 261 tests pass there. No tag or release was
 published. Packaged Ubuntu/systemd installation still requires the separate
-disposable acceptance procedure in [RELEASING.md](RELEASING.md).
+disposable acceptance procedure in [RELEASING.md](../development/RELEASING.md).
 
 Docker, Unix peer/socket permissions and real Ubuntu/systemd installation cannot
 run on this Windows host without a disposable Linux environment. Use the exact

@@ -174,7 +174,7 @@ rows. The legacy direct list-returning `range_rows` method remains available.
 Optional compact storage filters non-Internet facts before payload decoding,
 while retaining all source classification records and exact totals. Large
 partial-period scans still require workload-specific latency validation.
-The [pre-publication storage review](../architecture/COMPACT_ACCOUNTING.md#further-storage-review-before-publication)
+The [pre-publication storage review](../history/VALIDATION_RECORDS.md#further-storage-review-before-publication)
 retains the current 4 KiB/format-1 defaults: further tested reductions introduced
 read/write tradeoffs. Compaction remains reviewed offline maintenance rather
 than an automatic settings/report side effect.
