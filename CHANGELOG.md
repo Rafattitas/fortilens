@@ -34,6 +34,11 @@
 
 ### Internal
 
+- The host installer's main flow (`management/install.py`) is pinned by a
+  characterization test: 41 scenarios record every command, written file
+  (path, mode, owner, content) and message for fresh, TLS, adopted, resumed,
+  re-run and upgrade installs and for each refusal. Installer coverage rises
+  from 31% to 73% from this test alone.
 - The report page's JavaScript and CSS are formatted with Prettier (single
   quotes, 100 columns); the page went from 408 to 3,467 lines and its longest
   script line from about 4,200 to 225 characters. Behavior is unchanged: the
