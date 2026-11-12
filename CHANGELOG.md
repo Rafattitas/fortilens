@@ -28,6 +28,12 @@
 
 ### Internal
 
+- The report page's JavaScript and CSS are formatted with Prettier (single
+  quotes, 100 columns); the page went from 408 to 3,467 lines and its longest
+  script line from about 4,200 to 225 characters. Behavior is unchanged: the
+  markup outside the script and style blocks is byte-identical, and both blocks
+  give identical canonical output before and after (esbuild for JavaScript,
+  Lightning CSS for CSS).
 - The report page tracks request order with one helper, `latest()`, instead of
   six copies of the same counter code (Live usage, Websites, Applications,
   device details, Internet links and monitoring). Tests read shipped functions
