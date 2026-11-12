@@ -4,28 +4,28 @@
 /* A Precision. Selectors use an html prefix where the managed console appends later rules,
    and tokens use their own names so the hosted dark-only variables cannot leak into light mode. */
 @font-face {
-  font-family: 'IBM Plex Sans';
+  font-family: "IBM Plex Sans";
   font-weight: 300;
   font-display: swap;
-  src: url('/static/fonts/IBMPlexSans-Light-Latin1.woff2') format('woff2');
+  src: url("/static/fonts/IBMPlexSans-Light-Latin1.woff2") format("woff2");
 }
 @font-face {
-  font-family: 'IBM Plex Sans';
+  font-family: "IBM Plex Sans";
   font-weight: 400;
   font-display: swap;
-  src: url('/static/fonts/IBMPlexSans-Regular-Latin1.woff2') format('woff2');
+  src: url("/static/fonts/IBMPlexSans-Regular-Latin1.woff2") format("woff2");
 }
 @font-face {
-  font-family: 'IBM Plex Sans';
+  font-family: "IBM Plex Sans";
   font-weight: 500;
   font-display: swap;
-  src: url('/static/fonts/IBMPlexSans-Medium-Latin1.woff2') format('woff2');
+  src: url("/static/fonts/IBMPlexSans-Medium-Latin1.woff2") format("woff2");
 }
 @font-face {
-  font-family: 'IBM Plex Sans';
+  font-family: "IBM Plex Sans";
   font-weight: 600;
   font-display: swap;
-  src: url('/static/fonts/IBMPlexSans-SemiBold-Latin1.woff2') format('woff2');
+  src: url("/static/fonts/IBMPlexSans-SemiBold-Latin1.woff2") format("woff2");
 }
 :root {
   color-scheme: dark;
@@ -54,16 +54,16 @@
   --ctl: 34px;
   --gap: 10px;
   font:
-    14px/1.45 'IBM Plex Sans',
+    14px/1.45 "IBM Plex Sans",
     system-ui,
-    'Segoe UI',
+    "Segoe UI",
     -apple-system,
     BlinkMacSystemFont,
     Arial,
     sans-serif;
   font-variant-numeric: tabular-nums;
 }
-:root[data-theme='light'] {
+:root[data-theme="light"] {
   color-scheme: light;
   --pg: #e4e8e7;
   --panel: #f3f5f4;
@@ -253,7 +253,7 @@ nav button:hover {
   background: var(--raise);
 }
 nav button.selected,
-nav button[aria-current='page'] {
+nav button[aria-current="page"] {
   background: var(--acc-s);
   font-weight: 500;
 }
@@ -297,7 +297,7 @@ html #managed-report-status a {
   white-space: nowrap;
 }
 .status::before {
-  content: '';
+  content: "";
   flex: none;
   width: 9px;
   height: 9px;
@@ -770,7 +770,7 @@ html .chart {
   font-size: 12.5px;
 }
 .legend span::before {
-  content: '';
+  content: "";
   display: inline-block;
   width: 10px;
   height: 10px;
@@ -819,7 +819,7 @@ summary {
   font-size: 12.5px;
 }
 .lkey span::before {
-  content: '';
+  content: "";
   display: inline-block;
   width: 10px;
   height: 10px;
@@ -1090,7 +1090,7 @@ html .login button {
   white-space: nowrap;
 }
 .risk-pill::before {
-  content: '';
+  content: "";
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -1238,7 +1238,7 @@ html .apps-field select {
     gap: 4px;
   }
 }
-.apps-filters button[aria-pressed='true'] {
+.apps-filters button[aria-pressed="true"] {
   border-color: var(--accent, currentColor);
   font-weight: 600;
 }
