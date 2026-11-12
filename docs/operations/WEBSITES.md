@@ -3,6 +3,8 @@
 **Websites** shows which websites used the Internet, and which devices used each
 one. It is **off by default**. An administrator switches it on in
 **Settings → Monitoring → Website Usage per Device**, then applies the change.
+A portable CLI installation sets `"accounting_websites": true` in the
+configuration file given to `init --config`; it requires `accounting_enabled`.
 
 Per-device website history is personal data in many places. Before you switch
 it on, tell the people on the network and follow your local law and company
@@ -50,9 +52,10 @@ FortiLens never changes FortiGate settings.
 
 ## Periods
 
-Website totals are kept per day. **Today**, **Week**, **Month**, **Year** and
-custom ranges that start and end at midnight are supported. The day in progress
-counts as "so far today". **Last 5 minutes** is not available for websites.
+Website totals are kept per day. **Today**, **Last 7 days**, **This month**,
+**This year** and custom ranges that start and end at midnight are supported. The
+day in progress counts as "so far today". **Recent 5 minutes** is not available
+for websites.
 
 Usage before websites were switched on has no website. After switching it off,
 nothing new is recorded and existing rows expire after 90 days.

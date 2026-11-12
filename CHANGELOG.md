@@ -11,6 +11,21 @@
 - Pause on Live usage now discards a reading that was already on its way, so
   nothing changes on the page after Pause. Resume starts a new reading.
 
+### Documentation
+
+- README no longer calls Websites planned: it is shipped and opt-in. Only domain
+  analytics from DNS queries is planned. README also gains a "Check that data
+  arrives" step for both install paths, a Python badge that names both
+  versions, and loses a literal "\n" that GitHub displayed.
+- CONTRIBUTING "Local checks" is the one list of development commands and
+  mirrors CI, including `ruff format --check`, the native-host integration and
+  the browser test. QA, VERIFICATION and RELEASING link to it instead of
+  keeping their own, older lists.
+- The portable guide and Web Setup now state the timezone defaults:
+  accounting days follow `fortigate`, and the display follows `browser`.
+- Website usage documents the portable `accounting_websites` key and uses the
+  console's period names; the accounting contract gains a Websites section.
+
 ### Internal
 
 - Prepare's file patching for a registered installation (`_patch` in

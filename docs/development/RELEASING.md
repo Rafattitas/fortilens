@@ -19,7 +19,7 @@ the same reviewed source. Published historical ZIP bytes are never replaced.
 ## Version policy
 
 Use a `vMAJOR.MINOR.PATCH` tag, optionally with a SemVer prerelease such as
-`v0.3.0-rc.1`. Version numbers in commands below are examples, not an announced
+`vX.Y.Z-rc.1`. Version numbers in commands below are examples, not an announced
 release or a compatibility promise. While the project remains early access,
 document every compatibility-impacting change explicitly; a minor version is
 not permission to migrate accounting identity, databases or installation data.
@@ -41,11 +41,9 @@ from a clean reviewed checkout and use a new output directory:
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -r management/requirements-test.txt -r requirements-dev.txt
-python -m unittest discover -s tests -v
-python tests/support/check_frontend.py
-python tools/check_repository.py
-python tools/release.py build --version v0.3.0-rc.1 --output dist
-python tools/release.py verify --version v0.3.0-rc.1 --directory dist
+# First run every command in CONTRIBUTING.md "Local checks", then:
+python tools/release.py build --version vX.Y.Z-rc.1 --output dist
+python tools/release.py verify --version vX.Y.Z-rc.1 --directory dist
 (cd dist && sha256sum --check SHA256SUMS.txt)
 ```
 
