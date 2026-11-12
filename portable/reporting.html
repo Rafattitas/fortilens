@@ -3,122 +3,1290 @@
 <style>
 /* A Precision. Selectors use an html prefix where the managed console appends later rules,
    and tokens use their own names so the hosted dark-only variables cannot leak into light mode. */
-@font-face{font-family:"IBM Plex Sans";font-weight:300;font-display:swap;src:url("/static/fonts/IBMPlexSans-Light-Latin1.woff2") format("woff2")}
-@font-face{font-family:"IBM Plex Sans";font-weight:400;font-display:swap;src:url("/static/fonts/IBMPlexSans-Regular-Latin1.woff2") format("woff2")}
-@font-face{font-family:"IBM Plex Sans";font-weight:500;font-display:swap;src:url("/static/fonts/IBMPlexSans-Medium-Latin1.woff2") format("woff2")}
-@font-face{font-family:"IBM Plex Sans";font-weight:600;font-display:swap;src:url("/static/fonts/IBMPlexSans-SemiBold-Latin1.woff2") format("woff2")}
-:root{color-scheme:dark;--pg:#1a2024;--panel:#22292e;--well:#161b1f;--raise:#2c353a;--line:#3d484f;--line2:#2f393f;--ink:#e9eff1;--sub:#a7b5ba;--acc:#84c9dc;--on:#0e1a1e;--acc-s:#24414b;--d:#e9eff1;--u:#8399a3;--good:#6ad5a5;--warn:#efc35c;--bad:#ff9087;--unk:#9aa8ae;--warn-b:#3c3218;--bad-b:#452624;--unk-b:#2c363b;--hatch:#4e5b62;--lane-up:#2f5849;--ctl:34px;--gap:10px;font:14px/1.45 "IBM Plex Sans",system-ui,"Segoe UI",-apple-system,BlinkMacSystemFont,Arial,sans-serif;font-variant-numeric:tabular-nums}
-:root[data-theme="light"]{color-scheme:light;--pg:#e4e8e7;--panel:#f3f5f4;--well:#fff;--raise:#e9eceb;--line:#c7cecd;--line2:#dce1e0;--ink:#14191b;--sub:#4a5559;--acc:#0c5a70;--on:#fff;--acc-s:#d3e6ea;--d:#17333e;--u:#6c858f;--good:#10694a;--warn:#855300;--bad:#ad231b;--unk:#566367;--warn-b:#f8e8c5;--bad-b:#f9dcd9;--unk-b:#e1e6e5;--hatch:#aeb8b6;--lane-up:#b3d6c6}
-*{box-sizing:border-box}[hidden],.hidden{display:none!important}
-body{margin:0;background:var(--pg);color:var(--ink)}
-button,input,select{font:inherit;color:inherit}a{color:var(--acc);text-underline-offset:3px}
-:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-h1,h2,h3,p{margin-top:0}h1{font-size:19px;font-weight:600;line-height:1.25;margin-bottom:2px}h2{font-size:14px;font-weight:600;margin-bottom:2px}h3{font-size:13.5px;font-weight:600}
-small,.muted{color:var(--sub)}small{font-size:12.5px}
-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:var(--ctl);padding:5px 12px;border:1px solid var(--line);border-radius:3px;background:var(--panel);font-weight:500;white-space:nowrap;cursor:pointer;touch-action:manipulation}
-button:hover{border-color:var(--sub)}button:disabled{opacity:.6;cursor:wait}
-button.primary{background:var(--acc);border-color:var(--acc);color:var(--on);font-weight:600}
-html input,html select{width:100%;min-height:var(--ctl);padding:5px 9px;border:1px solid var(--sub);border-radius:3px;background:var(--well);color:var(--ink)}
-label{display:block;margin-bottom:3px;color:var(--sub);font-size:12.5px}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-weight: 300;
+  font-display: swap;
+  src: url("/static/fonts/IBMPlexSans-Light-Latin1.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-weight: 400;
+  font-display: swap;
+  src: url("/static/fonts/IBMPlexSans-Regular-Latin1.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-weight: 500;
+  font-display: swap;
+  src: url("/static/fonts/IBMPlexSans-Medium-Latin1.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-weight: 600;
+  font-display: swap;
+  src: url("/static/fonts/IBMPlexSans-SemiBold-Latin1.woff2") format("woff2");
+}
+:root {
+  color-scheme: dark;
+  --pg: #1a2024;
+  --panel: #22292e;
+  --well: #161b1f;
+  --raise: #2c353a;
+  --line: #3d484f;
+  --line2: #2f393f;
+  --ink: #e9eff1;
+  --sub: #a7b5ba;
+  --acc: #84c9dc;
+  --on: #0e1a1e;
+  --acc-s: #24414b;
+  --d: #e9eff1;
+  --u: #8399a3;
+  --good: #6ad5a5;
+  --warn: #efc35c;
+  --bad: #ff9087;
+  --unk: #9aa8ae;
+  --warn-b: #3c3218;
+  --bad-b: #452624;
+  --unk-b: #2c363b;
+  --hatch: #4e5b62;
+  --lane-up: #2f5849;
+  --ctl: 34px;
+  --gap: 10px;
+  font:
+    14px/1.45 "IBM Plex Sans",
+    system-ui,
+    "Segoe UI",
+    -apple-system,
+    BlinkMacSystemFont,
+    Arial,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --pg: #e4e8e7;
+  --panel: #f3f5f4;
+  --well: #fff;
+  --raise: #e9eceb;
+  --line: #c7cecd;
+  --line2: #dce1e0;
+  --ink: #14191b;
+  --sub: #4a5559;
+  --acc: #0c5a70;
+  --on: #fff;
+  --acc-s: #d3e6ea;
+  --d: #17333e;
+  --u: #6c858f;
+  --good: #10694a;
+  --warn: #855300;
+  --bad: #ad231b;
+  --unk: #566367;
+  --warn-b: #f8e8c5;
+  --bad-b: #f9dcd9;
+  --unk-b: #e1e6e5;
+  --hatch: #aeb8b6;
+  --lane-up: #b3d6c6;
+}
+* {
+  box-sizing: border-box;
+}
+[hidden],
+.hidden {
+  display: none !important;
+}
+body {
+  margin: 0;
+  background: var(--pg);
+  color: var(--ink);
+}
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+a {
+  color: var(--acc);
+  text-underline-offset: 3px;
+}
+:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+h1 {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.25;
+  margin-bottom: 2px;
+}
+h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+h3 {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+small,
+.muted {
+  color: var(--sub);
+}
+small {
+  font-size: 12.5px;
+}
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: var(--ctl);
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:hover {
+  border-color: var(--sub);
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+button.primary {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--on);
+  font-weight: 600;
+}
+html input,
+html select {
+  width: 100%;
+  min-height: var(--ctl);
+  padding: 5px 9px;
+  border: 1px solid var(--sub);
+  border-radius: 3px;
+  background: var(--well);
+  color: var(--ink);
+}
+label {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--sub);
+  font-size: 12.5px;
+}
 /* Standalone chrome */
-header{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:5px 14px;background:var(--panel);box-shadow:inset 0 -1px var(--line)}
-.brand{display:flex;align-items:center;gap:8px}.logo{width:20px;height:20px;color:var(--acc);flex:none}.brand strong{font-size:15px;font-weight:600}.brand small{display:none}
-.header-right{display:flex;align-items:center;gap:10px}
-.layout{display:grid;grid-template-columns:186px minmax(0,1fr);min-height:calc(100vh - 44px)}
-aside{padding:10px 8px;background:var(--panel);box-shadow:inset -1px 0 var(--line)}
-aside .caption{padding:0 8px 3px;color:var(--sub);font-size:12.5px;font-weight:500}
-nav{display:grid;gap:2px}nav button{justify-content:flex-start;min-height:30px;padding:4px 8px;border:0;background:none;font-weight:400;text-align:left}nav button:hover{background:var(--raise)}nav button.selected,nav button[aria-current="page"]{background:var(--acc-s);font-weight:500}
-main{width:100%;min-width:0;padding:12px 14px}
-.page-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:6px 18px;margin-bottom:var(--gap)}.page-head p{margin:0}
-footer{margin-top:18px;padding-top:8px;border-top:1px solid var(--line2);color:var(--sub);font-size:12.5px}
-html #managed-report-status{color:var(--sub)}html #managed-report-status a{color:var(--acc)}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 5px 14px;
+  background: var(--panel);
+  box-shadow: inset 0 -1px var(--line);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo {
+  width: 20px;
+  height: 20px;
+  color: var(--acc);
+  flex: none;
+}
+.brand strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.brand small {
+  display: none;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 186px minmax(0, 1fr);
+  min-height: calc(100vh - 44px);
+}
+aside {
+  padding: 10px 8px;
+  background: var(--panel);
+  box-shadow: inset -1px 0 var(--line);
+}
+aside .caption {
+  padding: 0 8px 3px;
+  color: var(--sub);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+nav {
+  display: grid;
+  gap: 2px;
+}
+nav button {
+  justify-content: flex-start;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  font-weight: 400;
+  text-align: left;
+}
+nav button:hover {
+  background: var(--raise);
+}
+nav button.selected,
+nav button[aria-current="page"] {
+  background: var(--acc-s);
+  font-weight: 500;
+}
+main {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+}
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px 18px;
+  margin-bottom: var(--gap);
+}
+.page-head p {
+  margin: 0;
+}
+footer {
+  margin-top: 18px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line2);
+  color: var(--sub);
+  font-size: 12.5px;
+}
+html #managed-report-status {
+  color: var(--sub);
+}
+html #managed-report-status a {
+  color: var(--acc);
+}
 /* State: shape and word */
-.status{display:inline-flex;align-items:center;gap:6px;color:var(--unk);font-size:12.5px;font-weight:500;white-space:nowrap}
-.status::before{content:"";flex:none;width:9px;height:9px;border-radius:50%;background:repeating-linear-gradient(135deg,currentColor 0 1.5px,transparent 1.5px 3.5px);box-shadow:inset 0 0 0 1px currentColor}
-.status:empty{display:none}
-.status.good{color:var(--good)}.status.good::before{background:currentColor;box-shadow:none}
-.status.warn{color:var(--warn)}.status.warn::before{width:10px;height:9px;border-radius:0;background:currentColor;box-shadow:none;clip-path:polygon(50% 0,100% 100%,0 100%)}
-.status.bad{color:var(--bad)}.status.bad::before{border-radius:1px;background:currentColor;box-shadow:none}
-html .notice{margin-bottom:var(--gap);padding:9px 12px;border:0;border-radius:5px;background:var(--raise);color:var(--ink);font-size:13px}
-html .notice.error{background:var(--bad-b);color:var(--ink)}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--unk);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.status::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: repeating-linear-gradient(135deg, currentColor 0 1.5px, transparent 1.5px 3.5px);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+.status:empty {
+  display: none;
+}
+.status.good {
+  color: var(--good);
+}
+.status.good::before {
+  background: currentColor;
+  box-shadow: none;
+}
+.status.warn {
+  color: var(--warn);
+}
+.status.warn::before {
+  width: 10px;
+  height: 9px;
+  border-radius: 0;
+  background: currentColor;
+  box-shadow: none;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.status.bad {
+  color: var(--bad);
+}
+.status.bad::before {
+  border-radius: 1px;
+  background: currentColor;
+  box-shadow: none;
+}
+html .notice {
+  margin-bottom: var(--gap);
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--raise);
+  color: var(--ink);
+  font-size: 13px;
+}
+html .notice.error {
+  background: var(--bad-b);
+  color: var(--ink);
+}
 /* Toolbar */
-html .toolbar{margin:0 0 var(--gap);padding:0;border:0;background:none}
-.periods{display:inline-flex;flex-wrap:wrap;gap:2px;margin-bottom:8px;padding:2px;border-radius:5px;background:var(--raise)}
-html .periods button{min-height:28px;padding:3px 10px;border:0;background:none;color:var(--sub)}
-html .periods button:hover{color:var(--ink)}
-html .periods button.selected{background:var(--well);box-shadow:0 0 0 1px var(--line);color:var(--ink)}
-html .filters{display:grid;grid-template-columns:minmax(230px,1.5fr) minmax(160px,1fr) auto;gap:8px 12px;align-items:end;margin:0}
-.custom{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
-html .context{display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:6px;color:var(--sub);font-size:12.5px}
+html .toolbar {
+  margin: 0 0 var(--gap);
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.periods {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding: 2px;
+  border-radius: 5px;
+  background: var(--raise);
+}
+html .periods button {
+  min-height: 28px;
+  padding: 3px 10px;
+  border: 0;
+  background: none;
+  color: var(--sub);
+}
+html .periods button:hover {
+  color: var(--ink);
+}
+html .periods button.selected {
+  background: var(--well);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--ink);
+}
+html .filters {
+  display: grid;
+  grid-template-columns: minmax(230px, 1.5fr) minmax(160px, 1fr) auto;
+  gap: 8px 12px;
+  align-items: end;
+  margin: 0;
+}
+.custom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+html .context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin-top: 6px;
+  color: var(--sub);
+  font-size: 12.5px;
+}
 /* Readouts */
-html .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0 0 var(--gap);padding:0;border:0;border-radius:5px;background:var(--panel)}
-html .stats .card{padding:10px 14px;border:0;border-radius:0;background:none;box-shadow:inset -1px 0 var(--line2);text-align:center}
-html .stats .card:last-child{box-shadow:none}
-html .metric-label{margin:0;color:var(--sub);font-size:12.5px;font-weight:500}
-html .metric-value{font-size:24px;font-weight:300;line-height:1.2;letter-spacing:-.01em;color:var(--ink)}
-html .card small{display:block;margin:0}
+html .stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0 0 var(--gap);
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: var(--panel);
+}
+html .stats .card {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: inset -1px 0 var(--line2);
+  text-align: center;
+}
+html .stats .card:last-child {
+  box-shadow: none;
+}
+html .metric-label {
+  margin: 0;
+  color: var(--sub);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+html .metric-value {
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+html .card small {
+  display: block;
+  margin: 0;
+}
 /* Sections and tables */
-html .section{margin:0 0 var(--gap);overflow:hidden;border:0;border-radius:5px;background:var(--panel)}
-html .section-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;padding:9px 12px;border:0;box-shadow:inset 0 -1px var(--line2)}
-html .section-head h2{font-size:14px;margin:0}html .section-head p{margin:0;color:var(--sub);font-size:12.5px}
-.section-head label{display:flex;align-items:center;gap:6px;margin:0;white-space:nowrap}html .section-head select{width:auto}
-.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}
-th{padding:7px 10px;border-bottom:1px solid var(--line);color:var(--sub);font-size:12.5px;font-weight:500;text-align:left;white-space:nowrap}
-td{padding:7px 10px;border-bottom:1px solid var(--line2);vertical-align:middle}tbody tr:last-child td{border-bottom:0}
-tbody tr:hover{background:var(--raise)}tr.sel{background:var(--acc-s)!important}
-.number{text-align:right;white-space:nowrap}
-html .entity{display:inline;min-height:0;padding:0;border:0;background:none;color:var(--ink);font-weight:500;text-align:left;white-space:normal}
-html .entity:hover{color:var(--acc);text-decoration:underline}
-.secondary{display:block;max-width:280px;overflow:hidden;color:var(--sub);font-size:12.5px;text-overflow:ellipsis;white-space:nowrap}
-progress{display:block;width:100%;max-width:180px;height:4px;margin:4px 0 0 auto;border:0;border-radius:2px;background:var(--line2);appearance:none;-webkit-appearance:none;overflow:hidden}
-progress::-webkit-progress-bar{background:var(--line2)}progress::-webkit-progress-value{background:var(--d)}progress::-moz-progress-bar{background:var(--d)}
-html .empty{padding:36px 20px;color:var(--sub);text-align:center}
-html .pager{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;padding:7px 12px;border-top:1px solid var(--line2);color:var(--sub);font-size:12.5px}.pager div{display:flex;gap:6px}
+html .section {
+  margin: 0 0 var(--gap);
+  overflow: hidden;
+  border: 0;
+  border-radius: 5px;
+  background: var(--panel);
+}
+html .section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 9px 12px;
+  border: 0;
+  box-shadow: inset 0 -1px var(--line2);
+}
+html .section-head h2 {
+  font-size: 14px;
+  margin: 0;
+}
+html .section-head p {
+  margin: 0;
+  color: var(--sub);
+  font-size: 12.5px;
+}
+.section-head label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  white-space: nowrap;
+}
+html .section-head select {
+  width: auto;
+}
+.table-wrap {
+  overflow: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--sub);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line2);
+  vertical-align: middle;
+}
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+tbody tr:hover {
+  background: var(--raise);
+}
+tr.sel {
+  background: var(--acc-s) !important;
+}
+.number {
+  text-align: right;
+  white-space: nowrap;
+}
+html .entity {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-weight: 500;
+  text-align: left;
+  white-space: normal;
+}
+html .entity:hover {
+  color: var(--acc);
+  text-decoration: underline;
+}
+.secondary {
+  display: block;
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--sub);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+progress {
+  display: block;
+  width: 100%;
+  max-width: 180px;
+  height: 4px;
+  margin: 4px 0 0 auto;
+  border: 0;
+  border-radius: 2px;
+  background: var(--line2);
+  appearance: none;
+  -webkit-appearance: none;
+  overflow: hidden;
+}
+progress::-webkit-progress-bar {
+  background: var(--line2);
+}
+progress::-webkit-progress-value {
+  background: var(--d);
+}
+progress::-moz-progress-bar {
+  background: var(--d);
+}
+html .empty {
+  padding: 36px 20px;
+  color: var(--sub);
+  text-align: center;
+}
+html .pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--line2);
+  color: var(--sub);
+  font-size: 12.5px;
+}
+.pager div {
+  display: flex;
+  gap: 6px;
+}
 /* Reports summary */
-.report-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap)}.report-summary-list{margin:0;padding:0 12px;list-style:none}
-.report-summary-list li{padding:7px 0;border-bottom:1px solid var(--line2)}.report-summary-list li:last-child{border-bottom:0}
-.report-summary-list .summary-line{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.report-summary-list strong{font-weight:400}
-.report-summary-list progress{max-width:none;margin:4px 0 0}.report-summary-list small{display:block}
+.report-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+}
+.report-summary-list {
+  margin: 0;
+  padding: 0 12px;
+  list-style: none;
+}
+.report-summary-list li {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line2);
+}
+.report-summary-list li:last-child {
+  border-bottom: 0;
+}
+.report-summary-list .summary-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.report-summary-list strong {
+  font-weight: 400;
+}
+.report-summary-list progress {
+  max-width: none;
+  margin: 4px 0 0;
+}
+.report-summary-list small {
+  display: block;
+}
 /* Evidence */
-.path{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:0 0 var(--gap);padding:0;list-style:none;border-radius:5px;background:var(--panel)}
-.path:empty{display:none}
-.path li{min-width:0;padding:10px 12px;box-shadow:inset -1px 0 var(--line2)}.path li:last-child{box-shadow:none}
-.path strong{display:block;font-size:13.5px;font-weight:600}.path b{display:block;font-weight:400}.path p{margin:2px 0 0;color:var(--sub);font-size:12.5px}
-.path li.warn{background:var(--warn-b)}.path li.warn p{color:var(--ink)}
-html .quality-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);margin-bottom:var(--gap)}
-html .quality-grid>.card,html #quality-flags{padding:10px 12px;border:0;border-radius:5px;background:var(--panel)}
-html #quality-flags{border-radius:0}
-.quality-item{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 15px;padding:6px 0;border-bottom:1px solid var(--line2)}.quality-item:last-child{border:0}.quality-item>span:first-child{color:var(--sub)}.quality-item .status:not(.good,.warn,.bad){color:var(--ink);font-weight:400}.quality-item .status:not(.good,.warn,.bad)::before{display:none}
-#quality-flags h3{margin:12px 0 2px}
+.path {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0 0 var(--gap);
+  padding: 0;
+  list-style: none;
+  border-radius: 5px;
+  background: var(--panel);
+}
+.path:empty {
+  display: none;
+}
+.path li {
+  min-width: 0;
+  padding: 10px 12px;
+  box-shadow: inset -1px 0 var(--line2);
+}
+.path li:last-child {
+  box-shadow: none;
+}
+.path strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.path b {
+  display: block;
+  font-weight: 400;
+}
+.path p {
+  margin: 2px 0 0;
+  color: var(--sub);
+  font-size: 12.5px;
+}
+.path li.warn {
+  background: var(--warn-b);
+}
+.path li.warn p {
+  color: var(--ink);
+}
+html .quality-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+html .quality-grid > .card,
+html #quality-flags {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--panel);
+}
+html #quality-flags {
+  border-radius: 0;
+}
+.quality-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 15px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line2);
+}
+.quality-item:last-child {
+  border: 0;
+}
+.quality-item > span:first-child {
+  color: var(--sub);
+}
+.quality-item .status:not(.good, .warn, .bad) {
+  color: var(--ink);
+  font-weight: 400;
+}
+.quality-item .status:not(.good, .warn, .bad)::before {
+  display: none;
+}
+#quality-flags h3 {
+  margin: 12px 0 2px;
+}
 /* Device detail: docked beside the table on wide views, a dialog otherwise */
-dialog{width:min(760px,calc(100vw - 24px));max-height:92vh;overflow:auto;padding:12px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
-dialog::backdrop{background:#0009}
-.dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-html body.docked main{padding-right:346px!important}
-html body.docked dialog{position:fixed;inset:0 0 0 auto;width:338px;max-width:none;height:100%;max-height:none;margin:0;border:0;border-left:1px solid var(--line);border-radius:0}
-.details-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;margin:10px 0}.docked .details-grid{grid-template-columns:1fr 1fr}
-.details-grid dt{color:var(--sub);font-size:12.5px}.details-grid dd{margin:0;overflow-wrap:anywhere}
-dialog .stats{grid-template-columns:1fr 1fr!important}
-dialog .section{background:var(--well)}html dialog .section-head{font-weight:600}
-html .chart{padding:10px 12px;border:0;background:none}.chart svg{display:block;width:100%;height:150px}
-.legend{display:flex;flex-wrap:wrap;gap:3px 14px;margin-bottom:6px;color:var(--sub);font-size:12.5px}.legend span::before{content:"";display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px;background:var(--unk)}.legend .down::before{background:var(--d)}.legend .up::before{background:var(--u)}.legend span:last-child::before{background:repeating-linear-gradient(135deg,var(--sub) 0 1.5px,transparent 1.5px 4px)}
-details{padding:8px 0 0;color:var(--sub);font-size:12.5px}summary{min-height:30px;cursor:pointer}
+dialog {
+  width: min(760px, calc(100vw - 24px));
+  max-height: 92vh;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--ink);
+}
+dialog::backdrop {
+  background: #0009;
+}
+.dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+html body.docked main {
+  padding-right: 346px !important;
+}
+html body.docked dialog {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: 338px;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+}
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 14px;
+  margin: 10px 0;
+}
+.docked .details-grid {
+  grid-template-columns: 1fr 1fr;
+}
+.details-grid dt {
+  color: var(--sub);
+  font-size: 12.5px;
+}
+.details-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+dialog .stats {
+  grid-template-columns: 1fr 1fr !important;
+}
+dialog .section {
+  background: var(--well);
+}
+html dialog .section-head {
+  font-weight: 600;
+}
+html .chart {
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+}
+.chart svg {
+  display: block;
+  width: 100%;
+  height: 150px;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 14px;
+  margin-bottom: 6px;
+  color: var(--sub);
+  font-size: 12.5px;
+}
+.legend span::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 5px;
+  vertical-align: -1px;
+  background: var(--unk);
+}
+.legend .down::before {
+  background: var(--d);
+}
+.legend .up::before {
+  background: var(--u);
+}
+.legend span:last-child::before {
+  background: repeating-linear-gradient(135deg, var(--sub) 0 1.5px, transparent 1.5px 4px);
+}
+details {
+  padding: 8px 0 0;
+  color: var(--sub);
+  font-size: 12.5px;
+}
+summary {
+  min-height: 30px;
+  cursor: pointer;
+}
 /* Internet */
-.wan-events{margin:6px 0 0;padding:0;list-style:none}.wan-events li{padding:5px 0;color:var(--sub);font-size:13px}
-.chart svg.timeline{height:40px;margin:0 0 6px}
-.lkey{display:flex;flex-wrap:wrap;gap:3px 14px;color:var(--sub);font-size:12.5px}.lkey span::before{content:"";display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}.lkey .up::before{background:var(--lane-up);box-shadow:inset 0 0 0 1px var(--good)}.lkey .degraded::before{background:var(--warn)}.lkey .down::before{background:var(--bad)}.lkey .unknown::before{background:repeating-linear-gradient(135deg,var(--sub) 0 1.5px,transparent 1.5px 4px)}
+.wan-events {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.wan-events li {
+  padding: 5px 0;
+  color: var(--sub);
+  font-size: 13px;
+}
+.chart svg.timeline {
+  height: 40px;
+  margin: 0 0 6px;
+}
+.lkey {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 14px;
+  color: var(--sub);
+  font-size: 12.5px;
+}
+.lkey span::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+.lkey .up::before {
+  background: var(--lane-up);
+  box-shadow: inset 0 0 0 1px var(--good);
+}
+.lkey .degraded::before {
+  background: var(--warn);
+}
+.lkey .down::before {
+  background: var(--bad);
+}
+.lkey .unknown::before {
+  background: repeating-linear-gradient(135deg, var(--sub) 0 1.5px, transparent 1.5px 4px);
+}
 /* Monitoring */
-#monitoring-frame{display:block;width:100%;height:calc(100vh - 200px);min-height:560px;border:0;border-radius:5px;background:var(--pg)}.monitoring-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}.monitoring-toolbar p{margin:0;font-size:13px}
+#monitoring-frame {
+  display: block;
+  width: 100%;
+  height: calc(100vh - 200px);
+  min-height: 560px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--pg);
+}
+.monitoring-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.monitoring-toolbar p {
+  margin: 0;
+  font-size: 13px;
+}
 /* Sign-in */
-html .login{max-width:420px;margin:10vh auto;padding:18px;border-radius:5px;background:var(--panel)}.login input{margin-bottom:12px}html .login button{width:100%}.login p{color:var(--sub);font-size:13px}.login-error{color:var(--bad)!important;margin:10px 0 0}.login-error:empty{display:none}
-@media(pointer:coarse),(max-width:900px){:root{--ctl:44px}html .periods button,nav button,summary,html .entity{min-height:44px}}
-@media(max-width:1050px){.layout{grid-template-columns:165px minmax(0,1fr)}html .stats{grid-template-columns:repeat(2,1fr)}html .stats .card:nth-child(2n){box-shadow:none}html .quality-grid{grid-template-columns:1fr}.path{grid-template-columns:repeat(2,minmax(0,1fr))}html .filters{grid-template-columns:1fr 1fr}.filters>button{grid-column:1/-1}}
-@media(max-width:700px){html input,html select{font-size:16px}.layout{display:block}aside{padding:6px;box-shadow:inset 0 -1px var(--line)}aside .caption{display:none}nav{display:flex;overflow:auto}nav button{white-space:nowrap}html .filters,.custom{grid-template-columns:1fr}.filters>button{grid-column:auto}.report-summary-grid{grid-template-columns:1fr}.details-grid{grid-template-columns:1fr 1fr}.monitoring-toolbar{flex-direction:column;align-items:stretch}.periods{display:flex}html .periods button{flex:1 1 auto}
- html .stats .card{padding:9px 12px;border:0}html .metric-value{font-size:21px}
- html .section-head{padding:9px 12px}
- .cards thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.cards,.cards tbody{display:block}.cards tr{display:block;padding:6px 12px;border-bottom:1px solid var(--line2)}.cards tr:last-child{border-bottom:0}.cards td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:2px 0;border:0;white-space:normal;text-align:right}.cards td::before{content:attr(data-label);flex:none;color:var(--sub);font-size:12.5px}.cards td:first-child{display:block;text-align:left}.cards td:first-child::before{content:none}.cards .secondary{max-width:none}.cards progress{max-width:none}.cards td.number{flex-wrap:wrap}}
-@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
-.apps-filters{display:flex;gap:8px;flex-wrap:wrap}#apps-section [hidden],#sites-section [hidden]{display:none!important}.apps-notes{margin:12px 0;padding:10px 10px;list-style:none;border-left:2px solid var(--warn);background:var(--well);color:var(--sub);font-size:13px;display:grid;gap:6px}.apps-block{margin-top:22px;padding:0 12px}.apps-block:last-child{padding-bottom:12px}.apps-block>.table-wrap{margin:0 -12px}.apps-block>#apps-count{margin-left:0}.apps-block h3{font-size:14px;font-weight:600;margin:0 0 10px}.apps-bar .entity{min-height:0;padding:2px 0}.apps-value{font-size:12.5px;color:var(--sub);white-space:nowrap}.apps-generic td{color:var(--sub)}.risk-pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap}.risk-pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--unk)}.risk-low::before{background:var(--good)}.risk-medium::before{background:var(--acc)}.risk-elevated::before{background:var(--warn)}.risk-high::before{background:var(--bad)}.apps-device{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line2)}.apps-device>div{display:grid;gap:2px;min-width:0}.apps-device .secondary{overflow-wrap:anywhere}#apps-count{margin-top:8px}@media(max-width:700px){.apps-main td:nth-child(4),.apps-main td:nth-child(5),.apps-main td:nth-child(6){display:none}}.apps-tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,190px) minmax(170px,210px);gap:8px 12px;align-items:end;margin:14px 0}.apps-field{display:grid;gap:3px;min-width:0}.apps-field label{display:block;margin:0;color:var(--sub);font-size:12.5px;font-weight:500;white-space:nowrap}html .apps-field input,html .apps-field select{width:100%;max-width:100%;margin:0}.apps-table td{vertical-align:top}.apps-table td .secondary{margin-top:1px}@media(max-width:700px){.apps-tools{grid-template-columns:1fr 1fr}.apps-tools .apps-field:first-child{grid-column:1/-1}}.apps-chart{display:grid;gap:6px;margin:14px 0}.apps-bar{display:grid;grid-template-columns:minmax(120px,220px) 1fr minmax(110px,auto);gap:10px;align-items:center}.apps-bar .entity{text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.apps-track{height:10px;background:var(--well);border-radius:5px;overflow:hidden}.apps-fill{height:100%;background:var(--acc);border-radius:5px}.apps-fill.generic{background:var(--unk)}.apps-mix{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--well);margin:12px 0 8px}.apps-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--sub);margin-bottom:10px}.apps-key{display:inline-flex;align-items:center;gap:6px}.apps-key i{width:10px;height:10px;border-radius:2px;display:inline-block}@media(max-width:700px){.apps-bar{grid-template-columns:1fr;gap:4px}}.apps-filters button[aria-pressed="true"]{border-color:var(--accent,currentColor);font-weight:600}.live-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:0 24px}.live-grid .apps-block h3:not(:first-child){margin-top:22px}.live-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.live-track{display:flex}.live-track .apps-fill{border-radius:0}.live-up{background:#b39ddb}.live-meta{display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;padding:0 12px;margin:10px 0 0}.live-status{margin:0}.live-legend{margin:0}#live-section [hidden]{display:none!important}@media(max-width:1050px){.live-grid{grid-template-columns:1fr}}
+html .login {
+  max-width: 420px;
+  margin: 10vh auto;
+  padding: 18px;
+  border-radius: 5px;
+  background: var(--panel);
+}
+.login input {
+  margin-bottom: 12px;
+}
+html .login button {
+  width: 100%;
+}
+.login p {
+  color: var(--sub);
+  font-size: 13px;
+}
+.login-error {
+  color: var(--bad) !important;
+  margin: 10px 0 0;
+}
+.login-error:empty {
+  display: none;
+}
+@media (pointer: coarse), (max-width: 900px) {
+  :root {
+    --ctl: 44px;
+  }
+  html .periods button,
+  nav button,
+  summary,
+  html .entity {
+    min-height: 44px;
+  }
+}
+@media (max-width: 1050px) {
+  .layout {
+    grid-template-columns: 165px minmax(0, 1fr);
+  }
+  html .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  html .stats .card:nth-child(2n) {
+    box-shadow: none;
+  }
+  html .quality-grid {
+    grid-template-columns: 1fr;
+  }
+  .path {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  html .filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .filters > button {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 700px) {
+  html input,
+  html select {
+    font-size: 16px;
+  }
+  .layout {
+    display: block;
+  }
+  aside {
+    padding: 6px;
+    box-shadow: inset 0 -1px var(--line);
+  }
+  aside .caption {
+    display: none;
+  }
+  nav {
+    display: flex;
+    overflow: auto;
+  }
+  nav button {
+    white-space: nowrap;
+  }
+  html .filters,
+  .custom {
+    grid-template-columns: 1fr;
+  }
+  .filters > button {
+    grid-column: auto;
+  }
+  .report-summary-grid {
+    grid-template-columns: 1fr;
+  }
+  .details-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .monitoring-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .periods {
+    display: flex;
+  }
+  html .periods button {
+    flex: 1 1 auto;
+  }
+  html .stats .card {
+    padding: 9px 12px;
+    border: 0;
+  }
+  html .metric-value {
+    font-size: 21px;
+  }
+  html .section-head {
+    padding: 9px 12px;
+  }
+  .cards thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .cards,
+  .cards tbody {
+    display: block;
+  }
+  .cards tr {
+    display: block;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--line2);
+  }
+  .cards tr:last-child {
+    border-bottom: 0;
+  }
+  .cards td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 2px 0;
+    border: 0;
+    white-space: normal;
+    text-align: right;
+  }
+  .cards td::before {
+    content: attr(data-label);
+    flex: none;
+    color: var(--sub);
+    font-size: 12.5px;
+  }
+  .cards td:first-child {
+    display: block;
+    text-align: left;
+  }
+  .cards td:first-child::before {
+    content: none;
+  }
+  .cards .secondary {
+    max-width: none;
+  }
+  .cards progress {
+    max-width: none;
+  }
+  .cards td.number {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+.apps-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#apps-section [hidden],
+#sites-section [hidden] {
+  display: none !important;
+}
+.apps-notes {
+  margin: 12px 0;
+  padding: 10px 10px;
+  list-style: none;
+  border-left: 2px solid var(--warn);
+  background: var(--well);
+  color: var(--sub);
+  font-size: 13px;
+  display: grid;
+  gap: 6px;
+}
+.apps-block {
+  margin-top: 22px;
+  padding: 0 12px;
+}
+.apps-block:last-child {
+  padding-bottom: 12px;
+}
+.apps-block > .table-wrap {
+  margin: 0 -12px;
+}
+.apps-block > #apps-count {
+  margin-left: 0;
+}
+.apps-block h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+.apps-bar .entity {
+  min-height: 0;
+  padding: 2px 0;
+}
+.apps-value {
+  font-size: 12.5px;
+  color: var(--sub);
+  white-space: nowrap;
+}
+.apps-generic td {
+  color: var(--sub);
+}
+.risk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.risk-pill::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--unk);
+}
+.risk-low::before {
+  background: var(--good);
+}
+.risk-medium::before {
+  background: var(--acc);
+}
+.risk-elevated::before {
+  background: var(--warn);
+}
+.risk-high::before {
+  background: var(--bad);
+}
+.apps-device {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line2);
+}
+.apps-device > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.apps-device .secondary {
+  overflow-wrap: anywhere;
+}
+#apps-count {
+  margin-top: 8px;
+}
+@media (max-width: 700px) {
+  .apps-main td:nth-child(4),
+  .apps-main td:nth-child(5),
+  .apps-main td:nth-child(6) {
+    display: none;
+  }
+}
+.apps-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 190px) minmax(170px, 210px);
+  gap: 8px 12px;
+  align-items: end;
+  margin: 14px 0;
+}
+.apps-field {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.apps-field label {
+  display: block;
+  margin: 0;
+  color: var(--sub);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+html .apps-field input,
+html .apps-field select {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+.apps-table td {
+  vertical-align: top;
+}
+.apps-table td .secondary {
+  margin-top: 1px;
+}
+@media (max-width: 700px) {
+  .apps-tools {
+    grid-template-columns: 1fr 1fr;
+  }
+  .apps-tools .apps-field:first-child {
+    grid-column: 1/-1;
+  }
+}
+.apps-chart {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0;
+}
+.apps-bar {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) 1fr minmax(110px, auto);
+  gap: 10px;
+  align-items: center;
+}
+.apps-bar .entity {
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.apps-track {
+  height: 10px;
+  background: var(--well);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.apps-fill {
+  height: 100%;
+  background: var(--acc);
+  border-radius: 5px;
+}
+.apps-fill.generic {
+  background: var(--unk);
+}
+.apps-mix {
+  display: flex;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--well);
+  margin: 12px 0 8px;
+}
+.apps-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 12.5px;
+  color: var(--sub);
+  margin-bottom: 10px;
+}
+.apps-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.apps-key i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+@media (max-width: 700px) {
+  .apps-bar {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+.apps-filters button[aria-pressed="true"] {
+  border-color: var(--accent, currentColor);
+  font-weight: 600;
+}
+.live-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 0 24px;
+}
+.live-grid .apps-block h3:not(:first-child) {
+  margin-top: 22px;
+}
+.live-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-track {
+  display: flex;
+}
+.live-track .apps-fill {
+  border-radius: 0;
+}
+.live-up {
+  background: #b39ddb;
+}
+.live-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: 0 12px;
+  margin: 10px 0 0;
+}
+.live-status {
+  margin: 0;
+}
+.live-legend {
+  margin: 0;
+}
+#live-section [hidden] {
+  display: none !important;
+}
+@media (max-width: 1050px) {
+  .live-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style></head><body>
 <header><div class="brand"><svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 1 1-8.600 6.300" stroke-width="2.400" stroke-linecap="round"/><circle cx="12" cy="12" r="3.200" fill="currentColor" stroke="none"/></svg><div><strong>FortiLens</strong><small>Traffic intelligence</small></div></div><div class="header-right"><span class="status" id="workspace-status">Protected reports</span><button id="logout" hidden>Sign out</button></div></header>
 <section id="login" class="card login"><h1>Your network, in focus.</h1><p><span id="login-caption">Sign in to inspect recorded traffic, VLAN usage and WAN evidence.</span></p><form id="login-form"><label for="username">Username</label><input id="username" value="admin" autocomplete="username" required><label for="password">Reporting password</label><input id="password" type="password" autocomplete="off" required><button class="primary" id="login-submit" type="submit">Open reports</button><p id="login-error" class="login-error" role="alert"></p></form></section>
@@ -142,266 +1310,2157 @@ html .login{max-width:420px;margin:10vh auto;padding:18px;border-radius:5px;back
 <script>
 'use strict';
 // Theme choice is shared with the management shell through same-origin storage.
-function applyTheme(){let theme='';try{theme=localStorage.getItem('fortilens.theme')||''}catch{}if(theme!=='light'&&theme!=='dark'){try{if(window.parent!==window)theme=window.parent.document.documentElement.dataset.theme||''}catch{}}if(theme!=='light'&&theme!=='dark')theme=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';document.documentElement.dataset.theme=theme}
-applyTheme();window.addEventListener('storage',e=>{if(e.key==='fortilens.theme')applyTheme()});
-const $=id=>document.getElementById(id);const state={auth:'',portal:false,view:'overview',period:'today',report:null,page:0,busy:false,monitoringSequence:0};
-const titles={monitoring:['Network monitoring','Firewall health, WAN quality and traffic in your FortiLens workspace.'],live:['Live usage','Who is using the Internet right now, from FortiGate realtime session statistics.'],overview:['Usage overview','Find your largest recorded Internet consumers.'],applications:['Applications','Which applications and categories used the Internet, and which devices used them.'],websites:['Websites','Which websites used the Internet, and which devices used them.'],devices:['Device usage','Search endpoint identities and inspect each device’s recorded history.'],reports:['Period reports','Review recorded totals, largest consumers and segment distribution.'],vlans:['VLAN usage','Inspect recorded usage by exact VLAN and interface mapping.'],wan:['Internet links','Separate Internet SLA, physical link and route-selection evidence.'],quality:['Data quality','See what was received, processed, pending or unavailable.']};
-const requestedSection=document.body.dataset.reportSection||new URLSearchParams(location.search).get('section');
-const reportSection=['devices','vlans','reports','applications','websites','live'].includes(requestedSection)?requestedSection:null;
-const bytes=n=>n===null||n===undefined?'—':Number(n)>=1e12?(Number(n)/1e12).toFixed(2)+' TB':Number(n)>=1e9?(Number(n)/1e9).toFixed(2)+' GB':Number(n)>=1e6?(Number(n)/1e6).toFixed(2)+' MB':Number(n)>=1e3?(Number(n)/1e3).toFixed(2)+' KB':number(n)+' B';
-const number=(n,suffix='')=>n===null||n===undefined?'—':Number(n).toLocaleString(undefined,{maximumFractionDigits:2})+suffix;
-const when=n=>n?new Date(Number(n)*1000).toLocaleString():'Unavailable';
-const element=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e};
-function message(text){$('message').textContent=text||'';$('message').hidden=!text}
+function applyTheme() {
+  let theme = '';
+  try {
+    theme = localStorage.getItem('fortilens.theme') || '';
+  } catch {}
+  if (theme !== 'light' && theme !== 'dark') {
+    try {
+      if (window.parent !== window)
+        theme = window.parent.document.documentElement.dataset.theme || '';
+    } catch {}
+  }
+  if (theme !== 'light' && theme !== 'dark')
+    theme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  document.documentElement.dataset.theme = theme;
+}
+applyTheme();
+window.addEventListener('storage', e => {
+  if (e.key === 'fortilens.theme') applyTheme();
+});
+const $ = id => document.getElementById(id);
+const state = {
+  auth: '',
+  portal: false,
+  view: 'overview',
+  period: 'today',
+  report: null,
+  page: 0,
+  busy: false,
+  monitoringSequence: 0
+};
+const titles = {
+  monitoring: [
+    'Network monitoring',
+    'Firewall health, WAN quality and traffic in your FortiLens workspace.'
+  ],
+  live: [
+    'Live usage',
+    'Who is using the Internet right now, from FortiGate realtime session statistics.'
+  ],
+  overview: ['Usage overview', 'Find your largest recorded Internet consumers.'],
+  applications: [
+    'Applications',
+    'Which applications and categories used the Internet, and which devices used them.'
+  ],
+  websites: ['Websites', 'Which websites used the Internet, and which devices used them.'],
+  devices: [
+    'Device usage',
+    'Search endpoint identities and inspect each device’s recorded history.'
+  ],
+  reports: [
+    'Period reports',
+    'Review recorded totals, largest consumers and segment distribution.'
+  ],
+  vlans: ['VLAN usage', 'Inspect recorded usage by exact VLAN and interface mapping.'],
+  wan: ['Internet links', 'Separate Internet SLA, physical link and route-selection evidence.'],
+  quality: ['Data quality', 'See what was received, processed, pending or unavailable.']
+};
+const requestedSection =
+  document.body.dataset.reportSection || new URLSearchParams(location.search).get('section');
+const reportSection = ['devices', 'vlans', 'reports', 'applications', 'websites', 'live'].includes(
+  requestedSection
+)
+  ? requestedSection
+  : null;
+const bytes = n =>
+  n === null || n === undefined
+    ? '—'
+    : Number(n) >= 1e12
+      ? (Number(n) / 1e12).toFixed(2) + ' TB'
+      : Number(n) >= 1e9
+        ? (Number(n) / 1e9).toFixed(2) + ' GB'
+        : Number(n) >= 1e6
+          ? (Number(n) / 1e6).toFixed(2) + ' MB'
+          : Number(n) >= 1e3
+            ? (Number(n) / 1e3).toFixed(2) + ' KB'
+            : number(n) + ' B';
+const number = (n, suffix = '') =>
+  n === null || n === undefined
+    ? '—'
+    : Number(n).toLocaleString(undefined, {maximumFractionDigits: 2}) + suffix;
+const when = n => (n ? new Date(Number(n) * 1000).toLocaleString() : 'Unavailable');
+const element = (tag, text, cls) => {
+  const e = document.createElement(tag);
+  if (text !== undefined) e.textContent = text;
+  if (cls) e.className = cls;
+  return e;
+};
+function message(text) {
+  $('message').textContent = text || '';
+  $('message').hidden = !text;
+}
 // Monitoring time alignment: only trusted server evidence scopes a default launch.
-function monitoringClockOffset(serverSeconds,clientNow=Date.now()){
- if(serverSeconds===undefined)return undefined;
- if(typeof serverSeconds!=='number'||!Number.isFinite(serverSeconds)||serverSeconds<=0||!Number.isFinite(clientNow))return null;
- const difference=serverSeconds*1000-clientNow;
- if(!Number.isFinite(difference)||Math.abs(difference)>86400000)return null;
- return Math.abs(difference)>60000?Math.round(difference/1000):0;
+function monitoringClockOffset(serverSeconds, clientNow = Date.now()) {
+  if (serverSeconds === undefined) return undefined;
+  if (
+    typeof serverSeconds !== 'number' ||
+    !Number.isFinite(serverSeconds) ||
+    serverSeconds <= 0 ||
+    !Number.isFinite(clientNow)
+  )
+    return null;
+  const difference = serverSeconds * 1000 - clientNow;
+  if (!Number.isFinite(difference) || Math.abs(difference) > 86400000) return null;
+  return Math.abs(difference) > 60000 ? Math.round(difference / 1000) : 0;
 }
-function monitoringLaunch(path,offset,supported){
- const unchanged={path,aligned:false};
- if(typeof path!=='string'||!Number.isInteger(offset)||offset===0||Math.abs(offset)>86400||supported!==true)return unchanged;
- let url;try{url=new URL(path,location.origin)}catch{return unchanged}
- if(url.origin!==location.origin||!/^\/grafana\/d\/[A-Za-z0-9_-]+\/$/.test(url.pathname))return unchanged;
- url.searchParams.set('fortilens-clock','server');
- return {path:url.pathname+url.search+url.hash,aligned:true};
+function monitoringLaunch(path, offset, supported) {
+  const unchanged = {path, aligned: false};
+  if (
+    typeof path !== 'string' ||
+    !Number.isInteger(offset) ||
+    offset === 0 ||
+    Math.abs(offset) > 86400 ||
+    supported !== true
+  )
+    return unchanged;
+  let url;
+  try {
+    url = new URL(path, location.origin);
+  } catch {
+    return unchanged;
+  }
+  if (url.origin !== location.origin || !/^\/grafana\/d\/[A-Za-z0-9_-]+\/$/.test(url.pathname))
+    return unchanged;
+  url.searchParams.set('fortilens-clock', 'server');
+  return {path: url.pathname + url.search + url.hash, aligned: true};
 }
-function monitoringClockNotice(offset,compensated){
- if(offset===undefined||offset===0)return '';
- if(offset===null)return 'Monitoring clock alignment is unavailable. The computer/server time difference could not be used safely; the selected range has not been changed.';
- return compensated?'Your computer clock differs from the server. Monitoring uses server time; stored timestamps and data have not been changed.':'Your computer clock differs from the server. Server-time alignment is unavailable for this monitoring connection; the selected range has not been changed.';
+function monitoringClockNotice(offset, compensated) {
+  if (offset === undefined || offset === 0) return '';
+  if (offset === null)
+    return 'Monitoring clock alignment is unavailable. The computer/server time difference could not be used safely; the selected range has not been changed.';
+  return compensated
+    ? 'Your computer clock differs from the server. Monitoring uses server time; stored timestamps and data have not been changed.'
+    : 'Your computer clock differs from the server. Server-time alignment is unavailable for this monitoring connection; the selected range has not been changed.';
 }
 // End monitoring time alignment.
 // Transport boundary: bounded requests and trusted, redacted UI errors.
-function safeError(message,code='operation_unavailable'){const error=new Error(message);error.code=code;error.fortilensSafe=true;return error}
-function errorText(error,fallback='This operation is unavailable. Review service health and try again.'){return error?.fortilensSafe===true&&typeof error.message==='string'?error.message:fallback}
-function requestError(code,write){const messages={network:'The service could not be reached. Check your connection and service health.',timeout:'The service response timed out. Review service health.',invalid_response:'The service did not return a readable response. Review service health.'};return safeError(messages[code]+(write?' The operation may have completed. Review the current state before trying again.':''),code)}
-function responseError(data,fallback){return typeof data?.error==='string'&&/^[a-z][a-z0-9_]{0,79}$/.test(data.error)&&typeof data.message==='string'&&data.message.length>0&&data.message.length<=600&&!/[\x00-\x1f\x7f]/.test(data.message)?safeError(data.message,data.error):safeError(fallback)}
-async function requestJSON(path,options={},timeoutMs=60000){
- const controller=new AbortController(),write=!['GET','HEAD'].includes((options.method||'GET').toUpperCase());
- let timer,expired=false;
- const deadline=new Promise((resolve,reject)=>{timer=setTimeout(()=>{expired=true;controller.abort();reject(requestError('timeout',write))},timeoutMs)});
- try{
-  return await Promise.race([(async()=>{
-   let response;
-   try{response=await fetch(path,{...options,signal:controller.signal})}catch{throw requestError(expired?'timeout':'network',write)}
-   if(!response||typeof response.status!=='number'||typeof response.json!=='function')throw requestError('invalid_response',write);
-   // Revocation must work even when a proxy returns an HTML or stalled 401 body.
-   if(response.status===401){controller.abort();return {response,data:null}}
-   let data;
-   try{data=await response.json()}catch{throw requestError(expired?'timeout':'invalid_response',write)}
-   if(data===null||typeof data!=='object'||Array.isArray(data))throw requestError('invalid_response',write);
-   return {response,data};
-  })(),deadline]);
- }finally{clearTimeout(timer)}
+function safeError(message, code = 'operation_unavailable') {
+  const error = new Error(message);
+  error.code = code;
+  error.fortilensSafe = true;
+  return error;
 }
-function validPayload(path,data){
- const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
- const route=path.split('?')[0];
- if(route==='/api/report'||route==='/api/device')return object(data.totals)&&Array.isArray(data.devices)&&Array.isArray(data.vlans)&&object(data.flags)&&object(data.processing)&&(route!=='/api/device'||Array.isArray(data.daily_history)&&Array.isArray(data.monthly_history));
- if(route==='/api/applications')return Array.isArray(data.applications)&&Array.isArray(data.categories)&&Array.isArray(data.devices)&&object(data.totals)&&object(data.processing);
- if(route==='/api/websites')return Array.isArray(data.sites)&&Array.isArray(data.devices)&&object(data.summary)&&typeof data.enabled==='boolean';
- if(route==='/api/live')return object(data.totals)&&Array.isArray(data.devices)&&Array.isArray(data.applications)&&Array.isArray(data.vlans)&&Array.isArray(data.links)&&typeof data.observed_at==='number';
- if(route==='/api/wan')return Array.isArray(data.interfaces)&&object(data.route)&&typeof data.observed_at==='number';
- if(route==='/api/monitoring-status')return typeof data.available==='boolean'&&(!data.available||typeof data.path==='string');
- if(route==='/api/session')return typeof data.authenticated==='boolean';
- if(route==='/api/session/logout')return data.authenticated===false;
- if(route==='/api/portal')return typeof data.enabled==='boolean';
- return true;
+function errorText(
+  error,
+  fallback = 'This operation is unavailable. Review service health and try again.'
+) {
+  return error?.fortilensSafe === true && typeof error.message === 'string'
+    ? error.message
+    : fallback;
 }
-async function api(path){
- const {response,data}=await requestJSON(path,{headers:state.portal?{}:{Authorization:state.auth},credentials:'same-origin',cache:'no-store'});
- if(response.status===401){signedOut();throw safeError('Your session has expired or sign-in was rejected. Please sign in again.','authentication_required')}
- if(!response.ok)throw responseError(data,'Required evidence is unavailable. No zero usage or outage is inferred.');
- if(!validPayload(path,data))throw requestError('invalid_response',false);
- return data;
+function requestError(code, write) {
+  const messages = {
+    network: 'The service could not be reached. Check your connection and service health.',
+    timeout: 'The service response timed out. Review service health.',
+    invalid_response: 'The service did not return a readable response. Review service health.'
+  };
+  return safeError(
+    messages[code] +
+      (write
+        ? ' The operation may have completed. Review the current state before trying again.'
+        : ''),
+    code
+  );
 }
-async function sessionAction(path,body){
- const {response,data}=await requestJSON(path,{method:'POST',headers:{'Content-Type':'application/json','X-FortiLens-Request':'1'},credentials:'same-origin',cache:'no-store',body:JSON.stringify(body||{})});
- if(!response.ok&&response.status!==401)throw responseError(data,'The session operation could not be confirmed. Review your current sign-in state.');
- if(response.ok&&!validPayload(path,data))throw requestError('invalid_response',true);
- return response;
+function responseError(data, fallback) {
+  return typeof data?.error === 'string' &&
+    /^[a-z][a-z0-9_]{0,79}$/.test(data.error) &&
+    typeof data.message === 'string' &&
+    data.message.length > 0 &&
+    data.message.length <= 600 &&
+    !/[\x00-\x1f\x7f]/.test(data.message)
+    ? safeError(data.message, data.error)
+    : safeError(fallback);
+}
+async function requestJSON(path, options = {}, timeoutMs = 60000) {
+  const controller = new AbortController(),
+    write = !['GET', 'HEAD'].includes((options.method || 'GET').toUpperCase());
+  let timer,
+    expired = false;
+  const deadline = new Promise((resolve, reject) => {
+    timer = setTimeout(() => {
+      expired = true;
+      controller.abort();
+      reject(requestError('timeout', write));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      (async () => {
+        let response;
+        try {
+          response = await fetch(path, {...options, signal: controller.signal});
+        } catch {
+          throw requestError(expired ? 'timeout' : 'network', write);
+        }
+        if (!response || typeof response.status !== 'number' || typeof response.json !== 'function')
+          throw requestError('invalid_response', write);
+        // Revocation must work even when a proxy returns an HTML or stalled 401 body.
+        if (response.status === 401) {
+          controller.abort();
+          return {response, data: null};
+        }
+        let data;
+        try {
+          data = await response.json();
+        } catch {
+          throw requestError(expired ? 'timeout' : 'invalid_response', write);
+        }
+        if (data === null || typeof data !== 'object' || Array.isArray(data))
+          throw requestError('invalid_response', write);
+        return {response, data};
+      })(),
+      deadline
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function validPayload(path, data) {
+  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const route = path.split('?')[0];
+  if (route === '/api/report' || route === '/api/device')
+    return (
+      object(data.totals) &&
+      Array.isArray(data.devices) &&
+      Array.isArray(data.vlans) &&
+      object(data.flags) &&
+      object(data.processing) &&
+      (route !== '/api/device' ||
+        (Array.isArray(data.daily_history) && Array.isArray(data.monthly_history)))
+    );
+  if (route === '/api/applications')
+    return (
+      Array.isArray(data.applications) &&
+      Array.isArray(data.categories) &&
+      Array.isArray(data.devices) &&
+      object(data.totals) &&
+      object(data.processing)
+    );
+  if (route === '/api/websites')
+    return (
+      Array.isArray(data.sites) &&
+      Array.isArray(data.devices) &&
+      object(data.summary) &&
+      typeof data.enabled === 'boolean'
+    );
+  if (route === '/api/live')
+    return (
+      object(data.totals) &&
+      Array.isArray(data.devices) &&
+      Array.isArray(data.applications) &&
+      Array.isArray(data.vlans) &&
+      Array.isArray(data.links) &&
+      typeof data.observed_at === 'number'
+    );
+  if (route === '/api/wan')
+    return (
+      Array.isArray(data.interfaces) && object(data.route) && typeof data.observed_at === 'number'
+    );
+  if (route === '/api/monitoring-status')
+    return (
+      typeof data.available === 'boolean' && (!data.available || typeof data.path === 'string')
+    );
+  if (route === '/api/session') return typeof data.authenticated === 'boolean';
+  if (route === '/api/session/logout') return data.authenticated === false;
+  if (route === '/api/portal') return typeof data.enabled === 'boolean';
+  return true;
+}
+async function api(path) {
+  const {response, data} = await requestJSON(path, {
+    headers: state.portal ? {} : {Authorization: state.auth},
+    credentials: 'same-origin',
+    cache: 'no-store'
+  });
+  if (response.status === 401) {
+    signedOut();
+    throw safeError(
+      'Your session has expired or sign-in was rejected. Please sign in again.',
+      'authentication_required'
+    );
+  }
+  if (!response.ok)
+    throw responseError(
+      data,
+      'Required evidence is unavailable. No zero usage or outage is inferred.'
+    );
+  if (!validPayload(path, data)) throw requestError('invalid_response', false);
+  return data;
+}
+async function sessionAction(path, body) {
+  const {response, data} = await requestJSON(path, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-FortiLens-Request': '1'},
+    credentials: 'same-origin',
+    cache: 'no-store',
+    body: JSON.stringify(body || {})
+  });
+  if (!response.ok && response.status !== 401)
+    throw responseError(
+      data,
+      'The session operation could not be confirmed. Review your current sign-in state.'
+    );
+  if (response.ok && !validPayload(path, data)) throw requestError('invalid_response', true);
+  return response;
 }
 // End transport boundary.
 // Managed navigation reuses recent reports only inside the authenticated parent.
 // Nothing is persisted in browser storage, and standalone views never share it.
-function sharedReportCache(){
- try{
-  if(window.parent===window||!location.pathname.startsWith('/console/')||window.parent.location.origin!==location.origin)return null;
-  if(window.parent.document.getElementById('console-frame')?.contentWindow!==window)return null;
-  const cache=window.parent.__fortilensReportCache;
-  return cache&&typeof cache.epoch==='string'&&Array.isArray(cache.entries)?cache:null;
- }catch{return null}
+function sharedReportCache() {
+  try {
+    if (
+      window.parent === window ||
+      !location.pathname.startsWith('/console/') ||
+      window.parent.location.origin !== location.origin
+    )
+      return null;
+    if (window.parent.document.getElementById('console-frame')?.contentWindow !== window)
+      return null;
+    const cache = window.parent.__fortilensReportCache;
+    return cache && typeof cache.epoch === 'string' && Array.isArray(cache.entries) ? cache : null;
+  } catch {
+    return null;
+  }
 }
-function reportCacheCurrent(entry,selection,age){
- if(age<0||age>5000||entry.selection!==selection)return false;
- const period=new URLSearchParams(selection).get('period');
- if(!['today','week','month','year'].includes(period))return true;
- // Server report time plus monotonic age handles a skewed workstation clock.
- try{
-  const formatter=new Intl.DateTimeFormat('en-CA',{timeZone:entry.timezone,year:'numeric',month:'2-digit',...(period==='today'||period==='week'?{day:'2-digit'}:{})});
-  const end=Date.parse(entry.end);
-  return Number.isFinite(end)&&formatter.format(new Date(end))===formatter.format(new Date(end+age));
- }catch{return false}
+function reportCacheCurrent(entry, selection, age) {
+  if (age < 0 || age > 5000 || entry.selection !== selection) return false;
+  const period = new URLSearchParams(selection).get('period');
+  if (!['today', 'week', 'month', 'year'].includes(period)) return true;
+  // Server report time plus monotonic age handles a skewed workstation clock.
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: entry.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      ...(period === 'today' || period === 'week' ? {day: '2-digit'} : {})
+    });
+    const end = Date.parse(entry.end);
+    return (
+      Number.isFinite(end) &&
+      formatter.format(new Date(end)) === formatter.format(new Date(end + age))
+    );
+  } catch {
+    return false;
+  }
 }
-async function reuseReport(selection){
- const cache=sharedReportCache();if(!cache)return null;
- const now=window.parent.performance.now();
- cache.entries=cache.entries.filter(entry=>now-entry.created>=0&&now-entry.created<=5000);
- const entry=cache.entries.find(entry=>reportCacheCurrent(entry,selection,now-entry.created));
- if(!entry)return null;
- // A hit must still observe revocation, even during fast iframe navigation.
- const session=await api('/api/session');
- if(!session.authenticated){signedOut();throw safeError('Your session has expired. Please sign in again.','authentication_required')}
- if(sharedReportCache()!==cache||!state.auth||!reportCacheCurrent(entry,selection,window.parent.performance.now()-entry.created))return null;
- return JSON.parse(entry.json);
+async function reuseReport(selection) {
+  const cache = sharedReportCache();
+  if (!cache) return null;
+  const now = window.parent.performance.now();
+  cache.entries = cache.entries.filter(
+    entry => now - entry.created >= 0 && now - entry.created <= 5000
+  );
+  const entry = cache.entries.find(entry =>
+    reportCacheCurrent(entry, selection, now - entry.created)
+  );
+  if (!entry) return null;
+  // A hit must still observe revocation, even during fast iframe navigation.
+  const session = await api('/api/session');
+  if (!session.authenticated) {
+    signedOut();
+    throw safeError('Your session has expired. Please sign in again.', 'authentication_required');
+  }
+  if (
+    sharedReportCache() !== cache ||
+    !state.auth ||
+    !reportCacheCurrent(entry, selection, window.parent.performance.now() - entry.created)
+  )
+    return null;
+  return JSON.parse(entry.json);
 }
-function rememberReport(selection,report){
- const cache=sharedReportCache();if(!cache)return;
- const json=JSON.stringify(report);
- if(new TextEncoder().encode(json).byteLength>2*1024*1024)return;
- cache.entries=cache.entries.filter(entry=>entry.selection!==selection).slice(-1);
- cache.entries.push({selection,json,created:window.parent.performance.now(),end:report.end_utc,timezone:report.timezone});
+function rememberReport(selection, report) {
+  const cache = sharedReportCache();
+  if (!cache) return;
+  const json = JSON.stringify(report);
+  if (new TextEncoder().encode(json).byteLength > 2 * 1024 * 1024) return;
+  cache.entries = cache.entries.filter(entry => entry.selection !== selection).slice(-1);
+  cache.entries.push({
+    selection,
+    json,
+    created: window.parent.performance.now(),
+    end: report.end_utc,
+    timezone: report.timezone
+  });
 }
-function clearReportCache(){const cache=sharedReportCache();if(cache)cache.entries=[]}
+function clearReportCache() {
+  const cache = sharedReportCache();
+  if (cache) cache.entries = [];
+}
 // Request order: each loader takes a new token, and a reply whose token is no longer the
 // newest is dropped. invalidate() makes the request in flight stale without starting one.
-function latest(counter){const token=state[counter]=(state[counter]||0)+1;return()=>token===state[counter]}
-function invalidate(counter){latest(counter)}
-function signedOut(){clearReportCache();state.auth='';state.report=null;state.page=0;state.pending=false;invalidate('wanSequence');invalidate('monitoringSequence');$('monitoring-clock-warning').hidden=true;$('monitoring-frame').removeAttribute('src');$('monitoring-frame').hidden=true;$('application').hidden=true;$('login').hidden=false;$('logout').hidden=true;for(const id of ['report-consumers','report-segments','device-body','vlan-body','wan-body','wan-history','quality-path','quality-state','quality-flags','stats','details-content'])$(id).replaceChildren();$('details').close()}
-function signedIn(){state.auth=state.portal?true:state.auth;$('login').hidden=true;$('application').hidden=false;$('logout').hidden=false;$('login-error').textContent='';setView(state.portal?(location.hash.slice(1)||'monitoring'):'overview')}
-async function loadMonitoring(){if(!state.portal||!state.auth)return;const current=latest('monitoringSequence');$('monitoring-frame').hidden=true;$('monitoring-frame').removeAttribute('src');$('monitoring-clock-warning').hidden=true;$('monitoring-message').hidden=false;$('monitoring-message').textContent='Connecting to monitoring...';$('reload-monitoring').disabled=true;try{const r=await api('/api/monitoring-status');if(!current()||!state.auth)return;if(!r.available||!r.path.startsWith('/grafana/d/'))throw safeError('Monitoring is unavailable. Reports remain available.');const offset=monitoringClockOffset(r.server_time_seconds),launch=monitoringLaunch(r.path,offset,r.server_clock_supported),clockNotice=monitoringClockNotice(offset,launch.aligned);$('monitoring-clock-warning').textContent=clockNotice;$('monitoring-clock-warning').hidden=!clockNotice;$('monitoring-frame').src=launch.path;$('monitoring-frame').hidden=false;$('monitoring-message').hidden=true}catch(e){if(current())$('monitoring-message').textContent='Monitoring is unavailable. Reports remain available. '+errorText(e)}finally{if(current())$('reload-monitoring').disabled=false}}
-async function prepareWorkspace(){
- try{const {response,data}=await requestJSON('/api/portal',{credentials:'same-origin',cache:'no-store'});if(response.ok){if(!validPayload('/api/portal',data))throw requestError('invalid_response',false);state.portal=data.enabled===true}}catch(error){$('login-error').textContent=errorText(error)}
- if(state.portal){$('monitoring-nav').hidden=false;$('workspace-status').textContent='Unified workspace';$('login-caption').textContent='One sign-in for network monitoring, device reports and data quality. Your session expires automatically and is cleared on sign-out.';$('login-submit').textContent='Open FortiLens';
-  try{const {response,data}=await requestJSON('/api/session',{credentials:'same-origin',cache:'no-store'});if(response.ok){if(!validPayload('/api/session',data))throw requestError('invalid_response',false);if(data.authenticated)signedIn();else clearReportCache()}else if(response.status===401)clearReportCache();else $('login-error').textContent=errorText(responseError(data,'Session status is unavailable.'))}catch(error){$('login-error').textContent=errorText(error)}
- }
+function latest(counter) {
+  const token = (state[counter] = (state[counter] || 0) + 1);
+  return () => token === state[counter];
 }
-const workspaceReady=prepareWorkspace().catch(error=>{$('login-error').textContent=errorText(error)});
-function params(){const q=new URLSearchParams({period:state.period,search:$('search').value,vlan:$('vlan').value});if(state.period==='custom'){if(!$('start').value||!$('end').value)throw safeError('Choose both custom range boundaries.');q.set('start',new Date($('start').value).toISOString());q.set('end',new Date($('end').value).toISOString())}return q}
-function labelRow(tr,names){names.forEach((name,i)=>{if(tr.children[i])tr.children[i].dataset.label=name})}
-function badge(text,kind=''){return element('span',text,'status '+kind)}
-function stat(label,value,caption,color=''){const card=element('div',undefined,'card');card.append(element('div',label,'metric-label'),element('div',value,'metric-value '+color),element('small',caption));return card}
-function renderStats(r){$('stats').replaceChildren(stat('Recorded download',bytes(r.totals.download_bytes),'Received response bytes','blue'),stat('Recorded upload',bytes(r.totals.upload_bytes),'Internal-origin sent bytes','purple'),stat('Assigned Internet usage',r.totals.upload_bytes===null?'—':bytes(r.totals.upload_bytes+r.totals.download_bytes),'Upload + download; pending excluded'),stat('Observed endpoint identities',r.devices.length?number(r.observed_endpoint_identities):'—',number(r.unverified_endpoint_identities)+' without stable MAC identity'));const pending=(r.totals.pending_upload_bytes||0)+(r.totals.pending_download_bytes||0);$('evidence-note').textContent='Recorded traffic is not certified billing. '+(pending?'Pending counter candidates: '+bytes(pending)+' (not added to assigned totals; candidates may overlap). ':'')+'Missing records, uncertain identities and cross-boundary intervals remain visible in Data quality.'+clockNote(r.source_clock_ahead_seconds);$('range-label').textContent=r.start_utc+' → '+r.end_utc;$('timezone').textContent='Accounting days: '+(r.timezone_label||r.timezone);$('coverage').textContent=r.status==='UNAVAILABLE'?'No accounting evidence':'Recorded data · coverage unknown'}
+function invalidate(counter) {
+  latest(counter);
+}
+function signedOut() {
+  clearReportCache();
+  state.auth = '';
+  state.report = null;
+  state.page = 0;
+  state.pending = false;
+  invalidate('wanSequence');
+  invalidate('monitoringSequence');
+  $('monitoring-clock-warning').hidden = true;
+  $('monitoring-frame').removeAttribute('src');
+  $('monitoring-frame').hidden = true;
+  $('application').hidden = true;
+  $('login').hidden = false;
+  $('logout').hidden = true;
+  for (const id of [
+    'report-consumers',
+    'report-segments',
+    'device-body',
+    'vlan-body',
+    'wan-body',
+    'wan-history',
+    'quality-path',
+    'quality-state',
+    'quality-flags',
+    'stats',
+    'details-content'
+  ])
+    $(id).replaceChildren();
+  $('details').close();
+}
+function signedIn() {
+  state.auth = state.portal ? true : state.auth;
+  $('login').hidden = true;
+  $('application').hidden = false;
+  $('logout').hidden = false;
+  $('login-error').textContent = '';
+  setView(state.portal ? location.hash.slice(1) || 'monitoring' : 'overview');
+}
+async function loadMonitoring() {
+  if (!state.portal || !state.auth) return;
+  const current = latest('monitoringSequence');
+  $('monitoring-frame').hidden = true;
+  $('monitoring-frame').removeAttribute('src');
+  $('monitoring-clock-warning').hidden = true;
+  $('monitoring-message').hidden = false;
+  $('monitoring-message').textContent = 'Connecting to monitoring...';
+  $('reload-monitoring').disabled = true;
+  try {
+    const r = await api('/api/monitoring-status');
+    if (!current() || !state.auth) return;
+    if (!r.available || !r.path.startsWith('/grafana/d/'))
+      throw safeError('Monitoring is unavailable. Reports remain available.');
+    const offset = monitoringClockOffset(r.server_time_seconds),
+      launch = monitoringLaunch(r.path, offset, r.server_clock_supported),
+      clockNotice = monitoringClockNotice(offset, launch.aligned);
+    $('monitoring-clock-warning').textContent = clockNotice;
+    $('monitoring-clock-warning').hidden = !clockNotice;
+    $('monitoring-frame').src = launch.path;
+    $('monitoring-frame').hidden = false;
+    $('monitoring-message').hidden = true;
+  } catch (e) {
+    if (current())
+      $('monitoring-message').textContent =
+        'Monitoring is unavailable. Reports remain available. ' + errorText(e);
+  } finally {
+    if (current()) $('reload-monitoring').disabled = false;
+  }
+}
+async function prepareWorkspace() {
+  try {
+    const {response, data} = await requestJSON('/api/portal', {
+      credentials: 'same-origin',
+      cache: 'no-store'
+    });
+    if (response.ok) {
+      if (!validPayload('/api/portal', data)) throw requestError('invalid_response', false);
+      state.portal = data.enabled === true;
+    }
+  } catch (error) {
+    $('login-error').textContent = errorText(error);
+  }
+  if (state.portal) {
+    $('monitoring-nav').hidden = false;
+    $('workspace-status').textContent = 'Unified workspace';
+    $('login-caption').textContent =
+      'One sign-in for network monitoring, device reports and data quality. Your session expires automatically and is cleared on sign-out.';
+    $('login-submit').textContent = 'Open FortiLens';
+    try {
+      const {response, data} = await requestJSON('/api/session', {
+        credentials: 'same-origin',
+        cache: 'no-store'
+      });
+      if (response.ok) {
+        if (!validPayload('/api/session', data)) throw requestError('invalid_response', false);
+        if (data.authenticated) signedIn();
+        else clearReportCache();
+      } else if (response.status === 401) clearReportCache();
+      else
+        $('login-error').textContent = errorText(
+          responseError(data, 'Session status is unavailable.')
+        );
+    } catch (error) {
+      $('login-error').textContent = errorText(error);
+    }
+  }
+}
+const workspaceReady = prepareWorkspace().catch(error => {
+  $('login-error').textContent = errorText(error);
+});
+function params() {
+  const q = new URLSearchParams({
+    period: state.period,
+    search: $('search').value,
+    vlan: $('vlan').value
+  });
+  if (state.period === 'custom') {
+    if (!$('start').value || !$('end').value)
+      throw safeError('Choose both custom range boundaries.');
+    q.set('start', new Date($('start').value).toISOString());
+    q.set('end', new Date($('end').value).toISOString());
+  }
+  return q;
+}
+function labelRow(tr, names) {
+  names.forEach((name, i) => {
+    if (tr.children[i]) tr.children[i].dataset.label = name;
+  });
+}
+function badge(text, kind = '') {
+  return element('span', text, 'status ' + kind);
+}
+function stat(label, value, caption, color = '') {
+  const card = element('div', undefined, 'card');
+  card.append(
+    element('div', label, 'metric-label'),
+    element('div', value, 'metric-value ' + color),
+    element('small', caption)
+  );
+  return card;
+}
+function renderStats(r) {
+  $('stats').replaceChildren(
+    stat('Recorded download', bytes(r.totals.download_bytes), 'Received response bytes', 'blue'),
+    stat('Recorded upload', bytes(r.totals.upload_bytes), 'Internal-origin sent bytes', 'purple'),
+    stat(
+      'Assigned Internet usage',
+      r.totals.upload_bytes === null ? '—' : bytes(r.totals.upload_bytes + r.totals.download_bytes),
+      'Upload + download; pending excluded'
+    ),
+    stat(
+      'Observed endpoint identities',
+      r.devices.length ? number(r.observed_endpoint_identities) : '—',
+      number(r.unverified_endpoint_identities) + ' without stable MAC identity'
+    )
+  );
+  const pending = (r.totals.pending_upload_bytes || 0) + (r.totals.pending_download_bytes || 0);
+  $('evidence-note').textContent =
+    'Recorded traffic is not certified billing. ' +
+    (pending
+      ? 'Pending counter candidates: ' +
+        bytes(pending) +
+        ' (not added to assigned totals; candidates may overlap). '
+      : '') +
+    'Missing records, uncertain identities and cross-boundary intervals remain visible in Data quality.' +
+    clockNote(r.source_clock_ahead_seconds);
+  $('range-label').textContent = r.start_utc + ' → ' + r.end_utc;
+  $('timezone').textContent = 'Accounting days: ' + (r.timezone_label || r.timezone);
+  $('coverage').textContent =
+    r.status === 'UNAVAILABLE' ? 'No accounting evidence' : 'Recorded data · coverage unknown';
+}
 // The worker reports when the FortiGate's newest records are ahead of this server's clock.
-function clockNote(seconds){const s=Math.round(Number(seconds)||0);if(s<60)return'';const span=s<120?s+' seconds':Math.floor(s/60)+' min '+s%60+' s';return' FortiGate log times are '+span+' ahead of this server\'s clock, so this period runs to the newest record received. Synchronize both clocks; Diagnostics explains how.'}
-function vlanName(v){return v.status==='MAPPED'?'VLAN '+v.vlan_id:v.status==='NOT_VLAN'?'Interface segment':'VLAN not verified'}
-function renderDevices(){const r=state.report;if(!r)return;let devices=r.devices;const cap=$('top').value;if(cap!=='all')devices=devices.slice(0,Number(cap));const size=50;state.page=Math.min(state.page,Math.max(0,Math.ceil(devices.length/size)-1));const page=devices.slice(state.page*size,(state.page+1)*size);$('device-body').replaceChildren();const max=devices[0]?.total_bytes||1;for(const d of page){const tr=element('tr'),name=element('td'),link=element('button',d.hostname||d.ip||'Unidentified endpoint','entity');link.addEventListener('click',()=>{for(const row of document.querySelectorAll('tr.sel'))row.classList.remove('sel');tr.classList.add('sel');openDevice(d.device_id)});name.append(link,element('span',d.ip||'No source IP','secondary'));const identity=identityCell(d);const vlans=element('td',d.vlans.map(v=>vlanName(v)+' / '+v.interface).join(', '));tr.append(name,identity,vlans);for(const n of [d.download_bytes,d.upload_bytes,d.total_bytes]){const td=element('td',bytes(n),'number');td.title=String(n)+' bytes';tr.append(td)}if(state.period==='recent')tr.lastChild.append(element('span',number(d.total_bytes*8/300/1e6)+' Mbps recorded average','secondary'));const p=element('progress');p.max=max;p.value=d.total_bytes;p.setAttribute('aria-label','Relative assigned usage');tr.lastChild.append(p);labelRow(tr,['Device','Identity','Segment','Download','Upload','Total']);$('device-body').append(tr)}$('device-empty').hidden=devices.length>0;$('device-count').textContent=number(devices.length)+' identities · page '+(state.page+1)+' of '+Math.max(1,Math.ceil(devices.length/size));$('previous').disabled=state.page===0;$('next').disabled=(state.page+1)*size>=devices.length;$('device-title').textContent=cap==='all'?'Observed endpoint identities':'Largest recorded consumers';$('device-caption').textContent=state.period==='recent'?'Recorded bytes during the last 5 minutes; not instantaneous per-device bandwidth.':'Upload + download for the selected period. Device names are not authenticated-user accounts.'}
-function renderVlans(r){$('vlan-body').replaceChildren();for(const v of r.vlans){const tr=element('tr'),cell=element('td'),button=element('button',vlanName(v.vlan),'entity');button.addEventListener('click',()=>{$('vlan').value=v.vlan.key;loadReport()});cell.append(button);tr.append(cell,element('td',v.vlan.interface),element('td',number(v.observed_endpoint_identities),'number'),element('td',bytes(v.download_bytes),'number'),element('td',bytes(v.upload_bytes),'number'),element('td',bytes(v.total_bytes),'number'));labelRow(tr,['VLAN','Interface','Identities','Download','Upload','Total']);$('vlan-body').append(tr)}$('vlan-empty').hidden=r.vlans.length>0;const current=$('vlan').value;const known=new Set([...$('vlan').options].map(x=>x.value));const add=(key,text)=>{if(known.has(key))return;known.add(key);const o=element('option',text);o.value=key;$('vlan').append(o)};for(const v of r.vlans)add(v.vlan.key,vlanName(v.vlan)+' / '+v.vlan.interface);
- // Every VLAN the FortiGate reports is selectable, including ones with no received records.
- const configured=configuredVlans(),seen=new Set(r.vlans.map(v=>v.vlan.key));for(const v of configured)add(v.key,'VLAN '+v.vlan_id+' / '+v.interface);$('vlan').value=current;
- const missing=configured.filter(v=>!seen.has(v.key));$('vlan-missing').hidden=!missing.length;$('vlan-missing').textContent=missing.length?'No Internet records in this period from '+missing.map(v=>v.interface+' (VLAN '+v.vlan_id+')').join(', ')+'. FortiLens only counts sessions the FortiGate logs, so check that the firewall policies for these VLANs log all sessions.':'';
- if(r.vlans.some(v=>v.vlan.status==='UNKNOWN'))$('vlan-missing').hidden=false,$('vlan-missing').textContent+=(missing.length?' ':'')+'"VLAN not verified" rows are records received before FortiLens confirmed the interface mapping; they belong to the interface shown.'}
-function configuredVlans(){if(state.inventory===undefined){state.inventory=null;api('/api/inventory').then(d=>{state.inventory=d.interfaces||[];if(state.report)renderVlans(state.report)}).catch(()=>{state.inventory=[]})}return(state.inventory||[]).filter(x=>x.type==='vlan'&&x.vlan_id!=null&&x.parent).map(x=>({key:'vlan:'+x.vlan_id+':'+x.name,vlan_id:x.vlan_id,interface:x.name})).sort((a,b)=>a.vlan_id-b.vlan_id)}
-function renderReportSummary(r){
- const consumers=$('report-consumers'),segments=$('report-segments');consumers.replaceChildren();segments.replaceChildren();
- for(const d of r.devices.slice(0,5)){const li=element('li'),line=element('div',undefined,'summary-line'),link=element('button',d.hostname||d.ip||'Unidentified endpoint','entity');link.addEventListener('click',()=>openDevice(d.device_id));line.append(link,element('strong',bytes(d.total_bytes)));li.append(line,element('small',[d.ip,d.mac||d.identity_kind].filter(Boolean).join(' · ')));consumers.append(li)}
- const largest=Math.max(1,...r.vlans.map(v=>Number(v.total_bytes)||0));
- for(const v of r.vlans){const li=element('li'),line=element('div',undefined,'summary-line'),label=element('span',vlanName(v.vlan)+' / '+v.vlan.interface),bar=element('progress');line.append(label,element('strong',bytes(v.total_bytes)));bar.max=largest;bar.value=v.total_bytes;bar.setAttribute('aria-label','Relative recorded usage for '+v.vlan.interface);li.append(line,bar,element('small',number(v.observed_endpoint_identities)+' observed identities'));segments.append(li)}
- if(!r.devices.length)consumers.append(element('li','No received device evidence for this selection.','muted'));
- if(!r.vlans.length)segments.append(element('li','No received segment evidence for this selection.','muted'));
+function clockNote(seconds) {
+  const s = Math.round(Number(seconds) || 0);
+  if (s < 60) return '';
+  const span = s < 120 ? s + ' seconds' : Math.floor(s / 60) + ' min ' + (s % 60) + ' s';
+  return (
+    ' FortiGate log times are ' +
+    span +
+    " ahead of this server's clock, so this period runs to the newest record received. Synchronize both clocks; Diagnostics explains how."
+  );
+}
+function vlanName(v) {
+  return v.status === 'MAPPED'
+    ? 'VLAN ' + v.vlan_id
+    : v.status === 'NOT_VLAN'
+      ? 'Interface segment'
+      : 'VLAN not verified';
+}
+function renderDevices() {
+  const r = state.report;
+  if (!r) return;
+  let devices = r.devices;
+  const cap = $('top').value;
+  if (cap !== 'all') devices = devices.slice(0, Number(cap));
+  const size = 50;
+  state.page = Math.min(state.page, Math.max(0, Math.ceil(devices.length / size) - 1));
+  const page = devices.slice(state.page * size, (state.page + 1) * size);
+  $('device-body').replaceChildren();
+  const max = devices[0]?.total_bytes || 1;
+  for (const d of page) {
+    const tr = element('tr'),
+      name = element('td'),
+      link = element('button', d.hostname || d.ip || 'Unidentified endpoint', 'entity');
+    link.addEventListener('click', () => {
+      for (const row of document.querySelectorAll('tr.sel')) row.classList.remove('sel');
+      tr.classList.add('sel');
+      openDevice(d.device_id);
+    });
+    name.append(link, element('span', d.ip || 'No source IP', 'secondary'));
+    const identity = identityCell(d);
+    const vlans = element('td', d.vlans.map(v => vlanName(v) + ' / ' + v.interface).join(', '));
+    tr.append(name, identity, vlans);
+    for (const n of [d.download_bytes, d.upload_bytes, d.total_bytes]) {
+      const td = element('td', bytes(n), 'number');
+      td.title = String(n) + ' bytes';
+      tr.append(td);
+    }
+    if (state.period === 'recent')
+      tr.lastChild.append(
+        element(
+          'span',
+          number((d.total_bytes * 8) / 300 / 1e6) + ' Mbps recorded average',
+          'secondary'
+        )
+      );
+    const p = element('progress');
+    p.max = max;
+    p.value = d.total_bytes;
+    p.setAttribute('aria-label', 'Relative assigned usage');
+    tr.lastChild.append(p);
+    labelRow(tr, ['Device', 'Identity', 'Segment', 'Download', 'Upload', 'Total']);
+    $('device-body').append(tr);
+  }
+  $('device-empty').hidden = devices.length > 0;
+  $('device-count').textContent =
+    number(devices.length) +
+    ' identities · page ' +
+    (state.page + 1) +
+    ' of ' +
+    Math.max(1, Math.ceil(devices.length / size));
+  $('previous').disabled = state.page === 0;
+  $('next').disabled = (state.page + 1) * size >= devices.length;
+  $('device-title').textContent =
+    cap === 'all' ? 'Observed endpoint identities' : 'Largest recorded consumers';
+  $('device-caption').textContent =
+    state.period === 'recent'
+      ? 'Recorded bytes during the last 5 minutes; not instantaneous per-device bandwidth.'
+      : 'Upload + download for the selected period. Device names are not authenticated-user accounts.';
+}
+function renderVlans(r) {
+  $('vlan-body').replaceChildren();
+  for (const v of r.vlans) {
+    const tr = element('tr'),
+      cell = element('td'),
+      button = element('button', vlanName(v.vlan), 'entity');
+    button.addEventListener('click', () => {
+      $('vlan').value = v.vlan.key;
+      loadReport();
+    });
+    cell.append(button);
+    tr.append(
+      cell,
+      element('td', v.vlan.interface),
+      element('td', number(v.observed_endpoint_identities), 'number'),
+      element('td', bytes(v.download_bytes), 'number'),
+      element('td', bytes(v.upload_bytes), 'number'),
+      element('td', bytes(v.total_bytes), 'number')
+    );
+    labelRow(tr, ['VLAN', 'Interface', 'Identities', 'Download', 'Upload', 'Total']);
+    $('vlan-body').append(tr);
+  }
+  $('vlan-empty').hidden = r.vlans.length > 0;
+  const current = $('vlan').value;
+  const known = new Set([...$('vlan').options].map(x => x.value));
+  const add = (key, text) => {
+    if (known.has(key)) return;
+    known.add(key);
+    const o = element('option', text);
+    o.value = key;
+    $('vlan').append(o);
+  };
+  for (const v of r.vlans) add(v.vlan.key, vlanName(v.vlan) + ' / ' + v.vlan.interface);
+  // Every VLAN the FortiGate reports is selectable, including ones with no received records.
+  const configured = configuredVlans(),
+    seen = new Set(r.vlans.map(v => v.vlan.key));
+  for (const v of configured) add(v.key, 'VLAN ' + v.vlan_id + ' / ' + v.interface);
+  $('vlan').value = current;
+  const missing = configured.filter(v => !seen.has(v.key));
+  $('vlan-missing').hidden = !missing.length;
+  $('vlan-missing').textContent = missing.length
+    ? 'No Internet records in this period from ' +
+      missing.map(v => v.interface + ' (VLAN ' + v.vlan_id + ')').join(', ') +
+      '. FortiLens only counts sessions the FortiGate logs, so check that the firewall policies for these VLANs log all sessions.'
+    : '';
+  if (r.vlans.some(v => v.vlan.status === 'UNKNOWN'))
+    ($('vlan-missing').hidden = false),
+      ($('vlan-missing').textContent +=
+        (missing.length ? ' ' : '') +
+        '"VLAN not verified" rows are records received before FortiLens confirmed the interface mapping; they belong to the interface shown.');
+}
+function configuredVlans() {
+  if (state.inventory === undefined) {
+    state.inventory = null;
+    api('/api/inventory')
+      .then(d => {
+        state.inventory = d.interfaces || [];
+        if (state.report) renderVlans(state.report);
+      })
+      .catch(() => {
+        state.inventory = [];
+      });
+  }
+  return (state.inventory || [])
+    .filter(x => x.type === 'vlan' && x.vlan_id != null && x.parent)
+    .map(x => ({key: 'vlan:' + x.vlan_id + ':' + x.name, vlan_id: x.vlan_id, interface: x.name}))
+    .sort((a, b) => a.vlan_id - b.vlan_id);
+}
+function renderReportSummary(r) {
+  const consumers = $('report-consumers'),
+    segments = $('report-segments');
+  consumers.replaceChildren();
+  segments.replaceChildren();
+  for (const d of r.devices.slice(0, 5)) {
+    const li = element('li'),
+      line = element('div', undefined, 'summary-line'),
+      link = element('button', d.hostname || d.ip || 'Unidentified endpoint', 'entity');
+    link.addEventListener('click', () => openDevice(d.device_id));
+    line.append(link, element('strong', bytes(d.total_bytes)));
+    li.append(line, element('small', [d.ip, d.mac || d.identity_kind].filter(Boolean).join(' · ')));
+    consumers.append(li);
+  }
+  const largest = Math.max(1, ...r.vlans.map(v => Number(v.total_bytes) || 0));
+  for (const v of r.vlans) {
+    const li = element('li'),
+      line = element('div', undefined, 'summary-line'),
+      label = element('span', vlanName(v.vlan) + ' / ' + v.vlan.interface),
+      bar = element('progress');
+    line.append(label, element('strong', bytes(v.total_bytes)));
+    bar.max = largest;
+    bar.value = v.total_bytes;
+    bar.setAttribute('aria-label', 'Relative recorded usage for ' + v.vlan.interface);
+    li.append(
+      line,
+      bar,
+      element('small', number(v.observed_endpoint_identities) + ' observed identities')
+    );
+    segments.append(li);
+  }
+  if (!r.devices.length)
+    consumers.append(element('li', 'No received device evidence for this selection.', 'muted'));
+  if (!r.vlans.length)
+    segments.append(element('li', 'No received segment evidence for this selection.', 'muted'));
 }
 // Other log types and local traffic are expected; only these may hide Internet usage.
-const REVIEW_CLASSIFICATIONS=new Set(['UNSCOPED_SOURCE','UNRESOLVED_DIRECTION','AMBIGUOUS']);
-function qualityItem(root,label,value,kind=''){const line=element('div',undefined,'quality-item');line.append(element('span',label),badge(String(value),kind));root.append(line)}
+const REVIEW_CLASSIFICATIONS = new Set(['UNSCOPED_SOURCE', 'UNRESOLVED_DIRECTION', 'AMBIGUOUS']);
+function qualityItem(root, label, value, kind = '') {
+  const line = element('div', undefined, 'quality-item');
+  line.append(element('span', label), badge(String(value), kind));
+  root.append(line);
+}
 // The managed shell shows when logs last arrived without requesting a second report.
-function shareEvidence(r){try{if(sharedReportCache())window.parent.__fortilensEvidence?.(Number(r.processing.last_delivery_ns)/1e9,r.processing.processing_lag_seconds)}catch{}}
-function renderEvidencePath(r){const d=r.processing,kinds=r.source_record_classifications||{},records=Object.values(kinds).reduce((a,b)=>a+(Number(b)||0),0),rejected=(d.parser_rejections||0)+(d.late_rejections||0),pending=(r.totals.pending_upload_bytes||0)+(r.totals.pending_download_bytes||0),delivered=Number(d.last_delivery_ns)>0;const step=(title,value,note,warn)=>{const li=element('li',undefined,warn?'warn':'');li.append(element('strong',title),element('b',value),element('p',note));return li};$('quality-path').replaceChildren(step('Received',delivered?when(d.last_delivery_ns/1e9):'Nothing received','Latest log delivery seen by FortiLens.',!delivered),step('Processed',number(d.processing_lag_seconds,' s')+' lag',rejected?number(rejected)+' records rejected as malformed or too late.':'No rejected records reported.',!!rejected||!d.last_poll_ok),step('Classified',records?number(records)+' records':'No records',records?number(kinds.INTERNET||0)+' classified as Internet traffic.':'Nothing to classify yet.',!records),step('Assigned',r.totals.upload_bytes===null?'Unknown':bytes(r.totals.upload_bytes+r.totals.download_bytes),r.totals.pending_upload_bytes==null?'Pending candidates unknown.':pending?bytes(pending)+' pending, not added.':'No pending candidates.',false),step('Identified',r.devices.length?number(r.observed_endpoint_identities)+' identities':'No identities',number(r.unverified_endpoint_identities)+' without stable MAC identity.',!!r.unverified_endpoint_identities))}
-function renderQuality(r){renderEvidencePath(r);const d=r.processing;$('quality-state').replaceChildren();qualityItem($('quality-state'),'Latest received delivery',when(d.last_delivery_ns/1e9));qualityItem($('quality-state'),'Last failed processing attempt',when(d.last_failure_seconds));qualityItem($('quality-state'),'Current processing error',d.last_error||'None reported');qualityItem($('quality-state'),'Latest polling attempt',d.last_poll_ok?'Succeeded':'Unavailable',d.last_poll_ok?'good':'warn');qualityItem($('quality-state'),'Processing lag',number(d.processing_lag_seconds,' s'),d.processing_lag_seconds>120?'warn':'');qualityItem($('quality-state'),'Source-device binding',d.source_identity_bound?'Configured':'Not confirmed',d.source_identity_bound?'':'warn');qualityItem($('quality-state'),'Interface metadata',d.inventory_available?'Available':'Unavailable',d.inventory_available?'':'warn');qualityItem($('quality-state'),'Rejected malformed inputs',d.parser_rejections||0,d.parser_rejections?'warn':'');qualityItem($('quality-state'),'Late arrivals beyond ledger',d.late_rejections||0,d.late_rejections?'warn':'');qualityItem($('quality-state'),'Transport replay candidates',d.replay_candidates||0);qualityItem($('quality-state'),'Receipt-time Loki stream',d.loki_timestamps_at_receipt?'Configured':'Review late-delivery coverage',d.loki_timestamps_at_receipt?'':'warn');$('quality-flags').replaceChildren();for(const [reason,count]of Object.entries(r.flags))qualityItem($('quality-flags'),reason.replaceAll('_',' '),number(count),'warn');if(!Object.keys(r.flags).length)$('quality-flags').append(element('p',r.devices.length?'No additional flags in these received records. Traffic completeness is still not certified.':'No received Internet-accounting evidence for this selection.','muted'));$('quality-flags').append(element('h3','Source-wide received record classifications'));$('quality-flags').append(element('p','These counts cover the source and period, independently of device/search/VLAN filters. Parser and too-late rejections are separate.','muted'));for(const [kind,count]of Object.entries(r.source_record_classifications||{}))qualityItem($('quality-flags'),kind.replaceAll('_',' '),number(count),REVIEW_CLASSIFICATIONS.has(kind)?'warn':'')}
-async function loadReport(reuse=false){if(state.busy){state.pending=true;return}state.busy=true;$('refresh').disabled=true;$('refresh').textContent='Loading…';message('');let selection;try{if(!reuse&&typeof clearReportCache==='function')clearReportCache();selection=params().toString();const cached=reuse?await reuseReport(selection):null;const r=cached||await api('/api/report?'+selection);if(!state.auth)return;let current;try{current=params().toString()}catch{return}if(selection!==current){state.pending=true;return}if(!cached)rememberReport(selection,r);state.report=r;renderStats(r);renderVlans(r);renderDevices();renderReportSummary(r);renderQuality(r);shareEvidence(r);if(state.view==='applications')loadApplications();else if(state.view==='websites')loadWebsites()}catch(e){/* The viewer already chose another period: this failure is stale. Keep that choice; finally sends it. */if(state.pending&&selection!==undefined&&(()=>{try{return params().toString()!==selection}catch{return false}})())return;if(typeof clearReportCache==='function')clearReportCache();state.pending=false;state.report=null;for(const id of ['stats','device-body','vlan-body','report-consumers','report-segments','quality-path','quality-state','quality-flags'])$(id).replaceChildren();$('range-label').textContent='Report unavailable';$('device-empty').hidden=false;$('vlan-empty').hidden=false;message(errorText(e))}finally{state.busy=false;$('refresh').disabled=false;$('refresh').textContent='Refresh report';if(state.pending&&state.auth){state.pending=false;loadReport()}}}
-function riskKind(risk){return risk==='critical'||risk==='high'?'bad':risk==='elevated'?'warn':''}
-function appSelection(){const s=state.apps||(state.apps={});return s}
-function appsTitle(){const s=appSelection();return s.app!==undefined?(s.app||'Unidentified')+' — devices':s.category!==undefined?(s.category||'Uncategorized')+' — devices':'Devices'}
-function selectApplications(app,category){const s=appSelection();s.app=app;s.category=category;loadApplications()}
-function rate(bits){if(!(bits>0))return '0 bps';const units=['bps','kbps','Mbps','Gbps'];let value=bits,i=0;while(value>=1000&&i<3){value/=1000;i++}return (i===0||value>=100?value.toFixed(0):value.toFixed(1))+' '+units[i]}
-function liveBars(target,rows,label,empty){$(target).replaceChildren();const top=Math.max(1,...rows.map(x=>(x.download_bps||0)+(x.upload_bps||0)));for(const x of rows){const row=element('div',undefined,'apps-bar');row.setAttribute('role','listitem');const name=element('span',label(x),'live-name');name.title=label(x);const track=element('div',undefined,'apps-track live-track'),down=element('div',undefined,'apps-fill'),up=element('div',undefined,'apps-fill live-up');down.style.width=(100*(x.download_bps||0)/top)+'%';up.style.width=(100*(x.upload_bps||0)/top)+'%';track.append(down,up);track.title='Download '+rate(x.download_bps)+', upload '+rate(x.upload_bps);row.append(name,track,element('span',x.download_bps==null?'Measuring':rate(x.download_bps+x.upload_bps),'apps-value'));$(target).append(row)}if(empty)$(empty).hidden=rows.length>0}
-let liveTimer=null;
-function startLive(){stopLive();loadLive();liveTimer=setInterval(()=>{if(!document.hidden&&!state.livePaused)loadLive()},10000)}
-function stopLive(){if(liveTimer)clearInterval(liveTimer);liveTimer=null}
-function toggleLivePause(){state.livePaused=!state.livePaused;$('live-pause').setAttribute('aria-pressed',String(state.livePaused));$('live-pause').textContent=state.livePaused?'Resume':'Pause';if(!state.livePaused){loadLive();return}/* A read already on its way must not appear after Pause; Resume starts a new one. */invalidate('liveSequence');if(state.liveReport)renderLive(state.liveReport);else $('live-status').textContent='Paused.'}
-async function loadLive(){const current=latest('liveSequence');if(!state.liveReport)$('live-status').textContent='Reading FortiGate realtime sessions…';try{const r=await api('/api/live');if(!current()||state.view!=='live')return;state.liveReport=r;renderLive(r)}catch(e){if(!current())return;$('live-status').textContent=errorText(e)+(state.liveReport?' Showing the last successful update.':'')}}
-function renderLive(r){const t=r.totals,first=r.devices[0];
- $('live-stats').replaceChildren(stat('Download now',rate(t.download_bps),r.totals_source==='INTERFACE_COUNTERS'?'WAN links · '+rate(r.listed.download_bps)+' from listed devices':'Listed devices only','blue'),stat('Upload now',rate(t.upload_bps),r.totals_source==='INTERFACE_COUNTERS'?'WAN links · '+rate(r.listed.upload_bps)+' from listed devices':'Listed devices only','purple'),stat('Active devices',number(t.devices),number(t.sessions)+' Internet sessions'),stat('Busiest device',first?(first.hostname||first.ip):'—',first?rate(first.download_bps+first.upload_bps):'No traffic now'));
- $('live-status').textContent='Updated '+new Date(r.observed_at*1000).toLocaleTimeString()+(state.livePaused?' · paused':' · refreshes every 10 seconds')+(r.truncated?' · showing the '+number(r.listed_sources)+' busiest sources; totals include all traffic':'');
- $('live-devices').replaceChildren();for(const d of r.devices.slice(0,25)){const tr=element('tr'),who=element('td');if(d.device_id){const link=element('button',d.hostname||d.ip,'entity');link.addEventListener('click',()=>openDevice(d.device_id));who.append(link)}else who.append(element('span',d.hostname||d.ip));who.append(element('span',[d.ip,profileText(d)].filter(Boolean).join(' · ')||d.mac,'secondary'));tr.append(who,element('td',vlanName(d.vlan)+' / '+d.vlan.interface),element('td',d.top_apps.map(x=>prettyLabel(x)).join(', ')||'—'));for(const n of [d.download_bps,d.upload_bps])tr.append(element('td',rate(n),'number'));tr.append(element('td',number(d.sessions),'number'));labelRow(tr,['Device','Segment','Doing','Download','Upload','Sessions']);$('live-devices').append(tr)}$('live-devices-empty').hidden=r.devices.length>0;
- liveBars('live-apps',r.applications.slice(0,10),a=>a.app?prettyLabel(a.app):'Application '+a.appid,'live-apps-empty');
- liveBars('live-vlans',r.vlans,v=>vlanName(v.vlan)+' / '+v.vlan.interface);
- liveBars('live-links',r.links,l=>l.interface);
- const notes=liveNotes(r.compatibility);$('live-compat').hidden=!notes.length;$('live-compat').textContent=notes.join(' ')}
+function shareEvidence(r) {
+  try {
+    if (sharedReportCache())
+      window.parent.__fortilensEvidence?.(
+        Number(r.processing.last_delivery_ns) / 1e9,
+        r.processing.processing_lag_seconds
+      );
+  } catch {}
+}
+function renderEvidencePath(r) {
+  const d = r.processing,
+    kinds = r.source_record_classifications || {},
+    records = Object.values(kinds).reduce((a, b) => a + (Number(b) || 0), 0),
+    rejected = (d.parser_rejections || 0) + (d.late_rejections || 0),
+    pending = (r.totals.pending_upload_bytes || 0) + (r.totals.pending_download_bytes || 0),
+    delivered = Number(d.last_delivery_ns) > 0;
+  const step = (title, value, note, warn) => {
+    const li = element('li', undefined, warn ? 'warn' : '');
+    li.append(element('strong', title), element('b', value), element('p', note));
+    return li;
+  };
+  $('quality-path').replaceChildren(
+    step(
+      'Received',
+      delivered ? when(d.last_delivery_ns / 1e9) : 'Nothing received',
+      'Latest log delivery seen by FortiLens.',
+      !delivered
+    ),
+    step(
+      'Processed',
+      number(d.processing_lag_seconds, ' s') + ' lag',
+      rejected
+        ? number(rejected) + ' records rejected as malformed or too late.'
+        : 'No rejected records reported.',
+      !!rejected || !d.last_poll_ok
+    ),
+    step(
+      'Classified',
+      records ? number(records) + ' records' : 'No records',
+      records
+        ? number(kinds.INTERNET || 0) + ' classified as Internet traffic.'
+        : 'Nothing to classify yet.',
+      !records
+    ),
+    step(
+      'Assigned',
+      r.totals.upload_bytes === null
+        ? 'Unknown'
+        : bytes(r.totals.upload_bytes + r.totals.download_bytes),
+      r.totals.pending_upload_bytes == null
+        ? 'Pending candidates unknown.'
+        : pending
+          ? bytes(pending) + ' pending, not added.'
+          : 'No pending candidates.',
+      false
+    ),
+    step(
+      'Identified',
+      r.devices.length ? number(r.observed_endpoint_identities) + ' identities' : 'No identities',
+      number(r.unverified_endpoint_identities) + ' without stable MAC identity.',
+      !!r.unverified_endpoint_identities
+    )
+  );
+}
+function renderQuality(r) {
+  renderEvidencePath(r);
+  const d = r.processing;
+  $('quality-state').replaceChildren();
+  qualityItem($('quality-state'), 'Latest received delivery', when(d.last_delivery_ns / 1e9));
+  qualityItem($('quality-state'), 'Last failed processing attempt', when(d.last_failure_seconds));
+  qualityItem($('quality-state'), 'Current processing error', d.last_error || 'None reported');
+  qualityItem(
+    $('quality-state'),
+    'Latest polling attempt',
+    d.last_poll_ok ? 'Succeeded' : 'Unavailable',
+    d.last_poll_ok ? 'good' : 'warn'
+  );
+  qualityItem(
+    $('quality-state'),
+    'Processing lag',
+    number(d.processing_lag_seconds, ' s'),
+    d.processing_lag_seconds > 120 ? 'warn' : ''
+  );
+  qualityItem(
+    $('quality-state'),
+    'Source-device binding',
+    d.source_identity_bound ? 'Configured' : 'Not confirmed',
+    d.source_identity_bound ? '' : 'warn'
+  );
+  qualityItem(
+    $('quality-state'),
+    'Interface metadata',
+    d.inventory_available ? 'Available' : 'Unavailable',
+    d.inventory_available ? '' : 'warn'
+  );
+  qualityItem(
+    $('quality-state'),
+    'Rejected malformed inputs',
+    d.parser_rejections || 0,
+    d.parser_rejections ? 'warn' : ''
+  );
+  qualityItem(
+    $('quality-state'),
+    'Late arrivals beyond ledger',
+    d.late_rejections || 0,
+    d.late_rejections ? 'warn' : ''
+  );
+  qualityItem($('quality-state'), 'Transport replay candidates', d.replay_candidates || 0);
+  qualityItem(
+    $('quality-state'),
+    'Receipt-time Loki stream',
+    d.loki_timestamps_at_receipt ? 'Configured' : 'Review late-delivery coverage',
+    d.loki_timestamps_at_receipt ? '' : 'warn'
+  );
+  $('quality-flags').replaceChildren();
+  for (const [reason, count] of Object.entries(r.flags))
+    qualityItem($('quality-flags'), reason.replaceAll('_', ' '), number(count), 'warn');
+  if (!Object.keys(r.flags).length)
+    $('quality-flags').append(
+      element(
+        'p',
+        r.devices.length
+          ? 'No additional flags in these received records. Traffic completeness is still not certified.'
+          : 'No received Internet-accounting evidence for this selection.',
+        'muted'
+      )
+    );
+  $('quality-flags').append(element('h3', 'Source-wide received record classifications'));
+  $('quality-flags').append(
+    element(
+      'p',
+      'These counts cover the source and period, independently of device/search/VLAN filters. Parser and too-late rejections are separate.',
+      'muted'
+    )
+  );
+  for (const [kind, count] of Object.entries(r.source_record_classifications || {}))
+    qualityItem(
+      $('quality-flags'),
+      kind.replaceAll('_', ' '),
+      number(count),
+      REVIEW_CLASSIFICATIONS.has(kind) ? 'warn' : ''
+    );
+}
+async function loadReport(reuse = false) {
+  if (state.busy) {
+    state.pending = true;
+    return;
+  }
+  state.busy = true;
+  $('refresh').disabled = true;
+  $('refresh').textContent = 'Loading…';
+  message('');
+  let selection;
+  try {
+    if (!reuse && typeof clearReportCache === 'function') clearReportCache();
+    selection = params().toString();
+    const cached = reuse ? await reuseReport(selection) : null;
+    const r = cached || (await api('/api/report?' + selection));
+    if (!state.auth) return;
+    let current;
+    try {
+      current = params().toString();
+    } catch {
+      return;
+    }
+    if (selection !== current) {
+      state.pending = true;
+      return;
+    }
+    if (!cached) rememberReport(selection, r);
+    state.report = r;
+    renderStats(r);
+    renderVlans(r);
+    renderDevices();
+    renderReportSummary(r);
+    renderQuality(r);
+    shareEvidence(r);
+    if (state.view === 'applications') loadApplications();
+    else if (state.view === 'websites') loadWebsites();
+  } catch (e) {
+    /* The viewer already chose another period: this failure is stale. Keep that choice; finally sends it. */ if (
+      state.pending &&
+      selection !== undefined &&
+      (() => {
+        try {
+          return params().toString() !== selection;
+        } catch {
+          return false;
+        }
+      })()
+    )
+      return;
+    if (typeof clearReportCache === 'function') clearReportCache();
+    state.pending = false;
+    state.report = null;
+    for (const id of [
+      'stats',
+      'device-body',
+      'vlan-body',
+      'report-consumers',
+      'report-segments',
+      'quality-path',
+      'quality-state',
+      'quality-flags'
+    ])
+      $(id).replaceChildren();
+    $('range-label').textContent = 'Report unavailable';
+    $('device-empty').hidden = false;
+    $('vlan-empty').hidden = false;
+    message(errorText(e));
+  } finally {
+    state.busy = false;
+    $('refresh').disabled = false;
+    $('refresh').textContent = 'Refresh report';
+    if (state.pending && state.auth) {
+      state.pending = false;
+      loadReport();
+    }
+  }
+}
+function riskKind(risk) {
+  return risk === 'critical' || risk === 'high' ? 'bad' : risk === 'elevated' ? 'warn' : '';
+}
+function appSelection() {
+  const s = state.apps || (state.apps = {});
+  return s;
+}
+function appsTitle() {
+  const s = appSelection();
+  return s.app !== undefined
+    ? (s.app || 'Unidentified') + ' — devices'
+    : s.category !== undefined
+      ? (s.category || 'Uncategorized') + ' — devices'
+      : 'Devices';
+}
+function selectApplications(app, category) {
+  const s = appSelection();
+  s.app = app;
+  s.category = category;
+  loadApplications();
+}
+function rate(bits) {
+  if (!(bits > 0)) return '0 bps';
+  const units = ['bps', 'kbps', 'Mbps', 'Gbps'];
+  let value = bits,
+    i = 0;
+  while (value >= 1000 && i < 3) {
+    value /= 1000;
+    i++;
+  }
+  return (i === 0 || value >= 100 ? value.toFixed(0) : value.toFixed(1)) + ' ' + units[i];
+}
+function liveBars(target, rows, label, empty) {
+  $(target).replaceChildren();
+  const top = Math.max(1, ...rows.map(x => (x.download_bps || 0) + (x.upload_bps || 0)));
+  for (const x of rows) {
+    const row = element('div', undefined, 'apps-bar');
+    row.setAttribute('role', 'listitem');
+    const name = element('span', label(x), 'live-name');
+    name.title = label(x);
+    const track = element('div', undefined, 'apps-track live-track'),
+      down = element('div', undefined, 'apps-fill'),
+      up = element('div', undefined, 'apps-fill live-up');
+    down.style.width = (100 * (x.download_bps || 0)) / top + '%';
+    up.style.width = (100 * (x.upload_bps || 0)) / top + '%';
+    track.append(down, up);
+    track.title = 'Download ' + rate(x.download_bps) + ', upload ' + rate(x.upload_bps);
+    row.append(
+      name,
+      track,
+      element(
+        'span',
+        x.download_bps == null ? 'Measuring' : rate(x.download_bps + x.upload_bps),
+        'apps-value'
+      )
+    );
+    $(target).append(row);
+  }
+  if (empty) $(empty).hidden = rows.length > 0;
+}
+let liveTimer = null;
+function startLive() {
+  stopLive();
+  loadLive();
+  liveTimer = setInterval(() => {
+    if (!document.hidden && !state.livePaused) loadLive();
+  }, 10000);
+}
+function stopLive() {
+  if (liveTimer) clearInterval(liveTimer);
+  liveTimer = null;
+}
+function toggleLivePause() {
+  state.livePaused = !state.livePaused;
+  $('live-pause').setAttribute('aria-pressed', String(state.livePaused));
+  $('live-pause').textContent = state.livePaused ? 'Resume' : 'Pause';
+  if (!state.livePaused) {
+    loadLive();
+    return;
+  }
+  /* A read already on its way must not appear after Pause; Resume starts a new one. */ invalidate(
+    'liveSequence'
+  );
+  if (state.liveReport) renderLive(state.liveReport);
+  else $('live-status').textContent = 'Paused.';
+}
+async function loadLive() {
+  const current = latest('liveSequence');
+  if (!state.liveReport) $('live-status').textContent = 'Reading FortiGate realtime sessions…';
+  try {
+    const r = await api('/api/live');
+    if (!current() || state.view !== 'live') return;
+    state.liveReport = r;
+    renderLive(r);
+  } catch (e) {
+    if (!current()) return;
+    $('live-status').textContent =
+      errorText(e) + (state.liveReport ? ' Showing the last successful update.' : '');
+  }
+}
+function renderLive(r) {
+  const t = r.totals,
+    first = r.devices[0];
+  $('live-stats').replaceChildren(
+    stat(
+      'Download now',
+      rate(t.download_bps),
+      r.totals_source === 'INTERFACE_COUNTERS'
+        ? 'WAN links · ' + rate(r.listed.download_bps) + ' from listed devices'
+        : 'Listed devices only',
+      'blue'
+    ),
+    stat(
+      'Upload now',
+      rate(t.upload_bps),
+      r.totals_source === 'INTERFACE_COUNTERS'
+        ? 'WAN links · ' + rate(r.listed.upload_bps) + ' from listed devices'
+        : 'Listed devices only',
+      'purple'
+    ),
+    stat('Active devices', number(t.devices), number(t.sessions) + ' Internet sessions'),
+    stat(
+      'Busiest device',
+      first ? first.hostname || first.ip : '—',
+      first ? rate(first.download_bps + first.upload_bps) : 'No traffic now'
+    )
+  );
+  $('live-status').textContent =
+    'Updated ' +
+    new Date(r.observed_at * 1000).toLocaleTimeString() +
+    (state.livePaused ? ' · paused' : ' · refreshes every 10 seconds') +
+    (r.truncated
+      ? ' · showing the ' +
+        number(r.listed_sources) +
+        ' busiest sources; totals include all traffic'
+      : '');
+  $('live-devices').replaceChildren();
+  for (const d of r.devices.slice(0, 25)) {
+    const tr = element('tr'),
+      who = element('td');
+    if (d.device_id) {
+      const link = element('button', d.hostname || d.ip, 'entity');
+      link.addEventListener('click', () => openDevice(d.device_id));
+      who.append(link);
+    } else who.append(element('span', d.hostname || d.ip));
+    who.append(
+      element('span', [d.ip, profileText(d)].filter(Boolean).join(' · ') || d.mac, 'secondary')
+    );
+    tr.append(
+      who,
+      element('td', vlanName(d.vlan) + ' / ' + d.vlan.interface),
+      element('td', d.top_apps.map(x => prettyLabel(x)).join(', ') || '—')
+    );
+    for (const n of [d.download_bps, d.upload_bps]) tr.append(element('td', rate(n), 'number'));
+    tr.append(element('td', number(d.sessions), 'number'));
+    labelRow(tr, ['Device', 'Segment', 'Doing', 'Download', 'Upload', 'Sessions']);
+    $('live-devices').append(tr);
+  }
+  $('live-devices-empty').hidden = r.devices.length > 0;
+  liveBars(
+    'live-apps',
+    r.applications.slice(0, 10),
+    a => (a.app ? prettyLabel(a.app) : 'Application ' + a.appid),
+    'live-apps-empty'
+  );
+  liveBars('live-vlans', r.vlans, v => vlanName(v.vlan) + ' / ' + v.vlan.interface);
+  liveBars('live-links', r.links, l => l.interface);
+  const notes = liveNotes(r.compatibility);
+  $('live-compat').hidden = !notes.length;
+  $('live-compat').textContent = notes.join(' ');
+}
 // Parts of Live usage this FortiOS did not provide. The rest of the page still works.
-function liveNotes(c){if(!c)return [];const n=[],version=c.fortios&&c.fortios.version?'FortiOS '+c.fortios.version:'This FortiOS';if(c.fortiview==='UNAVAILABLE')n.push(version+' did not return realtime device statistics'+(c.fortiview_error?' ('+c.fortiview_error+')':'')+'. Link totals still come from WAN interface counters.');else if(c.fortiview==='FIELDS_MISSING')n.push(version+' returned device rows without '+c.missing_fields.join(', ')+', so some device figures may be missing.');if(c.sorted_by_device===false)n.push('FortiGate ignored the bandwidth sort; rows were sorted here, but on a busy site the listed devices may not be the busiest.');if(c.applications==='UNAVAILABLE'&&c.fortiview!=='UNAVAILABLE')n.push('Application statistics are unavailable.');if(c.interface_counters==='UNAVAILABLE')n.push('WAN interface counters are unavailable, so totals cover listed devices only.');if(n.length&&c.fortios&&c.fortios.level==='UNTESTED')n.push(version+' has not been checked with FortiLens; see Diagnostics.');return n}
-function siteSelection(){return state.sites||(state.sites={})}
-function selectSite(site){siteSelection().site=site;loadWebsites()}
-function clearWebsites(){for(const id of ['sites-body','sites-stats','sites-devices'])$(id).replaceChildren();$('sites-devices-block').hidden=true;$('sites-count').textContent=''}
-async function loadWebsites(){const current=latest('sitesSequence');let q;try{q=params()}catch(e){message(errorText(e));return}q.delete('search');const s=siteSelection();if(s.site)q.set('site',s.site);if(state.period==='recent'){state.sitesReport=null;clearWebsites();$('sites-empty').hidden=true;$('sites-note').hidden=false;$('sites-note').textContent='Website totals are kept per day. Choose Today or a longer period.';return}try{const r=await api('/api/websites?'+q);if(!current()||!state.auth)return;renderWebsites(r)}catch(e){if(!current())return;state.sitesReport=null;clearWebsites();$('sites-empty').hidden=false;message(errorText(e))}}
-function renderWebsites(r){state.sitesReport=r;const s=siteSelection(),sum=r.summary,total=sum.total_bytes||0,coverage=sum.coverage;
- $('range-label').textContent=r.first_day===r.last_day?r.first_day:r.first_day+' → '+r.last_day;
- const notes=[];
- if(!r.enabled)notes.push('Website usage is switched off. An administrator can switch it on in Settings, under Monitoring.'+(r.sites.length?' Rows recorded earlier are shown until they expire after '+r.retention_days+' days.':''));
- if(r.enabled&&r.since_ns&&r.since_ns/1e6>Date.parse(r.start_utc))notes.push('Websites are recorded from '+new Date(r.since_ns/1e6).toLocaleString()+'; usage before that has no website.');
- if(coverage!==null&&coverage<0.6)notes.push('About '+Math.round(coverage*100)+'% of recorded Internet usage has a known website. FortiGate names a website only for sessions it logged in Application Control or Web Filter; logging all applications on the Internet policies raises this share.');
- $('sites-note').hidden=!notes.length;$('sites-note').textContent=notes.join(' ');
- $('sites-stats').replaceChildren(stat('Usage with a known website',sum.total_bytes===null?'—':bytes(sum.total_bytes),coverage===null?'Share of all usage unknown':Math.round(coverage*100)+'% of recorded Internet usage','blue'),stat('Websites',number(sum.sites),'Site names only, kept '+r.retention_days+' days'),stat('Top website',sum.top_site||'—',sum.top_site?bytes(r.sites[0].total_bytes):'No website evidence'),stat('Devices',s.site?number(r.devices.length):'—',s.site?'that used '+s.site:'Select a website to list its devices'));
- const needle=$('sites-search').value.trim().toLowerCase(),limit=$('sites-top').value,rows=r.sites.filter(x=>!needle||x.site.includes(needle)),shown=limit==='all'?rows:rows.slice(0,Number(limit));
- $('sites-body').replaceChildren();for(const x of shown){const tr=element('tr'),name=element('td'),link=element('button',x.site,'entity');link.addEventListener('click',()=>selectSite(x.site));name.append(link);tr.append(name,element('td',number(x.devices),'number'),element('td',bytes(x.download_bytes),'number'),element('td',bytes(x.upload_bytes),'number'),element('td',bytes(x.total_bytes),'number'),element('td',percent(x.total_bytes,total),'number'));if(x.site===s.site)tr.classList.add('sel');labelRow(tr,['Website','Devices','Download','Upload','Total','Share']);$('sites-body').append(tr)}
- $('sites-empty').hidden=rows.length>0;$('sites-count').textContent=rows.length?'Showing '+number(shown.length)+' of '+number(rows.length)+' websites'+(r.truncated?'; only the largest '+number(r.sites.length)+' are listed':''):'';
- $('sites-clear').hidden=!s.site;$('sites-title').textContent=s.site||'Websites';$('sites-devices-block').hidden=!s.site;$('sites-devices-title').textContent=s.site?'Devices that used '+s.site:'Devices';
- $('sites-devices').replaceChildren();for(const d of r.devices){const tr=element('tr'),who=element('td'),button=element('button',d.hostname||d.ip||d.mac||'Device','entity');button.addEventListener('click',()=>openDevice(d.device_id));who.append(button,element('span',[d.ip,profileText(d)].filter(Boolean).join(' · ')||d.mac,'secondary'));const v=d.vlans[0];tr.append(who,element('td',v?vlanName(v)+' / '+v.interface:'—'),element('td',bytes(d.download_bytes),'number'),element('td',bytes(d.upload_bytes),'number'),element('td',bytes(d.total_bytes),'number'));labelRow(tr,['Device','Segment','Download','Upload','Total']);$('sites-devices').append(tr)}}
-async function loadApplications(){const current=latest('appsSequence');const s=appSelection();let q;try{q=params()}catch(e){message(errorText(e));return}q.delete('search');if(s.app!==undefined)q.set('app',s.app);if(s.category!==undefined)q.set('category',s.category);try{const r=await api('/api/applications?'+q);if(!current()||!state.auth)return;renderApplications(r)}catch(e){if(!current())return;for(const id of ['apps-body','categories-body','apps-chart','apps-stats'])$(id).replaceChildren();$('apps-empty').hidden=false;message(errorText(e))}}
-const appColors=['#84c9dc','#6ad5a5','#efc35c','#ff9087','#b39ddb','#f48fb1','#90a4ae','#ffb74d','#80cbc4','#c5e1a5'];
-const categoryNames={unscanned:'Not inspected',unknown:'Unknown category'};
-function percent(part,whole){return whole?(100*part/whole).toFixed(part/whole<0.1?1:0)+'%':'—'}
-function prettyLabel(text){return String(text).replace(/(?<!\d)[._]|[._](?!\d)/g,' ')}
-function categoryName(c){return c?categoryNames[c]||prettyLabel(c):'Uncategorized'}
-function appName(a){return a.app?prettyLabel(a.app):'Unidentified'}
-function profileText(d){const p=d?.profile;return p?[p.vendor,p.os,p.type].filter(Boolean).join(' · '):''}
-function identityCell(d){const identity=element('td');identity.append(element('span',d.mac||d.identity_kind),element('span',d.identity_kind==='MAC'?'MAC endpoint':'Physical identity unverified','secondary'));const profile=profileText(d);if(profile)identity.append(element('span',profile,'secondary'));return identity}
-function riskRank(risk){return {critical:4,high:3,elevated:2,medium:1,low:0}[risk]??-1}
-function riskPill(risk){if(!risk)return element('span','—','muted');const pill=element('span',risk,'risk-pill risk-'+(riskRank(risk)>=3?'high':riskRank(risk)===2?'elevated':riskRank(risk)===1?'medium':'low'));return pill}
-function applicationParams(extra){const q=params();q.delete('search');for(const [key,value]of Object.entries(extra))if(value!==undefined)q.set(key,value);return q}
-function renderApplications(r){state.appsReport=r;const s=appSelection(),summary=r.summary||{},total=summary.total_bytes||0;
- $('range-label').textContent=r.start_utc+' → '+r.end_utc;
- $('apps-stats').replaceChildren(stat('Recorded with labels',bytes(summary.total_bytes),'Selected period','blue'),stat('Named applications',percent(summary.identified_bytes||0,total),bytes(summary.identified_bytes)+' identified by FortiGate'),stat('Protocol only',percent(summary.generic_bytes||0,total),'QUIC, SSL/TLS without an application'),stat('GenAI',bytes(summary.genai_bytes),number(summary.genai_devices)+' devices','purple'));
- const notes=[];if(r.untracked)notes.push(bytes(r.untracked.total_bytes)+' was recorded before application labels were kept'+(r.tracking_started_ns?' (from '+new Date(Number(r.tracking_started_ns)/1e6).toLocaleString()+')':'')+'. It counts in device totals only.');
- if(total&&(summary.generic_bytes||0)/total>=0.05)notes.push('Most protocol-only traffic is QUIC or TLS that FortiGate did not inspect. Blocking QUIC in the Application Control profile and using certificate inspection on the Internet policy lets FortiGate name more applications.');
- $('apps-notes').replaceChildren(...notes.map(text=>element('li',text)));$('apps-notes').hidden=!notes.length;
- $('apps-genai').setAttribute('aria-pressed',String(s.category==='GenAI'));$('apps-clear').hidden=s.category===undefined;
- const named=r.applications.filter(a=>a.app&&!a.generic).slice(0,10),top=named[0]?.total_bytes||1;
- $('apps-chart').replaceChildren();for(const a of named){const row=element('div',undefined,'apps-bar');row.setAttribute('role','listitem');const name=element('button',appName(a),'entity');name.title=a.app;name.addEventListener('click',()=>openApplication(a));const track=element('div',undefined,'apps-track'),fill=element('div',undefined,'apps-fill');fill.style.width=Math.max(1,100*a.total_bytes/top)+'%';track.append(fill);row.append(name,track,element('span',bytes(a.total_bytes)+' · '+percent(a.total_bytes,total),'apps-value'));$('apps-chart').append(row)}
- $('apps-chart-empty').hidden=named.length>0;
- const term=$('apps-search').value.trim().toLowerCase(),minimum=$('apps-risk').value,cap=$('apps-top').value;
- let apps=r.applications;if(s.category!==undefined)apps=apps.filter(a=>(a.category||'')===s.category);
- if(term)apps=apps.filter(a=>(appName(a)+' '+(a.app||'')+' '+categoryName(a.category)).toLowerCase().includes(term));
- if(minimum)apps=apps.filter(a=>riskRank(a.risk)>=riskRank(minimum));
- const shown=cap==='all'?apps:apps.slice(0,Number(cap));
- $('apps-body').replaceChildren();for(const a of shown){const tr=element('tr',undefined,a.generic||!a.app?'apps-generic':''),name=element('td'),link=element('button',appName(a),'entity');link.title=a.app||'';link.addEventListener('click',()=>openApplication(a));name.append(link);if(!a.app)name.append(element('span','No Application Control label','secondary'));else if(a.generic)name.append(element('span','Protocol only','secondary'));const risk=element('td');risk.append(riskPill(a.risk));tr.append(name,element('td',categoryName(a.category)),risk,element('td',number(a.devices),'number'));for(const n of [a.download_bytes,a.upload_bytes,a.total_bytes]){const td=element('td',bytes(n),'number');td.title=String(n)+' bytes';tr.append(td)}tr.append(element('td',percent(a.total_bytes,total),'number'));labelRow(tr,['Application','Category','Risk','Devices','Download','Upload','Total','Share']);$('apps-body').append(tr)}
- $('apps-empty').hidden=shown.length>0;$('apps-count').textContent=shown.length<apps.length?'Showing '+number(shown.length)+' of '+number(apps.length)+' applications.':number(apps.length)+' applications.';
- $('apps-mix').replaceChildren();$('apps-legend').replaceChildren();r.categories.forEach((c,i)=>{const color=appColors[i%appColors.length],share=total?c.total_bytes/total:0;if(share>0){const part=element('div',undefined,'apps-part');part.style.width=(100*share)+'%';part.style.background=color;part.title=categoryName(c.category)+' '+percent(c.total_bytes,total);$('apps-mix').append(part)}if(i<8){const key=element('span',undefined,'apps-key'),dot=element('i');dot.style.background=color;key.append(dot,document.createTextNode(categoryName(c.category)+' '+percent(c.total_bytes,total)));$('apps-legend').append(key)}});
- $('categories-body').replaceChildren();for(const c of r.categories){const tr=element('tr'),name=element('td'),link=element('button',categoryName(c.category),'entity');link.addEventListener('click',()=>selectApplications(undefined,c.category||''));name.append(link);tr.append(name,element('td',number(c.apps),'number'),element('td',number(c.devices),'number'));const td=element('td',bytes(c.total_bytes),'number');td.title=String(c.total_bytes)+' bytes';tr.append(td,element('td',percent(c.total_bytes,total),'number'));labelRow(tr,['Category','Applications','Devices','Total','Share']);$('categories-body').append(tr)}}
-async function openApplication(a){const current=latest('deviceSequence');message('');$('details-identity').textContent=categoryName(a.category);$('details-title').textContent=appName(a);$('details-content').replaceChildren();showDetails();
- try{const r=await api('/api/applications?'+applicationParams({app:a.app||'',category:a.category||''}));if(!current())return;const row=r.applications.find(x=>(x.app||'')===(a.app||'')&&(x.category||'')===(a.category||''))||a;
-  const cards=element('div',undefined,'stats');cards.append(stat('Recorded download',bytes(row.download_bytes),'Selected period','blue'),stat('Recorded upload',bytes(row.upload_bytes),'Selected period','purple'),stat('Devices',number(r.devices.length),'In this period'),stat('Risk',row.risk||'—','FortiGate Application Control'));$('details-content').append(cards);
-  if(row.generic||!row.app)$('details-content').append(element('p',row.app?'FortiGate saw only the protocol for these sessions, not the application behind them.':'FortiGate did not label these sessions with an application.','notice'));
-  const history=element('section',undefined,'section');history.append(element('div','Daily recorded usage','section-head'));const area=element('div',undefined,'chart');if((r.daily_history||[]).length>1)chart(area,r.daily_history.slice(-30),appName(a)+' daily recorded usage');else area.append(element('p',(r.daily_history||[]).length?'One day of history so far: '+bytes(r.daily_history[0].upload_bytes+r.daily_history[0].download_bytes)+' on '+r.daily_history[0].period+'.':'No daily history yet.','muted'));history.append(area);$('details-content').append(history);
-  const list=element('section',undefined,'section');list.append(element('div','Devices that used it','section-head'));if(!r.devices.length)list.append(element('p','No device evidence for this selection.','muted'));
-  for(const d of r.devices){const line=element('div',undefined,'apps-device'),who=element('div'),link=element('button',d.hostname||d.ip||'Unidentified endpoint','entity');link.addEventListener('click',()=>openDevice(d.device_id));who.append(link,element('span',[d.ip,profileText(d)].filter(Boolean).join(' · ')||d.mac||d.identity_kind,'secondary'),element('span',(d.vlans||[d.vlan]).map(v=>vlanName(v)+' / '+v.interface).join(', '),'secondary'));line.append(who,element('strong',bytes(d.total_bytes)));list.append(line)}
-  $('details-content').append(list)}
- catch(e){if(!current())return;$('details-title').textContent='Evidence unavailable';$('details-content').append(element('p',errorText(e),'notice error'))}}
-function setView(view){const requested=view;if(view==='overview'&&reportSection)view=reportSection;if(!Object.hasOwn(titles,view)||(view==='monitoring'&&!state.portal))view=state.portal?'monitoring':'overview';state.view=view;for(const b of document.querySelectorAll('[data-view]')){b.classList.toggle('selected',b.dataset.view===view);if(b.dataset.view===view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}$('page-title').textContent=titles[view][0];$('page-description').textContent=titles[view][1];$('coverage').hidden=['wan','monitoring','live'].includes(view);for(const id of ['toolbar','stats','device-section','vlan-section','evidence-note'])$(id).hidden=['wan','quality','monitoring','live'].includes(view);const usageView=!['wan','quality','monitoring','live'].includes(view);$('stats').hidden=!usageView||(view==='devices'&&reportSection==='devices');$('device-section').hidden=!usageView||['reports','vlans'].includes(view);$('vlan-section').hidden=!usageView||(view==='devices'&&reportSection==='devices');$('report-summary').hidden=view!=='reports';$('wan-section').hidden=view!=='wan';$('quality-section').hidden=view!=='quality';$('monitoring-section').hidden=view!=='monitoring';$('live-section').hidden=view!=='live';if(view==='live')startLive();else stopLive();const apps=view==='applications',sites=view==='websites';$('apps-section').hidden=!apps;$('sites-section').hidden=!sites;$('search').parentElement.hidden=apps||sites;if(apps||sites)for(const id of ['stats','device-section','vlan-section','report-summary'])$(id).hidden=true;message('');if(apps)loadApplications();else if(sites)loadWebsites();else if(view==='live'){}else if(view==='monitoring'){if(!$('monitoring-frame').hasAttribute('src'))loadMonitoring()}else if(view==='wan')loadWan();else if(!state.report)loadReport(true);if(state.portal&&location.hash!=='#'+view)history[requested===view?'pushState':'replaceState'](null,'','#'+view)}
-function chart(root,rows,label){root.replaceChildren();if(!rows.length){root.append(element('p','No retained history for this identity.','muted'));return}const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 900 170');svg.setAttribute('role','img');svg.setAttribute('aria-label',label+'; days without received records are gaps, not zero traffic.');const title=document.createElementNS(ns,'title');title.textContent=label;svg.append(title);const stamp=r=>Date.parse(r.period.length===7?r.period+'-01':r.period);const first=stamp(rows[0]),last=stamp(rows.at(-1));const max=Math.max(1,...rows.map(r=>r.upload_bytes+r.download_bytes));for(const r of rows){const x=20+(stamp(r)-first)/Math.max(86400000,last-first)*840;const width=Math.max(3,Math.min(20,800/rows.length));let y=145;for(const [key,color]of [['download_bytes','var(--d)'],['upload_bytes','var(--u)']]){const height=r[key]/max*120,rect=document.createElementNS(ns,'rect');rect.setAttribute('x',x);rect.setAttribute('y',y-height);rect.setAttribute('width',width);rect.setAttribute('height',height);rect.style.fill=color;const tip=document.createElementNS(ns,'title');tip.textContent=r.period+' '+key.replace('_bytes','')+': '+bytes(r[key]);rect.append(tip);svg.append(rect);y-=height}}const legend=element('div',undefined,'legend');legend.append(element('span','Download','down'),element('span','Upload','up'),element('span','Absent dates are unknown'));root.append(legend,svg);const table=element('table'),head=element('tr');for(const name of ['Period','Download','Upload','Pending candidates'])head.append(element('th',name));table.append(head);for(const r of rows){const tr=element('tr');tr.append(element('td',r.period),element('td',bytes(r.download_bytes)),element('td',bytes(r.upload_bytes)),element('td',bytes(r.pending_download_bytes+r.pending_upload_bytes)));table.append(tr)}const details=element('details');details.append(element('summary','View history table'),table);root.append(details)}
-function showDetails(){const panel=$('details');state.detailsReturn=document.activeElement;if(panel.open)return;if(window.innerWidth>=1100){document.body.classList.add('docked');panel.show()}else panel.showModal()}
-async function openDevice(id){const current=latest('deviceSequence');message('');$('details-identity').textContent='';$('details-title').textContent='Loading device…';$('details-content').replaceChildren();showDetails();try{const q=params();q.set('device',id);const r=await api('/api/device?'+q);if(!current())return;const d=r.devices[0];$('details-title').textContent=d?.hostname||d?.ip||'Endpoint details';$('details-identity').textContent=d?.identity_kind||'No selected-period evidence';const list=element('dl',undefined,'details-grid');for(const [key,value]of [['IP',d?.ip],['MAC',d?.mac],['Hostname',d?.hostname],['Device (FortiGate detection)',profileText(d)],['VDOM',d?.vdom],['Source interfaces',d?.source_interfaces?.join(', ')],['VLANs',d?.vlans?.map(v=>vlanName(v)+' / '+v.interface).join(', ')]]){const block=element('div');block.append(element('dt',key),element('dd',value||'Unavailable'));list.append(block)}$('details-content').append(list);const cards=element('div',undefined,'stats');cards.append(stat('Recorded download',bytes(r.totals.download_bytes),'Selected report period','blue'),stat('Recorded upload',bytes(r.totals.upload_bytes),'Selected report period','purple'));$('details-content').append(cards);for(const [key,title,limit]of [['daily_history','Daily recorded history',30],['monthly_history','Monthly recorded history',12]]){const section=element('section',undefined,'section');section.append(element('div',title,'section-head'));const area=element('div',undefined,'chart');chart(area,r[key].slice(-limit),title);section.append(area);$('details-content').append(section)}const appsArea=element('section',undefined,'section');appsArea.append(element('div','Applications in this period','section-head'));$('details-content').append(appsArea);try{const ar=await api('/api/applications?'+q);if(!current())return;const appList=ar.applications.slice(0,10);if(!appList.length)appsArea.append(element('p','No labelled application evidence for this device and period.','muted'));for(const a of appList){const line=element('div',undefined,'quality-item');line.append(element('span',appName(a)+(a.category?' · '+categoryName(a.category):'')),element('strong',bytes(a.total_bytes)));appsArea.append(line)}}catch(e){if(!current())return;if(e?.code==='authentication_required')throw e;appsArea.append(element('p','Application evidence is unavailable for this device. Its usage above is unaffected.','muted'))}}catch(e){if(!current())return;$('details-title').textContent='Evidence unavailable';$('details-content').append(element('p',errorText(e),'notice error'))}}
-function stateClass(s){return s==='UP'?'good':s==='DOWN'?'bad':s==='ERROR'?'warn':''}
-async function loadWan(){const current=latest('wanSequence');message('');$('wan-history').replaceChildren();$('route').textContent='Loading route evidence…';$('wan-body').replaceChildren();$('wan-empty').hidden=false;$('wan-empty').textContent='Loading observed WAN evidence…';try{const r=await api('/api/wan?seconds='+$('wan-window').value);if(!current()||!state.auth)return;$('route').textContent=r.route?.status==='OBSERVED'?'Observed route to '+r.route.destination+': '+r.route.interface+'. '+r.route.scope:'Route-selection evidence is unavailable. WAN health or observed traffic alone does not identify the active route.';$('wan-history').replaceChildren();for(const w of r.interfaces){const tr=element('tr');tr.append(element('td',w.interface));for(const s of [w.internet_state,w.physical_state]){const td=element('td');td.append(badge(s,stateClass(s)));tr.append(td)}tr.append(element('td',number(w.download_mbps)+' / '+number(w.upload_mbps),'number'),element('td',number(w.latency_ms)+' / '+number(w.jitter_ms)+' ms','number'),element('td',number(w.packet_loss_pct,'%'),'number'),element('td',number(w.history.availability_percent,'%'),'number'),element('td',number(w.history.valid_state_coverage_percent,'%'),'number'));labelRow(tr,['Link','Internet SLA','Physical','Down / Up Mbps','Latency / Jitter','Loss','Observed up','Valid coverage']);$('wan-body').append(tr);const card=element('section',undefined,'section'),head=element('div',undefined,'section-head');head.append(element('h2',w.interface+' / Observed history'));card.append(head);const area=element('div',undefined,'chart');const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 900 22');svg.setAttribute('role','img');svg.setAttribute('aria-label','Observed Internet state timeline; uncovered intervals are unknown.');svg.classList.add('timeline');const hatchId='no-evidence-'+$('wan-history').children.length,defs=document.createElementNS(ns,'defs'),hatch=document.createElementNS(ns,'pattern'),stripe=document.createElementNS(ns,'rect');hatch.id=hatchId;hatch.setAttribute('width','6');hatch.setAttribute('height','6');hatch.setAttribute('patternUnits','userSpaceOnUse');hatch.setAttribute('patternTransform','rotate(45)');stripe.setAttribute('width','1.5');stripe.setAttribute('height','6');stripe.style.fill='var(--hatch)';hatch.append(stripe);defs.append(hatch);svg.append(defs);const base=document.createElementNS(ns,'rect');base.setAttribute('width','900');base.setAttribute('height','22');base.style.fill='url(#'+hatchId+')';svg.append(base);const end=r.observed_at,start=end-w.history.window_seconds;for(const s of w.history.segments||[]){const rect=document.createElementNS(ns,'rect');rect.setAttribute('x',(s.start-start)/(end-start)*900);rect.setAttribute('width',Math.max(.3,(s.end-s.start)/(end-start)*900));rect.setAttribute('height','22');rect.style.fill=s.state==='DOWN'?'var(--bad)':s.degraded?'var(--warn)':s.state==='UP'?'var(--lane-up)':'transparent';svg.append(rect)}const key=element('div',undefined,'lkey');key.append(element('span','Observed up','up'),element('span','Degraded','degraded'),element('span','Observed down','down'),element('span','No evidence','unknown'));area.append(svg,key);const events=element('ul',undefined,'wan-events');for(const [key,label]of [['outages','Observed outage'],['degradation','Observed degradation']])for(const e of w.history[key])events.append(element('li',label+' · '+when(e.start)+' → '+when(e.end)+' · '+number(e.observed_seconds)+' s'+(e.end_censored?' · observation ended before a verified recovery':'')));if(!events.children.length)events.append(element('li','No observed outage/degradation intervals in the available samples. Missing intervals remain unknown.'));area.append(events);card.append(area);$('wan-history').append(card)}$('wan-empty').hidden=r.interfaces.length>0;if(!r.interfaces.length)$('wan-empty').textContent='No current WAN evidence. Missing collection is not an outage.'}catch(e){if(!current()||!state.auth)return;$('wan-empty').textContent='WAN evidence unavailable.';$('route').textContent='Route-selection evidence unavailable.';message(errorText(e))}}
-$('login-form').addEventListener('submit',async e=>{e.preventDefault();const password=$('password').value;$('password').value='';$('login-submit').disabled=true;try{await workspaceReady;if(state.portal){const r=await sessionAction('/api/session',{username:$('username').value,password});if(!r.ok)throw safeError(r.status===429?'Too many sign-in attempts. Wait one minute and try again.':'Sign-in was rejected. Check your username and password.')}else{state.auth='Basic '+btoa($('username').value+':'+password);await api('/api/diagnostics')}signedIn()}catch(error){state.auth='';$('login-error').textContent=errorText(error)}finally{$('login-submit').disabled=false}});
-$('logout').addEventListener('click',async()=>{$('logout').disabled=true;try{if(state.portal){const r=await sessionAction('/api/session/logout');if(!r.ok&&r.status!==401)throw safeError('Sign-out could not be confirmed. Check your connection and try again.')}signedOut()}catch(e){message(errorText(e))}finally{$('logout').disabled=false}});
-$('reload-monitoring').addEventListener('click',loadMonitoring);
-$('apps-genai').addEventListener('click',()=>{const s=appSelection();if(s.category==='GenAI'&&s.app===undefined)selectApplications(undefined,undefined);else selectApplications(undefined,'GenAI')});$('apps-clear').addEventListener('click',()=>selectApplications(undefined,undefined));
-$('sites-search').addEventListener('input',()=>{if(state.sitesReport)renderWebsites(state.sitesReport)});$('sites-top').addEventListener('change',()=>{if(state.sitesReport)renderWebsites(state.sitesReport)});$('sites-clear').addEventListener('click',()=>selectSite(undefined));$('apps-search').addEventListener('input',()=>{if(state.appsReport)renderApplications(state.appsReport)});$('live-pause').addEventListener('click',toggleLivePause);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.view==='live'&&!state.livePaused)loadLive()});for(const id of ['apps-top','apps-risk'])$(id).addEventListener('change',()=>{if(state.appsReport)renderApplications(state.appsReport)});
-window.addEventListener('hashchange',()=>{if(state.portal&&state.auth)setView(location.hash.slice(1))});
-for(const button of document.querySelectorAll('[data-view]'))button.addEventListener('click',()=>setView(button.dataset.view));for(const button of document.querySelectorAll('[data-period]'))button.addEventListener('click',()=>{state.period=button.dataset.period;state.page=0;for(const b of document.querySelectorAll('[data-period]'))b.classList.toggle('selected',b===button);$('custom').hidden=state.period!=='custom';if(state.period!=='custom')loadReport()});
-$('refresh').addEventListener('click',()=>{state.page=0;loadReport()});$('vlan').addEventListener('change',()=>{state.page=0;loadReport()});$('search').addEventListener('keydown',e=>{if(e.key==='Enter'){state.page=0;loadReport()}});$('top').addEventListener('change',()=>{state.page=0;renderDevices()});$('previous').addEventListener('click',()=>{state.page--;renderDevices()});$('next').addEventListener('click',()=>{state.page++;renderDevices()});function detailsClosed(){document.body.classList.remove('docked');for(const row of document.querySelectorAll('tr.sel'))row.classList.remove('sel');if(state.detailsReturn?.isConnected)state.detailsReturn.focus();state.detailsReturn=null}function closeDetails(){invalidate('deviceSequence');$('details').close();detailsClosed()}$('close-details').addEventListener('click',closeDetails);$('details').addEventListener('close',detailsClosed);window.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('details').open&&document.body.classList.contains('docked'))closeDetails()});$('wan-window').addEventListener('change',loadWan);
+function liveNotes(c) {
+  if (!c) return [];
+  const n = [],
+    version = c.fortios && c.fortios.version ? 'FortiOS ' + c.fortios.version : 'This FortiOS';
+  if (c.fortiview === 'UNAVAILABLE')
+    n.push(
+      version +
+        ' did not return realtime device statistics' +
+        (c.fortiview_error ? ' (' + c.fortiview_error + ')' : '') +
+        '. Link totals still come from WAN interface counters.'
+    );
+  else if (c.fortiview === 'FIELDS_MISSING')
+    n.push(
+      version +
+        ' returned device rows without ' +
+        c.missing_fields.join(', ') +
+        ', so some device figures may be missing.'
+    );
+  if (c.sorted_by_device === false)
+    n.push(
+      'FortiGate ignored the bandwidth sort; rows were sorted here, but on a busy site the listed devices may not be the busiest.'
+    );
+  if (c.applications === 'UNAVAILABLE' && c.fortiview !== 'UNAVAILABLE')
+    n.push('Application statistics are unavailable.');
+  if (c.interface_counters === 'UNAVAILABLE')
+    n.push('WAN interface counters are unavailable, so totals cover listed devices only.');
+  if (n.length && c.fortios && c.fortios.level === 'UNTESTED')
+    n.push(version + ' has not been checked with FortiLens; see Diagnostics.');
+  return n;
+}
+function siteSelection() {
+  return state.sites || (state.sites = {});
+}
+function selectSite(site) {
+  siteSelection().site = site;
+  loadWebsites();
+}
+function clearWebsites() {
+  for (const id of ['sites-body', 'sites-stats', 'sites-devices']) $(id).replaceChildren();
+  $('sites-devices-block').hidden = true;
+  $('sites-count').textContent = '';
+}
+async function loadWebsites() {
+  const current = latest('sitesSequence');
+  let q;
+  try {
+    q = params();
+  } catch (e) {
+    message(errorText(e));
+    return;
+  }
+  q.delete('search');
+  const s = siteSelection();
+  if (s.site) q.set('site', s.site);
+  if (state.period === 'recent') {
+    state.sitesReport = null;
+    clearWebsites();
+    $('sites-empty').hidden = true;
+    $('sites-note').hidden = false;
+    $('sites-note').textContent =
+      'Website totals are kept per day. Choose Today or a longer period.';
+    return;
+  }
+  try {
+    const r = await api('/api/websites?' + q);
+    if (!current() || !state.auth) return;
+    renderWebsites(r);
+  } catch (e) {
+    if (!current()) return;
+    state.sitesReport = null;
+    clearWebsites();
+    $('sites-empty').hidden = false;
+    message(errorText(e));
+  }
+}
+function renderWebsites(r) {
+  state.sitesReport = r;
+  const s = siteSelection(),
+    sum = r.summary,
+    total = sum.total_bytes || 0,
+    coverage = sum.coverage;
+  $('range-label').textContent =
+    r.first_day === r.last_day ? r.first_day : r.first_day + ' → ' + r.last_day;
+  const notes = [];
+  if (!r.enabled)
+    notes.push(
+      'Website usage is switched off. An administrator can switch it on in Settings, under Monitoring.' +
+        (r.sites.length
+          ? ' Rows recorded earlier are shown until they expire after ' +
+            r.retention_days +
+            ' days.'
+          : '')
+    );
+  if (r.enabled && r.since_ns && r.since_ns / 1e6 > Date.parse(r.start_utc))
+    notes.push(
+      'Websites are recorded from ' +
+        new Date(r.since_ns / 1e6).toLocaleString() +
+        '; usage before that has no website.'
+    );
+  if (coverage !== null && coverage < 0.6)
+    notes.push(
+      'About ' +
+        Math.round(coverage * 100) +
+        '% of recorded Internet usage has a known website. FortiGate names a website only for sessions it logged in Application Control or Web Filter; logging all applications on the Internet policies raises this share.'
+    );
+  $('sites-note').hidden = !notes.length;
+  $('sites-note').textContent = notes.join(' ');
+  $('sites-stats').replaceChildren(
+    stat(
+      'Usage with a known website',
+      sum.total_bytes === null ? '—' : bytes(sum.total_bytes),
+      coverage === null
+        ? 'Share of all usage unknown'
+        : Math.round(coverage * 100) + '% of recorded Internet usage',
+      'blue'
+    ),
+    stat('Websites', number(sum.sites), 'Site names only, kept ' + r.retention_days + ' days'),
+    stat(
+      'Top website',
+      sum.top_site || '—',
+      sum.top_site ? bytes(r.sites[0].total_bytes) : 'No website evidence'
+    ),
+    stat(
+      'Devices',
+      s.site ? number(r.devices.length) : '—',
+      s.site ? 'that used ' + s.site : 'Select a website to list its devices'
+    )
+  );
+  const needle = $('sites-search').value.trim().toLowerCase(),
+    limit = $('sites-top').value,
+    rows = r.sites.filter(x => !needle || x.site.includes(needle)),
+    shown = limit === 'all' ? rows : rows.slice(0, Number(limit));
+  $('sites-body').replaceChildren();
+  for (const x of shown) {
+    const tr = element('tr'),
+      name = element('td'),
+      link = element('button', x.site, 'entity');
+    link.addEventListener('click', () => selectSite(x.site));
+    name.append(link);
+    tr.append(
+      name,
+      element('td', number(x.devices), 'number'),
+      element('td', bytes(x.download_bytes), 'number'),
+      element('td', bytes(x.upload_bytes), 'number'),
+      element('td', bytes(x.total_bytes), 'number'),
+      element('td', percent(x.total_bytes, total), 'number')
+    );
+    if (x.site === s.site) tr.classList.add('sel');
+    labelRow(tr, ['Website', 'Devices', 'Download', 'Upload', 'Total', 'Share']);
+    $('sites-body').append(tr);
+  }
+  $('sites-empty').hidden = rows.length > 0;
+  $('sites-count').textContent = rows.length
+    ? 'Showing ' +
+      number(shown.length) +
+      ' of ' +
+      number(rows.length) +
+      ' websites' +
+      (r.truncated ? '; only the largest ' + number(r.sites.length) + ' are listed' : '')
+    : '';
+  $('sites-clear').hidden = !s.site;
+  $('sites-title').textContent = s.site || 'Websites';
+  $('sites-devices-block').hidden = !s.site;
+  $('sites-devices-title').textContent = s.site ? 'Devices that used ' + s.site : 'Devices';
+  $('sites-devices').replaceChildren();
+  for (const d of r.devices) {
+    const tr = element('tr'),
+      who = element('td'),
+      button = element('button', d.hostname || d.ip || d.mac || 'Device', 'entity');
+    button.addEventListener('click', () => openDevice(d.device_id));
+    who.append(
+      button,
+      element('span', [d.ip, profileText(d)].filter(Boolean).join(' · ') || d.mac, 'secondary')
+    );
+    const v = d.vlans[0];
+    tr.append(
+      who,
+      element('td', v ? vlanName(v) + ' / ' + v.interface : '—'),
+      element('td', bytes(d.download_bytes), 'number'),
+      element('td', bytes(d.upload_bytes), 'number'),
+      element('td', bytes(d.total_bytes), 'number')
+    );
+    labelRow(tr, ['Device', 'Segment', 'Download', 'Upload', 'Total']);
+    $('sites-devices').append(tr);
+  }
+}
+async function loadApplications() {
+  const current = latest('appsSequence');
+  const s = appSelection();
+  let q;
+  try {
+    q = params();
+  } catch (e) {
+    message(errorText(e));
+    return;
+  }
+  q.delete('search');
+  if (s.app !== undefined) q.set('app', s.app);
+  if (s.category !== undefined) q.set('category', s.category);
+  try {
+    const r = await api('/api/applications?' + q);
+    if (!current() || !state.auth) return;
+    renderApplications(r);
+  } catch (e) {
+    if (!current()) return;
+    for (const id of ['apps-body', 'categories-body', 'apps-chart', 'apps-stats'])
+      $(id).replaceChildren();
+    $('apps-empty').hidden = false;
+    message(errorText(e));
+  }
+}
+const appColors = [
+  '#84c9dc',
+  '#6ad5a5',
+  '#efc35c',
+  '#ff9087',
+  '#b39ddb',
+  '#f48fb1',
+  '#90a4ae',
+  '#ffb74d',
+  '#80cbc4',
+  '#c5e1a5'
+];
+const categoryNames = {unscanned: 'Not inspected', unknown: 'Unknown category'};
+function percent(part, whole) {
+  return whole ? ((100 * part) / whole).toFixed(part / whole < 0.1 ? 1 : 0) + '%' : '—';
+}
+function prettyLabel(text) {
+  return String(text).replace(/(?<!\d)[._]|[._](?!\d)/g, ' ');
+}
+function categoryName(c) {
+  return c ? categoryNames[c] || prettyLabel(c) : 'Uncategorized';
+}
+function appName(a) {
+  return a.app ? prettyLabel(a.app) : 'Unidentified';
+}
+function profileText(d) {
+  const p = d?.profile;
+  return p ? [p.vendor, p.os, p.type].filter(Boolean).join(' · ') : '';
+}
+function identityCell(d) {
+  const identity = element('td');
+  identity.append(
+    element('span', d.mac || d.identity_kind),
+    element(
+      'span',
+      d.identity_kind === 'MAC' ? 'MAC endpoint' : 'Physical identity unverified',
+      'secondary'
+    )
+  );
+  const profile = profileText(d);
+  if (profile) identity.append(element('span', profile, 'secondary'));
+  return identity;
+}
+function riskRank(risk) {
+  return {critical: 4, high: 3, elevated: 2, medium: 1, low: 0}[risk] ?? -1;
+}
+function riskPill(risk) {
+  if (!risk) return element('span', '—', 'muted');
+  const pill = element(
+    'span',
+    risk,
+    'risk-pill risk-' +
+      (riskRank(risk) >= 3
+        ? 'high'
+        : riskRank(risk) === 2
+          ? 'elevated'
+          : riskRank(risk) === 1
+            ? 'medium'
+            : 'low')
+  );
+  return pill;
+}
+function applicationParams(extra) {
+  const q = params();
+  q.delete('search');
+  for (const [key, value] of Object.entries(extra)) if (value !== undefined) q.set(key, value);
+  return q;
+}
+function renderApplications(r) {
+  state.appsReport = r;
+  const s = appSelection(),
+    summary = r.summary || {},
+    total = summary.total_bytes || 0;
+  $('range-label').textContent = r.start_utc + ' → ' + r.end_utc;
+  $('apps-stats').replaceChildren(
+    stat('Recorded with labels', bytes(summary.total_bytes), 'Selected period', 'blue'),
+    stat(
+      'Named applications',
+      percent(summary.identified_bytes || 0, total),
+      bytes(summary.identified_bytes) + ' identified by FortiGate'
+    ),
+    stat(
+      'Protocol only',
+      percent(summary.generic_bytes || 0, total),
+      'QUIC, SSL/TLS without an application'
+    ),
+    stat('GenAI', bytes(summary.genai_bytes), number(summary.genai_devices) + ' devices', 'purple')
+  );
+  const notes = [];
+  if (r.untracked)
+    notes.push(
+      bytes(r.untracked.total_bytes) +
+        ' was recorded before application labels were kept' +
+        (r.tracking_started_ns
+          ? ' (from ' + new Date(Number(r.tracking_started_ns) / 1e6).toLocaleString() + ')'
+          : '') +
+        '. It counts in device totals only.'
+    );
+  if (total && (summary.generic_bytes || 0) / total >= 0.05)
+    notes.push(
+      'Most protocol-only traffic is QUIC or TLS that FortiGate did not inspect. Blocking QUIC in the Application Control profile and using certificate inspection on the Internet policy lets FortiGate name more applications.'
+    );
+  $('apps-notes').replaceChildren(...notes.map(text => element('li', text)));
+  $('apps-notes').hidden = !notes.length;
+  $('apps-genai').setAttribute('aria-pressed', String(s.category === 'GenAI'));
+  $('apps-clear').hidden = s.category === undefined;
+  const named = r.applications.filter(a => a.app && !a.generic).slice(0, 10),
+    top = named[0]?.total_bytes || 1;
+  $('apps-chart').replaceChildren();
+  for (const a of named) {
+    const row = element('div', undefined, 'apps-bar');
+    row.setAttribute('role', 'listitem');
+    const name = element('button', appName(a), 'entity');
+    name.title = a.app;
+    name.addEventListener('click', () => openApplication(a));
+    const track = element('div', undefined, 'apps-track'),
+      fill = element('div', undefined, 'apps-fill');
+    fill.style.width = Math.max(1, (100 * a.total_bytes) / top) + '%';
+    track.append(fill);
+    row.append(
+      name,
+      track,
+      element('span', bytes(a.total_bytes) + ' · ' + percent(a.total_bytes, total), 'apps-value')
+    );
+    $('apps-chart').append(row);
+  }
+  $('apps-chart-empty').hidden = named.length > 0;
+  const term = $('apps-search').value.trim().toLowerCase(),
+    minimum = $('apps-risk').value,
+    cap = $('apps-top').value;
+  let apps = r.applications;
+  if (s.category !== undefined) apps = apps.filter(a => (a.category || '') === s.category);
+  if (term)
+    apps = apps.filter(a =>
+      (appName(a) + ' ' + (a.app || '') + ' ' + categoryName(a.category))
+        .toLowerCase()
+        .includes(term)
+    );
+  if (minimum) apps = apps.filter(a => riskRank(a.risk) >= riskRank(minimum));
+  const shown = cap === 'all' ? apps : apps.slice(0, Number(cap));
+  $('apps-body').replaceChildren();
+  for (const a of shown) {
+    const tr = element('tr', undefined, a.generic || !a.app ? 'apps-generic' : ''),
+      name = element('td'),
+      link = element('button', appName(a), 'entity');
+    link.title = a.app || '';
+    link.addEventListener('click', () => openApplication(a));
+    name.append(link);
+    if (!a.app) name.append(element('span', 'No Application Control label', 'secondary'));
+    else if (a.generic) name.append(element('span', 'Protocol only', 'secondary'));
+    const risk = element('td');
+    risk.append(riskPill(a.risk));
+    tr.append(
+      name,
+      element('td', categoryName(a.category)),
+      risk,
+      element('td', number(a.devices), 'number')
+    );
+    for (const n of [a.download_bytes, a.upload_bytes, a.total_bytes]) {
+      const td = element('td', bytes(n), 'number');
+      td.title = String(n) + ' bytes';
+      tr.append(td);
+    }
+    tr.append(element('td', percent(a.total_bytes, total), 'number'));
+    labelRow(tr, [
+      'Application',
+      'Category',
+      'Risk',
+      'Devices',
+      'Download',
+      'Upload',
+      'Total',
+      'Share'
+    ]);
+    $('apps-body').append(tr);
+  }
+  $('apps-empty').hidden = shown.length > 0;
+  $('apps-count').textContent =
+    shown.length < apps.length
+      ? 'Showing ' + number(shown.length) + ' of ' + number(apps.length) + ' applications.'
+      : number(apps.length) + ' applications.';
+  $('apps-mix').replaceChildren();
+  $('apps-legend').replaceChildren();
+  r.categories.forEach((c, i) => {
+    const color = appColors[i % appColors.length],
+      share = total ? c.total_bytes / total : 0;
+    if (share > 0) {
+      const part = element('div', undefined, 'apps-part');
+      part.style.width = 100 * share + '%';
+      part.style.background = color;
+      part.title = categoryName(c.category) + ' ' + percent(c.total_bytes, total);
+      $('apps-mix').append(part);
+    }
+    if (i < 8) {
+      const key = element('span', undefined, 'apps-key'),
+        dot = element('i');
+      dot.style.background = color;
+      key.append(
+        dot,
+        document.createTextNode(categoryName(c.category) + ' ' + percent(c.total_bytes, total))
+      );
+      $('apps-legend').append(key);
+    }
+  });
+  $('categories-body').replaceChildren();
+  for (const c of r.categories) {
+    const tr = element('tr'),
+      name = element('td'),
+      link = element('button', categoryName(c.category), 'entity');
+    link.addEventListener('click', () => selectApplications(undefined, c.category || ''));
+    name.append(link);
+    tr.append(
+      name,
+      element('td', number(c.apps), 'number'),
+      element('td', number(c.devices), 'number')
+    );
+    const td = element('td', bytes(c.total_bytes), 'number');
+    td.title = String(c.total_bytes) + ' bytes';
+    tr.append(td, element('td', percent(c.total_bytes, total), 'number'));
+    labelRow(tr, ['Category', 'Applications', 'Devices', 'Total', 'Share']);
+    $('categories-body').append(tr);
+  }
+}
+async function openApplication(a) {
+  const current = latest('deviceSequence');
+  message('');
+  $('details-identity').textContent = categoryName(a.category);
+  $('details-title').textContent = appName(a);
+  $('details-content').replaceChildren();
+  showDetails();
+  try {
+    const r = await api(
+      '/api/applications?' + applicationParams({app: a.app || '', category: a.category || ''})
+    );
+    if (!current()) return;
+    const row =
+      r.applications.find(
+        x => (x.app || '') === (a.app || '') && (x.category || '') === (a.category || '')
+      ) || a;
+    const cards = element('div', undefined, 'stats');
+    cards.append(
+      stat('Recorded download', bytes(row.download_bytes), 'Selected period', 'blue'),
+      stat('Recorded upload', bytes(row.upload_bytes), 'Selected period', 'purple'),
+      stat('Devices', number(r.devices.length), 'In this period'),
+      stat('Risk', row.risk || '—', 'FortiGate Application Control')
+    );
+    $('details-content').append(cards);
+    if (row.generic || !row.app)
+      $('details-content').append(
+        element(
+          'p',
+          row.app
+            ? 'FortiGate saw only the protocol for these sessions, not the application behind them.'
+            : 'FortiGate did not label these sessions with an application.',
+          'notice'
+        )
+      );
+    const history = element('section', undefined, 'section');
+    history.append(element('div', 'Daily recorded usage', 'section-head'));
+    const area = element('div', undefined, 'chart');
+    if ((r.daily_history || []).length > 1)
+      chart(area, r.daily_history.slice(-30), appName(a) + ' daily recorded usage');
+    else
+      area.append(
+        element(
+          'p',
+          (r.daily_history || []).length
+            ? 'One day of history so far: ' +
+                bytes(r.daily_history[0].upload_bytes + r.daily_history[0].download_bytes) +
+                ' on ' +
+                r.daily_history[0].period +
+                '.'
+            : 'No daily history yet.',
+          'muted'
+        )
+      );
+    history.append(area);
+    $('details-content').append(history);
+    const list = element('section', undefined, 'section');
+    list.append(element('div', 'Devices that used it', 'section-head'));
+    if (!r.devices.length)
+      list.append(element('p', 'No device evidence for this selection.', 'muted'));
+    for (const d of r.devices) {
+      const line = element('div', undefined, 'apps-device'),
+        who = element('div'),
+        link = element('button', d.hostname || d.ip || 'Unidentified endpoint', 'entity');
+      link.addEventListener('click', () => openDevice(d.device_id));
+      who.append(
+        link,
+        element(
+          'span',
+          [d.ip, profileText(d)].filter(Boolean).join(' · ') || d.mac || d.identity_kind,
+          'secondary'
+        ),
+        element(
+          'span',
+          (d.vlans || [d.vlan]).map(v => vlanName(v) + ' / ' + v.interface).join(', '),
+          'secondary'
+        )
+      );
+      line.append(who, element('strong', bytes(d.total_bytes)));
+      list.append(line);
+    }
+    $('details-content').append(list);
+  } catch (e) {
+    if (!current()) return;
+    $('details-title').textContent = 'Evidence unavailable';
+    $('details-content').append(element('p', errorText(e), 'notice error'));
+  }
+}
+function setView(view) {
+  const requested = view;
+  if (view === 'overview' && reportSection) view = reportSection;
+  if (!Object.hasOwn(titles, view) || (view === 'monitoring' && !state.portal))
+    view = state.portal ? 'monitoring' : 'overview';
+  state.view = view;
+  for (const b of document.querySelectorAll('[data-view]')) {
+    b.classList.toggle('selected', b.dataset.view === view);
+    if (b.dataset.view === view) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  }
+  $('page-title').textContent = titles[view][0];
+  $('page-description').textContent = titles[view][1];
+  $('coverage').hidden = ['wan', 'monitoring', 'live'].includes(view);
+  for (const id of ['toolbar', 'stats', 'device-section', 'vlan-section', 'evidence-note'])
+    $(id).hidden = ['wan', 'quality', 'monitoring', 'live'].includes(view);
+  const usageView = !['wan', 'quality', 'monitoring', 'live'].includes(view);
+  $('stats').hidden = !usageView || (view === 'devices' && reportSection === 'devices');
+  $('device-section').hidden = !usageView || ['reports', 'vlans'].includes(view);
+  $('vlan-section').hidden = !usageView || (view === 'devices' && reportSection === 'devices');
+  $('report-summary').hidden = view !== 'reports';
+  $('wan-section').hidden = view !== 'wan';
+  $('quality-section').hidden = view !== 'quality';
+  $('monitoring-section').hidden = view !== 'monitoring';
+  $('live-section').hidden = view !== 'live';
+  if (view === 'live') startLive();
+  else stopLive();
+  const apps = view === 'applications',
+    sites = view === 'websites';
+  $('apps-section').hidden = !apps;
+  $('sites-section').hidden = !sites;
+  $('search').parentElement.hidden = apps || sites;
+  if (apps || sites)
+    for (const id of ['stats', 'device-section', 'vlan-section', 'report-summary'])
+      $(id).hidden = true;
+  message('');
+  if (apps) loadApplications();
+  else if (sites) loadWebsites();
+  else if (view === 'live') {
+  } else if (view === 'monitoring') {
+    if (!$('monitoring-frame').hasAttribute('src')) loadMonitoring();
+  } else if (view === 'wan') loadWan();
+  else if (!state.report) loadReport(true);
+  if (state.portal && location.hash !== '#' + view)
+    history[requested === view ? 'pushState' : 'replaceState'](null, '', '#' + view);
+}
+function chart(root, rows, label) {
+  root.replaceChildren();
+  if (!rows.length) {
+    root.append(element('p', 'No retained history for this identity.', 'muted'));
+    return;
+  }
+  const ns = 'http://www.w3.org/2000/svg',
+    svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 900 170');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute(
+    'aria-label',
+    label + '; days without received records are gaps, not zero traffic.'
+  );
+  const title = document.createElementNS(ns, 'title');
+  title.textContent = label;
+  svg.append(title);
+  const stamp = r => Date.parse(r.period.length === 7 ? r.period + '-01' : r.period);
+  const first = stamp(rows[0]),
+    last = stamp(rows.at(-1));
+  const max = Math.max(1, ...rows.map(r => r.upload_bytes + r.download_bytes));
+  for (const r of rows) {
+    const x = 20 + ((stamp(r) - first) / Math.max(86400000, last - first)) * 840;
+    const width = Math.max(3, Math.min(20, 800 / rows.length));
+    let y = 145;
+    for (const [key, color] of [
+      ['download_bytes', 'var(--d)'],
+      ['upload_bytes', 'var(--u)']
+    ]) {
+      const height = (r[key] / max) * 120,
+        rect = document.createElementNS(ns, 'rect');
+      rect.setAttribute('x', x);
+      rect.setAttribute('y', y - height);
+      rect.setAttribute('width', width);
+      rect.setAttribute('height', height);
+      rect.style.fill = color;
+      const tip = document.createElementNS(ns, 'title');
+      tip.textContent = r.period + ' ' + key.replace('_bytes', '') + ': ' + bytes(r[key]);
+      rect.append(tip);
+      svg.append(rect);
+      y -= height;
+    }
+  }
+  const legend = element('div', undefined, 'legend');
+  legend.append(
+    element('span', 'Download', 'down'),
+    element('span', 'Upload', 'up'),
+    element('span', 'Absent dates are unknown')
+  );
+  root.append(legend, svg);
+  const table = element('table'),
+    head = element('tr');
+  for (const name of ['Period', 'Download', 'Upload', 'Pending candidates'])
+    head.append(element('th', name));
+  table.append(head);
+  for (const r of rows) {
+    const tr = element('tr');
+    tr.append(
+      element('td', r.period),
+      element('td', bytes(r.download_bytes)),
+      element('td', bytes(r.upload_bytes)),
+      element('td', bytes(r.pending_download_bytes + r.pending_upload_bytes))
+    );
+    table.append(tr);
+  }
+  const details = element('details');
+  details.append(element('summary', 'View history table'), table);
+  root.append(details);
+}
+function showDetails() {
+  const panel = $('details');
+  state.detailsReturn = document.activeElement;
+  if (panel.open) return;
+  if (window.innerWidth >= 1100) {
+    document.body.classList.add('docked');
+    panel.show();
+  } else panel.showModal();
+}
+async function openDevice(id) {
+  const current = latest('deviceSequence');
+  message('');
+  $('details-identity').textContent = '';
+  $('details-title').textContent = 'Loading device…';
+  $('details-content').replaceChildren();
+  showDetails();
+  try {
+    const q = params();
+    q.set('device', id);
+    const r = await api('/api/device?' + q);
+    if (!current()) return;
+    const d = r.devices[0];
+    $('details-title').textContent = d?.hostname || d?.ip || 'Endpoint details';
+    $('details-identity').textContent = d?.identity_kind || 'No selected-period evidence';
+    const list = element('dl', undefined, 'details-grid');
+    for (const [key, value] of [
+      ['IP', d?.ip],
+      ['MAC', d?.mac],
+      ['Hostname', d?.hostname],
+      ['Device (FortiGate detection)', profileText(d)],
+      ['VDOM', d?.vdom],
+      ['Source interfaces', d?.source_interfaces?.join(', ')],
+      ['VLANs', d?.vlans?.map(v => vlanName(v) + ' / ' + v.interface).join(', ')]
+    ]) {
+      const block = element('div');
+      block.append(element('dt', key), element('dd', value || 'Unavailable'));
+      list.append(block);
+    }
+    $('details-content').append(list);
+    const cards = element('div', undefined, 'stats');
+    cards.append(
+      stat('Recorded download', bytes(r.totals.download_bytes), 'Selected report period', 'blue'),
+      stat('Recorded upload', bytes(r.totals.upload_bytes), 'Selected report period', 'purple')
+    );
+    $('details-content').append(cards);
+    for (const [key, title, limit] of [
+      ['daily_history', 'Daily recorded history', 30],
+      ['monthly_history', 'Monthly recorded history', 12]
+    ]) {
+      const section = element('section', undefined, 'section');
+      section.append(element('div', title, 'section-head'));
+      const area = element('div', undefined, 'chart');
+      chart(area, r[key].slice(-limit), title);
+      section.append(area);
+      $('details-content').append(section);
+    }
+    const appsArea = element('section', undefined, 'section');
+    appsArea.append(element('div', 'Applications in this period', 'section-head'));
+    $('details-content').append(appsArea);
+    try {
+      const ar = await api('/api/applications?' + q);
+      if (!current()) return;
+      const appList = ar.applications.slice(0, 10);
+      if (!appList.length)
+        appsArea.append(
+          element('p', 'No labelled application evidence for this device and period.', 'muted')
+        );
+      for (const a of appList) {
+        const line = element('div', undefined, 'quality-item');
+        line.append(
+          element('span', appName(a) + (a.category ? ' · ' + categoryName(a.category) : '')),
+          element('strong', bytes(a.total_bytes))
+        );
+        appsArea.append(line);
+      }
+    } catch (e) {
+      if (!current()) return;
+      if (e?.code === 'authentication_required') throw e;
+      appsArea.append(
+        element(
+          'p',
+          'Application evidence is unavailable for this device. Its usage above is unaffected.',
+          'muted'
+        )
+      );
+    }
+  } catch (e) {
+    if (!current()) return;
+    $('details-title').textContent = 'Evidence unavailable';
+    $('details-content').append(element('p', errorText(e), 'notice error'));
+  }
+}
+function stateClass(s) {
+  return s === 'UP' ? 'good' : s === 'DOWN' ? 'bad' : s === 'ERROR' ? 'warn' : '';
+}
+async function loadWan() {
+  const current = latest('wanSequence');
+  message('');
+  $('wan-history').replaceChildren();
+  $('route').textContent = 'Loading route evidence…';
+  $('wan-body').replaceChildren();
+  $('wan-empty').hidden = false;
+  $('wan-empty').textContent = 'Loading observed WAN evidence…';
+  try {
+    const r = await api('/api/wan?seconds=' + $('wan-window').value);
+    if (!current() || !state.auth) return;
+    $('route').textContent =
+      r.route?.status === 'OBSERVED'
+        ? 'Observed route to ' +
+          r.route.destination +
+          ': ' +
+          r.route.interface +
+          '. ' +
+          r.route.scope
+        : 'Route-selection evidence is unavailable. WAN health or observed traffic alone does not identify the active route.';
+    $('wan-history').replaceChildren();
+    for (const w of r.interfaces) {
+      const tr = element('tr');
+      tr.append(element('td', w.interface));
+      for (const s of [w.internet_state, w.physical_state]) {
+        const td = element('td');
+        td.append(badge(s, stateClass(s)));
+        tr.append(td);
+      }
+      tr.append(
+        element('td', number(w.download_mbps) + ' / ' + number(w.upload_mbps), 'number'),
+        element('td', number(w.latency_ms) + ' / ' + number(w.jitter_ms) + ' ms', 'number'),
+        element('td', number(w.packet_loss_pct, '%'), 'number'),
+        element('td', number(w.history.availability_percent, '%'), 'number'),
+        element('td', number(w.history.valid_state_coverage_percent, '%'), 'number')
+      );
+      labelRow(tr, [
+        'Link',
+        'Internet SLA',
+        'Physical',
+        'Down / Up Mbps',
+        'Latency / Jitter',
+        'Loss',
+        'Observed up',
+        'Valid coverage'
+      ]);
+      $('wan-body').append(tr);
+      const card = element('section', undefined, 'section'),
+        head = element('div', undefined, 'section-head');
+      head.append(element('h2', w.interface + ' / Observed history'));
+      card.append(head);
+      const area = element('div', undefined, 'chart');
+      const ns = 'http://www.w3.org/2000/svg',
+        svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('viewBox', '0 0 900 22');
+      svg.setAttribute('role', 'img');
+      svg.setAttribute(
+        'aria-label',
+        'Observed Internet state timeline; uncovered intervals are unknown.'
+      );
+      svg.classList.add('timeline');
+      const hatchId = 'no-evidence-' + $('wan-history').children.length,
+        defs = document.createElementNS(ns, 'defs'),
+        hatch = document.createElementNS(ns, 'pattern'),
+        stripe = document.createElementNS(ns, 'rect');
+      hatch.id = hatchId;
+      hatch.setAttribute('width', '6');
+      hatch.setAttribute('height', '6');
+      hatch.setAttribute('patternUnits', 'userSpaceOnUse');
+      hatch.setAttribute('patternTransform', 'rotate(45)');
+      stripe.setAttribute('width', '1.5');
+      stripe.setAttribute('height', '6');
+      stripe.style.fill = 'var(--hatch)';
+      hatch.append(stripe);
+      defs.append(hatch);
+      svg.append(defs);
+      const base = document.createElementNS(ns, 'rect');
+      base.setAttribute('width', '900');
+      base.setAttribute('height', '22');
+      base.style.fill = 'url(#' + hatchId + ')';
+      svg.append(base);
+      const end = r.observed_at,
+        start = end - w.history.window_seconds;
+      for (const s of w.history.segments || []) {
+        const rect = document.createElementNS(ns, 'rect');
+        rect.setAttribute('x', ((s.start - start) / (end - start)) * 900);
+        rect.setAttribute('width', Math.max(0.3, ((s.end - s.start) / (end - start)) * 900));
+        rect.setAttribute('height', '22');
+        rect.style.fill =
+          s.state === 'DOWN'
+            ? 'var(--bad)'
+            : s.degraded
+              ? 'var(--warn)'
+              : s.state === 'UP'
+                ? 'var(--lane-up)'
+                : 'transparent';
+        svg.append(rect);
+      }
+      const key = element('div', undefined, 'lkey');
+      key.append(
+        element('span', 'Observed up', 'up'),
+        element('span', 'Degraded', 'degraded'),
+        element('span', 'Observed down', 'down'),
+        element('span', 'No evidence', 'unknown')
+      );
+      area.append(svg, key);
+      const events = element('ul', undefined, 'wan-events');
+      for (const [key, label] of [
+        ['outages', 'Observed outage'],
+        ['degradation', 'Observed degradation']
+      ])
+        for (const e of w.history[key])
+          events.append(
+            element(
+              'li',
+              label +
+                ' · ' +
+                when(e.start) +
+                ' → ' +
+                when(e.end) +
+                ' · ' +
+                number(e.observed_seconds) +
+                ' s' +
+                (e.end_censored ? ' · observation ended before a verified recovery' : '')
+            )
+          );
+      if (!events.children.length)
+        events.append(
+          element(
+            'li',
+            'No observed outage/degradation intervals in the available samples. Missing intervals remain unknown.'
+          )
+        );
+      area.append(events);
+      card.append(area);
+      $('wan-history').append(card);
+    }
+    $('wan-empty').hidden = r.interfaces.length > 0;
+    if (!r.interfaces.length)
+      $('wan-empty').textContent = 'No current WAN evidence. Missing collection is not an outage.';
+  } catch (e) {
+    if (!current() || !state.auth) return;
+    $('wan-empty').textContent = 'WAN evidence unavailable.';
+    $('route').textContent = 'Route-selection evidence unavailable.';
+    message(errorText(e));
+  }
+}
+$('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const password = $('password').value;
+  $('password').value = '';
+  $('login-submit').disabled = true;
+  try {
+    await workspaceReady;
+    if (state.portal) {
+      const r = await sessionAction('/api/session', {username: $('username').value, password});
+      if (!r.ok)
+        throw safeError(
+          r.status === 429
+            ? 'Too many sign-in attempts. Wait one minute and try again.'
+            : 'Sign-in was rejected. Check your username and password.'
+        );
+    } else {
+      state.auth = 'Basic ' + btoa($('username').value + ':' + password);
+      await api('/api/diagnostics');
+    }
+    signedIn();
+  } catch (error) {
+    state.auth = '';
+    $('login-error').textContent = errorText(error);
+  } finally {
+    $('login-submit').disabled = false;
+  }
+});
+$('logout').addEventListener('click', async () => {
+  $('logout').disabled = true;
+  try {
+    if (state.portal) {
+      const r = await sessionAction('/api/session/logout');
+      if (!r.ok && r.status !== 401)
+        throw safeError('Sign-out could not be confirmed. Check your connection and try again.');
+    }
+    signedOut();
+  } catch (e) {
+    message(errorText(e));
+  } finally {
+    $('logout').disabled = false;
+  }
+});
+$('reload-monitoring').addEventListener('click', loadMonitoring);
+$('apps-genai').addEventListener('click', () => {
+  const s = appSelection();
+  if (s.category === 'GenAI' && s.app === undefined) selectApplications(undefined, undefined);
+  else selectApplications(undefined, 'GenAI');
+});
+$('apps-clear').addEventListener('click', () => selectApplications(undefined, undefined));
+$('sites-search').addEventListener('input', () => {
+  if (state.sitesReport) renderWebsites(state.sitesReport);
+});
+$('sites-top').addEventListener('change', () => {
+  if (state.sitesReport) renderWebsites(state.sitesReport);
+});
+$('sites-clear').addEventListener('click', () => selectSite(undefined));
+$('apps-search').addEventListener('input', () => {
+  if (state.appsReport) renderApplications(state.appsReport);
+});
+$('live-pause').addEventListener('click', toggleLivePause);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.view === 'live' && !state.livePaused) loadLive();
+});
+for (const id of ['apps-top', 'apps-risk'])
+  $(id).addEventListener('change', () => {
+    if (state.appsReport) renderApplications(state.appsReport);
+  });
+window.addEventListener('hashchange', () => {
+  if (state.portal && state.auth) setView(location.hash.slice(1));
+});
+for (const button of document.querySelectorAll('[data-view]'))
+  button.addEventListener('click', () => setView(button.dataset.view));
+for (const button of document.querySelectorAll('[data-period]'))
+  button.addEventListener('click', () => {
+    state.period = button.dataset.period;
+    state.page = 0;
+    for (const b of document.querySelectorAll('[data-period]'))
+      b.classList.toggle('selected', b === button);
+    $('custom').hidden = state.period !== 'custom';
+    if (state.period !== 'custom') loadReport();
+  });
+$('refresh').addEventListener('click', () => {
+  state.page = 0;
+  loadReport();
+});
+$('vlan').addEventListener('change', () => {
+  state.page = 0;
+  loadReport();
+});
+$('search').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    state.page = 0;
+    loadReport();
+  }
+});
+$('top').addEventListener('change', () => {
+  state.page = 0;
+  renderDevices();
+});
+$('previous').addEventListener('click', () => {
+  state.page--;
+  renderDevices();
+});
+$('next').addEventListener('click', () => {
+  state.page++;
+  renderDevices();
+});
+function detailsClosed() {
+  document.body.classList.remove('docked');
+  for (const row of document.querySelectorAll('tr.sel')) row.classList.remove('sel');
+  if (state.detailsReturn?.isConnected) state.detailsReturn.focus();
+  state.detailsReturn = null;
+}
+function closeDetails() {
+  invalidate('deviceSequence');
+  $('details').close();
+  detailsClosed();
+}
+$('close-details').addEventListener('click', closeDetails);
+$('details').addEventListener('close', detailsClosed);
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('details').open && document.body.classList.contains('docked'))
+    closeDetails();
+});
+$('wan-window').addEventListener('change', loadWan);
 </script></body></html>
