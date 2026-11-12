@@ -224,7 +224,45 @@ def wait_web(bind, port, origin, tls):
 
 
 def _main():
+    """Install or resume web management, in a fixed order of reviewed steps.
+
+    Each step either completes or stops with a message; nothing here starts or
+    initializes monitoring. Host operations go through run() and put().
+    """
     os.umask(os.umask(0) | 0o022)
+    args = _arguments()
+    if sys.platform != "linux" or not hasattr(os, "geteuid") or os.geteuid() != 0:
+        raise SystemExit(
+            "Run this installer as root on an Ubuntu Linux server. It does not modify Windows."
+        )
+    if args.upgrade or args.rollback_upgrade:
+        from . import upgrade
+
+        if args.upgrade:
+            upgrade.upgrade(Path(__file__).resolve().parents[1], args.prefix)
+        else:
+            upgrade.rollback(args.prefix)
+        return
+    import pwd
+    import grp
+
+    _check_host(args)
+    tls, origin = _access(args)
+    state = _existing_state(args, origin)
+    account = _web_account(args, pwd, grp)
+    _record_progress(args, origin, state)
+    web, control, stack = _directories(args, account)
+    if not state.previous:
+        _install_source(args, state)
+    key = _create_secrets(web, account)
+    stack = _register(args, stack, control, key, account, state.previous)
+    _validate_registration(args)
+    _write_units(args, tls, origin, web, control, stack, key, account)
+    _start(args, origin, tls, state)
+    _report(args, origin, web, tls)
+
+
+def _arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prefix", type=path_value, default=Path("/opt/fortilens"))
     parser.add_argument("--data", type=path_value, default=Path("/var/lib/fortilens"))
@@ -257,22 +295,11 @@ def _main():
         action="store_true",
         help="Return to the version saved by the last upgrade",
     )
-    args = parser.parse_args()
-    if sys.platform != "linux" or not hasattr(os, "geteuid") or os.geteuid() != 0:
-        raise SystemExit(
-            "Run this installer as root on an Ubuntu Linux server. It does not modify Windows."
-        )
-    if args.upgrade or args.rollback_upgrade:
-        from . import upgrade
+    return parser.parse_args()
 
-        if args.upgrade:
-            upgrade.upgrade(Path(__file__).resolve().parents[1], args.prefix)
-        else:
-            upgrade.rollback(args.prefix)
-        return
-    import pwd
-    import grp
 
+def _check_host(args):
+    """Ubuntu on x86-64, Python 3.11+, optional apt prerequisites, Docker present."""
     osrelease = Path("/etc/os-release").read_text()
     if not re.search(r"^ID=ubuntu$", osrelease, re.M) or platform.machine() not in (
         "x86_64",
@@ -306,6 +333,10 @@ def _main():
             )
     run("docker", "version", "--format", "{{.Server.Version}}")
     run("docker", "compose", "version")
+
+
+def _access(args):
+    """The listener and browser origin: loopback by default, TLS for anything else."""
     if not 1024 <= args.port <= 65535:
         raise SystemExit("Choose a management port from 1024 to 65535.")
     try:
@@ -353,6 +384,20 @@ def _main():
         raise SystemExit("A TLS listener needs an HTTPS origin.")
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", args.dashboard_uid):
         raise SystemExit("Invalid dashboard UID.")
+    return tls, origin
+
+
+class _State:
+    """What is already on the host: a finished or an interrupted installation."""
+
+    def __init__(self, meta, progress, previous, partial, source, hashes):
+        self.meta, self.progress = meta, progress
+        self.previous, self.partial = previous, partial
+        self.source, self.hashes = source, hashes
+
+
+def _existing_state(args, origin):
+    """Read earlier installer state and refuse anything that would overwrite it."""
     meta = args.prefix / "installation.json"
     progress = args.prefix / "installing.json"
     previous = saved_metadata(meta, ("data", "origin", "source")) if meta.exists() else None
@@ -411,6 +456,11 @@ def _main():
         raise SystemExit("Compose file must be inside the registered installation.")
     if args.adopt and not (args.adopt / args.compose_file).is_file():
         raise SystemExit("The existing Compose file was not found. No initialization performed.")
+    return _State(meta, progress, previous, partial, source, hashes)
+
+
+def _web_account(args, pwd, grp):
+    """The nonroot fortilens account, created if missing, never in the Docker group."""
     try:
         account = pwd.getpwnam("fortilens")
     except KeyError:
@@ -435,22 +485,28 @@ def _main():
             )
     except KeyError:
         pass
+    return account
+
+
+def _record_progress(args, origin, state):
+    """Note a new installation's options so an interruption can be resumed exactly."""
     args.prefix.mkdir(parents=True, exist_ok=True)
     os.chmod(args.prefix, 0o755)
-    if not previous and not partial:
+    if not state.previous and not state.partial:
         put(
-            progress,
+            state.progress,
             json.dumps(
                 {
                     "data": str(args.data),
                     "origin": origin,
-                    "source": hashes,
+                    "source": state.hashes,
                     "adopt": str(args.adopt) if args.adopt else None,
                     "project": args.project,
                     "compose_file": args.compose_file,
                 }
             ),
         )
+    partial = state.partial
     if partial and (
         partial.get("adopt") != (str(args.adopt) if args.adopt else None)
         or partial.get("project") != args.project
@@ -459,6 +515,10 @@ def _main():
         raise SystemExit(
             "Resume adoption with exactly the original --adopt, --project and --compose-file options."
         )
+
+
+def _directories(args, account):
+    """Private web and control directories, and the stack folder unless adopting."""
     args.data.mkdir(parents=True, exist_ok=True)
     os.chmod(args.data, 0o755)
     web = args.data / "web"
@@ -470,21 +530,29 @@ def _main():
     stack = args.adopt or control / "stack"
     if not args.adopt:
         stack.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if not previous:
-        for name in hashes:
-            target = args.prefix / "src" / name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            put(target, (source / name).read_bytes(), mode=0o644)
-        run(sys.executable, "-m", "venv", str(args.prefix / "venv"))
-        run(
-            str(args.prefix / "venv/bin/python"),
-            "-m",
-            "pip",
-            "install",
-            "--disable-pip-version-check",
-            "-r",
-            str(args.prefix / "src/management/requirements.txt"),
-        )
+    return web, control, stack
+
+
+def _install_source(args, state):
+    """Copy the reviewed source files and create the management virtual environment."""
+    for name in state.hashes:
+        target = args.prefix / "src" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        put(target, (state.source / name).read_bytes(), mode=0o644)
+    run(sys.executable, "-m", "venv", str(args.prefix / "venv"))
+    run(
+        str(args.prefix / "venv/bin/python"),
+        "-m",
+        "pip",
+        "install",
+        "--disable-pip-version-check",
+        "-r",
+        str(args.prefix / "src/management/requirements.txt"),
+    )
+
+
+def _create_secrets(web, account):
+    """The helper key, once, and a bootstrap token until an administrator exists."""
     key = Path("/etc/fortilens/helper.key")
     if not key.exists():
         put(key, secrets.token_urlsafe(48) + "\n", mode=0o640, gid=account.pw_gid)
@@ -495,6 +563,11 @@ def _main():
             uid=account.pw_uid,
             gid=account.pw_gid,
         )
+    return key
+
+
+def _register(args, stack, control, key, account, previous):
+    """Write the helper registry once; later runs must match it."""
     registry = {
         "installation": str(stack),
         "control": str(control),
@@ -510,19 +583,22 @@ def _main():
     }
     if not previous:
         put("/etc/fortilens/registry.json", json.dumps(registry, indent=2))
-    else:
-        registry = saved_metadata("/etc/fortilens/registry.json", ("installation", "project"))
-        if (
-            args.adopt
-            and str(args.adopt) != registry["installation"]
-            or args.project
-            and args.project != registry["project"]
-        ):
-            raise SystemExit(
-                "The existing installation is registered to a different project. Nothing was reinitialized."
-            )
-        stack = Path(registry["installation"])
-    # Validate adoption with the installed interpreter before starting either unit.
+        return stack
+    registry = saved_metadata("/etc/fortilens/registry.json", ("installation", "project"))
+    if (
+        args.adopt
+        and str(args.adopt) != registry["installation"]
+        or args.project
+        and args.project != registry["project"]
+    ):
+        raise SystemExit(
+            "The existing installation is registered to a different project. Nothing was reinitialized."
+        )
+    return Path(registry["installation"])
+
+
+def _validate_registration(args):
+    """Open the registered configuration with the installed interpreter before any unit starts."""
     validate = "from management.configuration import Configuration; import json; c=json.load(open('/etc/fortilens/registry.json')); Configuration(c['installation'],c['control'],project=c['project'],compose_file=c['compose_file'])"
     env = os.environ.copy()
     env["PYTHONPATH"] = str(args.prefix / "src")
@@ -537,6 +613,10 @@ def _main():
         raise SystemExit(
             "Existing configuration registration needs review. It was not reinitialized or overwritten; see the migration guide."
         )
+
+
+def _write_units(args, tls, origin, web, control, stack, key, account):
+    """TLS files, if any, and the helper and web systemd units."""
     certargs = ""
     if tls:
         put("/etc/fortilens/tls.crt", args.tls_cert.read_text(), mode=0o644, gid=account.pw_gid)
@@ -577,12 +657,22 @@ WantedBy=multi-user.target
 """
     put("/etc/systemd/system/fortilens-helper.service", helper, mode=0o644)
     put("/etc/systemd/system/fortilens-web.service", webunit, mode=0o644)
+
+
+def _start(args, origin, tls, state):
+    """Start both units, wait for the web service, then record the finished install."""
     run("systemctl", "daemon-reload")
     run("systemctl", "enable", "--now", "fortilens-helper", "fortilens-web")
     run("systemctl", "is-active", "--quiet", "fortilens-helper", "fortilens-web")
     wait_web(args.bind, args.port, origin, tls)
-    put(meta, json.dumps({"data": str(args.data), "origin": origin, "source": hashes}, indent=2))
-    progress.unlink(missing_ok=True)
+    put(
+        state.meta,
+        json.dumps({"data": str(args.data), "origin": origin, "source": state.hashes}, indent=2),
+    )
+    state.progress.unlink(missing_ok=True)
+
+
+def _report(args, origin, web, tls):
     print("FortiLens management: " + origin)
     print(
         "Monitoring has not been reinitialized. Review and apply configuration in the web interface."
