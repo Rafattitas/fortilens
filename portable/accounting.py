@@ -736,7 +736,893 @@ def derive_session(events, inventory, config):
     return results
 
 
-class Store:
+class StoreReports:
+    """Read side of the accounting store: reports, histories and diagnostics.
+
+    Every method here only reads. ``Store`` adds the write side: opening and
+    migrating the database, ingestion, roll-ups and pruning. A reader opened
+    with ``Store.reader()`` uses the same methods on its own connection.
+    """
+
+    def _has_table(self, name):
+        # A reader of a file not yet opened by this version has no such table.
+        return (
+            self.db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+            ).fetchone()
+            is not None
+        )
+
+    def _app_table(self):
+        return self._has_table("app_daily")
+
+    def _with_profiles(self, rows):
+        found = self.profiles(row["device_id"] for row in rows)
+        for row in rows:
+            row["profile"] = found.get(row["device_id"])
+        return rows
+
+    def app_catalog(self, ids):
+        """Names for Application Control IDs seen in received records."""
+        ids = [str(i) for i in ids if str(i).isdigit()]
+        if not ids or not self._has_table("app_catalog"):
+            return {}
+        result = {}
+        for index in range(0, len(ids), 500):
+            page = ids[index : index + 500]
+            for appid, payload in self.db.execute(
+                "SELECT appid,payload FROM app_catalog WHERE appid IN ("
+                + ",".join("?" * len(page))
+                + ")",
+                page,
+            ):
+                result[appid] = json.loads(payload)
+        return result
+
+    def recent_identities(self, days=2):
+        """Endpoint identities from the latest daily rows, keyed by MAC and by IP.
+
+        Live FortiView rows carry only addresses; this names them with what the
+        accounting engine already recorded. Newer rows win.
+        """
+        start = self.db.execute("SELECT MAX(day) FROM daily").fetchone()[0]
+        if not start:
+            return {}, {}
+        first = (datetime.fromisoformat(start).date() - timedelta(days=days - 1)).isoformat()
+        rows = sorted(
+            (
+                json.loads(p)
+                for (p,) in self.db.execute("SELECT payload FROM daily WHERE day>=?", (first,))
+            ),
+            key=lambda r: r["event_ns"],
+        )
+        by_mac, by_ip = {}, {}
+        for row in rows:
+            identity = {
+                "device_id": row["device_id"],
+                "hostname": row.get("hostname", ""),
+                "ip": row.get("ip", ""),
+                "mac": row.get("mac", ""),
+                "identity_kind": row.get("identity_kind", ""),
+            }
+            if identity["mac"]:
+                by_mac[identity["mac"].lower()] = identity
+            if identity["ip"]:
+                by_ip[identity["ip"]] = identity
+        profiles = self.profiles({x["device_id"] for x in (*by_mac.values(), *by_ip.values())})
+        for identity in (*by_mac.values(), *by_ip.values()):
+            identity["profile"] = profiles.get(identity["device_id"])
+        return by_mac, by_ip
+
+    def profiles(self, devices):
+        """Latest FortiGate OS/vendor/type labels for the given endpoint identities."""
+        if not devices or not self._has_table("device_profile"):
+            return {}
+        result, devices = {}, list(devices)
+        for index in range(0, len(devices), 500):
+            page = devices[index : index + 500]
+            for device, payload in self.db.execute(
+                "SELECT device,payload FROM device_profile WHERE device IN ("
+                + ",".join("?" * len(page))
+                + ")",
+                page,
+            ):
+                value = json.loads(payload)
+                value.pop("event_ns", None)
+                result[device] = value
+        return result
+
+    def app_history(
+        self, app=None, category=None, *, device=None, vlan=None, months=False, limit=400
+    ):
+        """Whole-day (or month) recorded bytes for one application or category."""
+        if not self._app_table() or app is None and category is None:
+            return []
+        values = {}
+        if app is not None:
+            query, params = (
+                "app=?" + (" AND category=?" if category is not None else ""),
+                (app,) + ((category,) if category is not None else ()),
+            )
+        else:
+            query, params = "category=?", (category,)
+        for day, row_device, row_app, row_category, payload in self.db.execute(
+            "SELECT day,device,app,category,payload FROM app_daily WHERE "
+            + query
+            + " ORDER BY day",
+            params,
+        ):
+            if (
+                app is not None
+                and row_app != app
+                or category is not None
+                and row_category != category
+            ):
+                continue
+            if row_app == "" and row_category == "" or device and row_device != device:
+                continue
+            row = json.loads(payload)
+            if vlan and row["vlan"]["key"] != vlan:
+                continue
+            key = day[:7] if months else day
+            value = values.setdefault(
+                key,
+                {
+                    "period": key,
+                    "upload_bytes": 0,
+                    "download_bytes": 0,
+                    "pending_upload_bytes": 0,
+                    "pending_download_bytes": 0,
+                    "observed_days": set(),
+                },
+            )
+            for column in (
+                "upload_bytes",
+                "download_bytes",
+                "pending_upload_bytes",
+                "pending_download_bytes",
+            ):
+                value[column] += row[column]
+            value["observed_days"].add(day)
+        result = []
+        for key in sorted(values)[-limit:]:
+            value = values[key]
+            value["observed_days"] = len(value["observed_days"])
+            result.append(value)
+        return result
+
+    def _app_day_complete(self, day):
+        """True when every Internet fact of `day` is also in `app_daily`.
+
+        Both tables count the same facts, so equal record counts show the day was
+        maintained by application rollups from its start.
+        """
+        if not self._app_table():
+            return False
+        count = "SELECT COALESCE(SUM(json_extract(payload,'$.records')),0) FROM {} WHERE day=?"
+        return (
+            self.db.execute(count.format("daily"), (day,)).fetchone()[0]
+            == self.db.execute(count.format("app_daily"), (day,)).fetchone()[0]
+        )
+
+    def _iter_app_rows(self, start, end):
+        """Whole days from `app_daily`; partial edges from retained facts and labels."""
+        zone = self.zone()
+        start_local = datetime.fromtimestamp(start // NS, zone)
+        end_local = datetime.fromtimestamp(end // NS, zone)
+        first_full = start_local.date() + (
+            timedelta(days=1)
+            if (start_local.hour or start_local.minute or start_local.second or start % NS)
+            else timedelta()
+        )
+        last_full_end = end_local.date()
+        whole = (
+            self.db.execute(
+                "SELECT day,device,app,category,payload FROM app_daily WHERE day>=? AND day<?",
+                (first_full.isoformat(), last_full_end.isoformat()),
+            )
+            if self._app_table()
+            else ()
+        )
+        for day, device, app, category, payload in whole:
+            yield {
+                **json.loads(payload),
+                "day": day,
+                "device_id": device,
+                "app": app,
+                "category": category,
+            }
+        middle_start = timestamp_ns(
+            datetime.combine(first_full, datetime.min.time(), zone).isoformat()
+        )
+        middle_end = timestamp_ns(
+            datetime.combine(last_full_end, datetime.min.time(), zone).isoformat()
+        )
+        for a, b in ((start, min(end, middle_start)), (max(start, middle_end, middle_start), end)):
+            if a < b:
+                if a < self.state("ledger_floor_ns", 0):
+                    raise ValueError(
+                        "Partial-day detail expired; request whole calendar days or increase ledger retention before collection"
+                    )
+                # Like reports: a day row whose events all lie inside the edge is
+                # used as is. Only the rest is rebuilt from retained facts, so
+                # "today so far" does not decode every record of the day.
+                day_local = datetime.fromtimestamp(a // NS, zone).date()
+                day_start = timestamp_ns(
+                    datetime.combine(day_local, datetime.min.time(), zone).isoformat()
+                )
+                # A day that began before application rows were kept has only part
+                # of its records in `app_daily`; it is rebuilt from retained facts.
+                complete = self._app_day_complete(day_local.isoformat())
+                included, partial = set(), not complete
+                rows = (
+                    self.db.execute(
+                        "SELECT device,vlan,app,category,payload FROM app_daily WHERE day=?",
+                        (day_local.isoformat(),),
+                    )
+                    if complete
+                    else ()
+                )
+                for device, vlan_key, app, category, payload in rows:
+                    value = json.loads(payload)
+                    first, last = value.get("first_event_ns", day_start), value["event_ns"]
+                    if a <= first and last < b:
+                        included.add((device, vlan_key, app, category))
+                        yield {
+                            **value,
+                            "day": day_local.isoformat(),
+                            "device_id": device,
+                            "app": app,
+                            "category": category,
+                        }
+                    elif last >= a and first < b:
+                        partial = True
+                if not partial:
+                    continue
+                for fact, labels in self.ledger.range_facts_labels(a, b):
+                    if fact["classification"] != "INTERNET":
+                        continue
+                    app, category = labels.get("app", ""), labels.get("appcat", "")
+                    if (fact["device_id"], fact["vlan"]["key"], app, category) in included:
+                        continue
+                    yield {
+                        **fact,
+                        "records": 1,
+                        "app": app,
+                        "category": category,
+                        "risk": labels.get("apprisk", ""),
+                    }
+
+    def applications(
+        self, start, end, *, app=None, category=None, device=None, vlan=None, history=False
+    ):
+        """Recorded Internet bytes by application and category for [start,end).
+
+        `app`/`category` select one application or category ("" = unidentified)
+        and add its devices. Bytes recorded before labels were kept carry no
+        labels at all; they are reported apart as `untracked`, never as
+        unidentified, and `tracking_started_ns` says when labels begin.
+        """
+        start, end = timestamp_ns(start), timestamp_ns(end)
+        if start >= end:
+            raise ValueError("Report start must precede its end")
+        amounts = (
+            "upload_bytes",
+            "download_bytes",
+            "pending_upload_bytes",
+            "pending_download_bytes",
+        )
+        columns = (*amounts, "records")
+        apps, categories, devices = {}, {}, {}
+        untracked = {c: 0 for c in columns}
+
+        def add(target, row):
+            for column in columns:
+                target[column] += row[column]
+
+        for row in self._iter_app_rows(start, end):
+            if vlan and row["vlan"]["key"] != vlan or device and row["device_id"] != device:
+                continue
+            if row["app"] == "" and row["category"] == "":
+                add(untracked, row)
+                continue
+            key = (row["app"], row["category"])
+            entry = apps.setdefault(
+                key,
+                {
+                    "app": row["app"] or None,
+                    "category": row["category"] or None,
+                    "risk": None,
+                    "generic": bool(GENERIC_APP.fullmatch(row["app"])),
+                    "event_ns": -1,
+                    "devices": set(),
+                    **{c: 0 for c in columns},
+                },
+            )
+            add(entry, row)
+            entry["devices"].add(row["device_id"])
+            if row["event_ns"] >= entry["event_ns"]:
+                entry["event_ns"], entry["risk"] = row["event_ns"], row.get("risk") or entry["risk"]
+            group = categories.setdefault(
+                row["category"],
+                {
+                    "category": row["category"] or None,
+                    "apps": set(),
+                    "devices": set(),
+                    **{c: 0 for c in columns},
+                },
+            )
+            add(group, row)
+            group["apps"].add(row["app"])
+            group["devices"].add(row["device_id"])
+            if (
+                app is not None
+                and row["app"] == app
+                and (category is None or row["category"] == category)
+            ) or (app is None and category is not None and row["category"] == category):
+                # One row per endpoint identity; its VLANs are listed, not repeated.
+                target = devices.setdefault(
+                    row["device_id"],
+                    {
+                        "device_id": row["device_id"],
+                        "vlan": row["vlan"],
+                        "vlans": {},
+                        "event_ns": -1,
+                        "hostname": "",
+                        "ip": "",
+                        "mac": "",
+                        "identity_kind": "",
+                        **{c: 0 for c in columns},
+                    },
+                )
+                add(target, row)
+                target["vlans"][row["vlan"]["key"]] = row["vlan"]
+                if row["event_ns"] >= target["event_ns"]:
+                    for column in ("event_ns", "hostname", "ip", "mac", "identity_kind", "vlan"):
+                        target[column] = row[column]
+
+        def finish(values, *sets):
+            result = []
+            for value in values:
+                value = dict(value)
+                for name in sets:
+                    value[name] = len(value[name])
+                value.pop("event_ns", None)
+                value["total_bytes"] = value["upload_bytes"] + value["download_bytes"]
+                result.append(value)
+            return sorted(
+                result,
+                key=lambda x: (
+                    -x["total_bytes"],
+                    str(x.get("app") or x.get("category") or x.get("device_id")),
+                ),
+            )
+
+        rows = finish(apps.values(), "devices")
+        selected = finish(devices.values()) if (app is not None or category is not None) else []
+        found = self.profiles(x["device_id"] for x in selected)
+        for row in selected:
+            row["profile"] = found.get(row["device_id"])
+            row["vlans"] = list(row["vlans"].values())
+        total = sum(x["total_bytes"] for x in rows)
+        unidentified = sum(x["total_bytes"] for x in rows if x["app"] is None)
+        generic = sum(x["total_bytes"] for x in rows if x["generic"])
+        named = [x for x in rows if x["app"] is not None and not x["generic"]]
+        genai = next(
+            (c for c in finish(categories.values(), "apps", "devices") if c["category"] == "GenAI"),
+            None,
+        )
+        untracked_total = untracked["upload_bytes"] + untracked["download_bytes"]
+        result = {
+            "start_utc": iso(start),
+            "end_utc": iso(end),
+            "boundary": "[start,end)",
+            **zone_fields(self.config, end),
+            "applications": rows,
+            "categories": finish(categories.values(), "apps", "devices"),
+            "devices": selected,
+            "totals": {c: sum(x[c] for x in rows) if rows else None for c in amounts},
+            "summary": {
+                "total_bytes": total if rows else None,
+                "applications": len(rows),
+                "top_application": named[0]["app"] if named else None,
+                "identified_bytes": total - unidentified - generic if rows else None,
+                "unidentified_bytes": unidentified if rows else None,
+                "generic_bytes": generic if rows else None,
+                "genai_bytes": genai["total_bytes"] if genai else 0,
+                "genai_devices": genai["devices"] if genai else 0,
+            },
+            "unidentified_bytes": unidentified if rows else None,
+            "untracked": {**untracked, "total_bytes": untracked_total}
+            if untracked["records"]
+            else None,
+            "tracking_started_ns": self.state("applications_first_ns"),
+            "applications_since": self.db.execute(
+                "SELECT MIN(day) FROM app_daily WHERE category<>'' OR app<>''"
+            ).fetchone()[0]
+            if self._app_table()
+            else None,
+            "traffic_coverage": "UNKNOWN",
+            "status": "RECORDED_ONLY" if rows else "UNAVAILABLE",
+            "note": "Application labels come from FortiGate Application Control on each record. Records without an application label are unidentified; protocol-only labels such as QUIC or SSL are marked generic. Device names are not authenticated user accounts.",
+        }
+        if history and (app is not None or category is not None):
+            result["daily_history"] = self.app_history(app, category, device=device, vlan=vlan)
+            result["monthly_history"] = self.app_history(
+                app, category, device=device, vlan=vlan, months=True, limit=36
+            )
+        return result
+
+    def site_days(self, start, end, now):
+        """The calendar days a website report covers, or ValueError.
+
+        Website totals are kept per day. A period must start at midnight and end
+        at midnight, or end inside the current day ("so far today").
+        """
+        zone = self.zone()
+        start, end = timestamp_ns(start), timestamp_ns(end)
+        if start >= end:
+            raise ValueError("Report start must precede its end")
+        first, last = (
+            datetime.fromtimestamp(start // NS, zone),
+            datetime.fromtimestamp(end // NS, zone),
+        )
+
+        def midnight(moment, ns):
+            return (moment.hour, moment.minute, moment.second) == (0, 0, 0) and ns % NS == 0
+
+        if not midnight(first, start):
+            raise ValueError(
+                "Website totals are kept per day; choose a period that starts at midnight"
+            )
+        if midnight(last, end):
+            final = last.date() - timedelta(days=1)
+        elif last.date() == datetime.fromtimestamp(timestamp_ns(now) // NS, zone).date():
+            final = last.date()
+        else:
+            raise ValueError(
+                "Website totals are kept per day; choose a period that ends at midnight"
+            )
+        return first.date().isoformat(), final.isoformat()
+
+    def websites(self, start, end, *, now, site=None, device=None, vlan=None, limit=500):
+        """Recorded Internet bytes by website for whole days, from `site_daily`.
+
+        Only sessions whose site FortiGate logged (Application Control or Web
+        Filter) are included; `coverage` is their share of all recorded Internet
+        bytes on the same days since websites were switched on.
+        """
+        first, last = self.site_days(start, end, now)
+        since_ns = self.state("websites_since_ns")
+        since = (
+            datetime.fromtimestamp(since_ns // NS, self.zone()).date().isoformat()
+            if since_ns is not None
+            else None
+        )
+        result = {
+            "start_utc": iso(timestamp_ns(start)),
+            "end_utc": iso(timestamp_ns(end)),
+            "first_day": first,
+            "last_day": last,
+            **zone_fields(self.config, timestamp_ns(end)),
+            "enabled": self.websites_enabled,
+            "since_ns": since_ns,
+            "retention_days": SITE_DAYS,
+            "sites": [],
+            "devices": [],
+            "site": site,
+            "summary": {
+                "total_bytes": None,
+                "sites": 0,
+                "top_site": None,
+                "internet_bytes": None,
+                "coverage": None,
+            },
+            "note": "Websites come from FortiGate Application Control and Web Filter logs for the same session. Sessions without such a log are not included. Only the site name (example.com) is kept, never full addresses. Device names are not authenticated user accounts.",
+        }
+        if not self._has_table("site_daily"):
+            return result
+        where, params = ["day>=?", "day<=?"], [first, last]
+        for column, value in (("device", device), ("vlan", vlan)):
+            if value:
+                where.append(column + "=?")
+                params.append(value)
+        sites, devices = {}, {}
+        for day, row_device, row_site, payload in self.db.execute(
+            "SELECT day,device,site,payload FROM site_daily WHERE " + " AND ".join(where), params
+        ):
+            value = json.loads(payload)
+            entry = sites.setdefault(
+                row_site,
+                {
+                    "site": row_site,
+                    "upload_bytes": 0,
+                    "download_bytes": 0,
+                    "records": 0,
+                    "devices": set(),
+                },
+            )
+            for column in ("upload_bytes", "download_bytes", "records"):
+                entry[column] += value[column]
+            entry["devices"].add(row_device)
+            if row_site == site:
+                target = devices.setdefault(
+                    row_device,
+                    {
+                        "device_id": row_device,
+                        "upload_bytes": 0,
+                        "download_bytes": 0,
+                        "records": 0,
+                        "vlans": {},
+                        "event_ns": -1,
+                    },
+                )
+                for column in ("upload_bytes", "download_bytes", "records"):
+                    target[column] += value[column]
+                target["vlans"][value["vlan"]["key"]] = value["vlan"]
+                target["event_ns"] = max(target["event_ns"], value["event_ns"])
+        rows = []
+        for entry in sites.values():
+            entry["devices"] = len(entry["devices"])
+            entry["total_bytes"] = entry["upload_bytes"] + entry["download_bytes"]
+            rows.append(entry)
+        rows.sort(key=lambda x: (-x["total_bytes"], x["site"]))
+        selected = sorted(
+            devices.values(),
+            key=lambda x: (-(x["upload_bytes"] + x["download_bytes"]), x["device_id"]),
+        )[:limit]
+        profiles = self.profiles(x["device_id"] for x in selected)
+        for target in selected:
+            # Representative identifiers from the device's latest daily row.
+            latest = self.db.execute(
+                "SELECT payload FROM daily WHERE device=? AND day>=? AND day<=? ORDER BY day DESC LIMIT 1",
+                (target["device_id"], first, last),
+            ).fetchone()
+            known = json.loads(latest[0]) if latest else {}
+            target.update({k: known.get(k, "") for k in ("hostname", "ip", "mac", "identity_kind")})
+            target["vlans"] = list(target["vlans"].values())
+            target["total_bytes"] = target["upload_bytes"] + target["download_bytes"]
+            target["profile"] = profiles.get(target["device_id"])
+            target.pop("event_ns")
+        total = sum(x["total_bytes"] for x in rows)
+        internet = None
+        if since and since <= last:
+
+            def counted(table, low):
+                where, values = ["day>=?", "day<=?"], [low, last]
+                for column, value in (("device", device), ("vlan", vlan)):
+                    if value:
+                        where.append(column + "=?")
+                        values.append(value)
+                return self.db.execute(
+                    "SELECT COALESCE(SUM(json_extract(payload,'$.upload_bytes')+json_extract(payload,'$.download_bytes')),0) FROM "
+                    + table
+                    + " WHERE "
+                    + " AND ".join(where),
+                    values,
+                ).fetchone()[0]
+
+            if since < first:
+                internet, site_bytes = counted("daily", first), counted("site_daily", first)
+            else:
+                # The day websites were switched on: its daily row also holds usage
+                # from before, so only facts from that moment are compared.
+                zone = self.zone()
+                next_day = (datetime.fromisoformat(since) + timedelta(days=1)).date()
+                internet, site_bytes = (
+                    counted("daily", next_day.isoformat()),
+                    counted("site_daily", next_day.isoformat()),
+                )
+                if since_ns >= self.state("ledger_floor_ns", 0):
+                    day_end = timestamp_ns(
+                        datetime.combine(next_day, datetime.min.time(), zone).isoformat()
+                    )
+                    internet += sum(
+                        fact["upload_bytes"] + fact["download_bytes"]
+                        for fact, _ in self.ledger.range_facts_labels(since_ns, day_end)
+                        if (not device or fact["device_id"] == device)
+                        and (not vlan or fact["vlan"]["key"] == vlan)
+                    )
+                    site_bytes = counted("site_daily", since)
+            result["summary"]["coverage"] = min(1.0, site_bytes / internet) if internet else None
+        result.update(sites=rows[:limit], devices=selected, truncated=len(rows) > limit)
+        result["summary"].update(
+            total_bytes=total if rows else None,
+            sites=len(rows),
+            top_site=rows[0]["site"] if rows else None,
+            internet_bytes=internet,
+        )
+        return result
+
+    def range_rows(self, start, end):
+        """Return the historical list interface for direct callers."""
+        return list(self._iter_range_rows(start, end))
+
+    def newest_record_ns(self):
+        """Event time of the newest received record, from the two latest daily summaries."""
+        latest = self.db.execute("SELECT MAX(day) FROM daily").fetchone()[0]
+        if not latest:
+            return None
+        first = (datetime.fromisoformat(latest).date() - timedelta(days=1)).isoformat()
+        stamps = [
+            json.loads(p).get("event_ns")
+            for (p,) in self.db.execute("SELECT payload FROM daily WHERE day>=?", (first,))
+        ]
+        stamps = [s for s in stamps if type(s) is int]
+        return max(stamps) if stamps else None
+
+    def _iter_range_rows(self, start, end, deadline=None):
+        # A partial day can contain millions of facts. Reports consume each row
+        # immediately rather than keeping a second complete ledger in memory.
+        zone = self.zone()
+        start_local = datetime.fromtimestamp(start // NS, zone)
+        end_local = datetime.fromtimestamp(end // NS, zone)
+        first_full = start_local.date() + (
+            timedelta(days=1)
+            if (start_local.hour or start_local.minute or start_local.second or start % NS)
+            else timedelta()
+        )
+        last_full_end = end_local.date()
+        for row in self.db.execute(
+            "SELECT payload FROM daily WHERE day>=? AND day<?",
+            (first_full.isoformat(), last_full_end.isoformat()),
+        ):
+            yield json.loads(row[0])
+        middle_start = timestamp_ns(
+            datetime.combine(first_full, datetime.min.time(), zone).isoformat()
+        )
+        middle_end = timestamp_ns(
+            datetime.combine(last_full_end, datetime.min.time(), zone).isoformat()
+        )
+        edges = [(start, min(end, middle_start)), (max(start, middle_end, middle_start), end)]
+        for a, b in edges:
+            if a < b:
+                if a < self.state("ledger_floor_ns", 0):
+                    raise ValueError(
+                        "Partial-day detail expired; request whole calendar days or increase ledger retention before collection"
+                    )
+                day = datetime.fromtimestamp(a // NS, zone).date().isoformat()
+                candidates = [
+                    json.loads(r[0])
+                    for r in self.db.execute("SELECT payload FROM daily WHERE day=?", (day,))
+                ]
+                included = set()
+                partial = False
+                for value in candidates:
+                    first, last = value.get("first_event_ns", -1), value["event_ns"]
+                    if a <= first and last < b:
+                        yield value
+                        included.add((value["device_id"], value["vlan"]["key"]))
+                    elif last >= a and first < b:
+                        partial = True
+                if partial:
+                    for count, value in enumerate(
+                        self.ledger.range_facts(a, b, classification="INTERNET")
+                    ):
+                        # Reading raw records is the one unbounded step: stop
+                        # before a caller's gateway gives up, and say why.
+                        if (
+                            deadline is not None
+                            and count % 1000 == 0
+                            and time.monotonic() > deadline
+                        ):
+                            raise ReportTooLarge("Partial-day detail did not finish in time")
+                        if (
+                            value["classification"] == "INTERNET"
+                            and (value["device_id"], value["vlan"]["key"]) not in included
+                        ):
+                            yield {
+                                **value,
+                                "records": 1,
+                                "flag_counts": {k: 1 for k in value["flags"]},
+                            }
+
+    def report(self, start, end, *, vlan=None, device=None, search="", deadline=None):
+        start, end = timestamp_ns(start), timestamp_ns(end)
+        if start >= end:
+            raise ValueError("Report start must precede its end")
+        grouped, flags = {}, defaultdict(int)
+        for row in self._iter_range_rows(start, end, deadline):
+            if vlan and row["vlan"]["key"] != vlan or device and row["device_id"] != device:
+                continue
+            if (
+                search
+                and search.casefold()
+                not in " ".join(
+                    str(row.get(k, "")) for k in ("ip", "mac", "hostname", "device_id")
+                ).casefold()
+            ):
+                continue
+            key = row["device_id"], row["vlan"]["key"]
+            if key not in grouped:
+                grouped[key] = {
+                    **row,
+                    "upload_bytes": 0,
+                    "download_bytes": 0,
+                    "pending_upload_bytes": 0,
+                    "pending_download_bytes": 0,
+                    "records": 0,
+                    "flag_counts": {},
+                }
+            target = grouped[key]
+            if row["event_ns"] > target["event_ns"]:
+                for column in ("event_ns", "hostname", "ip", "mac", "source_interface"):
+                    target[column] = row[column]
+            for column in (
+                "upload_bytes",
+                "download_bytes",
+                "pending_upload_bytes",
+                "pending_download_bytes",
+                "records",
+            ):
+                target[column] += row[column]
+            for flag, count in row["flag_counts"].items():
+                flags[flag] += count
+                target["flag_counts"][flag] = target["flag_counts"].get(flag, 0) + count
+        rows = sorted(
+            grouped.values(), key=lambda x: x["upload_bytes"] + x["download_bytes"], reverse=True
+        )
+        totals = {
+            column: sum(x[column] for x in rows) if rows else None
+            for column in (
+                "upload_bytes",
+                "download_bytes",
+                "pending_upload_bytes",
+                "pending_download_bytes",
+            )
+        }
+        vlans, devices = {}, {}
+        for entry in rows:
+            for grouping, key in ((vlans, entry["vlan"]["key"]), (devices, entry["device_id"])):
+                if key not in grouping:
+                    grouping[key] = {
+                        **entry,
+                        "upload_bytes": 0,
+                        "download_bytes": 0,
+                        "pending_upload_bytes": 0,
+                        "pending_download_bytes": 0,
+                        "records": 0,
+                        "device_ids": set(),
+                        "vlans": {},
+                        "source_interfaces": set(),
+                    }
+                target = grouping[key]
+                for column in (
+                    "upload_bytes",
+                    "download_bytes",
+                    "pending_upload_bytes",
+                    "pending_download_bytes",
+                    "records",
+                ):
+                    target[column] += entry[column]
+                target["device_ids"].add(entry["device_id"])
+                target["vlans"][entry["vlan"]["key"]] = entry["vlan"]
+                target["source_interfaces"].add(entry["source_interface"])
+                if entry["event_ns"] > target["event_ns"]:
+                    for column in ("event_ns", "hostname", "ip", "mac"):
+                        target[column] = entry[column]
+        for grouping in (vlans, devices):
+            for entry in grouping.values():
+                entry["observed_endpoint_identities"] = len(entry.pop("device_ids"))
+                entry["source_interfaces"] = sorted(entry["source_interfaces"])
+                entry["vlans"] = list(entry["vlans"].values())
+                entry["total_bytes"] = entry["upload_bytes"] + entry["download_bytes"]
+        return {
+            "start_utc": iso(start),
+            "end_utc": iso(end),
+            "boundary": "[start,end)",
+            **zone_fields(self.config, end),
+            "source_record_classifications": self.classifications(start, end),
+            "rows": rows,
+            "devices": self._with_profiles(
+                sorted(devices.values(), key=lambda x: x["total_bytes"], reverse=True)
+            ),
+            "vlans": sorted(vlans.values(), key=lambda x: x["total_bytes"], reverse=True),
+            "totals": totals,
+            "observed_endpoint_identities": len({x["device_id"] for x in rows}),
+            "unverified_endpoint_identities": len(
+                {x["device_id"] for x in rows if x["identity_kind"] != "MAC"}
+            ),
+            "flags": dict(flags),
+            "traffic_coverage": "UNKNOWN",
+            "status": "RECORDED_ONLY" if rows else "UNAVAILABLE",
+            "note": "Received-log accounting, not certified billing. Bytes follow event timestamps; cross-boundary intervals and missing source traffic remain uncertain.",
+        }
+
+    def classifications(self, start, end):
+        """Source-wide received counts, explicitly independent of device filters."""
+        zone = self.zone()
+        first = datetime.fromtimestamp(start // NS, zone).date().isoformat()
+        last = datetime.fromtimestamp((end - 1) // NS, zone).date().isoformat()
+        counts = defaultdict(int)
+        for row in self.db.execute(
+            "SELECT day,classification,records,first_stamp,last_stamp FROM quality WHERE day>=? AND day<=?",
+            (first, last),
+        ):
+            if start <= row[3] and row[4] < end:
+                counts[row[1]] += row[2]
+            else:
+                boundary = timestamp_ns(
+                    datetime.fromisoformat(row[0]).replace(tzinfo=zone).isoformat()
+                )
+                stop = timestamp_ns(
+                    (datetime.fromisoformat(row[0]) + timedelta(days=1))
+                    .replace(tzinfo=zone)
+                    .isoformat()
+                )
+                # Expired partial-day selections were already refused by the
+                # main report path. Count retained facts at the exact edges.
+                count = self.ledger.count_classification(
+                    max(start, boundary), min(end, stop), row[1]
+                )
+                counts[row[1]] += count
+        return dict(counts)
+
+    def history(self, device, *, months=False, vlan=None, limit=400):
+        if not re.fullmatch(r"[a-f0-9]{64}", device) or not 1 <= limit <= 3650:
+            raise ValueError("Invalid device history selection")
+        rows = self.db.execute(
+            "SELECT day,payload FROM daily WHERE device=? ORDER BY day DESC LIMIT 10000", (device,)
+        ).fetchall()
+        values = {}
+        for day, payload in rows:
+            row = json.loads(payload)
+            if vlan and row["vlan"]["key"] != vlan:
+                continue
+            key = day[:7] if months else day
+            if key not in values:
+                values[key] = {
+                    "period": key,
+                    "upload_bytes": 0,
+                    "download_bytes": 0,
+                    "pending_upload_bytes": 0,
+                    "pending_download_bytes": 0,
+                    "traffic_coverage": "UNKNOWN",
+                    "observed_days": set(),
+                }
+            for column in (
+                "upload_bytes",
+                "download_bytes",
+                "pending_upload_bytes",
+                "pending_download_bytes",
+            ):
+                values[key][column] += row[column]
+            values[key]["observed_days"].add(day)
+        result = []
+        for key in sorted(values)[-limit:]:
+            value = values[key]
+            value["observed_days"] = len(value["observed_days"])
+            result.append(value)
+        return result
+
+    def diagnostics(self):
+        # Separate extrema let the existing facts_stamp index stop at its ends.
+        floor = self.state("ledger_floor_ns", 0)
+        first, last = self.ledger.fact_extrema(floor)
+        delivery = self.delivery_max()
+        try:
+            # Application Control IDs learned from logs; none means Live shows IDs, not names.
+            app_ids = self.db.execute("SELECT count(*) FROM app_catalog").fetchone()[0]
+        except sqlite3.OperationalError:
+            app_ids = None
+        return {
+            "app_ids_seen": app_ids,
+            "checkpoint_ns": self.state("checkpoint_ns"),
+            "last_received_event_ns": last,
+            "first_retained_event_ns": first,
+            "last_delivery_ns": delivery,
+            "replay_candidates": self.state("replay_candidates", 0),
+            "late_rejections": self.state("late_rejections", 0),
+            "parser_rejections": self.state("parser_rejections", 0),
+            "ledger_floor_ns": self.state("ledger_floor_ns"),
+            "summary_floor_day": self.state("summary_floor_day"),
+            "traffic_coverage": "UNKNOWN",
+            "source_identity_bound": bool(self.config.get("expected_devid")),
+            "inventory_available": bool(self.inventory.get("interfaces")),
+        }
+
+
+class Store(StoreReports):
     def __init__(self, path, config, inventory=None, *, storage_format=None):
         if config["accounting_timezone"] == "browser":
             raise ValueError("Accounting requires an explicit IANA timezone")
@@ -1197,415 +2083,6 @@ class Store:
             return
         self._put("device_profile", key, {**profile, "event_ns": fact["event_ns"]})
 
-    def _has_table(self, name):
-        # A reader of a file not yet opened by this version has no such table.
-        return (
-            self.db.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
-            ).fetchone()
-            is not None
-        )
-
-    def _app_table(self):
-        return self._has_table("app_daily")
-
-    def _with_profiles(self, rows):
-        found = self.profiles(row["device_id"] for row in rows)
-        for row in rows:
-            row["profile"] = found.get(row["device_id"])
-        return rows
-
-    def app_catalog(self, ids):
-        """Names for Application Control IDs seen in received records."""
-        ids = [str(i) for i in ids if str(i).isdigit()]
-        if not ids or not self._has_table("app_catalog"):
-            return {}
-        result = {}
-        for index in range(0, len(ids), 500):
-            page = ids[index : index + 500]
-            for appid, payload in self.db.execute(
-                "SELECT appid,payload FROM app_catalog WHERE appid IN ("
-                + ",".join("?" * len(page))
-                + ")",
-                page,
-            ):
-                result[appid] = json.loads(payload)
-        return result
-
-    def recent_identities(self, days=2):
-        """Endpoint identities from the latest daily rows, keyed by MAC and by IP.
-
-        Live FortiView rows carry only addresses; this names them with what the
-        accounting engine already recorded. Newer rows win.
-        """
-        start = self.db.execute("SELECT MAX(day) FROM daily").fetchone()[0]
-        if not start:
-            return {}, {}
-        first = (datetime.fromisoformat(start).date() - timedelta(days=days - 1)).isoformat()
-        rows = sorted(
-            (
-                json.loads(p)
-                for (p,) in self.db.execute("SELECT payload FROM daily WHERE day>=?", (first,))
-            ),
-            key=lambda r: r["event_ns"],
-        )
-        by_mac, by_ip = {}, {}
-        for row in rows:
-            identity = {
-                "device_id": row["device_id"],
-                "hostname": row.get("hostname", ""),
-                "ip": row.get("ip", ""),
-                "mac": row.get("mac", ""),
-                "identity_kind": row.get("identity_kind", ""),
-            }
-            if identity["mac"]:
-                by_mac[identity["mac"].lower()] = identity
-            if identity["ip"]:
-                by_ip[identity["ip"]] = identity
-        profiles = self.profiles({x["device_id"] for x in (*by_mac.values(), *by_ip.values())})
-        for identity in (*by_mac.values(), *by_ip.values()):
-            identity["profile"] = profiles.get(identity["device_id"])
-        return by_mac, by_ip
-
-    def profiles(self, devices):
-        """Latest FortiGate OS/vendor/type labels for the given endpoint identities."""
-        if not devices or not self._has_table("device_profile"):
-            return {}
-        result, devices = {}, list(devices)
-        for index in range(0, len(devices), 500):
-            page = devices[index : index + 500]
-            for device, payload in self.db.execute(
-                "SELECT device,payload FROM device_profile WHERE device IN ("
-                + ",".join("?" * len(page))
-                + ")",
-                page,
-            ):
-                value = json.loads(payload)
-                value.pop("event_ns", None)
-                result[device] = value
-        return result
-
-    def app_history(
-        self, app=None, category=None, *, device=None, vlan=None, months=False, limit=400
-    ):
-        """Whole-day (or month) recorded bytes for one application or category."""
-        if not self._app_table() or app is None and category is None:
-            return []
-        values = {}
-        if app is not None:
-            query, params = (
-                "app=?" + (" AND category=?" if category is not None else ""),
-                (app,) + ((category,) if category is not None else ()),
-            )
-        else:
-            query, params = "category=?", (category,)
-        for day, row_device, row_app, row_category, payload in self.db.execute(
-            "SELECT day,device,app,category,payload FROM app_daily WHERE "
-            + query
-            + " ORDER BY day",
-            params,
-        ):
-            if (
-                app is not None
-                and row_app != app
-                or category is not None
-                and row_category != category
-            ):
-                continue
-            if row_app == "" and row_category == "" or device and row_device != device:
-                continue
-            row = json.loads(payload)
-            if vlan and row["vlan"]["key"] != vlan:
-                continue
-            key = day[:7] if months else day
-            value = values.setdefault(
-                key,
-                {
-                    "period": key,
-                    "upload_bytes": 0,
-                    "download_bytes": 0,
-                    "pending_upload_bytes": 0,
-                    "pending_download_bytes": 0,
-                    "observed_days": set(),
-                },
-            )
-            for column in (
-                "upload_bytes",
-                "download_bytes",
-                "pending_upload_bytes",
-                "pending_download_bytes",
-            ):
-                value[column] += row[column]
-            value["observed_days"].add(day)
-        result = []
-        for key in sorted(values)[-limit:]:
-            value = values[key]
-            value["observed_days"] = len(value["observed_days"])
-            result.append(value)
-        return result
-
-    def _app_day_complete(self, day):
-        """True when every Internet fact of `day` is also in `app_daily`.
-
-        Both tables count the same facts, so equal record counts show the day was
-        maintained by application rollups from its start.
-        """
-        if not self._app_table():
-            return False
-        count = "SELECT COALESCE(SUM(json_extract(payload,'$.records')),0) FROM {} WHERE day=?"
-        return (
-            self.db.execute(count.format("daily"), (day,)).fetchone()[0]
-            == self.db.execute(count.format("app_daily"), (day,)).fetchone()[0]
-        )
-
-    def _iter_app_rows(self, start, end):
-        """Whole days from `app_daily`; partial edges from retained facts and labels."""
-        zone = self.zone()
-        start_local = datetime.fromtimestamp(start // NS, zone)
-        end_local = datetime.fromtimestamp(end // NS, zone)
-        first_full = start_local.date() + (
-            timedelta(days=1)
-            if (start_local.hour or start_local.minute or start_local.second or start % NS)
-            else timedelta()
-        )
-        last_full_end = end_local.date()
-        whole = (
-            self.db.execute(
-                "SELECT day,device,app,category,payload FROM app_daily WHERE day>=? AND day<?",
-                (first_full.isoformat(), last_full_end.isoformat()),
-            )
-            if self._app_table()
-            else ()
-        )
-        for day, device, app, category, payload in whole:
-            yield {
-                **json.loads(payload),
-                "day": day,
-                "device_id": device,
-                "app": app,
-                "category": category,
-            }
-        middle_start = timestamp_ns(
-            datetime.combine(first_full, datetime.min.time(), zone).isoformat()
-        )
-        middle_end = timestamp_ns(
-            datetime.combine(last_full_end, datetime.min.time(), zone).isoformat()
-        )
-        for a, b in ((start, min(end, middle_start)), (max(start, middle_end, middle_start), end)):
-            if a < b:
-                if a < self.state("ledger_floor_ns", 0):
-                    raise ValueError(
-                        "Partial-day detail expired; request whole calendar days or increase ledger retention before collection"
-                    )
-                # Like reports: a day row whose events all lie inside the edge is
-                # used as is. Only the rest is rebuilt from retained facts, so
-                # "today so far" does not decode every record of the day.
-                day_local = datetime.fromtimestamp(a // NS, zone).date()
-                day_start = timestamp_ns(
-                    datetime.combine(day_local, datetime.min.time(), zone).isoformat()
-                )
-                # A day that began before application rows were kept has only part
-                # of its records in `app_daily`; it is rebuilt from retained facts.
-                complete = self._app_day_complete(day_local.isoformat())
-                included, partial = set(), not complete
-                rows = (
-                    self.db.execute(
-                        "SELECT device,vlan,app,category,payload FROM app_daily WHERE day=?",
-                        (day_local.isoformat(),),
-                    )
-                    if complete
-                    else ()
-                )
-                for device, vlan_key, app, category, payload in rows:
-                    value = json.loads(payload)
-                    first, last = value.get("first_event_ns", day_start), value["event_ns"]
-                    if a <= first and last < b:
-                        included.add((device, vlan_key, app, category))
-                        yield {
-                            **value,
-                            "day": day_local.isoformat(),
-                            "device_id": device,
-                            "app": app,
-                            "category": category,
-                        }
-                    elif last >= a and first < b:
-                        partial = True
-                if not partial:
-                    continue
-                for fact, labels in self.ledger.range_facts_labels(a, b):
-                    if fact["classification"] != "INTERNET":
-                        continue
-                    app, category = labels.get("app", ""), labels.get("appcat", "")
-                    if (fact["device_id"], fact["vlan"]["key"], app, category) in included:
-                        continue
-                    yield {
-                        **fact,
-                        "records": 1,
-                        "app": app,
-                        "category": category,
-                        "risk": labels.get("apprisk", ""),
-                    }
-
-    def applications(
-        self, start, end, *, app=None, category=None, device=None, vlan=None, history=False
-    ):
-        """Recorded Internet bytes by application and category for [start,end).
-
-        `app`/`category` select one application or category ("" = unidentified)
-        and add its devices. Bytes recorded before labels were kept carry no
-        labels at all; they are reported apart as `untracked`, never as
-        unidentified, and `tracking_started_ns` says when labels begin.
-        """
-        start, end = timestamp_ns(start), timestamp_ns(end)
-        if start >= end:
-            raise ValueError("Report start must precede its end")
-        amounts = (
-            "upload_bytes",
-            "download_bytes",
-            "pending_upload_bytes",
-            "pending_download_bytes",
-        )
-        columns = (*amounts, "records")
-        apps, categories, devices = {}, {}, {}
-        untracked = {c: 0 for c in columns}
-
-        def add(target, row):
-            for column in columns:
-                target[column] += row[column]
-
-        for row in self._iter_app_rows(start, end):
-            if vlan and row["vlan"]["key"] != vlan or device and row["device_id"] != device:
-                continue
-            if row["app"] == "" and row["category"] == "":
-                add(untracked, row)
-                continue
-            key = (row["app"], row["category"])
-            entry = apps.setdefault(
-                key,
-                {
-                    "app": row["app"] or None,
-                    "category": row["category"] or None,
-                    "risk": None,
-                    "generic": bool(GENERIC_APP.fullmatch(row["app"])),
-                    "event_ns": -1,
-                    "devices": set(),
-                    **{c: 0 for c in columns},
-                },
-            )
-            add(entry, row)
-            entry["devices"].add(row["device_id"])
-            if row["event_ns"] >= entry["event_ns"]:
-                entry["event_ns"], entry["risk"] = row["event_ns"], row.get("risk") or entry["risk"]
-            group = categories.setdefault(
-                row["category"],
-                {
-                    "category": row["category"] or None,
-                    "apps": set(),
-                    "devices": set(),
-                    **{c: 0 for c in columns},
-                },
-            )
-            add(group, row)
-            group["apps"].add(row["app"])
-            group["devices"].add(row["device_id"])
-            if (
-                app is not None
-                and row["app"] == app
-                and (category is None or row["category"] == category)
-            ) or (app is None and category is not None and row["category"] == category):
-                # One row per endpoint identity; its VLANs are listed, not repeated.
-                target = devices.setdefault(
-                    row["device_id"],
-                    {
-                        "device_id": row["device_id"],
-                        "vlan": row["vlan"],
-                        "vlans": {},
-                        "event_ns": -1,
-                        "hostname": "",
-                        "ip": "",
-                        "mac": "",
-                        "identity_kind": "",
-                        **{c: 0 for c in columns},
-                    },
-                )
-                add(target, row)
-                target["vlans"][row["vlan"]["key"]] = row["vlan"]
-                if row["event_ns"] >= target["event_ns"]:
-                    for column in ("event_ns", "hostname", "ip", "mac", "identity_kind", "vlan"):
-                        target[column] = row[column]
-
-        def finish(values, *sets):
-            result = []
-            for value in values:
-                value = dict(value)
-                for name in sets:
-                    value[name] = len(value[name])
-                value.pop("event_ns", None)
-                value["total_bytes"] = value["upload_bytes"] + value["download_bytes"]
-                result.append(value)
-            return sorted(
-                result,
-                key=lambda x: (
-                    -x["total_bytes"],
-                    str(x.get("app") or x.get("category") or x.get("device_id")),
-                ),
-            )
-
-        rows = finish(apps.values(), "devices")
-        selected = finish(devices.values()) if (app is not None or category is not None) else []
-        found = self.profiles(x["device_id"] for x in selected)
-        for row in selected:
-            row["profile"] = found.get(row["device_id"])
-            row["vlans"] = list(row["vlans"].values())
-        total = sum(x["total_bytes"] for x in rows)
-        unidentified = sum(x["total_bytes"] for x in rows if x["app"] is None)
-        generic = sum(x["total_bytes"] for x in rows if x["generic"])
-        named = [x for x in rows if x["app"] is not None and not x["generic"]]
-        genai = next(
-            (c for c in finish(categories.values(), "apps", "devices") if c["category"] == "GenAI"),
-            None,
-        )
-        untracked_total = untracked["upload_bytes"] + untracked["download_bytes"]
-        result = {
-            "start_utc": iso(start),
-            "end_utc": iso(end),
-            "boundary": "[start,end)",
-            **zone_fields(self.config, end),
-            "applications": rows,
-            "categories": finish(categories.values(), "apps", "devices"),
-            "devices": selected,
-            "totals": {c: sum(x[c] for x in rows) if rows else None for c in amounts},
-            "summary": {
-                "total_bytes": total if rows else None,
-                "applications": len(rows),
-                "top_application": named[0]["app"] if named else None,
-                "identified_bytes": total - unidentified - generic if rows else None,
-                "unidentified_bytes": unidentified if rows else None,
-                "generic_bytes": generic if rows else None,
-                "genai_bytes": genai["total_bytes"] if genai else 0,
-                "genai_devices": genai["devices"] if genai else 0,
-            },
-            "unidentified_bytes": unidentified if rows else None,
-            "untracked": {**untracked, "total_bytes": untracked_total}
-            if untracked["records"]
-            else None,
-            "tracking_started_ns": self.state("applications_first_ns"),
-            "applications_since": self.db.execute(
-                "SELECT MIN(day) FROM app_daily WHERE category<>'' OR app<>''"
-            ).fetchone()[0]
-            if self._app_table()
-            else None,
-            "traffic_coverage": "UNKNOWN",
-            "status": "RECORDED_ONLY" if rows else "UNAVAILABLE",
-            "note": "Application labels come from FortiGate Application Control on each record. Records without an application label are unidentified; protocol-only labels such as QUIC or SSL are marked generic. Device names are not authenticated user accounts.",
-        }
-        if history and (app is not None or category is not None):
-            result["daily_history"] = self.app_history(app, category, device=device, vlan=vlan)
-            result["monthly_history"] = self.app_history(
-                app, category, device=device, vlan=vlan, months=True, limit=36
-            )
-        return result
-
     def ingest(self, records, *, checkpoint=None):
         if len(records) > 30000:
             raise ValueError("Batch exceeds bounded ingestion size")
@@ -1746,187 +2223,6 @@ class Store:
             "affected_sessions": len(affected) + singletons,
         }
 
-    def site_days(self, start, end, now):
-        """The calendar days a website report covers, or ValueError.
-
-        Website totals are kept per day. A period must start at midnight and end
-        at midnight, or end inside the current day ("so far today").
-        """
-        zone = self.zone()
-        start, end = timestamp_ns(start), timestamp_ns(end)
-        if start >= end:
-            raise ValueError("Report start must precede its end")
-        first, last = (
-            datetime.fromtimestamp(start // NS, zone),
-            datetime.fromtimestamp(end // NS, zone),
-        )
-
-        def midnight(moment, ns):
-            return (moment.hour, moment.minute, moment.second) == (0, 0, 0) and ns % NS == 0
-
-        if not midnight(first, start):
-            raise ValueError(
-                "Website totals are kept per day; choose a period that starts at midnight"
-            )
-        if midnight(last, end):
-            final = last.date() - timedelta(days=1)
-        elif last.date() == datetime.fromtimestamp(timestamp_ns(now) // NS, zone).date():
-            final = last.date()
-        else:
-            raise ValueError(
-                "Website totals are kept per day; choose a period that ends at midnight"
-            )
-        return first.date().isoformat(), final.isoformat()
-
-    def websites(self, start, end, *, now, site=None, device=None, vlan=None, limit=500):
-        """Recorded Internet bytes by website for whole days, from `site_daily`.
-
-        Only sessions whose site FortiGate logged (Application Control or Web
-        Filter) are included; `coverage` is their share of all recorded Internet
-        bytes on the same days since websites were switched on.
-        """
-        first, last = self.site_days(start, end, now)
-        since_ns = self.state("websites_since_ns")
-        since = (
-            datetime.fromtimestamp(since_ns // NS, self.zone()).date().isoformat()
-            if since_ns is not None
-            else None
-        )
-        result = {
-            "start_utc": iso(timestamp_ns(start)),
-            "end_utc": iso(timestamp_ns(end)),
-            "first_day": first,
-            "last_day": last,
-            **zone_fields(self.config, timestamp_ns(end)),
-            "enabled": self.websites_enabled,
-            "since_ns": since_ns,
-            "retention_days": SITE_DAYS,
-            "sites": [],
-            "devices": [],
-            "site": site,
-            "summary": {
-                "total_bytes": None,
-                "sites": 0,
-                "top_site": None,
-                "internet_bytes": None,
-                "coverage": None,
-            },
-            "note": "Websites come from FortiGate Application Control and Web Filter logs for the same session. Sessions without such a log are not included. Only the site name (example.com) is kept, never full addresses. Device names are not authenticated user accounts.",
-        }
-        if not self._has_table("site_daily"):
-            return result
-        where, params = ["day>=?", "day<=?"], [first, last]
-        for column, value in (("device", device), ("vlan", vlan)):
-            if value:
-                where.append(column + "=?")
-                params.append(value)
-        sites, devices = {}, {}
-        for day, row_device, row_site, payload in self.db.execute(
-            "SELECT day,device,site,payload FROM site_daily WHERE " + " AND ".join(where), params
-        ):
-            value = json.loads(payload)
-            entry = sites.setdefault(
-                row_site,
-                {
-                    "site": row_site,
-                    "upload_bytes": 0,
-                    "download_bytes": 0,
-                    "records": 0,
-                    "devices": set(),
-                },
-            )
-            for column in ("upload_bytes", "download_bytes", "records"):
-                entry[column] += value[column]
-            entry["devices"].add(row_device)
-            if row_site == site:
-                target = devices.setdefault(
-                    row_device,
-                    {
-                        "device_id": row_device,
-                        "upload_bytes": 0,
-                        "download_bytes": 0,
-                        "records": 0,
-                        "vlans": {},
-                        "event_ns": -1,
-                    },
-                )
-                for column in ("upload_bytes", "download_bytes", "records"):
-                    target[column] += value[column]
-                target["vlans"][value["vlan"]["key"]] = value["vlan"]
-                target["event_ns"] = max(target["event_ns"], value["event_ns"])
-        rows = []
-        for entry in sites.values():
-            entry["devices"] = len(entry["devices"])
-            entry["total_bytes"] = entry["upload_bytes"] + entry["download_bytes"]
-            rows.append(entry)
-        rows.sort(key=lambda x: (-x["total_bytes"], x["site"]))
-        selected = sorted(
-            devices.values(),
-            key=lambda x: (-(x["upload_bytes"] + x["download_bytes"]), x["device_id"]),
-        )[:limit]
-        profiles = self.profiles(x["device_id"] for x in selected)
-        for target in selected:
-            # Representative identifiers from the device's latest daily row.
-            latest = self.db.execute(
-                "SELECT payload FROM daily WHERE device=? AND day>=? AND day<=? ORDER BY day DESC LIMIT 1",
-                (target["device_id"], first, last),
-            ).fetchone()
-            known = json.loads(latest[0]) if latest else {}
-            target.update({k: known.get(k, "") for k in ("hostname", "ip", "mac", "identity_kind")})
-            target["vlans"] = list(target["vlans"].values())
-            target["total_bytes"] = target["upload_bytes"] + target["download_bytes"]
-            target["profile"] = profiles.get(target["device_id"])
-            target.pop("event_ns")
-        total = sum(x["total_bytes"] for x in rows)
-        internet = None
-        if since and since <= last:
-
-            def counted(table, low):
-                where, values = ["day>=?", "day<=?"], [low, last]
-                for column, value in (("device", device), ("vlan", vlan)):
-                    if value:
-                        where.append(column + "=?")
-                        values.append(value)
-                return self.db.execute(
-                    "SELECT COALESCE(SUM(json_extract(payload,'$.upload_bytes')+json_extract(payload,'$.download_bytes')),0) FROM "
-                    + table
-                    + " WHERE "
-                    + " AND ".join(where),
-                    values,
-                ).fetchone()[0]
-
-            if since < first:
-                internet, site_bytes = counted("daily", first), counted("site_daily", first)
-            else:
-                # The day websites were switched on: its daily row also holds usage
-                # from before, so only facts from that moment are compared.
-                zone = self.zone()
-                next_day = (datetime.fromisoformat(since) + timedelta(days=1)).date()
-                internet, site_bytes = (
-                    counted("daily", next_day.isoformat()),
-                    counted("site_daily", next_day.isoformat()),
-                )
-                if since_ns >= self.state("ledger_floor_ns", 0):
-                    day_end = timestamp_ns(
-                        datetime.combine(next_day, datetime.min.time(), zone).isoformat()
-                    )
-                    internet += sum(
-                        fact["upload_bytes"] + fact["download_bytes"]
-                        for fact, _ in self.ledger.range_facts_labels(since_ns, day_end)
-                        if (not device or fact["device_id"] == device)
-                        and (not vlan or fact["vlan"]["key"] == vlan)
-                    )
-                    site_bytes = counted("site_daily", since)
-            result["summary"]["coverage"] = min(1.0, site_bytes / internet) if internet else None
-        result.update(sites=rows[:limit], devices=selected, truncated=len(rows) > limit)
-        result["summary"].update(
-            total_bytes=total if rows else None,
-            sites=len(rows),
-            top_site=rows[0]["site"] if rows else None,
-            internet_bytes=internet,
-        )
-        return result
-
     def prune(self, now, ledger_days=3, summary_days=400):
         if not 1 <= ledger_days <= 365 or not ledger_days <= summary_days <= 3650:
             raise ValueError(
@@ -1983,290 +2279,3 @@ class Store:
             self.db.execute("DELETE FROM quality WHERE day<?", (cutoff,))
             self.set_state("ledger_floor_ns", max(floor, self.state("ledger_floor_ns", 0)))
             self.set_state("summary_floor_day", cutoff)
-
-    def range_rows(self, start, end):
-        """Return the historical list interface for direct callers."""
-        return list(self._iter_range_rows(start, end))
-
-    def newest_record_ns(self):
-        """Event time of the newest received record, from the two latest daily summaries."""
-        latest = self.db.execute("SELECT MAX(day) FROM daily").fetchone()[0]
-        if not latest:
-            return None
-        first = (datetime.fromisoformat(latest).date() - timedelta(days=1)).isoformat()
-        stamps = [
-            json.loads(p).get("event_ns")
-            for (p,) in self.db.execute("SELECT payload FROM daily WHERE day>=?", (first,))
-        ]
-        stamps = [s for s in stamps if type(s) is int]
-        return max(stamps) if stamps else None
-
-    def _iter_range_rows(self, start, end, deadline=None):
-        # A partial day can contain millions of facts. Reports consume each row
-        # immediately rather than keeping a second complete ledger in memory.
-        zone = self.zone()
-        start_local = datetime.fromtimestamp(start // NS, zone)
-        end_local = datetime.fromtimestamp(end // NS, zone)
-        first_full = start_local.date() + (
-            timedelta(days=1)
-            if (start_local.hour or start_local.minute or start_local.second or start % NS)
-            else timedelta()
-        )
-        last_full_end = end_local.date()
-        for row in self.db.execute(
-            "SELECT payload FROM daily WHERE day>=? AND day<?",
-            (first_full.isoformat(), last_full_end.isoformat()),
-        ):
-            yield json.loads(row[0])
-        middle_start = timestamp_ns(
-            datetime.combine(first_full, datetime.min.time(), zone).isoformat()
-        )
-        middle_end = timestamp_ns(
-            datetime.combine(last_full_end, datetime.min.time(), zone).isoformat()
-        )
-        edges = [(start, min(end, middle_start)), (max(start, middle_end, middle_start), end)]
-        for a, b in edges:
-            if a < b:
-                if a < self.state("ledger_floor_ns", 0):
-                    raise ValueError(
-                        "Partial-day detail expired; request whole calendar days or increase ledger retention before collection"
-                    )
-                day = datetime.fromtimestamp(a // NS, zone).date().isoformat()
-                candidates = [
-                    json.loads(r[0])
-                    for r in self.db.execute("SELECT payload FROM daily WHERE day=?", (day,))
-                ]
-                included = set()
-                partial = False
-                for value in candidates:
-                    first, last = value.get("first_event_ns", -1), value["event_ns"]
-                    if a <= first and last < b:
-                        yield value
-                        included.add((value["device_id"], value["vlan"]["key"]))
-                    elif last >= a and first < b:
-                        partial = True
-                if partial:
-                    for count, value in enumerate(
-                        self.ledger.range_facts(a, b, classification="INTERNET")
-                    ):
-                        # Reading raw records is the one unbounded step: stop
-                        # before a caller's gateway gives up, and say why.
-                        if (
-                            deadline is not None
-                            and count % 1000 == 0
-                            and time.monotonic() > deadline
-                        ):
-                            raise ReportTooLarge("Partial-day detail did not finish in time")
-                        if (
-                            value["classification"] == "INTERNET"
-                            and (value["device_id"], value["vlan"]["key"]) not in included
-                        ):
-                            yield {
-                                **value,
-                                "records": 1,
-                                "flag_counts": {k: 1 for k in value["flags"]},
-                            }
-
-    def report(self, start, end, *, vlan=None, device=None, search="", deadline=None):
-        start, end = timestamp_ns(start), timestamp_ns(end)
-        if start >= end:
-            raise ValueError("Report start must precede its end")
-        grouped, flags = {}, defaultdict(int)
-        for row in self._iter_range_rows(start, end, deadline):
-            if vlan and row["vlan"]["key"] != vlan or device and row["device_id"] != device:
-                continue
-            if (
-                search
-                and search.casefold()
-                not in " ".join(
-                    str(row.get(k, "")) for k in ("ip", "mac", "hostname", "device_id")
-                ).casefold()
-            ):
-                continue
-            key = row["device_id"], row["vlan"]["key"]
-            if key not in grouped:
-                grouped[key] = {
-                    **row,
-                    "upload_bytes": 0,
-                    "download_bytes": 0,
-                    "pending_upload_bytes": 0,
-                    "pending_download_bytes": 0,
-                    "records": 0,
-                    "flag_counts": {},
-                }
-            target = grouped[key]
-            if row["event_ns"] > target["event_ns"]:
-                for column in ("event_ns", "hostname", "ip", "mac", "source_interface"):
-                    target[column] = row[column]
-            for column in (
-                "upload_bytes",
-                "download_bytes",
-                "pending_upload_bytes",
-                "pending_download_bytes",
-                "records",
-            ):
-                target[column] += row[column]
-            for flag, count in row["flag_counts"].items():
-                flags[flag] += count
-                target["flag_counts"][flag] = target["flag_counts"].get(flag, 0) + count
-        rows = sorted(
-            grouped.values(), key=lambda x: x["upload_bytes"] + x["download_bytes"], reverse=True
-        )
-        totals = {
-            column: sum(x[column] for x in rows) if rows else None
-            for column in (
-                "upload_bytes",
-                "download_bytes",
-                "pending_upload_bytes",
-                "pending_download_bytes",
-            )
-        }
-        vlans, devices = {}, {}
-        for entry in rows:
-            for grouping, key in ((vlans, entry["vlan"]["key"]), (devices, entry["device_id"])):
-                if key not in grouping:
-                    grouping[key] = {
-                        **entry,
-                        "upload_bytes": 0,
-                        "download_bytes": 0,
-                        "pending_upload_bytes": 0,
-                        "pending_download_bytes": 0,
-                        "records": 0,
-                        "device_ids": set(),
-                        "vlans": {},
-                        "source_interfaces": set(),
-                    }
-                target = grouping[key]
-                for column in (
-                    "upload_bytes",
-                    "download_bytes",
-                    "pending_upload_bytes",
-                    "pending_download_bytes",
-                    "records",
-                ):
-                    target[column] += entry[column]
-                target["device_ids"].add(entry["device_id"])
-                target["vlans"][entry["vlan"]["key"]] = entry["vlan"]
-                target["source_interfaces"].add(entry["source_interface"])
-                if entry["event_ns"] > target["event_ns"]:
-                    for column in ("event_ns", "hostname", "ip", "mac"):
-                        target[column] = entry[column]
-        for grouping in (vlans, devices):
-            for entry in grouping.values():
-                entry["observed_endpoint_identities"] = len(entry.pop("device_ids"))
-                entry["source_interfaces"] = sorted(entry["source_interfaces"])
-                entry["vlans"] = list(entry["vlans"].values())
-                entry["total_bytes"] = entry["upload_bytes"] + entry["download_bytes"]
-        return {
-            "start_utc": iso(start),
-            "end_utc": iso(end),
-            "boundary": "[start,end)",
-            **zone_fields(self.config, end),
-            "source_record_classifications": self.classifications(start, end),
-            "rows": rows,
-            "devices": self._with_profiles(
-                sorted(devices.values(), key=lambda x: x["total_bytes"], reverse=True)
-            ),
-            "vlans": sorted(vlans.values(), key=lambda x: x["total_bytes"], reverse=True),
-            "totals": totals,
-            "observed_endpoint_identities": len({x["device_id"] for x in rows}),
-            "unverified_endpoint_identities": len(
-                {x["device_id"] for x in rows if x["identity_kind"] != "MAC"}
-            ),
-            "flags": dict(flags),
-            "traffic_coverage": "UNKNOWN",
-            "status": "RECORDED_ONLY" if rows else "UNAVAILABLE",
-            "note": "Received-log accounting, not certified billing. Bytes follow event timestamps; cross-boundary intervals and missing source traffic remain uncertain.",
-        }
-
-    def classifications(self, start, end):
-        """Source-wide received counts, explicitly independent of device filters."""
-        zone = self.zone()
-        first = datetime.fromtimestamp(start // NS, zone).date().isoformat()
-        last = datetime.fromtimestamp((end - 1) // NS, zone).date().isoformat()
-        counts = defaultdict(int)
-        for row in self.db.execute(
-            "SELECT day,classification,records,first_stamp,last_stamp FROM quality WHERE day>=? AND day<=?",
-            (first, last),
-        ):
-            if start <= row[3] and row[4] < end:
-                counts[row[1]] += row[2]
-            else:
-                boundary = timestamp_ns(
-                    datetime.fromisoformat(row[0]).replace(tzinfo=zone).isoformat()
-                )
-                stop = timestamp_ns(
-                    (datetime.fromisoformat(row[0]) + timedelta(days=1))
-                    .replace(tzinfo=zone)
-                    .isoformat()
-                )
-                # Expired partial-day selections were already refused by the
-                # main report path. Count retained facts at the exact edges.
-                count = self.ledger.count_classification(
-                    max(start, boundary), min(end, stop), row[1]
-                )
-                counts[row[1]] += count
-        return dict(counts)
-
-    def history(self, device, *, months=False, vlan=None, limit=400):
-        if not re.fullmatch(r"[a-f0-9]{64}", device) or not 1 <= limit <= 3650:
-            raise ValueError("Invalid device history selection")
-        rows = self.db.execute(
-            "SELECT day,payload FROM daily WHERE device=? ORDER BY day DESC LIMIT 10000", (device,)
-        ).fetchall()
-        values = {}
-        for day, payload in rows:
-            row = json.loads(payload)
-            if vlan and row["vlan"]["key"] != vlan:
-                continue
-            key = day[:7] if months else day
-            if key not in values:
-                values[key] = {
-                    "period": key,
-                    "upload_bytes": 0,
-                    "download_bytes": 0,
-                    "pending_upload_bytes": 0,
-                    "pending_download_bytes": 0,
-                    "traffic_coverage": "UNKNOWN",
-                    "observed_days": set(),
-                }
-            for column in (
-                "upload_bytes",
-                "download_bytes",
-                "pending_upload_bytes",
-                "pending_download_bytes",
-            ):
-                values[key][column] += row[column]
-            values[key]["observed_days"].add(day)
-        result = []
-        for key in sorted(values)[-limit:]:
-            value = values[key]
-            value["observed_days"] = len(value["observed_days"])
-            result.append(value)
-        return result
-
-    def diagnostics(self):
-        # Separate extrema let the existing facts_stamp index stop at its ends.
-        floor = self.state("ledger_floor_ns", 0)
-        first, last = self.ledger.fact_extrema(floor)
-        delivery = self.delivery_max()
-        try:
-            # Application Control IDs learned from logs; none means Live shows IDs, not names.
-            app_ids = self.db.execute("SELECT count(*) FROM app_catalog").fetchone()[0]
-        except sqlite3.OperationalError:
-            app_ids = None
-        return {
-            "app_ids_seen": app_ids,
-            "checkpoint_ns": self.state("checkpoint_ns"),
-            "last_received_event_ns": last,
-            "first_retained_event_ns": first,
-            "last_delivery_ns": delivery,
-            "replay_candidates": self.state("replay_candidates", 0),
-            "late_rejections": self.state("late_rejections", 0),
-            "parser_rejections": self.state("parser_rejections", 0),
-            "ledger_floor_ns": self.state("ledger_floor_ns"),
-            "summary_floor_day": self.state("summary_floor_day"),
-            "traffic_coverage": "UNKNOWN",
-            "source_identity_bound": bool(self.config.get("expected_devid")),
-            "inventory_available": bool(self.inventory.get("interfaces")),
-        }
