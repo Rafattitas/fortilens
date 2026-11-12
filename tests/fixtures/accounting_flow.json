@@ -1,0 +1,1464 @@
+{
+ "compact/once": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": 1792551600000000000,
+   "first_retained_event_ns": 1792497599000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792548000000000000,
+   "last_received_event_ns": 1792548000000000000,
+   "late_rejections": 0,
+   "ledger_floor_ns": null,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": null,
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "bb712c2e4aa06b97ac8b9efb49c7fb7a04771a22cc6985fb15acdc4d0ccfcb88",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "208e8d8c70e0924426ce952e868b87fb505e2d1240e22db4515c9c1e48057633",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "06accb738c062911c79994796c556bd742f46a751fc0a85d26587359d49445f6",
+   "report_both": "37a244d94df95d7569a40309695b404ddedfa466e51eddc3b14d25fff5e533ea",
+   "report_day1": "482bbe590c08930b9639b41aa414cf8238605f62de4378fead8bd3e954651d31",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "7fbe18555ca1f27a63e99abe688926f34b01bf1e3c27d122b23abebc36839acc",
+   "websites": "a40dafcd2f09d541c6dac7c0db364ba4dc8cf173232944fe68acdfd133ae10ca"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    5,
+    "22e1acf82e34c0d49a7402bc81e4796a16fb15f3de9ff3a9e2a9aa175cddc625"
+   ],
+   "compact_deliveries": [
+    14,
+    "a2e35d2dc4c46d32c21ccd161c6283879b16e133d0ec2ec6677890b97a058911"
+   ],
+   "compact_events": [
+    13,
+    "abf1e4efd521e655fe8ed0f417dad7da4d2bcf0edf989a3f7a5c30f5584f8ef9"
+   ],
+   "compact_facts": [
+    13,
+    "ea937099f641cfb1da8d1181a3326fa23a5b6aa1749fc691062a095e9f645f56"
+   ],
+   "compact_skipped": [
+    1,
+    "46ea442623dcdd91250567f931b35e4065a50829da914cb6002daa752e5f4ad5"
+   ],
+   "daily": [
+    4,
+    "40d3a12117af1819a113c7881669331492248eca395ff774e51f1187004e5924"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "quality": [
+    7,
+    "296c73d0d18023456f5b5b5045a244221abe739b2f0fdedab761a68c1835066b"
+   ],
+   "schema": "d2639733761541537bf601a3ba284b61c27e1e75b962dc7e0926c300a06840e7",
+   "session_site": [
+    1,
+    "b808d3b36b2ae0a635491fd03d2e1996e1ce822837e5ab2d05095728b533170b"
+   ],
+   "site_daily": [
+    1,
+    "5d3dea284cd330f17dd1321a7fa74c98ffc63d2c92edc1a546cbbdc0f544a93b"
+   ],
+   "state": [
+    7,
+    "0ce9d6de824d8e44cec886ae6bfb734f1f025de7bde363ae3811152127fa00be"
+   ],
+   "user_version": 2
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ },
+ "compact/pruned-then-late": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": 1792551600000000000,
+   "first_retained_event_ns": 1792926000000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792926000000000000,
+   "last_received_event_ns": 1792926000000000000,
+   "late_rejections": 1,
+   "ledger_floor_ns": 1792670400000000000,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": "2025-09-20",
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "bd3f83c3070df77fb4912d6cba56fd7331d5c2a7ac687023d5a77a7be0bf5296",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "39b58fe2791d0c5c0683c5d5e368fb242431d5b4aa505c5165df82957122f23a",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "d602ad880a5d49761504703b94ebaf403a03f544ed38eca41903a7d62db28065",
+   "report_both": "37a244d94df95d7569a40309695b404ddedfa466e51eddc3b14d25fff5e533ea",
+   "report_day1": "482bbe590c08930b9639b41aa414cf8238605f62de4378fead8bd3e954651d31",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "7fbe18555ca1f27a63e99abe688926f34b01bf1e3c27d122b23abebc36839acc",
+   "websites": "a40dafcd2f09d541c6dac7c0db364ba4dc8cf173232944fe68acdfd133ae10ca"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    6,
+    "afceb4385d97df3d7ce238a28c1ccb5ed53eca10ba8bfa06a8d22ddb2b38e32a"
+   ],
+   "compact_deliveries": [
+    2,
+    "d776f43b5c8fee2820b0c57a4491cb9c34ba14a1ea07324bb642e0de5f8ab3b4"
+   ],
+   "compact_events": [
+    11,
+    "998bd1ffd8c4fc3eb607025e19c4551d9e2be01785ddfb23e1eed9e333581c9c"
+   ],
+   "compact_facts": [
+    1,
+    "10c9bedc37a83a79088f0e39d833b5d54b9f927025c163b7dcc5399fb69e615d"
+   ],
+   "compact_skipped": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "daily": [
+    5,
+    "6270bf52560b2a148805faac8218b72781599bba980e9ff142ab78611a3e00f1"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "quality": [
+    8,
+    "cd988f0b072acd4af0e16544b4e802234182a70106dfdb9f0c750266abfac394"
+   ],
+   "schema": "d2639733761541537bf601a3ba284b61c27e1e75b962dc7e0926c300a06840e7",
+   "session_site": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "site_daily": [
+    1,
+    "5d3dea284cd330f17dd1321a7fa74c98ffc63d2c92edc1a546cbbdc0f544a93b"
+   ],
+   "state": [
+    10,
+    "3f4e2453d4b8ca518c02cdd3894a57264bb1f020202a90d2226ba610a5c9336d"
+   ],
+   "user_version": 2
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ },
+ "compact/restart": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": 1792551600000000000,
+   "first_retained_event_ns": 1792497599000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792548000000000000,
+   "last_received_event_ns": 1792548000000000000,
+   "late_rejections": 0,
+   "ledger_floor_ns": null,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": null,
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "bb712c2e4aa06b97ac8b9efb49c7fb7a04771a22cc6985fb15acdc4d0ccfcb88",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "208e8d8c70e0924426ce952e868b87fb505e2d1240e22db4515c9c1e48057633",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "06accb738c062911c79994796c556bd742f46a751fc0a85d26587359d49445f6",
+   "report_both": "37a244d94df95d7569a40309695b404ddedfa466e51eddc3b14d25fff5e533ea",
+   "report_day1": "482bbe590c08930b9639b41aa414cf8238605f62de4378fead8bd3e954651d31",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "7fbe18555ca1f27a63e99abe688926f34b01bf1e3c27d122b23abebc36839acc",
+   "websites": "a40dafcd2f09d541c6dac7c0db364ba4dc8cf173232944fe68acdfd133ae10ca"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    5,
+    "22e1acf82e34c0d49a7402bc81e4796a16fb15f3de9ff3a9e2a9aa175cddc625"
+   ],
+   "compact_deliveries": [
+    14,
+    "a2e35d2dc4c46d32c21ccd161c6283879b16e133d0ec2ec6677890b97a058911"
+   ],
+   "compact_events": [
+    13,
+    "abf1e4efd521e655fe8ed0f417dad7da4d2bcf0edf989a3f7a5c30f5584f8ef9"
+   ],
+   "compact_facts": [
+    13,
+    "9c332b14ad3d5174283283be5ce1f7dfe0b6de31678307585b4130f99581a759"
+   ],
+   "compact_skipped": [
+    1,
+    "46ea442623dcdd91250567f931b35e4065a50829da914cb6002daa752e5f4ad5"
+   ],
+   "daily": [
+    4,
+    "40d3a12117af1819a113c7881669331492248eca395ff774e51f1187004e5924"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "quality": [
+    7,
+    "296c73d0d18023456f5b5b5045a244221abe739b2f0fdedab761a68c1835066b"
+   ],
+   "schema": "d2639733761541537bf601a3ba284b61c27e1e75b962dc7e0926c300a06840e7",
+   "session_site": [
+    1,
+    "b808d3b36b2ae0a635491fd03d2e1996e1ce822837e5ab2d05095728b533170b"
+   ],
+   "site_daily": [
+    1,
+    "5d3dea284cd330f17dd1321a7fa74c98ffc63d2c92edc1a546cbbdc0f544a93b"
+   ],
+   "state": [
+    7,
+    "0ce9d6de824d8e44cec886ae6bfb734f1f025de7bde363ae3811152127fa00be"
+   ],
+   "user_version": 2
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ },
+ "compact/reverse-batches": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": null,
+   "first_retained_event_ns": 1792497599000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792548000000000000,
+   "last_received_event_ns": 1792548000000000000,
+   "late_rejections": 0,
+   "ledger_floor_ns": null,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": null,
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "220eb205577c20eba84d015a86c3e84897c8f10b3d23d3600a7c94d7cefe7c3d",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "208e8d8c70e0924426ce952e868b87fb505e2d1240e22db4515c9c1e48057633",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "06accb738c062911c79994796c556bd742f46a751fc0a85d26587359d49445f6",
+   "report_both": "6b95da9dbe104061805cfd80cbe8d6798801f9593296c42ec9e54556855f3b88",
+   "report_day1": "1791e7f133ba9ebf92101ceb913b42ee127dc7d60683c16a7958357850ee1be1",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "c23754a84b2ddfddc9f23e506666a37cca8bc97c2fd0f349fc2d751125e15810",
+   "websites": "a40dafcd2f09d541c6dac7c0db364ba4dc8cf173232944fe68acdfd133ae10ca"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    5,
+    "22e1acf82e34c0d49a7402bc81e4796a16fb15f3de9ff3a9e2a9aa175cddc625"
+   ],
+   "compact_deliveries": [
+    14,
+    "a2e35d2dc4c46d32c21ccd161c6283879b16e133d0ec2ec6677890b97a058911"
+   ],
+   "compact_events": [
+    13,
+    "ff009f15ca3e09edef28f3a1e2193e117f5ec508bbf8ebf4e3efd24b62f42e60"
+   ],
+   "compact_facts": [
+    13,
+    "d36f8b766ba59327fb0d72444db51572fce5b541b695aa322773321fc1171332"
+   ],
+   "compact_skipped": [
+    1,
+    "46ea442623dcdd91250567f931b35e4065a50829da914cb6002daa752e5f4ad5"
+   ],
+   "daily": [
+    4,
+    "46433b98798151860257a6cb1860a5b364979e10dbd0f15d514f61be81a1f24a"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "quality": [
+    7,
+    "296c73d0d18023456f5b5b5045a244221abe739b2f0fdedab761a68c1835066b"
+   ],
+   "schema": "d2639733761541537bf601a3ba284b61c27e1e75b962dc7e0926c300a06840e7",
+   "session_site": [
+    1,
+    "b808d3b36b2ae0a635491fd03d2e1996e1ce822837e5ab2d05095728b533170b"
+   ],
+   "site_daily": [
+    1,
+    "5d3dea284cd330f17dd1321a7fa74c98ffc63d2c92edc1a546cbbdc0f544a93b"
+   ],
+   "state": [
+    6,
+    "3f39cce305b78685fcc27ced4d0702a93ba187db964be2ca2c91f34412d790e3"
+   ],
+   "user_version": 2
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ },
+ "compact/twice": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": 1792551600000000000,
+   "first_retained_event_ns": 1792497599000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792548000000000000,
+   "last_received_event_ns": 1792548000000000000,
+   "late_rejections": 0,
+   "ledger_floor_ns": null,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": null,
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "bb712c2e4aa06b97ac8b9efb49c7fb7a04771a22cc6985fb15acdc4d0ccfcb88",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "208e8d8c70e0924426ce952e868b87fb505e2d1240e22db4515c9c1e48057633",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "06accb738c062911c79994796c556bd742f46a751fc0a85d26587359d49445f6",
+   "report_both": "37a244d94df95d7569a40309695b404ddedfa466e51eddc3b14d25fff5e533ea",
+   "report_day1": "482bbe590c08930b9639b41aa414cf8238605f62de4378fead8bd3e954651d31",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "7fbe18555ca1f27a63e99abe688926f34b01bf1e3c27d122b23abebc36839acc",
+   "websites": "a40dafcd2f09d541c6dac7c0db364ba4dc8cf173232944fe68acdfd133ae10ca"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    5,
+    "22e1acf82e34c0d49a7402bc81e4796a16fb15f3de9ff3a9e2a9aa175cddc625"
+   ],
+   "compact_deliveries": [
+    14,
+    "a2e35d2dc4c46d32c21ccd161c6283879b16e133d0ec2ec6677890b97a058911"
+   ],
+   "compact_events": [
+    13,
+    "abf1e4efd521e655fe8ed0f417dad7da4d2bcf0edf989a3f7a5c30f5584f8ef9"
+   ],
+   "compact_facts": [
+    13,
+    "ea937099f641cfb1da8d1181a3326fa23a5b6aa1749fc691062a095e9f645f56"
+   ],
+   "compact_skipped": [
+    1,
+    "46ea442623dcdd91250567f931b35e4065a50829da914cb6002daa752e5f4ad5"
+   ],
+   "daily": [
+    4,
+    "40d3a12117af1819a113c7881669331492248eca395ff774e51f1187004e5924"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "quality": [
+    7,
+    "296c73d0d18023456f5b5b5045a244221abe739b2f0fdedab761a68c1835066b"
+   ],
+   "schema": "d2639733761541537bf601a3ba284b61c27e1e75b962dc7e0926c300a06840e7",
+   "session_site": [
+    1,
+    "b808d3b36b2ae0a635491fd03d2e1996e1ce822837e5ab2d05095728b533170b"
+   ],
+   "site_daily": [
+    1,
+    "5d3dea284cd330f17dd1321a7fa74c98ffc63d2c92edc1a546cbbdc0f544a93b"
+   ],
+   "state": [
+    7,
+    "0ce9d6de824d8e44cec886ae6bfb734f1f025de7bde363ae3811152127fa00be"
+   ],
+   "user_version": 2
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ },
+ "compact/websites-off": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": 1792551600000000000,
+   "first_retained_event_ns": 1792497599000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792548000000000000,
+   "last_received_event_ns": 1792548000000000000,
+   "late_rejections": 0,
+   "ledger_floor_ns": null,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": null,
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "bb712c2e4aa06b97ac8b9efb49c7fb7a04771a22cc6985fb15acdc4d0ccfcb88",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "208e8d8c70e0924426ce952e868b87fb505e2d1240e22db4515c9c1e48057633",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "06accb738c062911c79994796c556bd742f46a751fc0a85d26587359d49445f6",
+   "report_both": "37a244d94df95d7569a40309695b404ddedfa466e51eddc3b14d25fff5e533ea",
+   "report_day1": "482bbe590c08930b9639b41aa414cf8238605f62de4378fead8bd3e954651d31",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "7fbe18555ca1f27a63e99abe688926f34b01bf1e3c27d122b23abebc36839acc"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    5,
+    "22e1acf82e34c0d49a7402bc81e4796a16fb15f3de9ff3a9e2a9aa175cddc625"
+   ],
+   "compact_deliveries": [
+    14,
+    "a2e35d2dc4c46d32c21ccd161c6283879b16e133d0ec2ec6677890b97a058911"
+   ],
+   "compact_events": [
+    13,
+    "abf1e4efd521e655fe8ed0f417dad7da4d2bcf0edf989a3f7a5c30f5584f8ef9"
+   ],
+   "compact_facts": [
+    13,
+    "ea937099f641cfb1da8d1181a3326fa23a5b6aa1749fc691062a095e9f645f56"
+   ],
+   "compact_skipped": [
+    1,
+    "46ea442623dcdd91250567f931b35e4065a50829da914cb6002daa752e5f4ad5"
+   ],
+   "daily": [
+    4,
+    "40d3a12117af1819a113c7881669331492248eca395ff774e51f1187004e5924"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "quality": [
+    7,
+    "296c73d0d18023456f5b5b5045a244221abe739b2f0fdedab761a68c1835066b"
+   ],
+   "schema": "d2639733761541537bf601a3ba284b61c27e1e75b962dc7e0926c300a06840e7",
+   "session_site": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "site_daily": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "state": [
+    6,
+    "5e612787c32528b04347c3e4d0d27f13c0d19f914e603828fdfbc902b8ec7ca9"
+   ],
+   "user_version": 2
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ },
+ "legacy/once": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": 1792551600000000000,
+   "first_retained_event_ns": 1792497599000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792548000000000000,
+   "last_received_event_ns": 1792548000000000000,
+   "late_rejections": 0,
+   "ledger_floor_ns": null,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": null,
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "bb712c2e4aa06b97ac8b9efb49c7fb7a04771a22cc6985fb15acdc4d0ccfcb88",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "208e8d8c70e0924426ce952e868b87fb505e2d1240e22db4515c9c1e48057633",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "06accb738c062911c79994796c556bd742f46a751fc0a85d26587359d49445f6",
+   "report_both": "37a244d94df95d7569a40309695b404ddedfa466e51eddc3b14d25fff5e533ea",
+   "report_day1": "482bbe590c08930b9639b41aa414cf8238605f62de4378fead8bd3e954651d31",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "7fbe18555ca1f27a63e99abe688926f34b01bf1e3c27d122b23abebc36839acc",
+   "websites": "a40dafcd2f09d541c6dac7c0db364ba4dc8cf173232944fe68acdfd133ae10ca"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    5,
+    "22e1acf82e34c0d49a7402bc81e4796a16fb15f3de9ff3a9e2a9aa175cddc625"
+   ],
+   "daily": [
+    4,
+    "40d3a12117af1819a113c7881669331492248eca395ff774e51f1187004e5924"
+   ],
+   "deliveries": [
+    14,
+    "99e4e61fa1f4d3eb2d921392ea8daf090116a1bdfc89107bf6bd1ef958a230ef"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "events": [
+    14,
+    "ef9b62642be3d1d4d464cf0b84b42e0d26b0a60e7de03e643cb0f5597305ebc4"
+   ],
+   "facts": [
+    14,
+    "89fe03e96c05840788d5b365094ecb975c9c4842cc7b5b93de2c20bcc593ac59"
+   ],
+   "quality": [
+    7,
+    "296c73d0d18023456f5b5b5045a244221abe739b2f0fdedab761a68c1835066b"
+   ],
+   "schema": "7243a3b6adfbb586cff0ee79151af9b9321e8c59d1edbcf27512bb5fb1c4c945",
+   "session_site": [
+    1,
+    "b808d3b36b2ae0a635491fd03d2e1996e1ce822837e5ab2d05095728b533170b"
+   ],
+   "site_daily": [
+    1,
+    "5d3dea284cd330f17dd1321a7fa74c98ffc63d2c92edc1a546cbbdc0f544a93b"
+   ],
+   "state": [
+    7,
+    "0ce9d6de824d8e44cec886ae6bfb734f1f025de7bde363ae3811152127fa00be"
+   ],
+   "user_version": 0
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ },
+ "legacy/pruned-then-late": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": 1792551600000000000,
+   "first_retained_event_ns": 1792926000000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792926000000000000,
+   "last_received_event_ns": 1792926000000000000,
+   "late_rejections": 1,
+   "ledger_floor_ns": 1792670400000000000,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": "2025-09-20",
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "bd3f83c3070df77fb4912d6cba56fd7331d5c2a7ac687023d5a77a7be0bf5296",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "39b58fe2791d0c5c0683c5d5e368fb242431d5b4aa505c5165df82957122f23a",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "d602ad880a5d49761504703b94ebaf403a03f544ed38eca41903a7d62db28065",
+   "report_both": "37a244d94df95d7569a40309695b404ddedfa466e51eddc3b14d25fff5e533ea",
+   "report_day1": "482bbe590c08930b9639b41aa414cf8238605f62de4378fead8bd3e954651d31",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "7fbe18555ca1f27a63e99abe688926f34b01bf1e3c27d122b23abebc36839acc",
+   "websites": "a40dafcd2f09d541c6dac7c0db364ba4dc8cf173232944fe68acdfd133ae10ca"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    6,
+    "afceb4385d97df3d7ce238a28c1ccb5ed53eca10ba8bfa06a8d22ddb2b38e32a"
+   ],
+   "daily": [
+    5,
+    "6270bf52560b2a148805faac8218b72781599bba980e9ff142ab78611a3e00f1"
+   ],
+   "deliveries": [
+    2,
+    "cfac980a0299401a111a49d2db24d539dfc9ae1e2264f6304bd26f11a349120a"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "events": [
+    11,
+    "6b4e6c6c4edec85af2a9aa961d6f7437dffddeb217845daa30535be92901d36d"
+   ],
+   "facts": [
+    1,
+    "47d0d10151e2f920f28e8cb830e219558d696e06510edaea50774e9895e82553"
+   ],
+   "quality": [
+    8,
+    "cd988f0b072acd4af0e16544b4e802234182a70106dfdb9f0c750266abfac394"
+   ],
+   "schema": "7243a3b6adfbb586cff0ee79151af9b9321e8c59d1edbcf27512bb5fb1c4c945",
+   "session_site": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "site_daily": [
+    1,
+    "5d3dea284cd330f17dd1321a7fa74c98ffc63d2c92edc1a546cbbdc0f544a93b"
+   ],
+   "state": [
+    10,
+    "3f4e2453d4b8ca518c02cdd3894a57264bb1f020202a90d2226ba610a5c9336d"
+   ],
+   "user_version": 0
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ },
+ "legacy/restart": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": 1792551600000000000,
+   "first_retained_event_ns": 1792497599000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792548000000000000,
+   "last_received_event_ns": 1792548000000000000,
+   "late_rejections": 0,
+   "ledger_floor_ns": null,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": null,
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "bb712c2e4aa06b97ac8b9efb49c7fb7a04771a22cc6985fb15acdc4d0ccfcb88",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "208e8d8c70e0924426ce952e868b87fb505e2d1240e22db4515c9c1e48057633",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "06accb738c062911c79994796c556bd742f46a751fc0a85d26587359d49445f6",
+   "report_both": "37a244d94df95d7569a40309695b404ddedfa466e51eddc3b14d25fff5e533ea",
+   "report_day1": "482bbe590c08930b9639b41aa414cf8238605f62de4378fead8bd3e954651d31",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "7fbe18555ca1f27a63e99abe688926f34b01bf1e3c27d122b23abebc36839acc",
+   "websites": "a40dafcd2f09d541c6dac7c0db364ba4dc8cf173232944fe68acdfd133ae10ca"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    5,
+    "22e1acf82e34c0d49a7402bc81e4796a16fb15f3de9ff3a9e2a9aa175cddc625"
+   ],
+   "daily": [
+    4,
+    "40d3a12117af1819a113c7881669331492248eca395ff774e51f1187004e5924"
+   ],
+   "deliveries": [
+    14,
+    "99e4e61fa1f4d3eb2d921392ea8daf090116a1bdfc89107bf6bd1ef958a230ef"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "events": [
+    14,
+    "ef9b62642be3d1d4d464cf0b84b42e0d26b0a60e7de03e643cb0f5597305ebc4"
+   ],
+   "facts": [
+    14,
+    "89fe03e96c05840788d5b365094ecb975c9c4842cc7b5b93de2c20bcc593ac59"
+   ],
+   "quality": [
+    7,
+    "296c73d0d18023456f5b5b5045a244221abe739b2f0fdedab761a68c1835066b"
+   ],
+   "schema": "7243a3b6adfbb586cff0ee79151af9b9321e8c59d1edbcf27512bb5fb1c4c945",
+   "session_site": [
+    1,
+    "b808d3b36b2ae0a635491fd03d2e1996e1ce822837e5ab2d05095728b533170b"
+   ],
+   "site_daily": [
+    1,
+    "5d3dea284cd330f17dd1321a7fa74c98ffc63d2c92edc1a546cbbdc0f544a93b"
+   ],
+   "state": [
+    7,
+    "0ce9d6de824d8e44cec886ae6bfb734f1f025de7bde363ae3811152127fa00be"
+   ],
+   "user_version": 0
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ },
+ "legacy/reverse-batches": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": null,
+   "first_retained_event_ns": 1792497599000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792548000000000000,
+   "last_received_event_ns": 1792548000000000000,
+   "late_rejections": 0,
+   "ledger_floor_ns": null,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": null,
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "220eb205577c20eba84d015a86c3e84897c8f10b3d23d3600a7c94d7cefe7c3d",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "208e8d8c70e0924426ce952e868b87fb505e2d1240e22db4515c9c1e48057633",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "06accb738c062911c79994796c556bd742f46a751fc0a85d26587359d49445f6",
+   "report_both": "6b95da9dbe104061805cfd80cbe8d6798801f9593296c42ec9e54556855f3b88",
+   "report_day1": "1791e7f133ba9ebf92101ceb913b42ee127dc7d60683c16a7958357850ee1be1",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "c23754a84b2ddfddc9f23e506666a37cca8bc97c2fd0f349fc2d751125e15810",
+   "websites": "a40dafcd2f09d541c6dac7c0db364ba4dc8cf173232944fe68acdfd133ae10ca"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    5,
+    "22e1acf82e34c0d49a7402bc81e4796a16fb15f3de9ff3a9e2a9aa175cddc625"
+   ],
+   "daily": [
+    4,
+    "46433b98798151860257a6cb1860a5b364979e10dbd0f15d514f61be81a1f24a"
+   ],
+   "deliveries": [
+    14,
+    "99e4e61fa1f4d3eb2d921392ea8daf090116a1bdfc89107bf6bd1ef958a230ef"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "events": [
+    14,
+    "ef9b62642be3d1d4d464cf0b84b42e0d26b0a60e7de03e643cb0f5597305ebc4"
+   ],
+   "facts": [
+    14,
+    "89fe03e96c05840788d5b365094ecb975c9c4842cc7b5b93de2c20bcc593ac59"
+   ],
+   "quality": [
+    7,
+    "296c73d0d18023456f5b5b5045a244221abe739b2f0fdedab761a68c1835066b"
+   ],
+   "schema": "7243a3b6adfbb586cff0ee79151af9b9321e8c59d1edbcf27512bb5fb1c4c945",
+   "session_site": [
+    1,
+    "b808d3b36b2ae0a635491fd03d2e1996e1ce822837e5ab2d05095728b533170b"
+   ],
+   "site_daily": [
+    1,
+    "5d3dea284cd330f17dd1321a7fa74c98ffc63d2c92edc1a546cbbdc0f544a93b"
+   ],
+   "state": [
+    6,
+    "3f39cce305b78685fcc27ced4d0702a93ba187db964be2ca2c91f34412d790e3"
+   ],
+   "user_version": 0
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ },
+ "legacy/twice": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": 1792551600000000000,
+   "first_retained_event_ns": 1792497599000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792548000000000000,
+   "last_received_event_ns": 1792548000000000000,
+   "late_rejections": 0,
+   "ledger_floor_ns": null,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": null,
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "bb712c2e4aa06b97ac8b9efb49c7fb7a04771a22cc6985fb15acdc4d0ccfcb88",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "208e8d8c70e0924426ce952e868b87fb505e2d1240e22db4515c9c1e48057633",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "06accb738c062911c79994796c556bd742f46a751fc0a85d26587359d49445f6",
+   "report_both": "37a244d94df95d7569a40309695b404ddedfa466e51eddc3b14d25fff5e533ea",
+   "report_day1": "482bbe590c08930b9639b41aa414cf8238605f62de4378fead8bd3e954651d31",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "7fbe18555ca1f27a63e99abe688926f34b01bf1e3c27d122b23abebc36839acc",
+   "websites": "a40dafcd2f09d541c6dac7c0db364ba4dc8cf173232944fe68acdfd133ae10ca"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    5,
+    "22e1acf82e34c0d49a7402bc81e4796a16fb15f3de9ff3a9e2a9aa175cddc625"
+   ],
+   "daily": [
+    4,
+    "40d3a12117af1819a113c7881669331492248eca395ff774e51f1187004e5924"
+   ],
+   "deliveries": [
+    14,
+    "99e4e61fa1f4d3eb2d921392ea8daf090116a1bdfc89107bf6bd1ef958a230ef"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "events": [
+    14,
+    "ef9b62642be3d1d4d464cf0b84b42e0d26b0a60e7de03e643cb0f5597305ebc4"
+   ],
+   "facts": [
+    14,
+    "89fe03e96c05840788d5b365094ecb975c9c4842cc7b5b93de2c20bcc593ac59"
+   ],
+   "quality": [
+    7,
+    "296c73d0d18023456f5b5b5045a244221abe739b2f0fdedab761a68c1835066b"
+   ],
+   "schema": "7243a3b6adfbb586cff0ee79151af9b9321e8c59d1edbcf27512bb5fb1c4c945",
+   "session_site": [
+    1,
+    "b808d3b36b2ae0a635491fd03d2e1996e1ce822837e5ab2d05095728b533170b"
+   ],
+   "site_daily": [
+    1,
+    "5d3dea284cd330f17dd1321a7fa74c98ffc63d2c92edc1a546cbbdc0f544a93b"
+   ],
+   "state": [
+    7,
+    "0ce9d6de824d8e44cec886ae6bfb734f1f025de7bde363ae3811152127fa00be"
+   ],
+   "user_version": 0
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ },
+ "legacy/websites-off": {
+  "diagnostics": {
+   "app_ids_seen": 0,
+   "checkpoint_ns": 1792551600000000000,
+   "first_retained_event_ns": 1792497599000000000,
+   "inventory_available": true,
+   "last_delivery_ns": 1792548000000000000,
+   "last_received_event_ns": 1792548000000000000,
+   "late_rejections": 0,
+   "ledger_floor_ns": null,
+   "parser_rejections": 0,
+   "replay_candidates": 0,
+   "source_identity_bound": false,
+   "summary_floor_day": null,
+   "traffic_coverage": "UNKNOWN"
+  },
+  "reads": {
+   "applications": "2982c671486b9f92b6377c079cbd517a44500c419d6b2e779d3eda9c744dd926",
+   "applications_genai": "2f98fb951f214052d68aa292fece047a5319ff00f635207752c68e8ab8c94d46",
+   "classifications": "9479811c2d83c708926453c27c968d9c725c67fa45c6712dfe33d6e8c0bd4541",
+   "diagnostics": "bb712c2e4aa06b97ac8b9efb49c7fb7a04771a22cc6985fb15acdc4d0ccfcb88",
+   "history_3244fb485c93": "c4e5135c1ca808464147ac5c1c5b5e637d9fd9514bb3f351c23c54a2dc7a1011",
+   "history_6475eec324ab": "52100f4651f7eb02f35f219bcdc1ffa252db01e3c5019435ffe3352ec6accbb5",
+   "history_66fa9aef48e0": "208e8d8c70e0924426ce952e868b87fb505e2d1240e22db4515c9c1e48057633",
+   "history_month_3244fb485c93": "858f10f0fbb4d0548e4cb8451b76b6b93c4761deb21c2ecc01857225f40eee11",
+   "history_month_6475eec324ab": "e991f21d5af0259ff6b94a2ec24693ca19453c1794724cd93fe68c2d0e773eb3",
+   "history_month_66fa9aef48e0": "06accb738c062911c79994796c556bd742f46a751fc0a85d26587359d49445f6",
+   "report_both": "37a244d94df95d7569a40309695b404ddedfa466e51eddc3b14d25fff5e533ea",
+   "report_day1": "482bbe590c08930b9639b41aa414cf8238605f62de4378fead8bd3e954651d31",
+   "report_day2": "7d4c8614ded698bfdbf19fa3f36e4d110e4f3a58ffe56a86d6ea4828b5c8fcb5",
+   "report_search": "7fbe18555ca1f27a63e99abe688926f34b01bf1e3c27d122b23abebc36839acc"
+  },
+  "tables": {
+   "app_catalog": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "app_daily": [
+    5,
+    "22e1acf82e34c0d49a7402bc81e4796a16fb15f3de9ff3a9e2a9aa175cddc625"
+   ],
+   "daily": [
+    4,
+    "40d3a12117af1819a113c7881669331492248eca395ff774e51f1187004e5924"
+   ],
+   "deliveries": [
+    14,
+    "99e4e61fa1f4d3eb2d921392ea8daf090116a1bdfc89107bf6bd1ef958a230ef"
+   ],
+   "device_profile": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "events": [
+    14,
+    "ef9b62642be3d1d4d464cf0b84b42e0d26b0a60e7de03e643cb0f5597305ebc4"
+   ],
+   "facts": [
+    14,
+    "89fe03e96c05840788d5b365094ecb975c9c4842cc7b5b93de2c20bcc593ac59"
+   ],
+   "quality": [
+    7,
+    "296c73d0d18023456f5b5b5045a244221abe739b2f0fdedab761a68c1835066b"
+   ],
+   "schema": "7243a3b6adfbb586cff0ee79151af9b9321e8c59d1edbcf27512bb5fb1c4c945",
+   "session_site": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "site_daily": [
+    0,
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "state": [
+    6,
+    "5e612787c32528b04347c3e4d0d27f13c0d19f914e603828fdfbc902b8ec7ca9"
+   ],
+   "user_version": 0
+  },
+  "totals": {
+   "applications": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "applications_genai": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   },
+   "report_both": {
+    "download_bytes": 5335,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 491
+   },
+   "report_day1": {
+    "download_bytes": 5321,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 478
+   },
+   "report_day2": {
+    "download_bytes": 14,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 13
+   },
+   "report_search": {
+    "download_bytes": 5030,
+    "pending_download_bytes": 0,
+    "pending_upload_bytes": 0,
+    "upload_bytes": 310
+   }
+  }
+ }
+}
