@@ -1036,71 +1036,99 @@ class Operations:
         observed = state.get("applied") if state["configured"] else state["settings"]
         settings = Settings.model_validate(observed or state["settings"])
         c = settings.portable(load(self.c.root / state["site_file"], {}))
+        report = self._monitoring_report(settings, c, state["revision"])
+        collection = self._collection(report, c, settings)
+        return {
+            "monitoring": report,
+            "system": self.status(),
+            "collection": collection,
+            "read_only": True,
+            "observed_revision": state.get("applied_revision") if state["configured"] else None,
+            "saved_revision": state["revision"],
+        }
 
-        def raw_request(p, config, path, method="GET", body=None, timeout=15):
-            if path == "/api/health":
-                return self.docker.http(
-                    "grafana",
-                    3000,
-                    (
-                        "/grafana"
-                        if "fortilens-portal" in (self.c.compose() or {"services": {}})["services"]
-                        else ""
-                    )
-                    + "/api/health",
+    def _doctor_request(self, p, config, path, method="GET", body=None, timeout=15):
+        """Answer one of doctor's Grafana-style requests from the services themselves."""
+        try:
+            return self._service_answer(path, body)
+        except Problem:
+            raise ValueError("monitoring_service_unavailable") from None
+
+    def _service_answer(self, path, body):
+        if path == "/api/health":
+            return self.docker.http(
+                "grafana",
+                3000,
+                (
+                    "/grafana"
+                    if "fortilens-portal" in (self.c.compose() or {"services": {}})["services"]
+                    else ""
                 )
-            for uid, service, port in (
-                (setup.PROM_UID, "prometheus", 9090),
-                (setup.LOKI_UID, "loki", 3100),
-            ):
-                if path == f"/api/datasources/uid/{uid}/health":
-                    self.docker.http(
-                        service,
-                        port,
-                        "/api/v1/query?query=up"
-                        if service == "prometheus"
-                        else "/loki/api/v1/query?"
-                        + urllib.parse.urlencode(
-                            {"query": 'sum(count_over_time({job="fortigate-syslog"}[1m]))'}
-                        ),
-                    )
-                    return {"status": "OK"}
-            if "/api/v1/query?" in path:
-                return self.docker.http(
-                    "prometheus", 9090, "/api/v1/query?" + path.split("?", 1)[1]
+                + "/api/health",
+            )
+        for uid, service, port in (
+            (setup.PROM_UID, "prometheus", 9090),
+            (setup.LOKI_UID, "loki", 3100),
+        ):
+            if path == f"/api/datasources/uid/{uid}/health":
+                self.docker.http(
+                    service,
+                    port,
+                    "/api/v1/query?query=up"
+                    if service == "prometheus"
+                    else "/loki/api/v1/query?"
+                    + urllib.parse.urlencode(
+                        {"query": 'sum(count_over_time({job="fortigate-syslog"}[1m]))'}
+                    ),
                 )
-            if path == "/api/ds/query":
-                query = body["queries"][0]
-                kind = query["datasource"]["type"]
-                native = self.docker.http(
-                    "prometheus" if kind == "prometheus" else "loki",
-                    9090 if kind == "prometheus" else 3100,
-                    ("/api/v1/query?" if kind == "prometheus" else "/loki/api/v1/query?")
-                    + urllib.parse.urlencode({"query": query["expr"]}),
-                )
-                values = [
-                    float(row["value"][1]) for row in native.get("data", {}).get("result", [])
-                ]
-                return {
-                    "results": {
-                        "A": {
-                            "frames": [
-                                {
-                                    "schema": {"fields": [{"type": "number"}]},
-                                    "data": {"values": [values]},
-                                }
-                            ]
-                        }
+                return {"status": "OK"}
+        if "/api/v1/query?" in path:
+            return self.docker.http("prometheus", 9090, "/api/v1/query?" + path.split("?", 1)[1])
+        if path == "/api/ds/query":
+            query = body["queries"][0]
+            kind = query["datasource"]["type"]
+            native = self.docker.http(
+                "prometheus" if kind == "prometheus" else "loki",
+                9090 if kind == "prometheus" else 3100,
+                ("/api/v1/query?" if kind == "prometheus" else "/loki/api/v1/query?")
+                + urllib.parse.urlencode({"query": query["expr"]}),
+            )
+            values = [float(row["value"][1]) for row in native.get("data", {}).get("result", [])]
+            return {
+                "results": {
+                    "A": {
+                        "frames": [
+                            {
+                                "schema": {"fields": [{"type": "number"}]},
+                                "data": {"values": [values]},
+                            }
+                        ]
                     }
                 }
-            raise ValueError("unsupported_diagnostic")
+            }
+        raise ValueError("unsupported_diagnostic")
 
-        def request(*args, **kwargs):
-            try:
-                return raw_request(*args, **kwargs)
-            except Problem:
-                raise ValueError("monitoring_service_unavailable") from None
+    def _exporter_exclusions(self, c):
+        """Optional exporter probes the registered credential record excludes."""
+        compose = self.c.compose() or {}
+        exporter = compose.get("services", {}).get("fortigate-exporter", {})
+        command = exporter.get("command", [])
+        destination = next(
+            (command[i + 1] for i, x in enumerate(command[:-1]) if x == "-auth-file"),
+            "/config/fortigate-key.yaml",
+        )
+        auth = (
+            yaml.safe_load(
+                self.c.bound_file(compose, "fortigate-exporter", destination).read_text()
+            )
+            if exporter
+            else {}
+        )
+        record = auth.get(self.c.auth_key(auth, c), {}) if auth else {}
+        return (record.get("probes") or {}).get("exclude", [])
 
+    def _monitoring_report(self, settings, c, revision):
+        """doctor's checks on the running installation, read through the helper."""
         try:
             # doctor is the same callable used by setup.py doctor --json; its
             # subprocess-based status reader is replaced with approved helper data.
@@ -1116,22 +1144,7 @@ class Operations:
                 )
                 for r in rows
             ]
-            compose = self.c.compose() or {}
-            exporter = compose.get("services", {}).get("fortigate-exporter", {})
-            command = exporter.get("command", [])
-            destination = next(
-                (command[i + 1] for i, x in enumerate(command[:-1]) if x == "-auth-file"),
-                "/config/fortigate-key.yaml",
-            )
-            auth = (
-                yaml.safe_load(
-                    self.c.bound_file(compose, "fortigate-exporter", destination).read_text()
-                )
-                if exporter
-                else {}
-            )
-            record = auth.get(self.c.auth_key(auth, c), {}) if auth else {}
-            exclusions = (record.get("probes") or {}).get("exclude", [])
+            exclusions = self._exporter_exclusions(c)
 
             def native_receiver_request(*args):
                 try:
@@ -1142,7 +1155,7 @@ class Operations:
             report = doctor.run(
                 self.c.root,
                 c,
-                request,
+                self._doctor_request,
                 lambda *a: [],
                 setup.PROM_UID,
                 setup.LOKI_UID,
@@ -1151,7 +1164,7 @@ class Operations:
                 probe_exclusions=exclusions,
                 native_receiver_request=native_receiver_request,
             )
-            report["checks"].append(self.connection_test_check(settings, state["revision"]))
+            report["checks"].append(self.connection_test_check(settings, revision))
             report["status"] = next(
                 (
                     v
@@ -1172,6 +1185,10 @@ class Operations:
                     }
                 ],
             }
+        return report
+
+    def _collection(self, report, c, settings):
+        """When the newest metric and log arrived, and the accounting lag; null when unknown."""
         collection = {
             "latest_log_at": None,
             "latest_metric_at": None,
@@ -1220,14 +1237,7 @@ class Operations:
                 )
             except (Problem, OSError, ValueError, TypeError):
                 pass
-        return {
-            "monitoring": report,
-            "system": self.status(),
-            "collection": collection,
-            "read_only": True,
-            "observed_revision": state.get("applied_revision") if state["configured"] else None,
-            "saved_revision": state["revision"],
-        }
+        return collection
 
     def confirm_serial(self, settings):
         """Binding existing usage to a serial cannot be undone, so the FortiGate must report it first."""

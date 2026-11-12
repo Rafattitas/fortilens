@@ -1,0 +1,1552 @@
+{
+ "accounting-off": {
+  "requests": [
+   [
+    "grafana",
+    3000,
+    "/api/health"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query_range"
+   ]
+  ],
+  "response": {
+   "collection": {
+    "latest_log_at": "2026-11-06T21:19:20Z",
+    "latest_metric_at": null,
+    "log_timestamp_kind": "source or unconfirmed",
+    "processing_lag_seconds": null
+   },
+   "monitoring": {
+    "checked_at": "2026-11-06T21:20:00+00:00",
+    "checks": [
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortigate-exporter",
+      "message": "fortigate-exporter: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:prometheus",
+      "message": "prometheus: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:grafana",
+      "message": "grafana: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:loki",
+      "message": "loki: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:alloy",
+      "message": "alloy: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:node-exporter",
+      "message": "node-exporter: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "grafana_ready",
+      "evidence": {},
+      "id": "grafana",
+      "message": "Grafana and its database are ready.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "prometheus",
+      "message": "prometheus: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "loki",
+      "message": "loki: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "Check the Grafana address and service availability. The cause has not been established.",
+      "code": "request_unavailable",
+      "evidence": {},
+      "id": "metric_query",
+      "message": "The service could not be read or returned an invalid response.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_scrape",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_api",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "sla_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "interface_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "This confirms recent logs, not complete traffic coverage or verified sender identity.",
+      "code": "logs_received",
+      "evidence": {
+       "count": 1,
+       "window_seconds": 300
+      },
+      "id": "recent_logs",
+      "message": "Found 1 log entries with timestamps in the last 300 seconds.",
+      "status": "PASS"
+     },
+     {
+      "action": "Receipt timestamps let FortiLens measure the difference between the two clocks.",
+      "code": "clock_not_measured",
+      "evidence": {},
+      "id": "clock_offset",
+      "message": "The FortiGate clock is not compared with this server's: logs keep the FortiGate's own timestamps.",
+      "status": "INFO"
+     },
+     {
+      "action": "Use Settings > FortiGate Connection > Test Connection. A system/status read does not verify all API permissions.",
+      "code": "connection_test_not_run",
+      "evidence": {},
+      "id": "direct_api",
+      "message": "Test Connection has not been run for this installation yet.",
+      "status": "INFO"
+     }
+    ],
+    "direct_api_requested": false,
+    "freshness_seconds": 300,
+    "read_only": true,
+    "schema_version": 1,
+    "status": "UNKNOWN"
+   },
+   "observed_revision": 1,
+   "read_only": true,
+   "saved_revision": 1
+  }
+ },
+ "exporter-exclusions": {
+  "requests": [
+   [
+    "grafana",
+    3000,
+    "/grafana/api/health"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "fortilens-usage",
+    8080,
+    "/api/diagnostics"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query_range"
+   ],
+   [
+    "fortilens-usage",
+    8080,
+    "/api/diagnostics"
+   ]
+  ],
+  "response": {
+   "collection": {
+    "latest_log_at": "2026-11-06T21:19:20Z",
+    "latest_metric_at": null,
+    "log_timestamp_kind": "receipt",
+    "processing_lag_seconds": 12
+   },
+   "monitoring": {
+    "checked_at": "2026-11-06T21:20:00+00:00",
+    "checks": [
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortigate-exporter",
+      "message": "fortigate-exporter: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:prometheus",
+      "message": "prometheus: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:grafana",
+      "message": "grafana: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:loki",
+      "message": "loki: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:alloy",
+      "message": "alloy: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:node-exporter",
+      "message": "node-exporter: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortilens-usage",
+      "message": "fortilens-usage: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortilens-portal",
+      "message": "fortilens-portal: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "grafana_ready",
+      "evidence": {},
+      "id": "grafana",
+      "message": "Grafana and its database are ready.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "prometheus",
+      "message": "prometheus: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "loki",
+      "message": "loki: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "Check the Grafana address and service availability. The cause has not been established.",
+      "code": "request_unavailable",
+      "evidence": {},
+      "id": "metric_query",
+      "message": "The service could not be read or returned an invalid response.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_scrape",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_api",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "sla_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "interface_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "This confirms recent logs, not complete traffic coverage or verified sender identity.",
+      "code": "logs_received",
+      "evidence": {
+       "count": 1,
+       "window_seconds": 300
+      },
+      "id": "recent_logs",
+      "message": "Found 1 log entries with timestamps in the last 300 seconds.",
+      "status": "PASS"
+     },
+     {
+      "action": "Synchronize both clocks with NTP. On this server, timedatectl should show 'System clock synchronized: yes'; with chrony, sudo chronyc makestep corrects a large difference at once. On the FortiGate, check its NTP settings. Until both agree, report periods and day boundaries are off by the difference.",
+      "code": "clock_offset",
+      "evidence": {
+       "offset_seconds": -1793999999.0
+      },
+      "id": "clock_offset",
+      "message": "FortiGate log times are 29899999 min 59 s behind this server's clock.",
+      "status": "FAIL"
+     },
+     {
+      "action": "Review engine reachability and its bounded-query/storage status; processing success does not certify traffic completeness.",
+      "code": "accounting_poll_unavailable",
+      "evidence": {},
+      "id": "accounting_poll",
+      "message": "A recent successful usage-engine poll was not established.",
+      "status": "WARN"
+     },
+     {
+      "action": "Check sender, listener, Alloy and Loki evidence. No collected data is not zero Internet usage; do not reset the accounting database.",
+      "code": "accounting_delivery_unobserved",
+      "evidence": {},
+      "id": "accounting_delivery",
+      "message": "No usage-log delivery observation is available. Successful polling does not mean traffic was collected.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "accounting_caught_up",
+      "evidence": {},
+      "id": "accounting_lag",
+      "message": "Usage processing is near the present.",
+      "status": "PASS"
+     },
+     {
+      "action": "Review read permissions and exact interface/VDOM metadata; do not infer VLANs from IP subnets.",
+      "code": "accounting_metadata_unavailable",
+      "evidence": {},
+      "id": "accounting_metadata",
+      "message": "Interface metadata is not established.",
+      "status": "WARN"
+     },
+     {
+      "action": "Run Settings > FortiGate Connection > Test Connection, enter the serial number it shows under Settings > Monitoring & Syslog > Expected FortiGate serial number, then Review & Apply. Usage already counted is kept. Leave it unbound on an HA cluster, whose members log with different serials.",
+      "code": "accounting_source_unavailable",
+      "evidence": {},
+      "id": "accounting_source",
+      "message": "No FortiGate serial number is bound, so logs from any other FortiGate sent to this listener would be counted too.",
+      "status": "WARN"
+     },
+     {
+      "action": "",
+      "code": "accounting_no_rejections",
+      "evidence": {},
+      "id": "accounting_rejections",
+      "message": "No input rejection has been recorded by this engine.",
+      "status": "PASS"
+     },
+     {
+      "action": "Review the upgrade plan; source eventtime must remain in the raw log line.",
+      "code": "late_delivery_coverage_unverified",
+      "evidence": {},
+      "id": "accounting_delivery_timestamps",
+      "message": "Receipt-time discovery is not confirmed; late source timestamps may fall outside a short poll overlap.",
+      "status": "WARN"
+     },
+     {
+      "action": "To collect them again, clear these options under Settings > Monitoring & Syslog > Optional exporter capabilities.",
+      "code": "exporter_optional_probes_excluded",
+      "evidence": {
+       "custom_exclusions_present": false,
+       "excluded_optional_probes": [
+        "System/SensorInfo"
+       ]
+      },
+      "id": "exporter_probe_policy",
+      "message": "Not collected, as chosen in Settings: System/SensorInfo. Required interface, device and SLA probes are unaffected.",
+      "status": "INFO"
+     },
+     {
+      "action": "Use Settings > FortiGate Connection > Test Connection. A system/status read does not verify all API permissions.",
+      "code": "connection_test_not_run",
+      "evidence": {},
+      "id": "direct_api",
+      "message": "Test Connection has not been run for this installation yet.",
+      "status": "INFO"
+     }
+    ],
+    "direct_api_requested": false,
+    "freshness_seconds": 300,
+    "read_only": true,
+    "schema_version": 1,
+    "status": "FAIL"
+   },
+   "observed_revision": 1,
+   "read_only": true,
+   "saved_revision": 1
+  }
+ },
+ "monitoring-down": {
+  "requests": [
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query_range"
+   ],
+   [
+    "fortilens-usage",
+    8080,
+    "/api/diagnostics"
+   ]
+  ],
+  "response": {
+   "collection": {
+    "latest_log_at": null,
+    "latest_metric_at": null,
+    "log_timestamp_kind": "receipt",
+    "processing_lag_seconds": null
+   },
+   "monitoring": {
+    "checks": [
+     {
+      "action": "Review service status, Docker permissions and disk capacity.",
+      "id": "monitoring",
+      "message": "Monitoring diagnostics are unavailable. The management portal is still running.",
+      "status": "UNKNOWN"
+     }
+    ],
+    "status": "UNKNOWN"
+   },
+   "observed_revision": 1,
+   "read_only": true,
+   "saved_revision": 1
+  }
+ },
+ "native-syslog": {
+  "requests": [
+   [
+    "grafana",
+    3000,
+    "/grafana/api/health"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "fortilens-usage",
+    8080,
+    "/api/diagnostics"
+   ],
+   [
+    "fortilens-syslog",
+    8080,
+    "/health"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query_range"
+   ],
+   [
+    "fortilens-usage",
+    8080,
+    "/api/diagnostics"
+   ]
+  ],
+  "response": {
+   "collection": {
+    "latest_log_at": "2026-11-06T21:19:20Z",
+    "latest_metric_at": null,
+    "log_timestamp_kind": "receipt",
+    "processing_lag_seconds": 12
+   },
+   "monitoring": {
+    "checked_at": "2026-11-06T21:20:00+00:00",
+    "checks": [
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortigate-exporter",
+      "message": "fortigate-exporter: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:prometheus",
+      "message": "prometheus: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:grafana",
+      "message": "grafana: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:loki",
+      "message": "loki: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:alloy",
+      "message": "alloy: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:node-exporter",
+      "message": "node-exporter: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortilens-syslog",
+      "message": "fortilens-syslog: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortilens-usage",
+      "message": "fortilens-usage: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortilens-portal",
+      "message": "fortilens-portal: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "grafana_ready",
+      "evidence": {},
+      "id": "grafana",
+      "message": "Grafana and its database are ready.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "prometheus",
+      "message": "prometheus: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "loki",
+      "message": "loki: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "Check the Grafana address and service availability. The cause has not been established.",
+      "code": "request_unavailable",
+      "evidence": {},
+      "id": "metric_query",
+      "message": "The service could not be read or returned an invalid response.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_scrape",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_api",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "sla_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "interface_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "This confirms recent logs, not complete traffic coverage or verified sender identity.",
+      "code": "logs_received",
+      "evidence": {
+       "count": 1,
+       "window_seconds": 300
+      },
+      "id": "recent_logs",
+      "message": "Found 1 log entries with timestamps in the last 300 seconds.",
+      "status": "PASS"
+     },
+     {
+      "action": "Synchronize both clocks with NTP. On this server, timedatectl should show 'System clock synchronized: yes'; with chrony, sudo chronyc makestep corrects a large difference at once. On the FortiGate, check its NTP settings. Until both agree, report periods and day boundaries are off by the difference.",
+      "code": "clock_offset",
+      "evidence": {
+       "offset_seconds": -1793999999.0
+      },
+      "id": "clock_offset",
+      "message": "FortiGate log times are 29899999 min 59 s behind this server's clock.",
+      "status": "FAIL"
+     },
+     {
+      "action": "Review engine reachability and its bounded-query/storage status; processing success does not certify traffic completeness.",
+      "code": "accounting_poll_unavailable",
+      "evidence": {},
+      "id": "accounting_poll",
+      "message": "A recent successful usage-engine poll was not established.",
+      "status": "WARN"
+     },
+     {
+      "action": "Check sender, listener, Alloy and Loki evidence. No collected data is not zero Internet usage; do not reset the accounting database.",
+      "code": "accounting_delivery_unobserved",
+      "evidence": {},
+      "id": "accounting_delivery",
+      "message": "No usage-log delivery observation is available. Successful polling does not mean traffic was collected.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "accounting_caught_up",
+      "evidence": {},
+      "id": "accounting_lag",
+      "message": "Usage processing is near the present.",
+      "status": "PASS"
+     },
+     {
+      "action": "Review read permissions and exact interface/VDOM metadata; do not infer VLANs from IP subnets.",
+      "code": "accounting_metadata_unavailable",
+      "evidence": {},
+      "id": "accounting_metadata",
+      "message": "Interface metadata is not established.",
+      "status": "WARN"
+     },
+     {
+      "action": "Run Settings > FortiGate Connection > Test Connection, enter the serial number it shows under Settings > Monitoring & Syslog > Expected FortiGate serial number, then Review & Apply. Usage already counted is kept. Leave it unbound on an HA cluster, whose members log with different serials.",
+      "code": "accounting_source_unavailable",
+      "evidence": {},
+      "id": "accounting_source",
+      "message": "No FortiGate serial number is bound, so logs from any other FortiGate sent to this listener would be counted too.",
+      "status": "WARN"
+     },
+     {
+      "action": "",
+      "code": "accounting_no_rejections",
+      "evidence": {},
+      "id": "accounting_rejections",
+      "message": "No input rejection has been recorded by this engine.",
+      "status": "PASS"
+     },
+     {
+      "action": "Review the upgrade plan; source eventtime must remain in the raw log line.",
+      "code": "late_delivery_coverage_unverified",
+      "evidence": {},
+      "id": "accounting_delivery_timestamps",
+      "message": "Receipt-time discovery is not confirmed; late source timestamps may fall outside a short poll overlap.",
+      "status": "WARN"
+     },
+     {
+      "action": "Review the fortilens-syslog service and its internal health endpoint. No raw exception or input payload is returned.",
+      "code": "native_receiver_diagnostics_unavailable",
+      "evidence": {},
+      "id": "native_receiver",
+      "message": "Native receiver diagnostics could not be read or validated.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "Use Settings > FortiGate Connection > Test Connection. A system/status read does not verify all API permissions.",
+      "code": "connection_test_not_run",
+      "evidence": {},
+      "id": "direct_api",
+      "message": "Test Connection has not been run for this installation yet.",
+      "status": "INFO"
+     }
+    ],
+    "direct_api_requested": false,
+    "freshness_seconds": 300,
+    "read_only": true,
+    "schema_version": 1,
+    "status": "FAIL"
+   },
+   "observed_revision": 1,
+   "read_only": true,
+   "saved_revision": 1
+  }
+ },
+ "no-recent-logs": {
+  "requests": [
+   [
+    "grafana",
+    3000,
+    "/grafana/api/health"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "fortilens-usage",
+    8080,
+    "/api/diagnostics"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query_range"
+   ],
+   [
+    "fortilens-usage",
+    8080,
+    "/api/diagnostics"
+   ]
+  ],
+  "response": {
+   "collection": {
+    "latest_log_at": null,
+    "latest_metric_at": null,
+    "log_timestamp_kind": "receipt",
+    "processing_lag_seconds": 12
+   },
+   "monitoring": {
+    "checked_at": "2026-11-06T21:20:00+00:00",
+    "checks": [
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortigate-exporter",
+      "message": "fortigate-exporter: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:prometheus",
+      "message": "prometheus: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:grafana",
+      "message": "grafana: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:loki",
+      "message": "loki: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:alloy",
+      "message": "alloy: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:node-exporter",
+      "message": "node-exporter: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortilens-usage",
+      "message": "fortilens-usage: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortilens-portal",
+      "message": "fortilens-portal: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "grafana_ready",
+      "evidence": {},
+      "id": "grafana",
+      "message": "Grafana and its database are ready.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "prometheus",
+      "message": "prometheus: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "loki",
+      "message": "loki: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "Check the Grafana address and service availability. The cause has not been established.",
+      "code": "request_unavailable",
+      "evidence": {},
+      "id": "metric_query",
+      "message": "The service could not be read or returned an invalid response.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_scrape",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_api",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "sla_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "interface_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "This confirms recent logs, not complete traffic coverage or verified sender identity.",
+      "code": "logs_received",
+      "evidence": {
+       "count": 1,
+       "window_seconds": 300
+      },
+      "id": "recent_logs",
+      "message": "Found 1 log entries with timestamps in the last 300 seconds.",
+      "status": "PASS"
+     },
+     {
+      "action": "Synchronize both clocks with NTP. On this server, timedatectl should show 'System clock synchronized: yes'; with chrony, sudo chronyc makestep corrects a large difference at once. On the FortiGate, check its NTP settings. Until both agree, report periods and day boundaries are off by the difference.",
+      "code": "clock_offset",
+      "evidence": {
+       "offset_seconds": -1793999999.0
+      },
+      "id": "clock_offset",
+      "message": "FortiGate log times are 29899999 min 59 s behind this server's clock.",
+      "status": "FAIL"
+     },
+     {
+      "action": "Review engine reachability and its bounded-query/storage status; processing success does not certify traffic completeness.",
+      "code": "accounting_poll_unavailable",
+      "evidence": {},
+      "id": "accounting_poll",
+      "message": "A recent successful usage-engine poll was not established.",
+      "status": "WARN"
+     },
+     {
+      "action": "Check sender, listener, Alloy and Loki evidence. No collected data is not zero Internet usage; do not reset the accounting database.",
+      "code": "accounting_delivery_unobserved",
+      "evidence": {},
+      "id": "accounting_delivery",
+      "message": "No usage-log delivery observation is available. Successful polling does not mean traffic was collected.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "accounting_caught_up",
+      "evidence": {},
+      "id": "accounting_lag",
+      "message": "Usage processing is near the present.",
+      "status": "PASS"
+     },
+     {
+      "action": "Review read permissions and exact interface/VDOM metadata; do not infer VLANs from IP subnets.",
+      "code": "accounting_metadata_unavailable",
+      "evidence": {},
+      "id": "accounting_metadata",
+      "message": "Interface metadata is not established.",
+      "status": "WARN"
+     },
+     {
+      "action": "Run Settings > FortiGate Connection > Test Connection, enter the serial number it shows under Settings > Monitoring & Syslog > Expected FortiGate serial number, then Review & Apply. Usage already counted is kept. Leave it unbound on an HA cluster, whose members log with different serials.",
+      "code": "accounting_source_unavailable",
+      "evidence": {},
+      "id": "accounting_source",
+      "message": "No FortiGate serial number is bound, so logs from any other FortiGate sent to this listener would be counted too.",
+      "status": "WARN"
+     },
+     {
+      "action": "",
+      "code": "accounting_no_rejections",
+      "evidence": {},
+      "id": "accounting_rejections",
+      "message": "No input rejection has been recorded by this engine.",
+      "status": "PASS"
+     },
+     {
+      "action": "Review the upgrade plan; source eventtime must remain in the raw log line.",
+      "code": "late_delivery_coverage_unverified",
+      "evidence": {},
+      "id": "accounting_delivery_timestamps",
+      "message": "Receipt-time discovery is not confirmed; late source timestamps may fall outside a short poll overlap.",
+      "status": "WARN"
+     },
+     {
+      "action": "Use Settings > FortiGate Connection > Test Connection. A system/status read does not verify all API permissions.",
+      "code": "connection_test_not_run",
+      "evidence": {},
+      "id": "direct_api",
+      "message": "Test Connection has not been run for this installation yet.",
+      "status": "INFO"
+     }
+    ],
+    "direct_api_requested": false,
+    "freshness_seconds": 300,
+    "read_only": true,
+    "schema_version": 1,
+    "status": "FAIL"
+   },
+   "observed_revision": 1,
+   "read_only": true,
+   "saved_revision": 1
+  }
+ },
+ "not-installed": {
+  "requests": [
+   [
+    "grafana",
+    3000,
+    "/api/health"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query_range"
+   ]
+  ],
+  "response": {
+   "collection": {
+    "latest_log_at": "2026-11-06T21:19:20Z",
+    "latest_metric_at": null,
+    "log_timestamp_kind": "source or unconfirmed",
+    "processing_lag_seconds": null
+   },
+   "monitoring": {
+    "checked_at": "2026-11-06T21:20:00+00:00",
+    "checks": [
+     {
+      "action": "",
+      "code": "grafana_ready",
+      "evidence": {},
+      "id": "grafana",
+      "message": "Grafana and its database are ready.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "prometheus",
+      "message": "prometheus: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "loki",
+      "message": "loki: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "Check the Grafana address and service availability. The cause has not been established.",
+      "code": "request_unavailable",
+      "evidence": {},
+      "id": "metric_query",
+      "message": "The service could not be read or returned an invalid response.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_scrape",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_api",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "sla_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "interface_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "This confirms recent logs, not complete traffic coverage or verified sender identity.",
+      "code": "logs_received",
+      "evidence": {
+       "count": 1,
+       "window_seconds": 300
+      },
+      "id": "recent_logs",
+      "message": "Found 1 log entries with timestamps in the last 300 seconds.",
+      "status": "PASS"
+     },
+     {
+      "action": "Receipt timestamps let FortiLens measure the difference between the two clocks.",
+      "code": "clock_not_measured",
+      "evidence": {},
+      "id": "clock_offset",
+      "message": "The FortiGate clock is not compared with this server's: logs keep the FortiGate's own timestamps.",
+      "status": "INFO"
+     },
+     {
+      "action": "Review the optional service and its local reporting address. No source traffic or WAN state is inferred.",
+      "code": "accounting_diagnostics_unavailable",
+      "evidence": {},
+      "id": "accounting_api",
+      "message": "Usage-engine diagnostics are unavailable.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "Use Settings > FortiGate Connection > Test Connection. A system/status read does not verify all API permissions.",
+      "code": "connection_test_not_run",
+      "evidence": {},
+      "id": "direct_api",
+      "message": "Test Connection has not been run for this installation yet.",
+      "status": "INFO"
+     }
+    ],
+    "direct_api_requested": false,
+    "freshness_seconds": 300,
+    "read_only": true,
+    "schema_version": 1,
+    "status": "UNKNOWN"
+   },
+   "observed_revision": null,
+   "read_only": true,
+   "saved_revision": 0
+  }
+ },
+ "running": {
+  "requests": [
+   [
+    "grafana",
+    3000,
+    "/grafana/api/health"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "prometheus",
+    9090,
+    "/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query"
+   ],
+   [
+    "fortilens-usage",
+    8080,
+    "/api/diagnostics"
+   ],
+   [
+    "loki",
+    3100,
+    "/loki/api/v1/query_range"
+   ],
+   [
+    "fortilens-usage",
+    8080,
+    "/api/diagnostics"
+   ]
+  ],
+  "response": {
+   "collection": {
+    "latest_log_at": "2026-11-06T21:19:20Z",
+    "latest_metric_at": null,
+    "log_timestamp_kind": "receipt",
+    "processing_lag_seconds": 12
+   },
+   "monitoring": {
+    "checked_at": "2026-11-06T21:20:00+00:00",
+    "checks": [
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortigate-exporter",
+      "message": "fortigate-exporter: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:prometheus",
+      "message": "prometheus: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:grafana",
+      "message": "grafana: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:loki",
+      "message": "loki: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:alloy",
+      "message": "alloy: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:node-exporter",
+      "message": "node-exporter: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortilens-usage",
+      "message": "fortilens-usage: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "service_state",
+      "evidence": {},
+      "id": "service:fortilens-portal",
+      "message": "fortilens-portal: running",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "grafana_ready",
+      "evidence": {},
+      "id": "grafana",
+      "message": "Grafana and its database are ready.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "prometheus",
+      "message": "prometheus: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "",
+      "code": "datasource_ready",
+      "evidence": {},
+      "id": "loki",
+      "message": "loki: connected through Grafana.",
+      "status": "PASS"
+     },
+     {
+      "action": "Check the Grafana address and service availability. The cause has not been established.",
+      "code": "request_unavailable",
+      "evidence": {},
+      "id": "metric_query",
+      "message": "The service could not be read or returned an invalid response.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_scrape",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "fortigate_api",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "sla_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "metrics_query_unavailable",
+      "evidence": {},
+      "id": "interface_metrics",
+      "message": "Metrics for this check could not be read.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "This confirms recent logs, not complete traffic coverage or verified sender identity.",
+      "code": "logs_received",
+      "evidence": {
+       "count": 1,
+       "window_seconds": 300
+      },
+      "id": "recent_logs",
+      "message": "Found 1 log entries with timestamps in the last 300 seconds.",
+      "status": "PASS"
+     },
+     {
+      "action": "Synchronize both clocks with NTP. On this server, timedatectl should show 'System clock synchronized: yes'; with chrony, sudo chronyc makestep corrects a large difference at once. On the FortiGate, check its NTP settings. Until both agree, report periods and day boundaries are off by the difference.",
+      "code": "clock_offset",
+      "evidence": {
+       "offset_seconds": -1793999999.0
+      },
+      "id": "clock_offset",
+      "message": "FortiGate log times are 29899999 min 59 s behind this server's clock.",
+      "status": "FAIL"
+     },
+     {
+      "action": "Review engine reachability and its bounded-query/storage status; processing success does not certify traffic completeness.",
+      "code": "accounting_poll_unavailable",
+      "evidence": {},
+      "id": "accounting_poll",
+      "message": "A recent successful usage-engine poll was not established.",
+      "status": "WARN"
+     },
+     {
+      "action": "Check sender, listener, Alloy and Loki evidence. No collected data is not zero Internet usage; do not reset the accounting database.",
+      "code": "accounting_delivery_unobserved",
+      "evidence": {},
+      "id": "accounting_delivery",
+      "message": "No usage-log delivery observation is available. Successful polling does not mean traffic was collected.",
+      "status": "UNKNOWN"
+     },
+     {
+      "action": "",
+      "code": "accounting_caught_up",
+      "evidence": {},
+      "id": "accounting_lag",
+      "message": "Usage processing is near the present.",
+      "status": "PASS"
+     },
+     {
+      "action": "Review read permissions and exact interface/VDOM metadata; do not infer VLANs from IP subnets.",
+      "code": "accounting_metadata_unavailable",
+      "evidence": {},
+      "id": "accounting_metadata",
+      "message": "Interface metadata is not established.",
+      "status": "WARN"
+     },
+     {
+      "action": "Run Settings > FortiGate Connection > Test Connection, enter the serial number it shows under Settings > Monitoring & Syslog > Expected FortiGate serial number, then Review & Apply. Usage already counted is kept. Leave it unbound on an HA cluster, whose members log with different serials.",
+      "code": "accounting_source_unavailable",
+      "evidence": {},
+      "id": "accounting_source",
+      "message": "No FortiGate serial number is bound, so logs from any other FortiGate sent to this listener would be counted too.",
+      "status": "WARN"
+     },
+     {
+      "action": "",
+      "code": "accounting_no_rejections",
+      "evidence": {},
+      "id": "accounting_rejections",
+      "message": "No input rejection has been recorded by this engine.",
+      "status": "PASS"
+     },
+     {
+      "action": "Review the upgrade plan; source eventtime must remain in the raw log line.",
+      "code": "late_delivery_coverage_unverified",
+      "evidence": {},
+      "id": "accounting_delivery_timestamps",
+      "message": "Receipt-time discovery is not confirmed; late source timestamps may fall outside a short poll overlap.",
+      "status": "WARN"
+     },
+     {
+      "action": "Use Settings > FortiGate Connection > Test Connection. A system/status read does not verify all API permissions.",
+      "code": "connection_test_not_run",
+      "evidence": {},
+      "id": "direct_api",
+      "message": "Test Connection has not been run for this installation yet.",
+      "status": "INFO"
+     }
+    ],
+    "direct_api_requested": false,
+    "freshness_seconds": 300,
+    "read_only": true,
+    "schema_version": 1,
+    "status": "FAIL"
+   },
+   "observed_revision": 1,
+   "read_only": true,
+   "saved_revision": 1
+  }
+ }
+}
