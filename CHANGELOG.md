@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Upgrade
+
+- `install.sh --upgrade` no longer starts a service that was stopped. When the
+  native syslog receiver is defined but disabled (syslog arrives through the
+  host receiver or Alloy) and its code changed, the upgrade started it. It now
+  copies the new code, leaves the service stopped and says so. A rollback,
+  automatic or with `--rollback-upgrade`, likewise restarts only the services
+  that were running before the upgrade.
+
 ### Reports and live usage
 
 - Choosing another period while a report is loading no longer loses the

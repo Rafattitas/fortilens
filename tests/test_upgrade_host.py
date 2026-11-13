@@ -4,6 +4,7 @@ A fake host records service operations; no systemd, Docker or real installation
 is touched, and nothing runs as root.
 """
 
+import io
 import json
 import os
 import shutil
@@ -24,6 +25,8 @@ class FakeHost:
         self.fail = fail
         self.calls = []
         self.images = []
+        self.defined = {"fortilens-usage", "fortilens-portal", "grafana"}
+        self.active = {"fortilens-usage", "fortilens-portal", "grafana"}
 
     def _maybe_fail(self, name):
         if self.fail == name:
@@ -36,7 +39,10 @@ class FakeHost:
         self.calls.append(("run",) + args)
 
     def services(self):
-        return {"fortilens-usage", "fortilens-portal", "grafana"}
+        return set(self.defined)
+
+    def running(self):
+        return set(self.active)
 
     def image_exists(self, image):
         return True
@@ -290,6 +296,94 @@ class UpgradeTests(unittest.TestCase):
             upgrade.upgrade(ROOT, self.prefix, host=FakeHost(self.registry))
         self.assertEqual(
             (self.prefix / "src/management/app.py").read_text(), "# previous version\n"
+        )
+
+    def stopped_receiver(self):
+        """A native syslog receiver that is defined in the stack but stopped."""
+        (self.stack / "syslog").mkdir()
+        for relative, origin in upgrade.STACK_CODE.items():
+            if relative.startswith("syslog/"):
+                (self.stack / relative).write_bytes((ROOT / origin).read_bytes())
+        (self.stack / "syslog/syslog_receiver.py").write_text("# previous receiver\n")
+        return self.host_with_receiver()
+
+    def host_with_receiver(self):
+        host = FakeHost(self.registry)
+        host.defined.add("fortilens-syslog")
+        return host
+
+    def compose_calls(self, host):
+        return [c for c in host.calls if c[0] == "compose"]
+
+    def test_a_stopped_service_gets_the_new_code_but_stays_stopped(self):
+        host = self.stopped_receiver()
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as output:
+            upgrade.upgrade(ROOT, self.prefix, host=host, now=1_800_000_000)
+        self.assertIn(
+            "refreshed services: usage. New code only, still stopped: syslog.",
+            output.getvalue(),
+        )
+        self.assertEqual(
+            (self.stack / "syslog/syslog_receiver.py").read_bytes(),
+            (ROOT / "portable/syslog_receiver.py").read_bytes(),
+        )
+        self.assertEqual(
+            self.journal()["running"], ["fortilens-portal", "fortilens-usage", "grafana"]
+        )
+        self.assertEqual(
+            self.compose_calls(host),
+            [
+                (
+                    "compose",
+                    "up",
+                    "-d",
+                    "--no-deps",
+                    "--build",
+                    "--force-recreate",
+                    "fortilens-usage",
+                ),
+                ("compose", "up", "-d", "--no-deps", "--force-recreate", "fortilens-portal"),
+            ],
+        )
+
+    def test_a_rollback_starts_only_the_services_that_were_running(self):
+        upgrade.upgrade(ROOT, self.prefix, host=self.stopped_receiver(), now=1_800_000_000)
+        host = self.host_with_receiver()
+        upgrade.rollback(self.prefix, host=host)
+        self.assertEqual(
+            (self.stack / "syslog/syslog_receiver.py").read_text(), "# previous receiver\n"
+        )
+        self.assertEqual(
+            self.compose_calls(host),
+            [
+                ("compose", "up", "-d", "--no-deps", "--force-recreate", "fortilens-usage"),
+                ("compose", "up", "-d", "--no-deps", "--force-recreate", "fortilens-portal"),
+            ],
+        )
+
+    def test_a_failed_upgrade_restarts_only_the_services_that_were_running(self):
+        host = self.stopped_receiver()
+        host.fail = "healthy:fortilens-usage"
+        with self.assertRaises(SystemExit):
+            upgrade.upgrade(ROOT, self.prefix, host=host, now=1_800_000_000)
+        self.assertEqual(self.journal()["status"], "FAILED")
+        self.assertEqual(
+            (self.stack / "syslog/syslog_receiver.py").read_text(), "# previous receiver\n"
+        )
+        self.assertFalse([c for c in self.compose_calls(host) if "fortilens-syslog" in c])
+
+    def test_a_rollback_without_a_recorded_state_keeps_stopped_services_stopped(self):
+        # Journals written before an upgrade recorded which services were running.
+        upgrade.upgrade(ROOT, self.prefix, host=self.stopped_receiver(), now=1_800_000_000)
+        journal = self.journal()
+        del journal["running"]
+        upgrade.write_journal(self.control, journal)
+        host = self.host_with_receiver()
+        upgrade.rollback(self.prefix, host=host)
+        self.assertFalse([c for c in self.compose_calls(host) if "fortilens-syslog" in c])
+        self.assertIn(
+            ("compose", "up", "-d", "--no-deps", "--force-recreate", "fortilens-usage"),
+            self.compose_calls(host),
         )
 
     def test_services_that_are_not_deployed_are_never_added(self):
