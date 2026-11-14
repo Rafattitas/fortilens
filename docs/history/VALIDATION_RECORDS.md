@@ -381,3 +381,22 @@ Four tests in `tests/test_upgrade_host.py` failed on the previous
 and on rollback) and pass on the fix. `docker compose ps --services --status
 running --status restarting` on the test installation listed every running
 service and left out the stopped receiver.
+
+## Test installation upgrade to `aaf256a`, 2026-11-14
+
+`sudo ./install.sh --upgrade` from a `git archive` of `main` at `aaf256a` on the
+web-managed test installation, previously at `675df54`. The native syslog
+receiver was stopped and disabled before the upgrade.
+
+- The upgrade completed with its backup and reported `refreshed services:
+  none`: the changes since `675df54` touch only the management source, tests
+  and documentation, so no service was rebuilt or restarted.
+- The journal recorded the eight running services and left out the stopped
+  syslog receiver, which stayed stopped.
+- Management and the helper were active and the web management health check
+  answered 200. The worker and the portal stayed healthy.
+- Accounting kept growing: the newest `compact_deliveries` row id went from
+  30,332,024 before the upgrade to 30,334,640 two minutes after.
+
+Not verified: an upgrade that changes a stopped service's code on this
+installation, and an Apply on the upgraded installation.
