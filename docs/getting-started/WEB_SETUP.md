@@ -340,15 +340,20 @@ The upgrade:
    environment only when `management/requirements.txt` changed. It then restarts
    both management units and waits for the web health check.
 4. Copies new code into services that already exist (accounting and the native
-   syslog receiver), rebuilds only those images, recreates the portal that shares
-   the accounting image and waits until each one is healthy.
+   syslog receiver). It rebuilds and restarts only those that are running,
+   recreates the portal that shares the accounting image and waits until each
+   one is healthy. A service that is stopped, such as a receiver left defined
+   but disabled, gets the new code and stays stopped; enabling it later in the
+   console builds it.
 5. Removes the `-pre-<time>` image copies left by earlier upgrades. Only the copy
    from this upgrade is kept, because it is the only one a rollback can use.
 
 Settings, secrets, Grafana dashboards, Prometheus/Loki data and the accounting
 database are not changed. No service is added. If any step fails, the previous
 source, environment, service code and images are restored automatically and the
-previous version is started again.
+previous version is started again. A rollback, automatic or with
+`--rollback-upgrade`, restarts only the services that were running before the
+upgrade.
 
 To return to the previous version after a completed upgrade:
 

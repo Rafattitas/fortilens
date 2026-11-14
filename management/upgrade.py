@@ -8,8 +8,10 @@ Run from the new reviewed source as root:
 An upgrade replaces the allowlisted management source, rebuilds the management
 virtual environment only when its requirements change, restarts the management
 services, then refreshes the code of the existing accounting and native syslog
-services and rebuilds only those images. It never initializes monitoring,
-changes settings, rotates secrets, adds services or touches data volumes.
+services and rebuilds and restarts only those that are running. A stopped
+service gets the new code and stays stopped. It never initializes monitoring,
+changes settings, rotates secrets, adds or starts services or touches data
+volumes.
 
 Every replaced file is saved first. A failure at any step restores the previous
 source, environment, service code and images and restarts the previous version.
@@ -194,6 +196,13 @@ class Host:
     def services(self):
         return set(self.compose("config", "--services", timeout=60).stdout.split())
 
+    def running(self):
+        # A disabled collector keeps its Compose definition but is stopped.
+        result = self.compose(
+            "ps", "--services", "--status", "running", "--status", "restarting", timeout=60
+        )
+        return set(result.stdout.split())
+
     def image_exists(self, image):
         return (
             self.run("docker", "image", "inspect", image, check=False, timeout=60).returncode == 0
@@ -311,9 +320,15 @@ def copy_like(target, data):
     install.put(target, data, mode=info.st_mode & 0o777, uid=info.st_uid, gid=info.st_gid)
 
 
-def refresh_stack(host, source, stack, changes, project, label):
-    """Copy new code into the stack, then rebuild only affected services."""
+def refresh_stack(host, source, stack, changes, project, label, running):
+    """Copy new code into the stack, then rebuild only affected running services.
+
+    A stopped service (a disabled collector keeps its definition) receives the
+    new code but stays stopped; enabling it later in the console builds it.
+    Returns the stack directories whose services were rebuilt.
+    """
     available = host.services()
+    refreshed = []
     for directory in affected(changes):
         image = IMAGES[directory] + ":" + project
         if host.image_exists(image):
@@ -322,13 +337,17 @@ def refresh_stack(host, source, stack, changes, project, label):
         copy_like(Path(stack) / relative, (Path(source) / STACK_CODE[relative]).read_bytes())
     for directory in affected(changes):
         built, *shared = [s for s in SERVICES[directory] if s in available] or [None]
-        if built is None:
+        if built is None or built not in running:
             continue
         host.compose("up", "-d", "--no-deps", "--build", "--force-recreate", built)
         host.wait_healthy(built)
         for service in shared:
+            if service not in running:
+                continue
             host.compose("up", "-d", "--no-deps", "--force-recreate", service, timeout=300)
             host.wait_healthy(service)
+        refreshed.append(directory)
+    return refreshed
 
 
 def prune_previous_images(host, project, keep):
@@ -351,6 +370,9 @@ def prune_previous_images(host, project, keep):
 
 def restore_stack(host, stack, folder, journal):
     available = host.services()
+    # Recreate only what ran before the upgrade. A journal written before this
+    # was recorded falls back to what runs now, so a stopped service stays stopped.
+    running = set(journal["running"]) if "running" in journal else host.running()
     for relative in journal.get("stack", []):
         saved = Path(folder) / "stack" / relative
         if saved.is_file():
@@ -361,7 +383,7 @@ def restore_stack(host, stack, folder, journal):
         previous = image + "-pre-" + journal["id"]
         if host.image_exists(previous):
             host.tag(previous, image)
-        for service in [s for s in SERVICES[directory] if s in available]:
+        for service in [s for s in SERVICES[directory] if s in available and s in running]:
             host.compose("up", "-d", "--no-deps", "--force-recreate", service, timeout=300)
             host.wait_healthy(service)
 
@@ -451,6 +473,7 @@ def upgrade(source, prefix, host=None, now=None):
         "to": digest(json.dumps(new, sort_keys=True).encode()),
         "requirements_changed": requirements_changed,
         "stack": changes,
+        "running": sorted(host.running()),
         "step": "prepare",
     }
     write_journal(control, journal)
@@ -474,7 +497,9 @@ def upgrade(source, prefix, host=None, now=None):
         host.wait_web(access)
         journal["step"] = "services"
         write_journal(control, journal)
-        refresh_stack(host, source, stack, changes, registry["project"], label)
+        refreshed = refresh_stack(
+            host, source, stack, changes, registry["project"], label, set(journal["running"])
+        )
         install.put(prefix / "installation.json", json.dumps({**meta, "source": new}, indent=2))
     except BaseException as failure:
         journal["failed_step"] = journal["step"]
@@ -504,10 +529,12 @@ def upgrade(source, prefix, host=None, now=None):
         # The upgrade is complete; a host error (UpgradeError is a SystemExit)
         # while tidying old image names must not turn it into a failure.
         pass
+    stopped = [d for d in affected(changes) if d not in refreshed]
     print(
         "FortiLens upgraded. Management restarted; refreshed services: "
-        + (", ".join(affected(changes)) or "none")
+        + (", ".join(refreshed) or "none")
         + "."
+        + (" New code only, still stopped: " + ", ".join(stopped) + "." if stopped else "")
     )
     print(
         "Backup: "

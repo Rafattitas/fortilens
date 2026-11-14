@@ -355,3 +355,29 @@ followed by restructuring for the installer, Diagnostics and the accounting stor
 
 Not verified: an Apply or install on the test installation, and the console in a
 browser against a live FortiGate.
+
+## Test installation upgrade to `675df54`, 2026-11-12
+
+`sudo ./install.sh --upgrade` from a `git archive` of `main` at `675df54` on the
+web-managed test installation, previously at `772c7bf`.
+
+- The upgrade completed with its backup and replaced the management source and
+  the accounting and syslog service code. Management, the worker and the portal
+  were healthy afterwards; the served report page was the new one.
+- The accounting database kept its tables and format (`user_version` 2), and
+  its row counts kept rising after the upgrade (`compact_deliveries` from
+  11,346,509 before to 11,357,524 a few minutes after).
+- The upgrade started the native syslog receiver container. It is defined but
+  disabled on this installation, which receives syslog through the host
+  receiver on UDP 514. It published no port and was stopped again with
+  `docker stop`; collection was unaffected. The upgrade fix below prevents this.
+
+Not verified: an Apply on the upgraded installation.
+
+## Upgrade keeps stopped services stopped
+
+Four tests in `tests/test_upgrade_host.py` failed on the previous
+`management/upgrade.py` (the stopped receiver was rebuilt and started on upgrade
+and on rollback) and pass on the fix. `docker compose ps --services --status
+running --status restarting` on the test installation listed every running
+service and left out the stopped receiver.
