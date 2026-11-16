@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.6.1 — 2026-11-16 — upgrades keep stopped services stopped, steadier reports and a complete source archive
 
 ### Upgrade
 
