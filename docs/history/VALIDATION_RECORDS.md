@@ -400,3 +400,25 @@ receiver was stopped and disabled before the upgrade.
 
 Not verified: an upgrade that changes a stopped service's code on this
 installation, and an Apply on the upgraded installation.
+
+## Internet links diagnosis on the test installation, 2026-11-17
+
+`sudo ./install.sh --upgrade` from a `git archive` of `bc52dee` on the
+web-managed test installation, previously at v0.6.1. The upgrade refreshed the
+usage and portal containers and left the disabled syslog receiver stopped.
+Management, the worker and the portal were healthy, `/console/api/wan/insights`
+refused an unauthenticated request with 401, and accounting caught up after the
+restart.
+
+`/api/wan/insights` over the real 7 days of four SD-WAN lines took 0.3 s and
+returned 63 KiB (24 hours: 0.2 s, 32 KiB). Its findings matched a manual
+Prometheus analysis of the same week: the busiest line carried 80% of sessions
+and its loss rose with load (0.24% below 500 sessions, 1.7% above); another
+line lost 5% or more for 18.7 hours; those two lines overlapped in 12
+incidents; one line's health checks disagreed for 82 hours (one check called it
+dead while another saw it alive, not counted as down); and one line was outside
+the configured health check and was judged by another. The page was reviewed
+by the operator on the real installation.
+
+Not verified: incident detail for devices and SD-WAN rules (not part of this
+change), and browsers other than the operator's.
