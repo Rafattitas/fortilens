@@ -108,7 +108,7 @@
       return {observed_at: seconds, source: 'FORTIVIEW_REALTIME', unit: 'bits_per_second', totals_source: 'INTERFACE_COUNTERS',
         totals: {download_bps: Math.round(download * 1.08), upload_bps: Math.round(upload * 1.12), sessions: sum(rows, 'sessions'), devices: rows.length},
         listed: {download_bps: download, upload_bps: upload}, listed_sources: rows.length, truncated: false,
-        links: [{interface: 'uplink-a', download_bps: Math.round(download * 0.78), upload_bps: Math.round(upload * 0.8), measured_seconds: 5}, {interface: 'uplink-b', download_bps: Math.round(download * 0.3), upload_bps: Math.round(upload * 0.32), measured_seconds: 5}],
+        links: [{interface: 'uplink-a', download_bps: Math.round(download * 0.78), upload_bps: Math.round(upload * 0.8), measured_seconds: 5, sessions_now: 742}, {interface: 'uplink-b', download_bps: Math.round(download * 0.3), upload_bps: Math.round(upload * 0.32), measured_seconds: 5, sessions_now: 118}],
         devices: rows, vlans: segmentRows, applications: apps, wan_interfaces: ['uplink-a', 'uplink-b'],
         note: 'Synthetic live estimates.'};
     }
@@ -139,7 +139,7 @@
       ];
       return {observed_at: seconds, route: {status: 'OBSERVED', destination: '198.51.100.1', interface: 'uplink-a', scope: 'Synthetic destination-specific route evidence.'},
         interfaces: ['uplink-a', 'uplink-b'].map((name, i) => ({interface: name,
-          internet_state: degraded && i ? 'DOWN' : 'UP', physical_state: 'UP',
+          internet_state: degraded && i ? 'DOWN' : 'UP', physical_state: 'UP', sessions: i ? 118 : 742,
           download_mbps: i ? 12.4 : 86.7, upload_mbps: i ? 1.2 : 8.3,
           latency_ms: degraded && i ? null : i ? 24.8 : 12.6, jitter_ms: i ? 2.8 : 1.4, packet_loss_pct: degraded && i ? 100 : 0,
           history: {window_seconds: day, availability_percent: degraded && i ? 97.9 : 100, valid_state_coverage_percent: 97,

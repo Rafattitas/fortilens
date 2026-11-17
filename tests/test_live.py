@@ -193,6 +193,8 @@ class LiveTests(unittest.TestCase):
                 "confirmed_wan_interfaces": ["wan1"],
                 "api_tls_verify": True,
             }
+            # The FortiGate's per-line session count arrives with the minute's WAN health.
+            engine.wan_cache = {"interfaces": [{"interface": "wan1", "sessions": 42.0}]}
             clock = iter([0.0, 1.0] + [float(x) for x in range(11, 400, 10)])
             engine.interface_rates = lambda _clock, real=engine.interface_rates: real(
                 lambda: next(clock), pause=0
@@ -216,6 +218,7 @@ class LiveTests(unittest.TestCase):
                         "download_bps": 8000,
                         "upload_bps": 2000,
                         "measured_seconds": 1.0,
+                        "sessions_now": 42.0,
                     }
                 ],
             )

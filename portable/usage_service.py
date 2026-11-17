@@ -773,6 +773,12 @@ class Engine:
         current = sample()
         self._interface_sample = current
         elapsed = current[0] - previous[0]
+        # The FortiGate's own per-line session count, refreshed each minute with WAN health.
+        sessions = {
+            i.get("interface"): i.get("sessions")
+            for i in (self.wan_cache or {}).get("interfaces", [])
+            if isinstance(i, dict)
+        }
         links = []
         for name in wan:
             old, new = previous[1].get(name), current[1].get(name)
@@ -785,6 +791,7 @@ class Engine:
                     "download_bps": round(rate[0]) if rate else None,
                     "upload_bps": round(rate[1]) if rate else None,
                     "measured_seconds": round(elapsed, 1) if rate else None,
+                    "sessions_now": sessions.get(name),
                 }
             )
         return links
@@ -1074,7 +1081,7 @@ class Engine:
         now = time.time()
         c = self.config
         freshness = max(120, c.get("prometheus_scrape_seconds", 60) * 2)
-        metrics = "up|fortigate_virtual_wan_status|fortigate_virtual_wan_latency_seconds|fortigate_virtual_wan_latency_jitter_seconds|fortigate_virtual_wan_packet_loss_ratio|fortigate_interface_link_up|fortigate_interface_receive_bytes_total|fortigate_interface_transmit_bytes_total"
+        metrics = "up|fortigate_virtual_wan_status|fortigate_virtual_wan_latency_seconds|fortigate_virtual_wan_latency_jitter_seconds|fortigate_virtual_wan_packet_loss_ratio|fortigate_virtual_wan_active_sessions|fortigate_interface_link_up|fortigate_interface_receive_bytes_total|fortigate_interface_transmit_bytes_total"
         expr = (
             "{__name__=~"
             + json.dumps(metrics)
@@ -1191,6 +1198,7 @@ class Engine:
                     "interface": name,
                     "internet_state": wan_health.current_state(rows, now, freshness, collected),
                     "physical_state": "UP" if link == 1 else "DOWN" if link == 0 else "NO DATA",
+                    "sessions": latest("fortigate_virtual_wan_active_sessions"),
                     "download_mbps": bandwidth("fortigate_interface_receive_bytes_total"),
                     "upload_mbps": bandwidth("fortigate_interface_transmit_bytes_total"),
                     "latency_ms": None
