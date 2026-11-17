@@ -142,6 +142,33 @@ The period is split into at most 1,008 intervals (10 minutes for 7 days,
 - `findings`: rule-based conclusions with `kind`, `severity` (`warn`, `probe`,
   `info` or `good`), `interfaces`, `title`, `detail` and `evidence` (the page
   section that shows it).
+- `links[].speed`: when the line's speed is set in Settings (`wan_speeds` in the
+  site configuration), its `down_mbps`, `up_mbps` and the average and busy-time
+  (95th percentile of interval averages) use of each, in percent; otherwise
+  `null`.
+- `routing`: the SD-WAN rules read from the FortiGate (`cmdb/system/sdwan`,
+  read-only, kept for 5 minutes). `status` is `OBSERVED` or `UNAVAILABLE` with a
+  `reason`. Each rule has `order`, `name`, `enabled`, `mode`, `sources`,
+  `destinations`, `services`, `restricted_by`, `lines` (in priority order),
+  `health_checks` and `issues` (`shadowed`, `overlap`, `manual` or
+  `catch_all_manual`, each with its `text`).
+
+### `/api/wan/incident`
+
+Devices whose recorded Internet traffic left through one line in a window,
+largest first. It reads the raw records, so the window must be within the ledger
+retention.
+
+| Parameter | Meaning |
+|---|---|
+| `interface` | A confirmed Internet interface. |
+| `start`, `end` | Unix seconds; at most 12 hours apart. |
+
+Response: `available` (`false` with `reason` `expired` when the raw records are
+gone), `ledger_days`, `complete` and `scanned_until` (reading stops after 15
+seconds and reports how far it got), `device_count`, `upload_bytes`,
+`download_bytes` and `devices` (up to 15, each with `device_id`, `hostname`,
+`ip`, `mac`, `vlan`, `upload_bytes`, `download_bytes` and `records`).
 
 ### `/api/inventory`
 

@@ -91,6 +91,9 @@ Secure/HttpOnly/SameSite=Strict cookies on HTTPS, server sessions and CSRF check
    confirm the Internet interfaces. Reported roles are suggestions to review;
    unknowns remain unknown. VLAN IDs/parents are exact device metadata. A configured
    interface's enabled state does not establish physical or Internet health.
+   Optionally enter each confirmed line's contracted download and upload speed in
+   Mbps; Internet links then shows how full each line is. Leaving them empty
+   changes nothing else.
 5. **Monitoring & Syslog:** select supported collectors/views, native service ports,
    syslog transport/format/port, SLA name, interval, accounting days and expected
    serial. Accounting days default to `fortigate`: midnight on the FortiGate clock,

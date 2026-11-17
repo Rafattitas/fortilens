@@ -70,22 +70,34 @@ days), then shows the current state under **Right now**.
   link to its evidence: a line that carries most sessions and loses more packets
   when busy, a line that loses packets even with little traffic, lines that
   often lose packets at the same time (look at what they share: router, subnet,
-  provider or the FortiGate), health checks that disagree about a line, and a
-  line that the configured health check does not cover.
+  provider or the FortiGate), health checks that disagree about a line, a
+  line that the configured health check does not cover, a line that is nearly
+  full at busy times, an SD-WAN rule that sends everyone else to one line
+  without ever moving them, and rules that never apply as written.
 - **Lines in this period** compares the lines: which health check judges each,
   its share of sessions, average rates, average loss, time spent losing 5% or
-  more (the loss warning in Settings), down time and whether its health checks
-  agree.
+  more (the loss warning in Settings), down time, how full it is (when its
+  speed is set in Settings → Network Interfaces) and whether its health checks
+  agree. "Busy" is the use in the busiest 5% of intervals.
 - **When it happened** shows each line over the period: working, losing
   packets, down, or no evidence. A purple stripe under a line marks intervals
   where its health checks disagreed. Point at an interval to see its time and
   session count.
 - **Incidents** lists trouble that lasted 20 minutes or longer. Selecting one
-  shows how long it lasted, the worst loss, the sessions on the line and whether
-  the other lines were affected at the same time.
+  shows how long it lasted, the worst loss, the sessions on the line, whether
+  the other lines were affected at the same time, and the devices whose recorded
+  traffic left through that line then, largest first. Device detail comes from
+  the raw records, which are kept for the ledger retention set in Settings
+  (3 days by default); a long incident may show only its first part.
 - **Does load cause the loss?** groups each line's loss by how many sessions it
   carried. Loss that rises only at high load points at capacity; loss at low load
   points at the line or its router.
+- **Who goes where** lists the FortiGate's SD-WAN rules in order, read-only:
+  who each rule covers, its lines and mode, and what keeps it from applying: a
+  rule below one that already takes all traffic never matches, a source listed
+  in an earlier rule stays with that rule, and a rule in manual mode never moves
+  traffic when its line loses packets. If the rules cannot be read, the rest of
+  the page still works.
 
 A line is judged by the health check chosen in Settings when that check covers
 it, otherwise by its other health check, and the page says so. A line is down

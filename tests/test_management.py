@@ -841,6 +841,46 @@ class ManagementTests(unittest.TestCase):
         for name, data in original.items():
             self.assertEqual((c.root / name).read_bytes(), data, name)
 
+    def test_line_speeds_are_optional_validated_and_written_only_when_set(self):
+        chosen = dict(
+            fortigate_host="192.0.2.1", sla="probe", wan_interfaces=["wan1"], wan_confirmed=True
+        )
+        s = Settings(**chosen, wan_speeds={"wan1": {"down_mbps": 40, "up_mbps": 6}})
+        self.assertEqual(s.portable()["wan_speeds"], {"wan1": {"down_mbps": 40, "up_mbps": 6}})
+        # Clearing every speed removes the key, so the site file is as it was before.
+        cleared = Settings(**chosen)
+        self.assertNotIn("wan_speeds", cleared.portable({"wan_speeds": s.portable()["wan_speeds"]}))
+        self.assertNotIn("wan_speeds", Settings(fortigate_host="192.0.2.1").portable())
+        for speeds in (
+            {"wan2": {"down_mbps": 40, "up_mbps": 6}},
+            {"wan1": {"down_mbps": 0, "up_mbps": 6}},
+            {"wan1": {"down_mbps": 40}},
+        ):
+            with self.assertRaises(ValueError):
+                Settings(**chosen, wan_speeds=speeds)
+        with self.assertRaises(setup.SetupError):
+            setup.validate_config(
+                {
+                    "fortigate_host": "192.0.2.1",
+                    "wan_speeds": {"wan1": {"down_mbps": 4, "up_mbps": 1}},
+                }
+            )
+        # An installation's own site file is read back into Settings.
+        c = self.existing()
+        path = c.root / ("site.json" if (c.root / "site.json").exists() else ".fortilens/site.json")
+        site = json.loads(path.read_text())
+        site.update(
+            confirmed_wan_interfaces=["wan1"],
+            wan_speeds={"wan1": {"down_mbps": 100, "up_mbps": 100}},
+        )
+        path.write_text(json.dumps(site))
+        adopted = Configuration(
+            c.root, self.base / "speeds-control", project="existing-original-project"
+        )
+        self.assertEqual(
+            adopted.view()["settings"]["wan_speeds"], {"wan1": {"down_mbps": 100, "up_mbps": 100}}
+        )
+
     def test_accounting_cpu_choice_is_read_applied_and_bounded(self):
         c = self.existing()
         self.assertEqual(c.view()["settings"]["accounting_cpus"], "0.5")

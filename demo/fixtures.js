@@ -165,6 +165,7 @@
         const sessions = Array.from({length: buckets}, (_, i) => l.sessions(i));
         const lossMinutes = [...codes].filter(c => c === 'w').length * step / 60;
         return {interface: name, check: 'synthetic-sla', check_fallback: false, checks: ['synthetic-ping', 'synthetic-sla'], states: codes, disagree, sessions,
+          speed: li ? null : {down_mbps: 100, up_mbps: 20, avg_down_pct: 38, avg_up_pct: 31, busy_down_pct: 71, busy_up_pct: 64},
           loss_by_load: l.loss.map(([min, max, loss_pct]) => ({min, max, loss_pct, samples: Math.round(buckets / l.loss.length)})),
           summary: {coverage_pct: 100, avg_sessions: sessions.reduce((a, b) => a + b, 0) / buckets, peak_sessions: Math.max(...sessions) + 140,
             avg_download_mbps: l.mbps[0], avg_upload_mbps: l.mbps[1], avg_loss_pct: li ? 0.36 : 0.88, avg_latency_ms: li ? 24.8 : 12.6,
@@ -202,7 +203,9 @@
           detail: '“synthetic-ping” reported uplink-b dead while “synthetic-sla” reported it alive. These intervals are not counted as down time. Check that health check\'s server and settings before relying on failover that uses it.'}] : []),
       ];
       return {status: 'OBSERVED_ONLY', start, step, buckets, observed_at: seconds, window_seconds: span, check: 'synthetic-sla',
-        loss_threshold_pct: 5, incident_min_seconds: 1200, links, incidents, findings,
+        loss_threshold_pct: 5, incident_min_seconds: 1200, links, incidents, findings, routing: {status: 'OBSERVED', note: "Rules apply in this order and the first match wins. Traffic that matches no rule follows the zone's implicit rule.", rules: [
+          {id: 1, name: 'engineering', order: 1, enabled: true, mode: 'sla', sources: ['eng-net'], destinations: ['all'], services: [], restricted_by: [], lines: ['uplink-b', 'uplink-a'], health_checks: ['synthetic-sla'], issues: []},
+          {id: 2, name: 'everyone-else', order: 2, enabled: true, mode: 'manual', sources: ['all'], destinations: ['all'], services: [], restricted_by: [], lines: ['uplink-a'], health_checks: [], catch_all: true, issues: [{kind: 'catch_all_manual', text: 'Takes all remaining traffic and sends it to uplink-a only. Manual mode ignores line quality: packet loss on uplink-a does not move this traffic.'}]}]},
         note: 'Synthetic diagnosis for the demo; no real network.'};
     }
     function system(dashboard = '/grafana/d/synthetic/') {
@@ -251,6 +254,8 @@
         '/api/device': () => report(url, true, degraded),
         '/api/wan': () => wan(degraded),
         '/api/wan/insights': () => wanInsights(url, degraded),
+        '/api/wan/incident': () => ({available: true, complete: true, interface: url.searchParams.get('interface'), start: Number(url.searchParams.get('start')), end: Number(url.searchParams.get('end')), scanned_until: Number(url.searchParams.get('end')), ledger_days: 8, device_count: 14, upload_bytes: 0.6 * GiB, download_bytes: 3.1 * GiB,
+          devices: [['design-ws-01', 'design', 1.4, 0.21], ['finance-lt-07', 'finance', 0.62, 0.08], ['meeting-room-tv', 'guest-wifi', 0.41, 0.02]].map(([hostname, vlan, down, up], i) => ({device_id: String(i + 1).repeat(64), hostname, ip: '192.0.2.' + (20 + i), mac: '', vlan, download_bytes: down * GiB, upload_bytes: up * GiB, records: 40 - i * 9}))}),
         '/api/applications': () => applications(url),
         '/api/inventory': () => inventory(),
         '/api/live': () => live(jitter),

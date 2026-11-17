@@ -136,6 +136,9 @@ DEVICE_INFO_SECONDS = 3600
 DEVICE_RETRY_SECONDS = 300
 LIVE_CHECK_SECONDS = 3600
 INSIGHT_BUCKETS = 1008  # 7 days of 10-minute intervals
+SDWAN_ROUTE = "/api/v2/cmdb/system/sdwan"  # read-only: the configured rules
+SDWAN_CACHE_SECONDS = 300
+INCIDENT_MAX_SECONDS = 12 * 3600
 
 
 def fortios_support(version):
@@ -463,6 +466,7 @@ class Engine:
         self.last_attempt = None
         self.wan_cache = {"status": "UNAVAILABLE", "interfaces": []}
         self._insight_cache = {}
+        self._sdwan_cache = None
         self._initial_inventory = json.loads(json.dumps(store.inventory))
         self.read_lock = threading.RLock()
         self._reader = None
@@ -791,6 +795,7 @@ class Engine:
             "/api/v2/monitor/system/status",
             LIVE_ROUTE,
             INTERFACE_ROUTE,
+            SDWAN_ROUTE,
         ):
             raise ServiceError("device_endpoint_not_allowlisted")
         c = self.config
@@ -1227,6 +1232,52 @@ class Engine:
             "bandwidth_note": "Observed counter-sample rate; not proof of the routing decision for every flow.",
         }
 
+    def wan_incident(self, interface, start, end):
+        """Devices whose recorded traffic left through one line during an incident."""
+        names = self.config.get("confirmed_wan_interfaces") or []
+        if interface not in names:
+            raise ServiceError("unknown_wan_interface")
+        if not 0 < end - start <= INCIDENT_MAX_SECONDS:
+            raise ServiceError("incident_window_outside_budget")
+        days = self.config.get("accounting_ledger_days", 3)
+        with self._read_snapshot() as (store, version):
+
+            def compute():
+                try:
+                    detail = store.line_devices(
+                        start * accounting.NS,
+                        end * accounting.NS,
+                        interface,
+                        deadline=time.monotonic() + REPORT_SCAN_SECONDS,
+                    )
+                except accounting.LedgerExpired:
+                    return {"available": False, "reason": "expired", "devices": []}
+                detail["scanned_until"] = detail.pop("scanned_until_ns") // accounting.NS
+                return {"available": True, **detail}
+
+            result = self._cached(
+                ("wan_incident", version, interface, start, end), version, compute
+            )
+        result.update(interface=interface, start=start, end=end, ledger_days=days)
+        return result
+
+    def sdwan_rules(self, now=None):
+        """The FortiGate's SD-WAN rules, read-only and kept for a few minutes."""
+        now = time.time() if now is None else now
+        cached = self._sdwan_cache
+        if cached and 0 <= now - cached[0] < SDWAN_CACHE_SECONDS:
+            return cached[1]
+        if not self.token_file:
+            result = {"status": "UNAVAILABLE", "rules": [], "reason": "api_token_unavailable"}
+        else:
+            names = self.config.get("confirmed_wan_interfaces") or []
+            try:
+                result = wan_health.sdwan_rules(self.read_device(SDWAN_ROUTE, {}), names)
+            except Exception as exc:
+                result = {"status": "UNAVAILABLE", "rules": [], "reason": safe_error(exc)}
+        self._sdwan_cache = (now, result)
+        return result
+
     def wan_insights(self, seconds=7 * 86400, now=None):
         """Per-line diagnosis over a period, from Prometheus SD-WAN health-check series."""
         if not 3600 <= seconds <= 7 * 86400:
@@ -1320,6 +1371,7 @@ class Engine:
                 series.setdefault(name, {})[field] = values
         for name in names:
             series.setdefault(name, {})
+        routing = self.sdwan_rules(now)
         result = wan_health.insights(
             series,
             start,
@@ -1329,6 +1381,8 @@ class Engine:
             loss_pct=c.get("wan_loss_warning_pct", 5),
             scrape_seconds=scrape,
             observed_at=now,
+            routing=routing,
+            speeds=c.get("wan_speeds"),
         )
         result["window_seconds"] = seconds
         self._insight_cache[seconds] = (key, result)
@@ -1593,6 +1647,13 @@ def handler(engine, password, root):
                     return self.send(200, engine.wan(int(value("seconds", "86400"))))
                 if parsed.path == "/api/wan/insights":
                     return self.send(200, engine.wan_insights(int(value("seconds", "604800"))))
+                if parsed.path == "/api/wan/incident":
+                    return self.send(
+                        200,
+                        engine.wan_incident(
+                            value("interface", ""), int(value("start", "0")), int(value("end", "0"))
+                        ),
+                    )
                 if parsed.path in ("/api/report", "/api/device"):
                     result = engine.report(
                         value("period", "today"),

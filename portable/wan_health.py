@@ -248,6 +248,209 @@ def _load_effect(rows, minimum):
     }
 
 
+def _busy(values):
+    """The 95th percentile of interval averages: how full the line is at busy times."""
+    values = sorted(v for v in values or [] if v is not None)
+    return values[min(len(values) - 1, int(0.95 * len(values)))] if values else None
+
+
+def _speed_use(speed, rx, tx):
+    """Average and busy-time use of a line's contracted speed, when one is set."""
+    if not isinstance(speed, dict):
+        return None
+    use = {"down_mbps": speed.get("down_mbps"), "up_mbps": speed.get("up_mbps")}
+    for label, values, limit in (
+        ("down", rx, speed.get("down_mbps")),
+        ("up", tx, speed.get("up_mbps")),
+    ):
+        avg, busy = _mean(values or []), _busy(values)
+        use[f"avg_{label}_pct"] = None if avg is None or not limit else avg * 800 / 1e6 / limit
+        use[f"busy_{label}_pct"] = None if busy is None or not limit else busy * 800 / 1e6 / limit
+    return use
+
+
+def _names(items):
+    return [str(i.get("name")) for i in items or [] if isinstance(i, dict) and i.get("name")]
+
+
+def sdwan_rules(payload, wans):
+    """Readable SD-WAN rules from ``cmdb/system/sdwan``: who goes to which line, and why not.
+
+    Rules are evaluated in list order; the first match wins. Only what the rules say is
+    reported. Which rule a given session used is not observable here.
+    """
+    results = payload.get("results") if isinstance(payload, dict) else None
+    if not isinstance(results, dict) or not isinstance(results.get("service", []), list):
+        return {"status": "UNAVAILABLE", "rules": [], "reason": "unexpected_sdwan_response"}
+    members = {
+        m.get("seq-num"): str(m.get("interface"))
+        for m in results.get("members") or []
+        if isinstance(m, dict) and m.get("interface")
+    }
+    rules, catch_all, claimed = [], None, {}
+    for order, s in enumerate(results.get("service") or [], 1):
+        if not isinstance(s, dict):
+            continue
+        enabled = s.get("status", "enable") == "enable"
+        sources, destinations = _names(s.get("src")), _names(s.get("dst"))
+        services = _names(s.get("internet-service-name")) + _names(
+            s.get("internet-service-app-ctrl")
+        )
+        restricted_by = [
+            label
+            for key, label in (
+                ("input-device", "incoming interface"),
+                ("users", "users"),
+                ("groups", "user groups"),
+            )
+            if s.get(key)
+        ]
+        negated = s.get("src-negate") == "enable" or s.get("dst-negate") == "enable"
+        lines = [
+            members[m.get("seq-num")]
+            for m in s.get("priority-members") or []
+            if isinstance(m, dict) and m.get("seq-num") in members
+        ]
+        checks = sorted(
+            set(_names(s.get("health-check")))
+            | {
+                str(x.get("health-check"))
+                for x in s.get("sla") or []
+                if isinstance(x, dict) and x.get("health-check")
+            }
+        )
+        mode = str(s.get("mode", "auto"))
+        every_source = "all" in sources and not restricted_by and not negated
+        every_destination = (
+            "all" in destinations and s.get("internet-service", "disable") != "enable"
+        )
+        rule = {
+            "id": s.get("id"),
+            "name": str(s.get("name") or "rule " + str(s.get("id"))),
+            "order": order,
+            "enabled": enabled,
+            "mode": mode,
+            "sources": sources,
+            "destinations": destinations,
+            "services": services,
+            "restricted_by": restricted_by,
+            "lines": [l for l in lines if not wans or l in wans] or lines,
+            "health_checks": checks,
+            "issues": [],
+        }
+        if not enabled:
+            rules.append(rule)
+            continue
+        if catch_all:
+            rule["issues"].append(
+                {
+                    "kind": "shadowed",
+                    "text": f"Never matches: rule “{catch_all['name']}” above it already takes all traffic.",
+                }
+            )
+            rules.append(rule)
+            continue
+        if not restricted_by and not negated and "all" in destinations:
+            taken = [
+                f"{name} (rule “{claimed[name]}”)"
+                for name in sources
+                if name != "all" and name in claimed
+            ]
+            if taken:
+                rule["issues"].append(
+                    {
+                        "kind": "overlap",
+                        "text": (
+                            "1 of its sources is"
+                            if len(taken) == 1
+                            else f"{len(taken)} of its sources are"
+                        )
+                        + " also in an earlier rule, which wins: "
+                        + ", ".join(taken[:6])
+                        + (f" and {len(taken) - 6} more" if len(taken) > 6 else "")
+                        + ".",
+                    }
+                )
+            for name in sources:
+                claimed.setdefault(name, rule["name"])
+        if every_source and every_destination:
+            catch_all = rule
+            rule["catch_all"] = True
+        if mode == "manual" and rule["lines"]:
+            where = rule["lines"][0]
+            rule["issues"].append(
+                {
+                    "kind": "catch_all_manual" if rule.get("catch_all") else "manual",
+                    "text": (
+                        f"Takes all remaining traffic and sends it to {where} only. "
+                        if rule.get("catch_all")
+                        else ""
+                    )
+                    + f"Manual mode ignores line quality: packet loss on {where} does not move this traffic.",
+                }
+            )
+        rules.append(rule)
+    return {
+        "status": "OBSERVED",
+        "rules": rules,
+        "note": "Rules apply in this order and the first match wins. Traffic that matches no rule follows the zone's implicit rule.",
+    }
+
+
+def _routing_findings(routing, links, findings):
+    if not routing or routing.get("status") != "OBSERVED":
+        return
+    troubled = {
+        name for f in findings if f["kind"] in ("load", "unstable") for name in f["interfaces"]
+    }
+    share = {l["interface"]: l["summary"].get("session_share_pct") for l in links}
+    for rule in routing["rules"]:
+        kinds = {i["kind"] for i in rule["issues"]}
+        line = rule["lines"][0] if rule["lines"] else None
+        if "catch_all_manual" in kinds and line:
+            share_text = (
+                f", which carries {round(share[line])}% of all sessions"
+                if share.get(line) is not None
+                else ""
+            )
+            findings.append(
+                {
+                    "kind": "routing",
+                    "severity": "warn" if line in troubled else "info",
+                    "interfaces": [line],
+                    "title": f"Rule “{rule['name']}” sends everyone not listed above it to {line}, and never moves them",
+                    "detail": f"It matches every source and destination in manual mode, so all remaining users stay on {line}{share_text} even while it loses packets. A rule in SLA mode with a second line would move them.",
+                    "evidence": "routing",
+                }
+            )
+    shadowed = [
+        r["name"] for r in routing["rules"] if any(i["kind"] == "shadowed" for i in r["issues"])
+    ]
+    overlap = [
+        r["name"] for r in routing["rules"] if any(i["kind"] == "overlap" for i in r["issues"])
+    ]
+    if shadowed or overlap:
+        parts = []
+        if shadowed:
+            parts.append("Never used: " + ", ".join(f"“{n}”" for n in shadowed) + ".")
+        if overlap:
+            parts.append(
+                "Some of their sources are already taken by an earlier rule: "
+                + ", ".join(f"“{n}”" for n in overlap)
+                + "."
+            )
+        findings.append(
+            {
+                "kind": "rules",
+                "severity": "info",
+                "interfaces": [],
+                "title": "Some SD-WAN rules do not apply as written",
+                "detail": " ".join(parts) + " The first matching rule wins.",
+                "evidence": "routing",
+            }
+        )
+
+
 def insights(
     series,
     start,
@@ -259,6 +462,8 @@ def insights(
     scrape_seconds=60,
     incident_seconds=1200,
     observed_at=None,
+    routing=None,
+    speeds=None,
 ):
     """Diagnose each line over a period from bucketed health-check and session series.
 
@@ -315,6 +520,9 @@ def insights(
                     "disagree_minutes": sum(disagree) * step / 60,
                 },
                 "loss_by_load": _load_buckets(sessions, loss_avg),
+                "speed": _speed_use(
+                    (speeds or {}).get(name), data.get("rx_bytes"), data.get("tx_bytes")
+                ),
             }
         )
     total = sum(l["summary"]["avg_sessions"] or 0 for l in links)
@@ -457,6 +665,31 @@ def insights(
                 "evidence": "lines",
             }
         )
+    for l in links:
+        use = l["speed"]
+        if not use:
+            continue
+        full = [
+            (direction, use[f"busy_{key}_pct"], use[f"{key}_mbps"])
+            for key, direction in (("down", "download"), ("up", "upload"))
+            if (use[f"busy_{key}_pct"] or 0) >= 80
+        ]
+        if full:
+            findings.append(
+                {
+                    "kind": "speed",
+                    "severity": "warn",
+                    "interfaces": [l["interface"]],
+                    "title": f"{l['interface']} is nearly full at busy times",
+                    "detail": "In its busiest 5% of intervals it used "
+                    + " and ".join(
+                        f"{round(pct)}% of its {mbps:g} Mbps {direction}"
+                        for direction, pct, mbps in full
+                    )
+                    + ". A full line delays and drops packets for everyone on it.",
+                    "evidence": "lines",
+                }
+            )
     pairs = {}
     for i, x in enumerate(incidents):
         for y in incidents[i + 1 :]:
@@ -510,6 +743,7 @@ def insights(
                     "evidence": "lines",
                 }
             )
+    _routing_findings(routing, links, findings)
     if not any(f["severity"] in ("warn", "probe") for f in findings) and any(
         l["check"] for l in links
     ):
@@ -539,5 +773,6 @@ def insights(
         "links": links,
         "incidents": incidents[-200:],
         "findings": findings,
+        "routing": routing or {"status": "UNAVAILABLE", "rules": [], "reason": "not_requested"},
         "note": "Each line is judged by the configured health check when that check covers it, otherwise by the check with the most samples. A line is down only when no other check reports it alive. Missing intervals are no evidence, never down or up.",
     }

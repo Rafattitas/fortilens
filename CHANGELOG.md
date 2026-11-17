@@ -18,6 +18,17 @@
   problem, not an outage.
 - New read-only endpoint `/api/wan/insights`. It reads only Prometheus and
   changes nothing on the FortiGate.
+- Incidents list the devices whose recorded traffic left through the affected
+  line at the time, largest first, from the raw records (kept for the ledger
+  retention). New endpoint `/api/wan/incident`.
+- **Who goes where** shows the SD-WAN rules, read-only from the FortiGate
+  (`cmdb/system/sdwan`), and what keeps each from applying: a rule below one
+  that takes all traffic, sources already taken by an earlier rule, and manual
+  mode that never moves traffic off a degraded line. Findings name a catch-all
+  rule that pins everyone else to one troubled line.
+- Settings → Network Interfaces accepts each line's contracted speed. The page
+  then shows average and busy-time use of each line and warns when one is nearly
+  full. Without speeds the site configuration is unchanged.
 
 ## v0.6.1 — 2026-11-16 — upgrades keep stopped services stopped, steadier reports and a complete source archive
 
