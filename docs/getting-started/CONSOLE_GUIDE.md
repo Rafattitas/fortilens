@@ -75,7 +75,8 @@ days), then shows the current state under **Right now**.
   full at busy times, an SD-WAN rule that sends everyone else to one line
   without ever moving them, and rules that never apply as written.
 - **Lines in this period** compares the lines: which health check judges each,
-  its share of sessions, average rates, average loss, time spent losing 5% or
+  its share of sessions with their average and peak count over the period (the
+  count right now is under Live usage), average rates, average loss, time spent losing 5% or
   more (the loss warning in Settings), down time, how full it is (when its
   speed is set in Settings → Network Interfaces) and whether its health checks
   agree. "Busy" is the use in the busiest 5% of intervals.
