@@ -26,6 +26,9 @@
   that takes all traffic, sources already taken by an earlier rule, and manual
   mode that never moves traffic off a degraded line. Findings name a catch-all
   rule that pins everyone else to one troubled line.
+- Each line's current session count, as the FortiGate counts it, appears in
+  the Right now table and next to each line in Live usage. Lines in this period
+  shows the average and peak count over the period.
 - Settings → Network Interfaces accepts each line's contracted speed. The page
   then shows average and busy-time use of each line and warns when one is nearly
   full. Without speeds the site configuration is unchanged.

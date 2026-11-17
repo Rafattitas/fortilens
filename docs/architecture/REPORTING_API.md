@@ -112,7 +112,8 @@ Health of the Internet links from stored metrics.
 | `seconds` | History window, 60 to 604800. Default 86400. |
 
 Main response fields: `status` (`OBSERVED` or `NO DATA`), `interfaces` (state,
-physical state, rates, latency, jitter, loss and `history` per link), `route`
+physical state, current `sessions` (the FortiGate's own count), rates, latency,
+jitter, loss and `history` per link), `route`
 and `observed_at`.
 
 ### `/api/wan/insights`

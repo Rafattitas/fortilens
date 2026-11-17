@@ -112,6 +112,9 @@ Right now, one row per Internet link:
   A link that is not a member of that health check has no SLA evidence.
 - **Physical link** is the interface state. A link can be physically up while its
   Internet state is down.
+- **Sessions now** is the FortiGate's own count of open sessions on the line,
+  read every minute. Live usage shows the same count next to each line. A
+  session is one connection; one device can hold hundreds.
 - **Latency, jitter and loss** are the health check's own measurements. A health
   check that uses an HTTP probe measures a web server's response, which is
   normally far higher than a ping. Compare a link with its own usual value.
