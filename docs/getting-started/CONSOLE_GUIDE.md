@@ -63,7 +63,37 @@ Limits to know:
 
 ### Internet links
 
-One row per Internet link:
+The page opens with a diagnosis of the chosen period (last hour, 24 hours or 7
+days), then shows the current state under **Right now**.
+
+- **What is going on** states the problems found, in plain sentences, each with a
+  link to its evidence: a line that carries most sessions and loses more packets
+  when busy, a line that loses packets even with little traffic, lines that
+  often lose packets at the same time (look at what they share: router, subnet,
+  provider or the FortiGate), health checks that disagree about a line, and a
+  line that the configured health check does not cover.
+- **Lines in this period** compares the lines: which health check judges each,
+  its share of sessions, average rates, average loss, time spent losing 5% or
+  more (the loss warning in Settings), down time and whether its health checks
+  agree.
+- **When it happened** shows each line over the period: working, losing
+  packets, down, or no evidence. A purple stripe under a line marks intervals
+  where its health checks disagreed. Point at an interval to see its time and
+  session count.
+- **Incidents** lists trouble that lasted 20 minutes or longer. Selecting one
+  shows how long it lasted, the worst loss, the sessions on the line and whether
+  the other lines were affected at the same time.
+- **Does load cause the loss?** groups each line's loss by how many sessions it
+  carried. Loss that rises only at high load points at capacity; loss at low load
+  points at the line or its router.
+
+A line is judged by the health check chosen in Settings when that check covers
+it, otherwise by its other health check, and the page says so. A line is down
+only when no health check reports it alive: when one check calls it dead and
+another calls it alive, the page reports a check problem instead of an outage.
+Intervals without samples are no evidence, never up or down.
+
+Right now, one row per Internet link:
 
 - **Internet state** comes from the SD-WAN health check (SLA) chosen in Settings.
   A link that is not a member of that health check has no SLA evidence.

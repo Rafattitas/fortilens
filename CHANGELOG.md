@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Internet links
+
+- The Internet links page now explains why the Internet drops or slows down. For
+  the last hour, 24 hours or 7 days it states what is wrong in plain sentences
+  (a line overloaded with sessions whose loss rises with load, a line that
+  loses packets even when quiet, lines that fail together, health checks that
+  disagree, a line outside the configured health check), compares the lines,
+  shows each line's state over the period, lists incidents of 20 minutes or
+  longer with whether other lines were affected, and charts loss against load.
+  The current-state table and history remain under **Right now**.
+- Each line is judged by the configured health check when it covers the line,
+  otherwise by its other health check. A line counts as down only when no
+  health check reports it alive; opposite answers are reported as a check
+  problem, not an outage.
+- New read-only endpoint `/api/wan/insights`. It reads only Prometheus and
+  changes nothing on the FortiGate.
+
 ## v0.6.1 — 2026-11-16 — upgrades keep stopped services stopped, steadier reports and a complete source archive
 
 ### Upgrade

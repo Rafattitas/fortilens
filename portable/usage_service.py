@@ -135,6 +135,7 @@ LIVE_FIELDS = ("dstintf", "srcaddr", "rx_bandwidth", "tx_bandwidth")
 DEVICE_INFO_SECONDS = 3600
 DEVICE_RETRY_SECONDS = 300
 LIVE_CHECK_SECONDS = 3600
+INSIGHT_BUCKETS = 1008  # 7 days of 10-minute intervals
 
 
 def fortios_support(version):
@@ -461,6 +462,7 @@ class Engine:
         self.last_error = "not_started"
         self.last_attempt = None
         self.wan_cache = {"status": "UNAVAILABLE", "interfaces": []}
+        self._insight_cache = {}
         self._initial_inventory = json.loads(json.dumps(store.inventory))
         self.read_lock = threading.RLock()
         self._reader = None
@@ -1225,6 +1227,113 @@ class Engine:
             "bandwidth_note": "Observed counter-sample rate; not proof of the routing decision for every flow.",
         }
 
+    def wan_insights(self, seconds=7 * 86400, now=None):
+        """Per-line diagnosis over a period, from Prometheus SD-WAN health-check series."""
+        if not 3600 <= seconds <= 7 * 86400:
+            raise ServiceError("wan_history_window_outside_budget")
+        now = time.time() if now is None else now
+        c = self.config
+        scrape = max(1, int(c.get("prometheus_scrape_seconds", 60)))
+        step = max(scrape, math.ceil(seconds / INSIGHT_BUCKETS / 60) * 60)
+        end = math.floor(now / step) * step
+        buckets = math.ceil(seconds / step)
+        start = end - buckets * step
+        key = (seconds, end)
+        cached = self._insight_cache.get(seconds)
+        if cached and cached[0] == key:
+            return cached[1]
+        ratio = c.get("wan_loss_warning_pct", 5) / 100
+        sel = 'job="fortigate",instance=' + json.dumps(c["fortigate_host"])
+        window = f"[{step}s]"
+        loss = "fortigate_virtual_wan_packet_loss_ratio{" + sel + "}"
+
+        def status(state):
+            return "fortigate_virtual_wan_status{" + sel + ",state=" + json.dumps(state) + "}"
+
+        def per_link(metric, fn):
+            # Session and bandwidth series repeat once per health check; take one per line.
+            return f"max by (interface, vdom) ({fn}_over_time({metric}{{{sel}}}{window}))"
+
+        check_queries = {
+            "loss_avg": f"avg_over_time({loss}{window})",
+            "loss_max": f"max_over_time({loss}{window})",
+            "loss_bad": f"sum_over_time(({loss} >= bool {ratio})[{step}s:{scrape}s])",
+            "down_max": f"max_over_time({status('down')}{window})",
+            "down_avg": f"avg_over_time({status('down')}{window})",
+            "up_avg": f"avg_over_time({status('up')}{window})",
+            "latency": f"avg_over_time(fortigate_virtual_wan_latency_seconds{{{sel}}}{window})",
+        }
+        link_queries = {
+            "sessions": per_link("fortigate_virtual_wan_active_sessions", "avg"),
+            "peak_sessions": per_link("fortigate_virtual_wan_active_sessions", "max"),
+            "rx_bytes": per_link("fortigate_virtual_wan_bandwidth_rx_byte_per_second", "avg"),
+            "tx_bytes": per_link("fortigate_virtual_wan_bandwidth_tx_byte_per_second", "avg"),
+        }
+        names = c.get("confirmed_wan_interfaces") or c.get("wan_interfaces") or []
+        series = {}
+
+        def rows(expr):
+            # A bucket's value is evaluated at its end, covering the bucket's own interval.
+            response = self.fetch(
+                self.prometheus,
+                "/api/v1/query_range",
+                {"query": expr, "start": str(start + step), "end": str(end), "step": str(step)},
+            )
+            data = response.get("data") if isinstance(response, dict) else None
+            if (
+                not isinstance(data, dict)
+                or data.get("resultType") != "matrix"
+                or not isinstance(data.get("result"), list)
+            ):
+                raise ServiceError("unexpected_prometheus_response")
+            for item in data["result"]:
+                labels = item.get("metric") if isinstance(item, dict) else None
+                values = item.get("values") if isinstance(item, dict) else None
+                if not isinstance(labels, dict) or not isinstance(values, list):
+                    raise ServiceError("unexpected_prometheus_response")
+                name = labels.get("interface")
+                if not name or labels.get("vdom", c["vdom"]) != c["vdom"]:
+                    continue
+                if names and name not in names:
+                    continue
+                out = [None] * buckets
+                for point in values:
+                    if not isinstance(point, (list, tuple)) or len(point) != 2:
+                        raise ServiceError("unexpected_prometheus_response")
+                    stamp, value = wan_health.finite(point[0]), wan_health.finite(point[1])
+                    if stamp is None or value is None:
+                        continue
+                    index = round((stamp - start) / step) - 1
+                    if 0 <= index < buckets:
+                        out[index] = value
+                yield name, labels, out
+
+        for field, expr in check_queries.items():
+            for name, labels, values in rows(expr):
+                check = labels.get("sla")
+                if check:
+                    series.setdefault(name, {}).setdefault("checks", {}).setdefault(check, {})[
+                        field
+                    ] = values
+        for field, expr in link_queries.items():
+            for name, _labels, values in rows(expr):
+                series.setdefault(name, {})[field] = values
+        for name in names:
+            series.setdefault(name, {})
+        result = wan_health.insights(
+            series,
+            start,
+            step,
+            buckets,
+            check=c.get("sla"),
+            loss_pct=c.get("wan_loss_warning_pct", 5),
+            scrape_seconds=scrape,
+            observed_at=now,
+        )
+        result["window_seconds"] = seconds
+        self._insight_cache[seconds] = (key, result)
+        return result
+
     def run(self):
         last_metadata, last_prune, last_wan = 0, 0, 0
         while not self.stop.is_set():
@@ -1482,6 +1591,8 @@ def handler(engine, password, root):
                     return self.send(200, engine.inventory())
                 if parsed.path == "/api/wan":
                     return self.send(200, engine.wan(int(value("seconds", "86400"))))
+                if parsed.path == "/api/wan/insights":
+                    return self.send(200, engine.wan_insights(int(value("seconds", "604800"))))
                 if parsed.path in ("/api/report", "/api/device"):
                     result = engine.report(
                         value("period", "today"),

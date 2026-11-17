@@ -146,6 +146,65 @@
             segments: segments(!!i), outages: degraded && i ? [{start: seconds - 1800, end: seconds, observed_seconds: 1800, end_censored: true}] : [],
             degradation: [{start: seconds - day * .46, end: seconds - day * .43, observed_seconds: 2592, end_censored: false}]}}))};
     }
+    // Synthetic diagnosis: uplink-a is busy and loses packets at midday peaks, uplink-b
+    // sometimes fails with it, and one of uplink-b's health checks misfires one morning.
+    function wanInsights(url, degraded = false) {
+      const span = Math.min(7 * day, Math.max(3600, Number(url.searchParams.get('seconds')) || 7 * day));
+      const step = Math.max(60, Math.ceil(span / 1008 / 60) * 60), buckets = Math.ceil(span / step);
+      const end = Math.floor(seconds / step) * step, start = end - buckets * step;
+      const minute = i => Math.floor(((start + i * step) % day) / 60);
+      const busy = i => minute(i) >= 480 && minute(i) < 1080;
+      const lines = {
+        'uplink-a': {sessions: i => (busy(i) ? 900 : 220), bad: i => (minute(i) >= 660 && minute(i) < 700) || (minute(i) >= 930 && minute(i) < 960), loss: [[100, 500, 0.21], [500, 1000, 2.4]], mbps: [38.2, 6.1]},
+        'uplink-b': {sessions: () => 120, bad: i => minute(i) >= 670 && minute(i) < 690, loss: [[100, 500, 0.34]], mbps: [6.8, 1.1]},
+      };
+      const misfire = i => start + i * step >= end - 2 * day + 6 * 3600 && start + i * step < end - 2 * day + 10 * 3600;
+      const links = Object.entries(lines).map(([name, l], li) => {
+        const codes = Array.from({length: buckets}, (_, i) => (degraded && li && i >= buckets - Math.ceil(1800 / step) ? 'd' : l.bad(i) ? 'w' : 'g')).join('');
+        const disagree = Array.from({length: buckets}, (_, i) => (li && misfire(i) ? 'p' : '.')).join('');
+        const sessions = Array.from({length: buckets}, (_, i) => l.sessions(i));
+        const lossMinutes = [...codes].filter(c => c === 'w').length * step / 60;
+        return {interface: name, check: 'synthetic-sla', check_fallback: false, checks: ['synthetic-ping', 'synthetic-sla'], states: codes, disagree, sessions,
+          loss_by_load: l.loss.map(([min, max, loss_pct]) => ({min, max, loss_pct, samples: Math.round(buckets / l.loss.length)})),
+          summary: {coverage_pct: 100, avg_sessions: sessions.reduce((a, b) => a + b, 0) / buckets, peak_sessions: Math.max(...sessions) + 140,
+            avg_download_mbps: l.mbps[0], avg_upload_mbps: l.mbps[1], avg_loss_pct: li ? 0.36 : 0.88, avg_latency_ms: li ? 24.8 : 12.6,
+            loss_minutes: lossMinutes, down_minutes: degraded && li ? 30 : 0, disagree_minutes: [...disagree].filter(c => c === 'p').length * step / 60}};
+      });
+      const total = links.reduce((n, l) => n + l.summary.avg_sessions, 0);
+      for (const l of links) l.summary.session_share_pct = 100 * l.summary.avg_sessions / total;
+      const incidents = [];
+      links.forEach(l => {
+        let begin = -1;
+        for (let i = 0; i <= buckets; i++) {
+          const on = i < buckets && l.states[i] !== 'g';
+          if (on && begin < 0) begin = i;
+          if (!on && begin >= 0) {
+            if ((i - begin) * step >= 1200) incidents.push({interface: l.interface, start: start + begin * step, end: start + i * step,
+              state: l.states.slice(begin, i).includes('d') ? 'DOWN' : 'LOSS', peak_loss_pct: l.states[begin] === 'd' ? 100 : 8.5,
+              avg_sessions: l.sessions[begin], others: links.filter(o => o !== l).map(o => ({interface: o.interface,
+                affected_fraction: [...o.states.slice(begin, i)].filter(c => c !== 'g').length / (i - begin)}))});
+            begin = -1;
+          }
+        }
+      });
+      incidents.sort((x, y) => x.start - y.start);
+      const shared = incidents.filter(x => x.interface === 'uplink-b' && x.others[0].affected_fraction >= .5).length;
+      const [a, b] = links;
+      const findings = [
+        {kind: 'load', severity: 'warn', interfaces: ['uplink-a'], evidence: 'load',
+          title: `uplink-a carries ${Math.round(a.summary.session_share_pct)}% of all sessions, and its loss rises with load`,
+          detail: `Below 500 sessions uplink-a loses 0.21% of packets; above that it loses 2.4%. The other line carries ${Math.round(b.summary.avg_sessions)} sessions on average.`},
+        ...(shared >= 3 ? [{kind: 'shared', severity: 'warn', interfaces: ['uplink-a', 'uplink-b'], evidence: 'incidents',
+          title: 'uplink-a and uplink-b often lose packets at the same time',
+          detail: `${shared} incidents on these two lines overlapped. When lines fail together, look at what they share: the same router, subnet or provider, or the FortiGate itself.`}] : []),
+        ...(b.summary.disagree_minutes >= 60 ? [{kind: 'checks_disagree', severity: 'probe', interfaces: ['uplink-b'], evidence: 'timeline',
+          title: `The health checks on uplink-b disagreed for ${b.summary.disagree_minutes >= 90 ? (b.summary.disagree_minutes / 60).toFixed(1) + ' hours' : Math.round(b.summary.disagree_minutes) + ' minutes'}`,
+          detail: '“synthetic-ping” reported uplink-b dead while “synthetic-sla” reported it alive. These intervals are not counted as down time. Check that health check\'s server and settings before relying on failover that uses it.'}] : []),
+      ];
+      return {status: 'OBSERVED_ONLY', start, step, buckets, observed_at: seconds, window_seconds: span, check: 'synthetic-sla',
+        loss_threshold_pct: 5, incident_min_seconds: 1200, links, incidents, findings,
+        note: 'Synthetic diagnosis for the demo; no real network.'};
+    }
     function system(dashboard = '/grafana/d/synthetic/') {
       return {services: ['fortigate-exporter', 'prometheus', 'grafana', 'loki', 'alloy', 'node-exporter', 'fortilens-usage', 'fortilens-portal', 'fortilens-syslog'].map(service => ({service, status: 'running', health: service.startsWith('fortilens-') ? 'healthy' : ''})),
         disk: {total: 64 * GiB, used: 18 * GiB, available: 46 * GiB}, storage_projection: {available: true,
@@ -191,6 +250,7 @@
         '/api/report': () => report(url, false, degraded),
         '/api/device': () => report(url, true, degraded),
         '/api/wan': () => wan(degraded),
+        '/api/wan/insights': () => wanInsights(url, degraded),
         '/api/applications': () => applications(url),
         '/api/inventory': () => inventory(),
         '/api/live': () => live(jitter),

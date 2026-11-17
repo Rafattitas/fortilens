@@ -115,6 +115,34 @@ Main response fields: `status` (`OBSERVED` or `NO DATA`), `interfaces` (state,
 physical state, rates, latency, jitter, loss and `history` per link), `route`
 and `observed_at`.
 
+### `/api/wan/insights`
+
+Diagnosis of the Internet links over a period, from the SD-WAN health-check and
+session series in Prometheus. Results are reused until the next interval ends.
+
+| Parameter | Meaning |
+|---|---|
+| `seconds` | Period, 3600 to 604800. Default 604800. |
+
+The period is split into at most 1,008 intervals (10 minutes for 7 days,
+2 minutes for 24 hours). Main response fields: `start`, `step`, `buckets`,
+`check` (the configured health check), `loss_threshold_pct`,
+`incident_min_seconds`, and:
+
+- `links`: per line, `check` and `check_fallback` (the health check that judges
+  it), `states` (one character per interval: `g` working, `w` losing packets,
+  `d` down, `n` no evidence), `disagree` (`p` where its health checks gave
+  opposite answers), `sessions` per interval, `summary` (share of sessions,
+  average rates, loss and latency, `loss_minutes`, `down_minutes`,
+  `disagree_minutes`, coverage) and `loss_by_load` (average loss by session
+  range).
+- `incidents`: trouble lasting `incident_min_seconds` or longer, with
+  `peak_loss_pct`, `avg_sessions` and, for each other line, the share of the
+  same time it was also affected.
+- `findings`: rule-based conclusions with `kind`, `severity` (`warn`, `probe`,
+  `info` or `good`), `interfaces`, `title`, `detail` and `evidence` (the page
+  section that shows it).
+
 ### `/api/inventory`
 
 The FortiGate interface inventory used to map records to segments.

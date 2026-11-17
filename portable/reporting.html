@@ -51,6 +51,7 @@
   --unk-b: #2c363b;
   --hatch: #4e5b62;
   --lane-up: #2f5849;
+  --probe: #b9a3ff;
   --ctl: 34px;
   --gap: 10px;
   font:
@@ -87,6 +88,7 @@
   --unk-b: #e1e6e5;
   --hatch: #aeb8b6;
   --lane-up: #b3d6c6;
+  --probe: #5b3fb0;
 }
 * {
   box-sizing: border-box;
@@ -839,6 +841,240 @@ summary {
 .lkey .unknown::before {
   background: repeating-linear-gradient(135deg, var(--sub) 0 1.5px, transparent 1.5px 4px);
 }
+.lkey .probe::before {
+  background: repeating-linear-gradient(135deg, var(--probe) 0 2px, transparent 2px 4.5px);
+}
+/* Internet diagnosis: the answer first, then the evidence behind it. */
+.status.probe {
+  color: var(--probe);
+}
+.status.probe::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 0;
+  background: none;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+  transform: rotate(45deg);
+}
+.status.info {
+  color: var(--acc);
+}
+.status.info::before {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+.findings {
+  padding: 2px 12px;
+}
+.finding {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  align-items: start;
+  padding: 10px 0;
+  border-top: 1px solid var(--line2);
+}
+.finding:first-child {
+  border-top: 0;
+}
+.finding h3 {
+  margin: 0 0 2px;
+  font-size: 14px;
+}
+.finding p {
+  max-width: 82ch;
+  margin: 0;
+  color: var(--sub);
+  font-size: 13px;
+}
+html .finding button {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--acc);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+html .finding button:hover {
+  text-decoration: underline;
+}
+.share {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+}
+.share .bar {
+  flex: 1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--well);
+}
+.share .bar i {
+  display: block;
+  height: 100%;
+  background: var(--acc);
+}
+.share.hot .bar i {
+  background: var(--warn);
+}
+.lanes {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 6px 10px;
+  align-items: center;
+}
+.lanes .lane-name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.lanes .lane-name small {
+  display: block;
+  font-weight: 400;
+}
+.lanes svg {
+  display: block;
+  width: 100%;
+  height: 34px;
+  cursor: crosshair;
+}
+.lanes .axis {
+  position: relative;
+  grid-column: 2;
+  height: 16px;
+  color: var(--sub);
+  font-size: 11.5px;
+}
+.lanes .axis span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.wan-tip {
+  position: fixed;
+  z-index: 20;
+  max-width: 260px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--well);
+  font-size: 12px;
+  pointer-events: none;
+}
+.wan-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+.wan-grid > .section {
+  margin: 0 0 var(--gap);
+}
+.incidents {
+  padding: 4px 12px 0;
+}
+html .incidents button {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 0;
+  padding: 7px 6px;
+  border: 0;
+  border-top: 1px solid var(--line2);
+  border-radius: 3px;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+html .incidents button:first-child {
+  border-top: 0;
+}
+html .incidents button:hover,
+html .incidents button[aria-pressed="true"] {
+  background: var(--raise);
+}
+.incidents .when {
+  color: var(--sub);
+  font-size: 12.5px;
+}
+.incident {
+  display: grid;
+  gap: 8px;
+  margin: 8px 12px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--well);
+}
+.incident:empty {
+  display: none;
+}
+.incident p {
+  margin: 0;
+  font-size: 13px;
+}
+.incident .facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+.incident .facts b {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+}
+.incident .facts span,
+.chart-note {
+  color: var(--sub);
+  font-size: 12.5px;
+}
+.incident .others {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.chart-note {
+  margin: 0;
+  padding: 0 12px 12px;
+}
+html .chart svg.loadchart {
+  height: auto;
+}
+.loadchart text {
+  fill: var(--sub);
+  font-size: 11.5px;
+}
+.loadchart .value {
+  fill: var(--ink);
+  font-weight: 500;
+}
+.subhead {
+  margin: 4px 0 8px;
+}
+@media (max-width: 900px) {
+  .wan-grid {
+    grid-template-columns: 1fr;
+  }
+  .finding {
+    grid-template-columns: 1fr;
+  }
+  .lanes {
+    grid-template-columns: 1fr;
+  }
+  .lanes .axis {
+    grid-column: 1;
+  }
+  html .incidents button {
+    grid-template-columns: 1fr auto;
+  }
+}
 /* Monitoring */
 #monitoring-frame {
   display: block;
@@ -1302,7 +1538,7 @@ html .apps-field select {
 <section id="vlan-section" class="section"><div class="section-head"><div><h2>Internet usage by segment</h2><p>Exact FortiGate interface metadata. Unknown mappings stay unknown.</p></div></div><div class="table-wrap"><table class="cards"><thead><tr><th>VLAN</th><th>Interface</th><th class="number">Identities</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th></tr></thead><tbody id="vlan-body"></tbody></table></div><div id="vlan-empty" class="empty" hidden>No received segment totals are available.</div><p id="vlan-missing" class="notice" hidden></p></section>
 <section id="apps-section" class="section" hidden><div class="section-head"><div><h2 id="apps-title">Applications</h2><p id="apps-caption">Recorded Internet usage by FortiGate Application Control label. Device names are not authenticated user accounts; let people know this view exists.</p></div><div class="apps-filters"><button id="apps-genai" aria-pressed="false">GenAI only</button><button id="apps-clear" hidden>Show all applications</button></div></div><div id="apps-stats" class="stats"></div><ul id="apps-notes" class="apps-notes" hidden></ul><div class="apps-block"><h3>Largest identified applications</h3><div id="apps-chart" class="apps-chart" role="list" aria-label="Largest identified applications"></div><p id="apps-chart-empty" class="muted" hidden>No application was identified by name in this period.</p></div><div class="apps-block"><div class="apps-tools"><div class="apps-field"><label for="apps-search">Find an application or category</label><input id="apps-search" type="search" placeholder="Name or category"></div><div class="apps-field"><label for="apps-top">Show</label><select id="apps-top"><option value="20">Top 20</option><option value="10">Top 10</option><option value="all">All applications</option></select></div><div class="apps-field"><label for="apps-risk">Minimum risk</label><select id="apps-risk"><option value="">Any risk</option><option value="elevated">Elevated or higher</option><option value="high">High or critical</option></select></div></div><div class="table-wrap"><table class="cards apps-table apps-main"><thead><tr><th>Application</th><th>Category</th><th>Risk</th><th class="number">Devices</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th><th class="number">Share</th></tr></thead><tbody id="apps-body"></tbody></table></div><div id="apps-empty" class="empty" hidden>No labelled application evidence for this selection. This is not proof of zero traffic.</div><p id="apps-count" class="muted"></p></div><div class="apps-block"><h3>Categories</h3><div id="apps-mix" class="apps-mix" role="img" aria-label="Share of recorded usage by category"></div><div id="apps-legend" class="apps-legend"></div><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Category</th><th class="number">Applications</th><th class="number">Devices</th><th class="number">Total</th><th class="number">Share</th></tr></thead><tbody id="categories-body"></tbody></table></div></div></section><section id="sites-section" class="section" hidden><div class="section-head"><div><h2 id="sites-title">Websites</h2><p>Recorded Internet usage by website, from FortiGate Application Control and Web Filter logs for the same session. Site names only, never full addresses. Device names are not authenticated user accounts; let people know this view exists.</p></div><div class="apps-filters"><button id="sites-clear" hidden>Show all websites</button></div></div><div id="sites-stats" class="stats"></div><p id="sites-note" class="notice" hidden></p><div class="apps-block"><div class="apps-tools"><div class="apps-field"><label for="sites-search">Find a website</label><input id="sites-search" type="search" placeholder="Site name"></div><div class="apps-field"><label for="sites-top">Show</label><select id="sites-top"><option value="25">Top 25</option><option value="100">Top 100</option><option value="all">All websites</option></select></div></div><div class="table-wrap"><table class="cards apps-table apps-main"><thead><tr><th>Website</th><th class="number">Devices</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th><th class="number">Share</th></tr></thead><tbody id="sites-body"></tbody></table></div><div id="sites-empty" class="empty" hidden>No website evidence for this selection. This is not proof of zero traffic.</div><p id="sites-count" class="muted"></p></div><div id="sites-devices-block" class="apps-block" hidden><h3 id="sites-devices-title">Devices</h3><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Device</th><th>Segment</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th></tr></thead><tbody id="sites-devices"></tbody></table></div></div></section>
 <section id="live-section" class="section" hidden><div class="section-head"><div><h2>Internet usage right now</h2><p id="live-caption">Link totals come from WAN interface counters and include traffic no device owns, such as FortiGate updates, probes and VPN. Device figures are FortiGate realtime session estimates. Updated every 10 seconds; not recorded totals.</p></div><div class="apps-filters"><button id="live-pause" aria-pressed="false">Pause</button></div></div><div id="live-stats" class="stats"></div><p id="live-compat" class="notice" hidden></p><div class="live-meta"><p id="live-status" class="muted live-status" role="status"></p><div class="apps-legend live-legend" aria-hidden="true"><span class="apps-key"><i style="background:var(--acc)"></i>Download</span><span class="apps-key"><i style="background:#b39ddb"></i>Upload</span></div></div><div class="live-grid"><div class="apps-block"><h3>Devices using the Internet now</h3><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Device</th><th>Segment</th><th>Doing</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Sessions</th></tr></thead><tbody id="live-devices"></tbody></table></div><div id="live-devices-empty" class="empty" hidden>No device is sending Internet traffic through a WAN interface right now.</div></div><div class="apps-block"><h3>Applications now</h3><div id="live-apps" class="apps-chart" role="list" aria-label="Applications by current bandwidth"></div><p id="live-apps-empty" class="muted" hidden>No application traffic right now.</p><h3>Segments now</h3><div id="live-vlans" class="apps-chart" role="list" aria-label="Segments by current bandwidth"></div><h3>Internet links</h3><div id="live-links" class="apps-chart" role="list" aria-label="WAN links by current bandwidth"></div></div></div></section>
-<section id="wan-section" hidden><div class="section-head"><div><h2>Internet health &amp; observed history</h2><p>Physical link, Internet SLA and route selection are separate signals.</p></div><label>History<select id="wan-window"><option value="86400">Last 24 hours</option><option value="604800">Last 7 days</option><option value="3600">Last hour</option></select></label></div><p id="route" class="notice">Route-selection evidence unavailable.</p><div class="section table-wrap"><table class="cards"><thead><tr><th>Link</th><th>Internet SLA</th><th>Physical</th><th class="number">Down / Up Mbps</th><th class="number">Latency / Jitter</th><th class="number">Loss</th><th class="number">Observed up</th><th class="number">Valid coverage</th></tr></thead><tbody id="wan-body"></tbody></table></div><div id="wan-empty" class="empty" hidden>No current WAN evidence. Missing collection is not a WAN outage.</div><div id="wan-history"></div></section>
+<section id="wan-section" hidden><div class="section-head"><div><h2>Internet health &amp; observed history</h2><p>Physical link, Internet SLA and route selection are separate signals.</p></div><label>History<select id="wan-window"><option value="86400">Last 24 hours</option><option value="604800">Last 7 days</option><option value="3600">Last hour</option></select></label></div><div id="wan-insights"><section class="section" id="wan-findings-sec"><div class="section-head"><h2>What is going on</h2><p>Findings from the measurements on this page.</p></div><div id="wan-findings" class="findings"></div></section><section class="section" id="wan-lines-sec"><div class="section-head"><h2>Lines in this period</h2><p>SD-WAN health checks and session counters from the FortiGate.</p></div><div class="table-wrap"><table class="cards"><thead><tr><th>Line</th><th>Judged by</th><th>Share of sessions</th><th class="number">Avg down / up Mbps</th><th class="number">Avg loss</th><th class="number">Time losing packets</th><th class="number">Down</th><th>Health checks</th></tr></thead><tbody id="wan-lines"></tbody></table></div></section><section class="section" id="wan-when-sec"><div class="section-head"><h2>When it happened</h2><p id="wan-when-note"></p></div><div class="chart"><div id="wan-lanes" class="lanes"></div><div class="lkey"><span class="up">Working</span><span class="degraded">Losing packets</span><span class="down">Down</span><span class="probe">Health checks disagree</span><span class="unknown">No evidence</span></div></div></section><div class="wan-grid"><section class="section" id="wan-incidents-sec"><div class="section-head"><h2>Incidents</h2><p id="wan-incidents-note"></p></div><div id="wan-incidents" class="incidents"></div><div id="wan-incident" class="incident" aria-live="polite"></div></section><section class="section" id="wan-load-sec"><div class="section-head"><h2>Does load cause the loss?</h2><p>Average loss by sessions on the line.</p></div><div class="chart" id="wan-load"></div><p class="chart-note" id="wan-load-note"></p></section></div></div><div id="wan-tip" class="wan-tip" hidden></div><h2 class="subhead">Right now</h2><p id="route" class="notice">Route-selection evidence unavailable.</p><div class="section table-wrap"><table class="cards"><thead><tr><th>Link</th><th>Internet SLA</th><th>Physical</th><th class="number">Down / Up Mbps</th><th class="number">Latency / Jitter</th><th class="number">Loss</th><th class="number">Observed up</th><th class="number">Valid coverage</th></tr></thead><tbody id="wan-body"></tbody></table></div><div id="wan-empty" class="empty" hidden>No current WAN evidence. Missing collection is not a WAN outage.</div><div id="wan-history"></div></section>
 <section id="quality-section" hidden><ol id="quality-path" class="path" aria-label="Path of evidence"></ol><div class="quality-grid"><div class="card"><h2>Collection &amp; processing</h2><div id="quality-state"></div></div><div class="card"><h2>Interpret the evidence</h2><p class="muted">A successful poll proves that received records were processed. It cannot prove that all traffic was logged and delivered.</p><p class="muted">MAC identities are preferred. Missing-MAC identities remain scoped to a session or observation. Shared IPs and changing hostnames never become a verified person.</p><p class="muted">Availability excludes unknown intervals. Gaps are neither outages nor recoveries. Route lookup applies to its stated destination and may differ from policy or per-flow SD-WAN selection.</p></div></div><div class="section"><div class="section-head"><h2>Accounting evidence in this report</h2></div><div id="quality-flags" class="card"></div></div></section>
 <footer>FortiLens · Read-only evidence and reporting. Exact packet-time attribution and end-to-end traffic completeness are not inferred. Use HTTPS when exposing this service beyond loopback.</footer>
 </main></div>
@@ -1569,6 +1805,15 @@ function validPayload(path, data) {
     return (
       Array.isArray(data.interfaces) && object(data.route) && typeof data.observed_at === 'number'
     );
+  if (route === '/api/wan/insights')
+    return (
+      Array.isArray(data.links) &&
+      Array.isArray(data.incidents) &&
+      Array.isArray(data.findings) &&
+      typeof data.start === 'number' &&
+      typeof data.step === 'number' &&
+      typeof data.buckets === 'number'
+    );
   if (route === '/api/monitoring-status')
     return (
       typeof data.available === 'boolean' && (!data.available || typeof data.path === 'string')
@@ -1728,6 +1973,12 @@ function signedOut() {
     'vlan-body',
     'wan-body',
     'wan-history',
+    'wan-findings',
+    'wan-lines',
+    'wan-lanes',
+    'wan-incidents',
+    'wan-incident',
+    'wan-load',
     'quality-path',
     'quality-state',
     'quality-flags',
@@ -3191,9 +3442,486 @@ async function openDevice(id) {
 function stateClass(s) {
   return s === 'UP' ? 'good' : s === 'DOWN' ? 'bad' : s === 'ERROR' ? 'warn' : '';
 }
+// Internet diagnosis. Interval states: g working, w losing packets, d down, n no evidence.
+const FINDING_LABELS = {
+  load: 'Overloaded',
+  share: 'Load',
+  unstable: 'Unstable line',
+  shared: 'Shared fault',
+  checks_disagree: 'Check problem',
+  coverage: 'Coverage',
+  no_evidence: 'No evidence',
+  clear: 'All clear'
+};
+const FINDING_TARGETS = {
+  load: 'wan-load-sec',
+  lines: 'wan-lines-sec',
+  timeline: 'wan-when-sec',
+  incidents: 'wan-incidents-sec'
+};
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svgElement(tag, attrs = {}) {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
+function stateRuns(text, test) {
+  const runs = [];
+  let begin = -1;
+  for (let i = 0; i <= text.length; i++) {
+    const on = i < text.length && test(text[i]);
+    if (on && begin < 0) begin = i;
+    if (!on && begin >= 0) {
+      runs.push([begin, i]);
+      begin = -1;
+    }
+  }
+  return runs;
+}
+function minutesText(minutes) {
+  if (minutes === null || minutes === undefined) return '—';
+  return minutes >= 90
+    ? (minutes / 60).toLocaleString(undefined, {maximumFractionDigits: 1}) + ' h'
+    : Math.round(minutes) + ' min';
+}
+function shortWhen(seconds) {
+  return new Date(seconds * 1000).toLocaleString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+function clearInsights(text) {
+  for (const id of [
+    'wan-findings',
+    'wan-lines',
+    'wan-lanes',
+    'wan-incidents',
+    'wan-incident',
+    'wan-load'
+  ])
+    $(id).replaceChildren();
+  $('wan-when-note').textContent = '';
+  $('wan-incidents-note').textContent = '';
+  $('wan-load-note').textContent = '';
+  if (text) $('wan-findings').append(element('p', text, 'muted'));
+}
+function renderFindings(r) {
+  const box = $('wan-findings');
+  box.replaceChildren();
+  for (const f of r.findings) {
+    const row = element('div', undefined, 'finding'),
+      body = element('div'),
+      kind = {warn: 'warn', probe: 'probe', info: 'info', good: 'good'}[f.severity] || '';
+    body.append(element('h3', f.title), element('p', f.detail));
+    row.append(badge(FINDING_LABELS[f.kind] || 'Finding', kind), body);
+    const target = FINDING_TARGETS[f.evidence];
+    if (target) {
+      const go = element('button', 'Evidence →');
+      go.type = 'button';
+      go.addEventListener('click', () =>
+        $(target).scrollIntoView({
+          behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+          block: 'start'
+        })
+      );
+      row.append(go);
+    } else row.append(element('span'));
+    box.append(row);
+  }
+  if (!r.findings.length) box.append(element('p', 'No findings for this period.', 'muted'));
+}
+function renderLines(links) {
+  const body = $('wan-lines');
+  body.replaceChildren();
+  const busiest = Math.max(1, ...links.map(l => l.summary.avg_sessions || 0));
+  for (const l of links) {
+    const s = l.summary,
+      tr = element('tr'),
+      checkCell = element('td', l.check ? l.check + (l.check_fallback ? ' (fallback)' : '') : '—'),
+      shareCell = element('td'),
+      share = element('div', undefined, 'share' + ((s.session_share_pct || 0) > 50 ? ' hot' : '')),
+      bar = element('span', undefined, 'bar'),
+      fill = element('i');
+    fill.style.width = (100 * (s.avg_sessions || 0)) / busiest + '%';
+    bar.append(fill);
+    share.append(
+      bar,
+      element(
+        'span',
+        s.session_share_pct === null
+          ? '—'
+          : Math.round(s.session_share_pct) + '% · ' + number(Math.round(s.avg_sessions || 0))
+      )
+    );
+    shareCell.append(share);
+    const lossCell = element('td', undefined, 'number'),
+      checks = element('td');
+    lossCell.append(
+      s.avg_loss_pct === null
+        ? element('span', '—')
+        : badge(number(s.avg_loss_pct, '%'), s.avg_loss_pct >= 1 ? 'warn' : 'good')
+    );
+    checks.append(
+      !l.check
+        ? badge('No evidence', '')
+        : s.disagree_minutes >= 60
+          ? badge('Disagree ' + minutesText(s.disagree_minutes), 'probe')
+          : l.checks.length < 2
+            ? badge('One check', 'info')
+            : badge('Agree', 'good')
+    );
+    tr.append(
+      element('td', l.interface),
+      checkCell,
+      shareCell,
+      element(
+        'td',
+        number(s.avg_download_mbps) + ' / ' + number(s.avg_upload_mbps),
+        'number'
+      ),
+      lossCell,
+      element('td', minutesText(s.loss_minutes), 'number'),
+      element('td', minutesText(s.down_minutes), 'number'),
+      checks
+    );
+    labelRow(tr, [
+      'Line',
+      'Judged by',
+      'Share of sessions',
+      'Avg down / up Mbps',
+      'Avg loss',
+      'Time losing packets',
+      'Down',
+      'Health checks'
+    ]);
+    body.append(tr);
+  }
+}
+function renderLanes(r, links) {
+  const box = $('wan-lanes');
+  box.replaceChildren();
+  const n = r.buckets,
+    fills = {g: 'var(--lane-up)', w: 'var(--warn)', d: 'var(--bad)'};
+  for (const l of links) {
+    const name = element('div', l.interface, 'lane-name');
+    name.append(element('small', l.check || 'no check', 'muted'));
+    const svg = svgElement('svg', {
+      viewBox: '0 0 ' + n + ' 34',
+      preserveAspectRatio: 'none',
+      role: 'img',
+      'aria-label': l.interface + ': line state over the period; hatched intervals have no evidence.'
+    });
+    svg.dataset.line = l.interface;
+    const id = 'wan-hatch-' + box.children.length,
+      probeId = 'wan-probe-' + box.children.length,
+      defs = svgElement('defs');
+    for (const [pid, color, width] of [
+      [id, 'var(--hatch)', 1.5],
+      [probeId, 'var(--probe)', 2]
+    ]) {
+      const pattern = svgElement('pattern', {
+        id: pid,
+        width: 5,
+        height: 5,
+        patternUnits: 'userSpaceOnUse',
+        patternTransform: 'rotate(45)'
+      });
+      const stripe = svgElement('rect', {width, height: 5});
+      stripe.style.fill = color;
+      pattern.append(stripe);
+      defs.append(pattern);
+    }
+    svg.append(defs);
+    const base = svgElement('rect', {x: 0, y: 1, width: n, height: 24});
+    base.style.fill = 'url(#' + id + ')';
+    svg.append(base);
+    for (const [code, color] of Object.entries(fills))
+      for (const [a, b] of stateRuns(l.states, c => c === code)) {
+        const rect = svgElement('rect', {x: a, y: 1, width: b - a, height: 24});
+        rect.style.fill = color;
+        svg.append(rect);
+      }
+    for (const [a, b] of stateRuns(l.disagree, c => c === 'p')) {
+      const rect = svgElement('rect', {x: a, y: 27, width: b - a, height: 7});
+      rect.style.fill = 'url(#' + probeId + ')';
+      svg.append(rect);
+    }
+    box.append(name, svg);
+  }
+  // Ticks at local midnights for long periods, every three hours otherwise.
+  const axis = element('div', undefined, 'axis'),
+    span = n * r.step,
+    hourStep = span >= 2 * 86400 ? 24 : span >= 6 * 3600 ? 3 : 1;
+  for (let t = Math.ceil(r.start / 3600) * 3600; t < r.start + span; t += 3600) {
+    const d = new Date(t * 1000);
+    if (d.getMinutes() !== 0 || d.getHours() % hourStep) continue;
+    const tick = element(
+      'span',
+      hourStep === 24
+        ? d.toLocaleDateString(undefined, {weekday: 'short', day: 'numeric'})
+        : d.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'})
+    );
+    tick.style.left = (100 * (t - r.start)) / span + '%';
+    axis.append(tick);
+  }
+  box.append(axis);
+  $('wan-when-note').textContent =
+    Math.round(r.step / 60) +
+    '-minute intervals. Each line is judged by ' +
+    (r.check ? 'the “' + r.check + '” health check where it covers the line.' : 'its health checks.');
+}
+function laneTip(event, r, links) {
+  const tip = $('wan-tip'),
+    svg = event.target.closest && event.target.closest('svg[data-line]');
+  if (!svg) {
+    tip.hidden = true;
+    return;
+  }
+  const box = svg.getBoundingClientRect(),
+    i = Math.min(
+      r.buckets - 1,
+      Math.max(0, Math.floor(((event.clientX - box.left) / box.width) * r.buckets))
+    ),
+    l = links.find(x => x.interface === svg.dataset.line);
+  if (!l) return;
+  const words = {g: 'Working', w: 'Losing packets', d: 'Down', n: 'No evidence'},
+    sessions = l.sessions[i];
+  tip.replaceChildren(
+    element('b', l.interface + ' · ' + shortWhen(r.start + i * r.step)),
+    element('div', words[l.states[i]] || 'No evidence')
+  );
+  if (l.disagree[i] === 'p') tip.append(element('div', 'Health checks disagree', 'muted'));
+  if (sessions !== null && sessions !== undefined)
+    tip.append(element('div', number(Math.round(sessions)) + ' sessions', 'muted'));
+  tip.hidden = false;
+  tip.style.left = Math.min(innerWidth - 270, event.clientX + 14) + 'px';
+  tip.style.top = event.clientY + 14 + 'px';
+}
+function renderIncident(r, x) {
+  const box = $('wan-incident'),
+    head = element('div', undefined, 'section-head'),
+    facts = element('div', undefined, 'facts');
+  head.style.padding = '0';
+  head.style.boxShadow = 'none';
+  head.append(
+    element('h3', x.interface + ' · ' + shortWhen(x.start) + ' → ' + shortWhen(x.end)),
+    badge(x.state === 'DOWN' ? 'Down' : 'Losing packets', x.state === 'DOWN' ? 'bad' : 'warn')
+  );
+  const known = x.others.filter(o => o.affected_fraction !== null),
+    affected = known.filter(o => o.affected_fraction >= 0.5);
+  for (const [value, label] of [
+    [minutesText((x.end - x.start) / 60), 'duration'],
+    [x.peak_loss_pct === null ? '—' : number(x.peak_loss_pct, '%'), 'worst loss'],
+    [
+      x.avg_sessions === null ? '—' : number(Math.round(x.avg_sessions)),
+      'sessions on ' + x.interface
+    ],
+    [known.length ? affected.length + ' of ' + known.length : '—', 'other lines affected']
+  ]) {
+    const fact = element('div');
+    fact.append(element('b', value), element('span', label));
+    facts.append(fact);
+  }
+  const verdict = !known.length
+    ? 'No evidence from the other lines at that time.'
+    : affected.length >= 2
+      ? 'Several lines were affected at the same time. Look at the FortiGate or something the lines share, not one provider.'
+      : affected.length === 1
+        ? affected[0].interface +
+          ' was affected at the same time. Check what the two lines share: router, subnet or provider.'
+        : 'Only ' + x.interface + ' was affected. The problem is on that line or its router.';
+  const others = element('div', undefined, 'others');
+  for (const o of x.others)
+    others.append(
+      o.affected_fraction === null
+        ? badge(o.interface + ' no evidence', '')
+        : o.affected_fraction >= 0.5
+          ? badge(o.interface + ' also affected', 'warn')
+          : badge(o.interface + ' fine', 'good')
+    );
+  box.replaceChildren(head, facts, element('p', verdict), others);
+}
+function renderIncidents(r) {
+  const list = $('wan-incidents');
+  list.replaceChildren();
+  $('wan-incident').replaceChildren();
+  const top = [...r.incidents]
+    .sort((a, b) => b.end - b.start - (a.end - a.start) || b.start - a.start)
+    .slice(0, 12);
+  $('wan-incidents-note').textContent = r.incidents.length
+    ? Math.round(r.incident_min_seconds / 60) +
+      ' minutes or longer. ' +
+      (r.incidents.length > top.length
+        ? 'Longest ' + top.length + ' of ' + r.incidents.length + '.'
+        : 'Longest first.')
+    : '';
+  if (!top.length) {
+    list.append(
+      element(
+        'p',
+        'No line lost packets or went down for ' +
+          Math.round(r.incident_min_seconds / 60) +
+          ' minutes or longer in this period.',
+        'muted'
+      )
+    );
+    return;
+  }
+  top.forEach((x, k) => {
+    const row = element('button');
+    row.type = 'button';
+    row.setAttribute('aria-pressed', String(k === 0));
+    row.append(
+      element('span', shortWhen(x.start), 'when'),
+      element('b', x.interface),
+      badge(x.state === 'DOWN' ? 'Down' : 'Losing packets', x.state === 'DOWN' ? 'bad' : 'warn'),
+      element('span', minutesText((x.end - x.start) / 60), 'number')
+    );
+    row.addEventListener('click', () => {
+      for (const b of list.querySelectorAll('button'))
+        b.setAttribute('aria-pressed', String(b === row));
+      renderIncident(r, x);
+    });
+    list.append(row);
+  });
+  renderIncident(r, top[0]);
+}
+function renderLoad(links) {
+  const box = $('wan-load');
+  box.replaceChildren();
+  const ranges = new Map();
+  for (const l of links)
+    for (const b of l.loss_by_load) ranges.set(b.min, b.max === null ? Infinity : b.max);
+  const order = [...ranges.keys()].sort((a, b) => a - b);
+  if (!order.length) {
+    box.append(element('p', 'No session and loss samples in this period.', 'muted'));
+    $('wan-load-note').textContent = '';
+    return;
+  }
+  const minimum = 6,
+    W = 520,
+    H = 220 + Math.floor((links.length - 1) / 4) * 14,
+    left = 40,
+    bottom = 58 + Math.floor((links.length - 1) / 4) * 14,
+    top = 16,
+    plotW = W - left - 8,
+    plotH = H - top - bottom,
+    values = links.flatMap(l =>
+      l.loss_by_load.filter(b => b.samples >= minimum).map(b => b.loss_pct)
+    ),
+    max = Math.max(1, Math.ceil(Math.max(0, ...values))),
+    y = v => top + plotH - (Math.min(v, max) / max) * plotH,
+    groupW = plotW / order.length,
+    barW = (groupW - 12) / Math.max(1, links.length),
+    colors = ['var(--warn)', 'var(--acc)', 'var(--good)', 'var(--sub)', 'var(--bad)', 'var(--probe)'];
+  const svg = svgElement('svg', {
+    viewBox: '0 0 ' + W + ' ' + H,
+    class: 'loadchart',
+    role: 'img',
+    'aria-label': 'Average packet loss by number of sessions on each line'
+  });
+  for (const v of [0, max / 2, max]) {
+    const grid = svgElement('line', {x1: left, x2: W - 8, y1: y(v), y2: y(v)});
+    grid.style.stroke = 'var(--line2)';
+    const label = svgElement('text', {x: left - 6, y: y(v) + 4, 'text-anchor': 'end'});
+    label.textContent = number(v, '%');
+    svg.append(grid, label);
+  }
+  order.forEach((min, gi) => {
+    const gx = left + gi * groupW + 6,
+      maxValue = ranges.get(min),
+      name =
+        maxValue === Infinity ? '≥ ' + number(min) : number(min) + '–' + number(maxValue);
+    links.forEach((l, li) => {
+      const b = l.loss_by_load.find(x => x.min === min),
+        x = gx + li * barW,
+        color = colors[li % colors.length];
+      if (b && b.samples >= minimum) {
+        const rect = svgElement('rect', {
+          x,
+          y: y(b.loss_pct),
+          width: Math.max(1, barW - 3),
+          height: top + plotH - y(b.loss_pct)
+        });
+        rect.style.fill = color;
+        const title = svgElement('title');
+        title.textContent =
+          l.interface +
+          ', ' +
+          name +
+          ' sessions: ' +
+          number(b.loss_pct, '%') +
+          ' loss in ' +
+          b.samples +
+          ' intervals';
+        rect.append(title);
+        svg.append(rect);
+      } else {
+        const rect = svgElement('rect', {
+          x,
+          y: top + plotH - 2,
+          width: Math.max(1, barW - 3),
+          height: 2
+        });
+        rect.style.fill = 'var(--hatch)';
+        const title = svgElement('title');
+        title.textContent = l.interface + ' had too few intervals with ' + name + ' sessions';
+        rect.append(title);
+        svg.append(rect);
+      }
+    });
+    const label = svgElement('text', {
+      x: gx + (groupW - 12) / 2,
+      y: H - bottom + 16,
+      'text-anchor': 'middle'
+    });
+    label.textContent = name;
+    svg.append(label);
+  });
+  const axis = svgElement('text', {x: left + plotW / 2, y: H - bottom + 32, 'text-anchor': 'middle'});
+  axis.textContent = 'sessions on the line';
+  svg.append(axis);
+  links.forEach((l, li) => {
+    const x = left + (li % 4) * 118,
+      yy = H - bottom + 46 + Math.floor(li / 4) * 14,
+      key = svgElement('rect', {x, y: yy - 8, width: 10, height: 8});
+    key.style.fill = colors[li % colors.length];
+    const label = svgElement('text', {x: x + 14, y: yy});
+    label.textContent = l.interface;
+    svg.append(key, label);
+  });
+  box.append(svg);
+  $('wan-load-note').textContent =
+    'Bars compare average loss when a line carried few or many sessions. A flat grey mark means the line spent too little time at that load to judge.';
+}
+function renderInsights(r) {
+  const links = [...r.links].sort(
+    (a, b) =>
+      (b.summary.avg_sessions || 0) - (a.summary.avg_sessions || 0) ||
+      a.interface.localeCompare(b.interface)
+  );
+  renderFindings(r);
+  renderLines(links);
+  renderLanes(r, links);
+  renderIncidents(r);
+  renderLoad(links);
+  $('wan-lanes').onmousemove = event => laneTip(event, r, links);
+  $('wan-lanes').onmouseleave = () => {
+    $('wan-tip').hidden = true;
+  };
+}
 async function loadWan() {
   const current = latest('wanSequence');
   message('');
+  clearInsights('Loading the diagnosis…');
+  // Both requests start together; the diagnosis renders after the current state.
+  const insights = api('/api/wan/insights?seconds=' + $('wan-window').value).then(
+    data => ({data}),
+    error => ({error})
+  );
   $('wan-history').replaceChildren();
   $('route').textContent = 'Loading route evidence…';
   $('wan-body').replaceChildren();
@@ -3337,6 +4065,10 @@ async function loadWan() {
     $('route').textContent = 'Route-selection evidence unavailable.';
     message(errorText(e));
   }
+  const diagnosis = await insights;
+  if (!current() || !state.auth) return;
+  if (diagnosis.error) clearInsights('Diagnosis unavailable: ' + errorText(diagnosis.error));
+  else renderInsights(diagnosis.data);
 }
 $('login-form').addEventListener('submit', async e => {
   e.preventDefault();
