@@ -112,8 +112,64 @@ Health of the Internet links from stored metrics.
 | `seconds` | History window, 60 to 604800. Default 86400. |
 
 Main response fields: `status` (`OBSERVED` or `NO DATA`), `interfaces` (state,
-physical state, rates, latency, jitter, loss and `history` per link), `route`
+physical state, current `sessions` (the FortiGate's own count), rates, latency,
+jitter, loss and `history` per link), `route`
 and `observed_at`.
+
+### `/api/wan/insights`
+
+Diagnosis of the Internet links over a period, from the SD-WAN health-check and
+session series in Prometheus. Results are reused until the next interval ends.
+
+| Parameter | Meaning |
+|---|---|
+| `seconds` | Period, 3600 to 604800. Default 604800. |
+
+The period is split into at most 1,008 intervals (10 minutes for 7 days,
+2 minutes for 24 hours). Main response fields: `start`, `step`, `buckets`,
+`check` (the configured health check), `loss_threshold_pct`,
+`incident_min_seconds`, and:
+
+- `links`: per line, `check` and `check_fallback` (the health check that judges
+  it), `states` (one character per interval: `g` working, `w` losing packets,
+  `d` down, `n` no evidence), `disagree` (`p` where its health checks gave
+  opposite answers), `sessions` per interval, `summary` (share of sessions,
+  average rates, loss and latency, `loss_minutes`, `down_minutes`,
+  `disagree_minutes`, coverage) and `loss_by_load` (average loss by session
+  range).
+- `incidents`: trouble lasting `incident_min_seconds` or longer, with
+  `peak_loss_pct`, `avg_sessions` and, for each other line, the share of the
+  same time it was also affected.
+- `findings`: rule-based conclusions with `kind`, `severity` (`warn`, `probe`,
+  `info` or `good`), `interfaces`, `title`, `detail` and `evidence` (the page
+  section that shows it).
+- `links[].speed`: when the line's speed is set in Settings (`wan_speeds` in the
+  site configuration), its `down_mbps`, `up_mbps` and the average and busy-time
+  (95th percentile of interval averages) use of each, in percent; otherwise
+  `null`.
+- `routing`: the SD-WAN rules read from the FortiGate (`cmdb/system/sdwan`,
+  read-only, kept for 5 minutes). `status` is `OBSERVED` or `UNAVAILABLE` with a
+  `reason`. Each rule has `order`, `name`, `enabled`, `mode`, `sources`,
+  `destinations`, `services`, `restricted_by`, `lines` (in priority order),
+  `health_checks` and `issues` (`shadowed`, `overlap`, `manual` or
+  `catch_all_manual`, each with its `text`).
+
+### `/api/wan/incident`
+
+Devices whose recorded Internet traffic left through one line in a window,
+largest first. It reads the raw records, so the window must be within the ledger
+retention.
+
+| Parameter | Meaning |
+|---|---|
+| `interface` | A confirmed Internet interface. |
+| `start`, `end` | Unix seconds; at most 12 hours apart. |
+
+Response: `available` (`false` with `reason` `expired` when the raw records are
+gone), `ledger_days`, `complete` and `scanned_until` (reading stops after 15
+seconds and reports how far it got), `device_count`, `upload_bytes`,
+`download_bytes` and `devices` (up to 15, each with `device_id`, `hostname`,
+`ip`, `mac`, `vlan`, `upload_bytes`, `download_bytes` and `records`).
 
 ### `/api/inventory`
 

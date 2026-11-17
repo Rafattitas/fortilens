@@ -400,3 +400,52 @@ receiver was stopped and disabled before the upgrade.
 
 Not verified: an upgrade that changes a stopped service's code on this
 installation, and an Apply on the upgraded installation.
+
+## Internet links diagnosis on the test installation, 2026-11-17
+
+`sudo ./install.sh --upgrade` from a `git archive` of `bc52dee` on the
+web-managed test installation, previously at v0.6.1. The upgrade refreshed the
+usage and portal containers and left the disabled syslog receiver stopped.
+Management, the worker and the portal were healthy, `/console/api/wan/insights`
+refused an unauthenticated request with 401, and accounting caught up after the
+restart.
+
+`/api/wan/insights` over the real 7 days of four SD-WAN lines took 0.3 s and
+returned 63 KiB (24 hours: 0.2 s, 32 KiB). Its findings matched a manual
+Prometheus analysis of the same week: the busiest line carried 80% of sessions
+and its loss rose with load (0.24% below 500 sessions, 1.7% above); another
+line lost 5% or more for 18.7 hours; those two lines overlapped in 12
+incidents; one line's health checks disagreed for 82 hours (one check called it
+dead while another saw it alive, not counted as down); and one line was outside
+the configured health check and was judged by another. The page was reviewed
+by the operator on the real installation.
+
+Not verified: incident detail for devices and SD-WAN rules (not part of this
+change), and browsers other than the operator's.
+
+## Rules, affected devices, line speeds and session counts on the test installation, 2026-11-17
+
+`sudo ./install.sh --upgrade` from a `git archive` of `41a064e` on the
+web-managed test installation. Management, the worker and the portal were
+healthy; `/console/api/wan/insights` and `/console/api/wan/incident` refused
+unauthenticated requests with 401; the disabled syslog receiver stayed stopped.
+
+- SD-WAN rules were read read-only from `cmdb/system/sdwan` on the real
+  FortiGate (FortiOS 7.2.14). The reader named the catch-all manual rule that
+  pinned all remaining users to the busiest line, a load-balance rule below it
+  that never matched, and six sources listed in two rules, which matched a
+  manual review of the same configuration. After the operator changed the
+  rules (a guest rule added, the never-matching rule removed), the page showed
+  the new order.
+- Device detail for three real incidents of 46 to 88 minutes read the raw
+  ledger in 5.6 to 13.8 s and listed 12 to 32 devices; one device accounted
+  for 3.2 GB of an 88-minute incident.
+- Per-line session counts matched the FortiGate's own counter at the same
+  minute. The diagnosis over 24 hours took 0.6 s.
+- Line speeds were not set on this installation, so its site file is unchanged.
+
+Checks for `41a064e`: ruff, formatting and repository checks passed; 650 unit
+tests passed; the 15 tests that need Node.js or Git were run separately and
+passed. Building the release archives was not run on the test server (its
+package mirror was unreachable at usable speed); no release file list changed.
+The page was reviewed by the operator on the real installation.

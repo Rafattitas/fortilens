@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+### Internet links
+
+- The Internet links page now explains why the Internet drops or slows down. For
+  the last hour, 24 hours or 7 days it states what is wrong in plain sentences
+  (a line overloaded with sessions whose loss rises with load, a line that
+  loses packets even when quiet, lines that fail together, health checks that
+  disagree, a line outside the configured health check), compares the lines,
+  shows each line's state over the period, lists incidents of 20 minutes or
+  longer with whether other lines were affected, and charts loss against load.
+  The current-state table and history remain under **Right now**.
+- Each line is judged by the configured health check when it covers the line,
+  otherwise by its other health check. A line counts as down only when no
+  health check reports it alive; opposite answers are reported as a check
+  problem, not an outage.
+- New read-only endpoint `/api/wan/insights`. It reads only Prometheus and
+  changes nothing on the FortiGate.
+- Incidents list the devices whose recorded traffic left through the affected
+  line at the time, largest first, from the raw records (kept for the ledger
+  retention). New endpoint `/api/wan/incident`.
+- **Who goes where** shows the SD-WAN rules, read-only from the FortiGate
+  (`cmdb/system/sdwan`), and what keeps each from applying: a rule below one
+  that takes all traffic, sources already taken by an earlier rule, and manual
+  mode that never moves traffic off a degraded line. Findings name a catch-all
+  rule that pins everyone else to one troubled line.
+- Each line's current session count, as the FortiGate counts it, appears in
+  the Right now table and next to each line in Live usage. Lines in this period
+  shows the average and peak count over the period.
+- Settings → Network Interfaces accepts each line's contracted speed. The page
+  then shows average and busy-time use of each line and warns when one is nearly
+  full. Without speeds the site configuration is unchanged.
+
 ## v0.6.1 — 2026-11-16 — upgrades keep stopped services stopped, steadier reports and a complete source archive
 
 ### Upgrade

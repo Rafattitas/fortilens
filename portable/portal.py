@@ -77,6 +77,8 @@ REPORT_ROUTES = {
     "/api/diagnostics",
     "/api/inventory",
     "/api/wan",
+    "/api/wan/insights",
+    "/api/wan/incident",
 }
 QUERY_ROUTES = {
     "/grafana/api/ds/query",

@@ -22,6 +22,13 @@ class Monitoring(Strict):
     websites: bool = False
 
 
+class LineSpeed(Strict):
+    """A line's contracted speed in Mbps, used only to show how much of it is in use."""
+
+    down_mbps: float = Field(ge=0.1, le=100000)
+    up_mbps: float = Field(ge=0.1, le=100000)
+
+
 class Retention(Strict):
     loki_days: int = Field(default=60, ge=1, le=3650)
     prometheus_days: int = Field(default=90, ge=1, le=3650)
@@ -45,6 +52,8 @@ class Settings(Strict):
     sla: str = ""
     wan_interfaces: list[str] = Field(default_factory=list, max_length=64)
     wan_confirmed: bool = False
+    # Optional contracted speeds of the selected Internet interfaces.
+    wan_speeds: dict[str, LineSpeed] = Field(default_factory=dict, max_length=64)
     syslog_protocol: Literal["tcp", "udp"] = "tcp"
     syslog_port: int = Field(default=1514, ge=1, le=65535)
     syslog_format: Literal["rfc5424", "rfc3164", "fortigate"] = "rfc5424"
@@ -100,6 +109,8 @@ class Settings(Strict):
             ) from None
         if self.wan_interfaces and not self.wan_confirmed:
             raise ValueError("Explicitly confirm the selected Internet interfaces.")
+        if set(self.wan_speeds) - set(self.wan_interfaces):
+            raise ValueError("Line speeds can only be set for selected Internet interfaces.")
         return self
 
     def portable(self, baseline=None, *, validate=False):
@@ -136,6 +147,13 @@ class Settings(Strict):
             accounting_summary_days=self.retention.summary_days,
             accounting_max_bytes=self.retention.database_bytes,
         )
+        # Written only when set, so installations without speeds keep identical files.
+        if self.wan_speeds:
+            c["wan_speeds"] = {
+                name: speed.model_dump() for name, speed in sorted(self.wan_speeds.items())
+            }
+        else:
+            c.pop("wan_speeds", None)
         if validate:
             # A pending custom CA is handled by the helper, never as a browser path.
             c["api_ca_file"] = ""

@@ -117,6 +117,10 @@ class ReportTooLarge(Exception):
     """A report needed more raw partial-day records than its time budget allows."""
 
 
+class LedgerExpired(ValueError):
+    """Raw records for the requested time were already pruned."""
+
+
 FORTIGATE_ZONE = "fortigate"
 
 
@@ -1557,6 +1561,62 @@ class StoreReports:
                 )
                 counts[row[1]] += count
         return dict(counts)
+
+    def line_devices(self, start, end, interface, *, limit=15, deadline=None):
+        """Devices whose recorded Internet traffic left through one line in [start,end).
+
+        Reads raw records, so the window must still be inside the raw ledger. The line is
+        the record's own egress interface, not a guess from current SD-WAN rules.
+        """
+        start, end = timestamp_ns(start), timestamp_ns(end)
+        if start >= end or not 1 <= limit <= 100:
+            raise ValueError("A positive window and a device limit from 1 to 100 are required")
+        if start < self.state("ledger_floor_ns", 0):
+            raise LedgerExpired("Device detail for this time is no longer kept")
+        grouped, scanned_until = {}, end
+        for count, fact in enumerate(
+            self.ledger.range_facts(start, end, classification="INTERNET")
+        ):
+            # Records come in time order: stopping early still describes [start, here).
+            if deadline is not None and count % 1000 == 0 and time.monotonic() > deadline:
+                scanned_until = fact["event_ns"]
+                break
+            if fact.get("wan") != interface:
+                continue
+            row = grouped.get(fact["device_id"])
+            if row is None:
+                row = grouped[fact["device_id"]] = {
+                    "device_id": fact["device_id"],
+                    "upload_bytes": 0,
+                    "download_bytes": 0,
+                    "records": 0,
+                    "event_ns": -1,
+                }
+            if fact["event_ns"] > row["event_ns"]:
+                row.update(
+                    event_ns=fact["event_ns"],
+                    hostname=fact.get("hostname", ""),
+                    ip=fact.get("ip", ""),
+                    mac=fact.get("mac", ""),
+                    vlan=(fact.get("vlan") or {}).get("interface")
+                    or (fact.get("vlan") or {}).get("key", ""),
+                )
+            row["upload_bytes"] += fact.get("upload_bytes") or 0
+            row["download_bytes"] += fact.get("download_bytes") or 0
+            row["records"] += 1
+        rows = sorted(
+            grouped.values(),
+            key=lambda r: (-(r["upload_bytes"] + r["download_bytes"]), r["device_id"]),
+        )
+        return {
+            "interface": interface,
+            "complete": scanned_until == end,
+            "scanned_until_ns": scanned_until,
+            "device_count": len(rows),
+            "upload_bytes": sum(r["upload_bytes"] for r in rows),
+            "download_bytes": sum(r["download_bytes"] for r in rows),
+            "devices": rows[:limit],
+        }
 
     def history(self, device, *, months=False, vlan=None, limit=400):
         if not re.fullmatch(r"[a-f0-9]{64}", device) or not 1 <= limit <= 3650:

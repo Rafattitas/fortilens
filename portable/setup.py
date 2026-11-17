@@ -145,10 +145,30 @@ def port(value, name):
     return value
 
 
+def validate_line_speeds(value, wans):
+    """Optional ``{interface: {"down_mbps": n, "up_mbps": n}}`` for selected WAN interfaces."""
+    if not isinstance(value, dict) or len(value) > 64:
+        raise SetupError("wan_speeds must map Internet interfaces to speeds")
+    for name, speed in value.items():
+        if name not in wans:
+            raise SetupError("wan_speeds can only name confirmed Internet interfaces")
+        if not isinstance(speed, dict) or set(speed) != {"down_mbps", "up_mbps"}:
+            raise SetupError("Each line speed needs down_mbps and up_mbps")
+        for mbps in speed.values():
+            if type(mbps) not in (int, float) or not 0.1 <= mbps <= 100000:
+                raise SetupError("Line speeds must be between 0.1 and 100000 Mbps")
+
+
+# Optional keys are absent unless set, so files without them stay byte-identical.
+OPTIONAL = {"wan_speeds"}
+
+
 def validate_config(raw):
-    if not isinstance(raw, dict) or set(raw) - set(DEFAULTS):
+    if not isinstance(raw, dict) or set(raw) - set(DEFAULTS) - OPTIONAL:
         raise SetupError("Unknown configuration fields; use site.example.json (no tokens in JSON)")
     c = {**deepcopy(DEFAULTS), **raw}
+    if "wan_speeds" in c:
+        validate_line_speeds(c["wan_speeds"], c.get("confirmed_wan_interfaces") or [])
     if type(c["schema_version"]) is not int or c["schema_version"] != 1:
         raise SetupError("Unsupported schema_version")
     for key in ["site_name", "fortigate_host", "vdom", "sla", "timezone", "api_ca_file"]:
