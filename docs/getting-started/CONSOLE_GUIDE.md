@@ -40,6 +40,13 @@ One screen for "is anything wrong?": the state of the Internet links, when logs
 last arrived, how far accounting is behind, and how many services run. Each item
 links to the page with the detail.
 
+The last log time here is the newest record accounting has processed. When
+accounting trails by more than 15 minutes but the logs it processed run up to
+that point, the page says accounting is behind, not that logs stopped. Usage
+reads low until it catches up. A backlog that keeps growing at busy hours
+usually means accounting needs more CPU (Settings → Storage & data retention →
+Accounting Processing CPU). Diagnostics shows when the newest log reached Loki.
+
 ## Right now
 
 ### Live usage

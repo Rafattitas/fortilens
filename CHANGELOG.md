@@ -42,6 +42,15 @@
   then shows average and busy-time use of each line and warns when one is nearly
   full. Without speeds the site configuration is unchanged.
 
+### Overview
+
+- When accounting falls behind, the overview and the status bar now say
+  "Accounting is 28 minutes behind" instead of "No logs received for 28
+  minutes". The last log time they show is the newest processed record, so a
+  backlog looked like logs had stopped although they were still arriving. When
+  logs really stop, the message is unchanged. A growing backlog points at
+  Settings → Storage, where accounting can be given more CPU.
+
 ## v0.6.1 — 2026-11-16 — upgrades keep stopped services stopped, steadier reports and a complete source archive
 
 ### Upgrade

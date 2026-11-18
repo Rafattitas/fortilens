@@ -329,6 +329,54 @@ class ReportRequestOrderTests(unittest.TestCase):
         self.run_scenario("live_pause")
 
 
+class LogEvidenceTests(unittest.TestCase):
+    """An old last log is a backlog when processing trails, not a delivery stop."""
+
+    @unittest.skipUnless(NODE, "Browser log-evidence tests require development-only Node.js.")
+    def test_backlog_is_told_apart_from_logs_that_stopped(self):
+        text = (ROOT / "management/static/app.js").read_text(encoding="utf-8")
+        harness = r"""
+const assert=require('node:assert/strict'),vm=require('node:vm');
+let input='';process.stdin.on('data',s=>input+=s);process.stdin.on('end',()=>{
+ const c={};vm.createContext(c);vm.runInContext(JSON.parse(input).source,c);
+ const now=100000,f=c.processingBehind;
+ // Logs flowed until the processing point, which trails by 28 minutes.
+ assert.equal(f({lastLog:now-1680,lag:1675},now),1675);
+ // Caught up: no backlog, whatever the last log time.
+ assert.equal(f({lastLog:now-30,lag:20},now),0);
+ assert.equal(f({lastLog:now-7200,lag:20},now),0);
+ // Behind and no logs for long before the processing point: logs stopped.
+ assert.equal(f({lastLog:now-7200,lag:1675},now),0);
+ // Unknown evidence is never a backlog.
+ for(const e of [null,{},{lastLog:null,lag:1675},{lastLog:now-1680,lag:NaN},{lastLog:now-1680}])
+  assert.equal(f(e,now),0);
+ process.stdout.write('PASS');
+});
+"""
+        result = subprocess.run(
+            [NODE, "-e", harness],
+            input=json.dumps({"source": function_source(text, "processingBehind")}),
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "PASS")
+
+    def test_home_and_status_bar_name_the_backlog(self):
+        script = compact((ROOT / "management/static/app.js").read_text(encoding="utf-8"))
+        self.assertIn(
+            "if(accounting&&report&&behind)returnhomeStatus('is-u','Accountingis'", script
+        )
+        self.assertIn("'Logs:processing'+agoText(behind)", script)
+        # The backlog check runs before the no-logs message.
+        self.assertLess(
+            script.index("if(accounting&&report&&behind)"),
+            script.index("if(accounting&&report&&(!lastLog||age>900))"),
+        )
+
+
 class JavaScriptSourceTests(unittest.TestCase):
     """The test helper finds whole functions whatever their layout."""
 
