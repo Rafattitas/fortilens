@@ -881,6 +881,70 @@ class ManagementTests(unittest.TestCase):
             adopted.view()["settings"]["wan_speeds"], {"wan1": {"down_mbps": 100, "up_mbps": 100}}
         )
 
+    def test_saved_changes_are_named_until_applied(self):
+        from management.configuration import setting_changes
+
+        # Nothing waits before the first Apply or right after it.
+        self.assertEqual(self.save()["changes"], [])
+        self.assertEqual(self.apply(self.c.view())["status"], "complete")
+        self.assertEqual(self.c.view()["changes"], [])
+        retention = deepcopy(self.c.view()["settings"]["retention"])
+        retention["ledger_days"] = 5
+        view = self.save(accounting_cpus="2", retention=retention)
+        self.assertTrue(view["pending_changes"])
+        self.assertEqual(
+            [(c["label"], c["section"], c["before"], c["after"]) for c in self.c.view()["changes"]],
+            [
+                ("Accounting ledger retention", "storage", "3 days", "5 days"),
+                ("Accounting processing CPU", "storage", "0.5 core", "2 cores"),
+            ],
+        )
+        # The review names the same changes and what Apply restarts.
+        plan = self.ops.dispatch("prepare", {"revision": view["revision"]})
+        self.assertEqual(
+            [c["field"] for c in plan["changes"]],
+            [
+                "retention.ledger_days",
+                "accounting_cpus",
+            ],
+        )
+        self.assertIn("fortilens-usage", plan["restarts"])
+        self.assertEqual((plan["stops"], plan["stops_known"]), ([], True))
+        # A running service that the draft disables is named as stopped.
+        monitoring = deepcopy(view["settings"]["monitoring"])
+        monitoring["server"] = False
+        view = self.save(monitoring=monitoring)
+        plan = self.ops.dispatch("prepare", {"revision": view["revision"]})
+        self.assertNotIn("node-exporter", plan["restarts"])
+        self.assertEqual(plan["stops"], ["node-exporter"])
+        # Unreadable status is reported as unknown, never guessed.
+        self.docker.down = True
+        self.assertFalse(self.ops.service_effects(view["settings"])["stops_known"])
+        self.docker.down = False
+        self.assertEqual(self.apply(view)["status"], "complete")
+        self.assertEqual(self.c.view()["changes"], [])
+
+        # Values read as a person reads them; credentials show only that one waits.
+        changes = setting_changes(
+            {"wan_speeds": {}, "api_tls_verify": True, "custom_field": 1},
+            {
+                "wan_speeds": {
+                    "wan2": {"down_mbps": 100.0, "up_mbps": 100.0},
+                    "wan1": {"down_mbps": 35.0, "up_mbps": 5.0},
+                },
+                "api_tls_verify": False,
+                "custom_field": 2,
+            },
+            {"revision": 4, "token": "synthetic-secret", "ca": ""},
+        )
+        rows = {c["field"]: (c["before"], c["after"]) for c in changes}
+        self.assertEqual(rows["wan_speeds"], ("Not set", "wan1 35 / 5 Mbps, wan2 100 / 100 Mbps"))
+        self.assertEqual(rows["api_tls_verify"], ("On", "Off"))
+        self.assertEqual(rows["custom_field"], ("1", "2"))
+        self.assertEqual(rows["api_token"], ("Current token", "New token"))
+        self.assertEqual(rows["custom_ca"], ("Current", "Removed"))
+        self.assertNotIn("synthetic-secret", json.dumps(changes))
+
     def test_accounting_cpu_choice_is_read_applied_and_bounded(self):
         c = self.existing()
         self.assertEqual(c.view()["settings"]["accounting_cpus"], "0.5")

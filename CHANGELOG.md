@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Settings
+
+- Saved changes that are not applied yet are now visible everywhere in
+  Settings: a bar above every section names them and offers **Review and
+  apply**, Settings in the sidebar shows their count, and each section that
+  holds one is marked. Before, only a line in the status bar said a draft was
+  waiting, and Apply was reachable only from the last section.
+- **Save Configuration** is now **Save draft** and says the change is not
+  active until applied.
+- Review & Apply checks a saved draft as soon as it opens. It lists each
+  changed setting with its running value and its value after Apply, the
+  services Apply restarts and any running service it stops, and states that
+  nothing changes on the FortiGate. The file list stays, folded. Approval is
+  still required; on a running installation the button reads **Apply
+  changes**, and the first installation keeps **Apply & Start FortiLens**.
+- After Apply, the message names the revision now running and the services
+  that restarted.
+- `GET /api/settings` gains `changes`: each saved setting that differs from the
+  running one, with its label, section and both values as text. A new API
+  token or trust bundle is listed without its value. The prepared review gains
+  the same list plus `restarts`, `stops` and `stops_known`.
+
 ## v0.7.0 — 2026-11-18 — why the Internet drops or slows down, line by line
 
 ### Upgrade

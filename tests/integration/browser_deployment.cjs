@@ -6,7 +6,8 @@ const {chromium} = require(process.env.FORTILENS_PLAYWRIGHT_MODULE || 'playwrigh
 const root = path.resolve(__dirname, '..', '..');
 const output = process.env.FORTILENS_BROWSER_OUTPUT;
 const settings = {site_name:'Synthetic site',installation_name:'browser-fixture',timezone:'UTC',date_format:'YYYY-MM-DD',fortigate_host:'192.0.2.1',api_port:443,vdom:'root',sla:'',api_tls_verify:true,wan_interfaces:['wan1'],wan_confirmed:true,syslog_protocol:'tcp',syslog_port:1514,syslog_format:'rfc5424',syslog_network:'bridge',accounting_timezone:'UTC',expected_devid:'',grafana_port:3001,usage_port:3002,monitoring_interval:60,monitoring:{wan:true,sla:true,interfaces:true,syslog:true,accounting:true,vlans:true,server:true},retention:{loki_days:60,prometheus_days:90,ledger_days:8,summary_days:400,database_bytes:4294967296}};
-let mode='complete', discovery=true, applies=0, requests=0;
+let mode='complete', discovery=true, applies=0, requests=0, waiting=false;
+const waitingChanges=[{field:'accounting_cpus',label:'Accounting processing CPU',section:'storage',before:'0.5 core',after:'2 cores'}];
 const events=[{at:1793606400,phase:'starting',message:'Starting synthetic services.'}];
 const job = () => ({job_id:'a'.repeat(32),plan_id:'b'.repeat(32),status:mode==='unavailable'?'starting':mode,phase:mode==='failed'?'failed':mode==='complete'?'complete':'starting',message:mode==='failed'?'Synthetic readiness failed. Review service health.':'Synthetic configuration applied.',events:[...events,{at:1793606460,phase:mode,message:mode==='failed'?'Synthetic readiness failed.':'Synthetic operation '+mode+'.'}],requested_revision:7,...(mode==='complete'?{applied_revision:7}:{}),...(mode==='failed'?{failed_step:'readiness',rollback_available:true}:{}),diagnostics:{monitoring:{checks:[{status:'WARN',message:'Synthetic collection remains unverified.'}]}}});
 const view = () => ({settings,configured:true,revision:7,applied_revision:mode==='complete'?7:6,pending_changes:mode!=='complete',scope_locked:true,secret_status:{api_token_present:true,custom_ca_present:false},active_monitoring:settings.monitoring,discovery:{required:true,current:discovery,reason:discovery?'Discovery matches this saved connection.':'Connection settings changed. Discover interfaces again.',changed_fields:discovery?[]:['api_tls_verify']}});
@@ -281,7 +282,7 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
    assert.equal(await capacity.inputValue(),'8.6566');
    let capacityBody=await save();assert.equal(capacityBody.settings.retention.database_bytes,9294967296,'Untouched displayed limit rounded stored bytes');
    await capacity.fill('8.6566');await capacity.press('Tab');capacityBody=await save();assert.equal(capacityBody.settings.retention.database_bytes,9294967296,'Re-entering the displayed value changed exact stored bytes');
-   await capacity.fill('9');await capacity.press('Tab');await page.locator('[data-section="review"]').click();assert.ok((await page.locator('#review-summary').innerText()).includes('9 GiB'));capacityBody=await save();assert.equal(capacityBody.settings.retention.database_bytes,9*2**30);
+   await capacity.fill('9');await capacity.press('Tab');await page.locator('[data-section="review"]').click();await page.locator('summary',{hasText:'All saved settings'}).click();assert.ok((await page.locator('#review-summary').innerText()).includes('9 GiB'));capacityBody=await save();assert.equal(capacityBody.settings.retention.database_bytes,9*2**30);
    await page.locator('[data-section="storage"]').click();
    for(const amount of ['9.5','0.0625','1024']){await capacity.fill(amount);await capacity.press('Tab');capacityBody=await save();assert.equal(capacityBody.settings.retention.database_bytes,Math.round(Number(amount)*2**30));assert.equal(await capacity.getAttribute('aria-invalid'),'false')}
    for(const invalid of ['', '0', '-1', '1025']){await capacity.fill(invalid);const count=saved.length;await page.locator('#save').click();await page.waitForFunction(()=>!document.getElementById('save').disabled);assert.equal(saved.length,count,'Invalid capacity reached settings API');assert.equal(await capacity.getAttribute('aria-invalid'),'true')}
@@ -330,9 +331,9 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
   const pathname=new URL(route.request().url()).pathname;let payload,status=200;
   if(pathname==='/api/bootstrap/status')payload={required:false};
   else if(pathname==='/api/session')payload={username:'synthetic-admin',csrf:'synthetic-csrf'};
-  else if(pathname==='/api/settings')payload=view();
+  else if(pathname==='/api/settings')payload=waiting?{...view(),applied_revision:6,pending_changes:true,changes:waitingChanges}:view();
   else if(pathname==='/api/system')payload=system();
-  else if(pathname==='/api/configuration/prepare')payload={plan_id:'b'.repeat(32),revision:7,settings,changed_files:['site.json'],warnings:['Synthetic warning.'],discovery:view().discovery};
+  else if(pathname==='/api/configuration/prepare')payload={plan_id:'b'.repeat(32),revision:7,settings,changed_files:['site.json'],warnings:['Synthetic warning.'],discovery:view().discovery,restarts:['grafana','fortilens-usage'],stops:[],stops_known:true,...(waiting?{changes:waitingChanges}:{})};
   else if(pathname==='/api/configuration/apply'){applies++;mode='starting';payload=job()}
   else if(pathname.startsWith('/api/jobs/')){requests++;if(mode==='unavailable'){status=503;payload={error:'operation_unavailable',message:'Synthetic helper unavailable.'}}else payload=pathname.endsWith('c'.repeat(32))?{...job(),job_id:'c'.repeat(32),status:'complete',phase:'complete',applied_revision:5,requested_revision:5}:job()}
   else if(pathname==='/api/diagnostics')payload={monitoring:{status:'UNKNOWN',checks:[]},system:system()};
@@ -347,6 +348,23 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  await page.locator('#history-summary').click();assert.equal(await page.locator('#history-revision').textContent(),'7');
  await page.locator('#history-lookup-id').fill('c'.repeat(32));await page.locator('#history-lookup').click();await page.waitForFunction(()=>document.getElementById('history-revision').textContent==='5');
  await page.locator('#history-summary').click();
+ // Saved changes are named on every section and checked as soon as Review opens.
+ waiting=true;await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);
+ assert.equal(await visible('pending-bar'),true,'Saved changes were not announced');
+ assert.match(await page.locator('#pending-title').textContent(),/1 change is saved but not applied yet/);
+ assert.match(await page.locator('#pending-list').textContent(),/Accounting processing CPU\. FortiLens still runs revision 6; your draft is revision 7\./);
+ assert.equal(await page.locator('#settings-badge').textContent(),'1');
+ assert.equal(await page.locator('[data-section="storage"]').evaluate(el=>el.classList.contains('has-changes')),true);
+ assert.equal(await page.locator('[data-section="general"]').evaluate(el=>el.classList.contains('has-changes')),false);
+ await page.locator('#pending-review').click();await page.waitForFunction(()=>!document.getElementById('plan-review').hidden);
+ assert.match(await page.locator('#plan-changes').innerText(),/Accounting processing CPU[\s\S]*Storage & Retention[\s\S]*0\.5 core[\s\S]*2 cores/);
+ assert.match(await page.locator('#plan-effects').innerText(),/Restarts[\s\S]*Grafana, Accounting/);
+ assert.match(await page.locator('#plan-effects').innerText(),/Nothing is changed on the FortiGate/);
+ assert.equal(await page.locator('#plan-files-summary').textContent(),'Files that change (1)');
+ assert.equal(await page.locator('#apply').textContent(),'Apply changes');assert.equal(await page.locator('#apply').isDisabled(),true,'Apply enabled before approval');
+ if(output){fs.mkdirSync(output,{recursive:true});await page.screenshot({path:path.join(output,'review-and-apply.png'),fullPage:true})}
+ waiting=false;await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);
+ assert.equal(await visible('pending-bar'),false,'Applied settings still announced as waiting');assert.equal(await visible('settings-badge'),false);
  await page.locator('[data-section="review"]').click();await page.locator('#prepare').click();await page.locator('#approve-plan').check();assert.equal(await page.locator('#apply').isEnabled(),true);
  await page.locator('#apply').click();await page.waitForFunction(()=>!document.getElementById('deployment').hidden);
  assert.equal(await page.locator('#apply').isDisabled(),true);assert.equal(await page.locator('#prepare').isDisabled(),true);

@@ -110,7 +110,7 @@ async function api(path,body){
 }
 // End transport boundary.
 async function action(button,run){button.disabled=true;const label=button.textContent;button.textContent='Working…';try{await run()}catch(e){notice(errorText(e),true);if(button.id==='test-connection')$('connection-result').textContent=errorText(e);if(button.id==='discover-interfaces')$('inventory-caption').textContent=errorText(e)}finally{button.disabled=false;button.textContent=label;if(typeof updateDeploymentControls==='function')updateDeploymentControls()}}
-function dirty(){state.plan=null;$('plan-review').hidden=true;$('approve-plan').checked=false;$('save-status').textContent='Unsaved changes';updateDeploymentControls()}
+function dirty(){state.plan=null;state.unsaved=true;$('plan-review').hidden=true;$('approve-plan').checked=false;$('save-status').textContent='Unsaved changes';updateDeploymentControls()}
 function pathGet(obj,path){return path.split('.').reduce((v,k)=>v?.[k],obj)}
 function pathSet(obj,path,value){const parts=path.split('.');let target=obj;for(const k of parts.slice(0,-1))target=target[k];target[parts.at(-1)]=value}
 const databaseGiB=bytes=>String(Number((bytes/2**30).toFixed(4)));
@@ -179,11 +179,53 @@ function fillSettings(){
  $('revision').textContent=state.view.pending_changes?'Draft revision '+state.view.revision:state.view.configured?'Applied revision '+state.view.applied_revision:'Not configured';
  $('revision').className='pill '+(state.view.pending_changes?'warn':state.view.configured?'good':'');$('insecure-row').hidden=$('verify-tls').checked;
  for(const link of document.querySelectorAll('[data-page]'))link.hidden=state.view.configured&&!pageEnabled(link.dataset.page);
- updateSelection();renderReview();renderWorkflowReadiness();
+ state.unsaved=false;$('apply').textContent=state.view.configured?'Apply changes':'Apply & Start FortiLens';
+ updateSelection();renderReview();renderWorkflowReadiness();renderPending();
 }
 function readSettings(){const settings=structuredClone(state.draftSettings||state.view.settings);settings.wan_interfaces=[...state.selected];settings.wan_speeds=Object.fromEntries(Object.entries(settings.wan_speeds||{}).filter(([name])=>state.selected.has(name)));return settings}
-async function saveDraft(){if(state.databaseLimitError)throw safeError(state.databaseLimitError,'invalid_fields');const body={revision:state.view.revision,settings:readSettings(),acknowledge_insecure_tls:$('insecure-ack').checked};if(state.apiTokenDraft){body.api_token=state.apiTokenDraft;body.replace_token=$('replace-token').checked}if($('replace-ca').checked){body.custom_ca=state.customCADraft??'';body.replace_ca=true}state.view=await api('/api/settings',body);state.plan=null;$('plan-review').hidden=true;fillSettings();$('save-status').textContent='Draft saved. Active services have not changed.';notice('Configuration draft saved. Review and apply when ready.');return state.view}
-function selectSection(section){state.section=section;renderDraftInputs();if(section==='connection'){$('api-token').value=state.apiTokenDraft??'';$('custom-ca').value=state.customCADraft??''}$('settings-section-picker').value=section;for(const b of document.querySelectorAll('[data-section]')){const active=b.dataset.section===section;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}const auth=section==='authentication';$('configuration-form').hidden=auth;$('authentication-section').hidden=!auth;for(const part of document.querySelectorAll('[data-form-section]'))part.hidden=part.dataset.formSection!==section;const index=sections.indexOf(section);$('step-label').textContent='Step '+(index+2)+' of 7';$('previous-section').hidden=index===0;$('next-section').hidden=index===sections.length-1||auth;$('save').hidden=auth;renderReview()}
+async function saveDraft(){if(state.databaseLimitError)throw safeError(state.databaseLimitError,'invalid_fields');const body={revision:state.view.revision,settings:readSettings(),acknowledge_insecure_tls:$('insecure-ack').checked};if(state.apiTokenDraft){body.api_token=state.apiTokenDraft;body.replace_token=$('replace-token').checked}if($('replace-ca').checked){body.custom_ca=state.customCADraft??'';body.replace_ca=true}state.view=await api('/api/settings',body);state.plan=null;$('plan-review').hidden=true;fillSettings();$('save-status').textContent='Draft saved. Not active until you apply it.';notice(state.view.configured?'Draft saved. Review and apply it when ready.':'Configuration draft saved. Review and apply when ready.');return state.view}
+function selectSection(section){state.section=section;renderDraftInputs();if(section==='connection'){$('api-token').value=state.apiTokenDraft??'';$('custom-ca').value=state.customCADraft??''}$('settings-section-picker').value=section;for(const b of document.querySelectorAll('[data-section]')){const active=b.dataset.section===section;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}const auth=section==='authentication';$('configuration-form').hidden=auth;$('authentication-section').hidden=!auth;for(const part of document.querySelectorAll('[data-form-section]'))part.hidden=part.dataset.formSection!==section;const index=sections.indexOf(section);$('step-label').textContent='Step '+(index+2)+' of 7';$('previous-section').hidden=index===0;$('next-section').hidden=index===sections.length-1||auth;$('save').hidden=auth;renderReview();if(section==='review')maybeAutoPrepare()}
+// Saved changes waiting for Apply: one bar above every section, a count on
+// Settings and a mark on each section that holds one.
+const SERVICE_NAMES={'fortigate-exporter':'FortiGate exporter',prometheus:'Prometheus',grafana:'Grafana',loki:'Loki',alloy:'Alloy syslog receiver','node-exporter':'Host metrics','fortilens-usage':'Accounting','fortilens-portal':'Console gateway','fortilens-syslog':'Native syslog receiver'};
+const SECTION_NAMES={general:'General',connection:'FortiGate Connection',interfaces:'Network Interfaces & WAN',monitoring:'Monitoring & Syslog',storage:'Storage & Retention'};
+function serviceList(names){return names.map(n=>SERVICE_NAMES[n]||n).join(', ')}
+function renderPending(){
+ const v=state.view,changes=Array.isArray(v?.changes)?v.changes:[],waiting=!!(v?.configured&&v.pending_changes);
+ const labels=[...new Set(changes.map(c=>c.label))],sections=new Set(changes.map(c=>c.section));
+ $('pending-bar').hidden=!waiting;$('pending-state').hidden=waiting;
+ if(waiting){
+  $('pending-title').textContent=labels.length?(labels.length===1?'1 change is':labels.length+' changes are')+' saved but not applied yet':'Saved changes are not applied yet';
+  $('pending-list').textContent=(labels.length?labels.join(' · ')+'. ':'')+'FortiLens still runs revision '+(v.applied_revision??'none')+'; your draft is revision '+v.revision+'.';
+ }
+ const badge=$('settings-badge');badge.hidden=!waiting;badge.textContent=waiting?String(labels.length||'!'):'';
+ if(waiting)badge.setAttribute('aria-label','Changes not applied');else badge.removeAttribute('aria-label');
+ for(const b of document.querySelectorAll('[data-section]'))b.classList.toggle('has-changes',waiting&&(sections.has(b.dataset.section)||b.dataset.section==='review'));
+}
+function renderPlan(){
+ const p=state.plan;if(!p)return;
+ const changes=Array.isArray(p.changes)?p.changes:Array.isArray(state.view?.changes)?state.view.changes:[];
+ const body=$('plan-changes').tBodies[0];body.replaceChildren();
+ for(const c of changes){const row=E('tr'),name=E('td');name.append(E('div',c.label),E('div',SECTION_NAMES[c.section]||'','help'));row.append(name,E('td',c.before,'muted'),E('td',c.after));body.append(row)}
+ if(!changes.length){const row=E('tr'),cell=E('td',p.fresh_installation?'First configuration: every saved setting is applied.':'No setting differs from the running configuration.','help');cell.colSpan=3;row.append(cell);body.append(row)}
+ const effects=$('plan-effects');effects.replaceChildren();
+ const fact=(title,text)=>{const d=E('div');d.append(E('strong',title),E('p',text,'help'));effects.append(d)};
+ if(p.fresh_installation)fact('Starts','The monitoring services start for the first time.');
+ else{
+  fact('Restarts',(Array.isArray(p.restarts)&&p.restarts.length?serviceList(p.restarts):'Every enabled monitoring service')+'. Collection pauses briefly while they restart. Stored data is kept.');
+  if(Array.isArray(p.stops)&&p.stops.length)fact('Stops',serviceList(p.stops)+'. Stored data is kept.');
+ }
+ fact('FortiGate','Nothing is changed on the FortiGate. FortiLens only reads from it.');
+ $('plan-ready').textContent='Draft revision '+p.revision+' was checked. Review what changes, then approve and apply.';
+ const files=Array.isArray(p.changed_files)?p.changed_files:[];
+ $('plan-files-summary').textContent='Files that change ('+files.length+')';$('plan-files').replaceChildren(...files.map(f=>E('li',f)));
+ $('plan-warnings').replaceChildren(...(Array.isArray(p.warnings)?p.warnings:[]).map(w=>E('li',w)));
+ $('approve-text').textContent=p.fresh_installation?'I approve these changes and starting the monitoring services.':'I approve these changes and the restarts listed above.';
+ $('plan-review').hidden=false;$('approve-plan').checked=false;
+}
+async function preparePlan(save){if(save)await saveDraft();state.plan=await api('/api/configuration/prepare',{revision:state.view.revision});if(state.plan.discovery)state.view.discovery=state.plan.discovery;renderPlan();renderWorkflowReadiness()}
+// Opening Review checks a saved draft by itself; unsaved edits wait for Check the draft.
+function maybeAutoPrepare(){const v=state.view;if(!v?.configured||!v.pending_changes||state.plan||state.unsaved||$('prepare').disabled)return;action($('prepare'),()=>preparePlan(false))}
 async function loadSystem(){const sequence=state.systemSequence=(state.systemSequence||0)+1;try{const system=await api('/api/system');if(sequence===state.systemSequence){rememberSystem(system);renderSystem()}return true}catch(e){if(sequence!==state.systemSequence)return false;notice(errorText(e),true);$('overview-cards').replaceChildren(metric('Management portal','Running','Independent of monitoring'),metric('Monitoring status','Unavailable','Open Diagnostics for recovery'));return false}}
 function metric(title,value,caption){const card=E('div',undefined,'metric-card');card.append(E('span',title,'metric-label'),E('div',value,'metric'),E('small',caption));return card}
 function fact(root,title,value){const block=E('div',undefined,'fact');block.append(E('span',title),E('strong',value));root.append(block)}
@@ -382,9 +424,12 @@ async function watchJob(id){
    if(job.status==='complete'){
     $('deployment').hidden=true;
     if(firstSetup&&state.view.configured)navigate(defaultPage());
-    const success=refreshed===false?'Configuration applied. Current service health could not be refreshed; review Diagnostics.':'Configuration applied successfully. Service status and settings are refreshed; review collection warnings in Diagnostics.';
+    // Name what happened: the revision now running and the services that restarted.
+    const running=Number.isInteger(job.applied_revision)?' Revision '+job.applied_revision+' is now running.':'',restarted=Array.isArray(state.appliedRestarts)&&state.appliedRestarts.length?' Restarted: '+serviceList(state.appliedRestarts)+'.':'';
+    state.appliedRestarts=null;
+    const success=refreshed===false?'Configuration applied.'+running+' Current service health could not be refreshed; review Diagnostics.':'Configuration applied successfully.'+running+restarted+' Review collection warnings in Diagnostics.';
     notice(success,refreshed===false);
-    clearTimeout(state.successTimer);if(refreshed!==false)state.successTimer=setTimeout(()=>{if($('notice').textContent===success&&!$('notice').classList.contains('error'))notice('')},8000);
+    clearTimeout(state.successTimer);if(refreshed!==false)state.successTimer=setTimeout(()=>{if($('notice').textContent===success&&!$('notice').classList.contains('error'))notice('')},20000);
    }else if(!acknowledgedJob(job.job_id))notice(job.message,true);
    return;
   }
@@ -421,8 +466,9 @@ for(const id of ['api-token','custom-ca','replace-token','replace-ca','insecure-
 $('connection-secrets-form').addEventListener('submit',event=>{event.preventDefault();action($('save'),saveDraft)});
 $('test-connection').addEventListener('click',()=>action($('test-connection'),async()=>{$('connection-result').textContent='Testing saved connection…';await saveDraft();const d=await api('/api/connection/test',{revision:state.view.revision});$('connection-result').textContent=d.message+(Object.keys(d.device).length?' '+[d.device.model,d.device.version,d.device.serial&&'Serial number '+d.device.serial].filter(Boolean).join(' · '):'')}));
 $('discover-interfaces').addEventListener('click',()=>action($('discover-interfaces'),async()=>{state.inventory=[];renderInterfaces();$('inventory-caption').textContent='Discovery in progress. Previous selections require confirmation against this connection.';await saveDraft();const report=await api('/api/interfaces/discover',{revision:state.view.revision});await reloadSettings();state.discoveryStale=false;state.inventory=report.interfaces;renderInterfaces();renderWorkflowReadiness();$('inventory-caption').textContent=report.coverage+' · '+report.notes.join(' ')}));$('interface-search').addEventListener('input',renderInterfaces);
-$('prepare').addEventListener('click',()=>action($('prepare'),async()=>{await saveDraft();state.plan=await api('/api/configuration/prepare',{revision:state.view.revision});$('plan-files').replaceChildren(...state.plan.changed_files.map(p=>E('li',p)));$('plan-warnings').replaceChildren(...state.plan.warnings.map(p=>E('li',p)));$('plan-review').hidden=false;$('approve-plan').checked=false;if(state.plan.discovery)state.view.discovery=state.plan.discovery;renderWorkflowReadiness()}));
-$('apply').addEventListener('click',()=>action($('apply'),async()=>{if(!state.plan||!$('approve-plan').checked)throw safeError('Review the candidate and approve its changes first.');if(discoveryBlocked())throw safeError('Save, test and discover interfaces for this connection before applying.');await beginDeployment('/api/configuration/apply',{revision:state.plan.revision,plan_id:state.plan.plan_id,confirm:true})}));
+$('prepare').addEventListener('click',()=>action($('prepare'),()=>preparePlan(true)));
+$('pending-review').addEventListener('click',()=>selectSection('review'));
+$('apply').addEventListener('click',()=>action($('apply'),async()=>{if(!state.plan||!$('approve-plan').checked)throw safeError('Review the candidate and approve its changes first.');if(discoveryBlocked())throw safeError('Save, test and discover interfaces for this connection before applying.');state.appliedRestarts=state.plan.fresh_installation||!Array.isArray(state.plan.restarts)?null:state.plan.restarts;await beginDeployment('/api/configuration/apply',{revision:state.plan.revision,plan_id:state.plan.plan_id,confirm:true})}));
 $('rollback').addEventListener('click',()=>action($('rollback'),async()=>{if(!state.job)throw safeError('Choose a deployment with a retained configuration backup.');await beginDeployment('/api/configuration/rollback',{revision:state.view.revision,plan_id:state.job.plan_id,confirm:true})}));
 $('approve-plan').addEventListener('change',updateDeploymentControls);
 $('deployment-acknowledge').addEventListener('click',acknowledgeJob);
