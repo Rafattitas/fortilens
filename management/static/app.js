@@ -448,6 +448,8 @@ function renderHomeStatus(wan,report,links){
  if(!links.console)return homeStatus('is-u','This deployment keeps separate service sign-in.','Live evidence opens in the existing services until the unified-console migration is complete. Nothing here is treated as an outage.','diagnostics','Open diagnostics');
  if(failing.length){const w=failing[0],more=failing.length>1?' '+(failing.length-1)+' more failing.':'';return homeStatus('is-w',w.interface+' is failing its Internet SLA.','Latency '+reading(w.latency_ms,' ms')+', loss '+reading(w.packet_loss_pct,'%')+'. '+(w.physical_state==='UP'?'The physical link is up, so look upstream first.':w.physical_state==='DOWN'?'The physical link is also down.':'Physical link evidence is unavailable.')+more,'wan','Inspect '+w.interface)}
  if(errored.length)return homeStatus('is-w',errored[0].interface+' reports an SLA error.','The check could not produce a healthy result. Review the observed history before drawing conclusions.','wan','Inspect '+errored[0].interface);
+ const behind=processingBehind(state.evidence,now);
+ if(accounting&&report&&behind)return homeStatus('is-u','Accounting is '+agoText(behind).replace(' ago','')+' behind.','Logs were received up to the point processed; the rest waits its turn. Usage reads low until it catches up. If the delay keeps growing, give accounting more CPU in Settings → Storage.','settings','Open settings');
  if(accounting&&report&&(!lastLog||age>900))return homeStatus('is-u',lastLog?'No logs received for '+agoText(age).replace(' ago','')+'.':'No logs have been received yet.','Usage may read low. That does not prove zero traffic or an outage.','quality','Find where it stopped');
  if(!wan||!wans.length||wans.some(w=>stateClass(w.internet_state)==='unknown')||(accounting&&!report))return homeStatus('is-u','Some evidence is unavailable.','Missing samples stay unknown. They are not an outage and not zero traffic.','diagnostics','Open diagnostics');
  homeStatus('is-g','All links pass'+(accounting?' and logs are current.':'.'),wans.map(w=>w.interface+' '+reading(w.latency_ms,' ms')).join(', ')+'.'+(lastLog?' Last log '+agoText(age)+'.':''));
@@ -529,9 +531,18 @@ $('home-channels').addEventListener('keydown',e=>{if(!state.home)return;const st
 // Evidence status bar: every value is received evidence; absent values stay unknown.
 function serverNow(){const t=state.system?.server_time_seconds;return typeof t==='number'&&Number.isFinite(t)?t+(performance.now()-(state.systemAt||0))/1000:Date.now()/1000}
 function agoText(seconds){if(!Number.isFinite(seconds)||seconds<0)return 'time unknown';if(seconds<90)return Math.round(seconds)+' seconds ago';if(seconds<5400)return Math.round(seconds/60)+' minutes ago';if(seconds<172800)return Math.round(seconds/3600)+' hours ago';return Math.round(seconds/86400)+' days ago'}
+// The last log time is the newest *processed* record and the lag is how far
+// processing trails the clock. When processed records reach the processing
+// point, an old last log means accounting is behind, not that logs stopped.
+// Returns the backlog in seconds, or 0 when the gap is not a backlog.
+function processingBehind(e,now){
+ const lag=Number(e?.lag),last=Number(e?.lastLog);
+ if(!Number.isFinite(lag)||lag<=900||!(last>0))return 0;
+ return now-last-lag<=900?lag:0;
+}
 function renderEvidenceBar(){
- const s=state.system,v=state.view,e=state.evidence||{};
- const logs=$('evidence-logs');logs.textContent=e.lastLog?'Logs: '+agoText(serverNow()-e.lastLog):state.evidence?'Logs: none received':'Logs: open Data quality to check';logs.classList.toggle('attention',!!state.evidence&&(!e.lastLog||serverNow()-e.lastLog>900));
+ const s=state.system,v=state.view,e=state.evidence||{},behind=processingBehind(state.evidence,serverNow());
+ const logs=$('evidence-logs');logs.textContent=behind?'Logs: processing '+agoText(behind).replace(' ago','')+' behind':e.lastLog?'Logs: '+agoText(serverNow()-e.lastLog):state.evidence?'Logs: none received':'Logs: open Data quality to check';logs.classList.toggle('attention',!!state.evidence&&(!e.lastLog||serverNow()-e.lastLog>900));
  $('evidence-lag').hidden=!Number.isFinite(e.lag);if(Number.isFinite(e.lag))$('evidence-lag').textContent='Processing lag: '+Number(e.lag).toLocaleString(undefined,{maximumFractionDigits:1})+' s';
  if(s){const running=s.services.filter(r=>r.status==='running').length,enabled=s.services.filter(r=>r.status!=='disabled').length;$('evidence-services').textContent='Services: '+running+' of '+enabled+' running';$('evidence-services').classList.toggle('attention',running<enabled)}else{$('evidence-services').textContent='Services: unknown';$('evidence-services').classList.add('attention')}
  $('evidence-revision').textContent=v?(v.pending_changes?'Draft '+v.revision+' · Applied '+(v.applied_revision??'none'):v.configured?'Applied revision '+v.applied_revision:'Not configured'):'';
