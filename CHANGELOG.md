@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## v0.7.0 — 2026-11-18 — why the Internet drops or slows down, line by line
+
+### Upgrade
+
+- No configuration, database or dashboard migration. Upgrade in place with
+  `install.sh --upgrade`. Line speeds are optional, and the site configuration
+  is unchanged until they are set.
+- The SD-WAN rules are read with the existing FortiGate API token
+  (`GET /api/v2/cmdb/system/sdwan`, read-only). When the token cannot read
+  them, **Who goes where** says so and the rest of the page works from metrics.
 
 ### Internet links
 
