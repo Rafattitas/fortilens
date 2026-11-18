@@ -193,8 +193,11 @@ ready to read or share.
   counts what was excluded and why. Use it when a figure looks low.
 - **Diagnostics** runs read-only checks and says what to do about each finding.
   See the [Diagnostics reference](../operations/DIAGNOSTICS.md).
-- **Settings** changes the installation. Changes are saved as a revision,
-  reviewed, then applied.
+- **Settings** changes the installation. **Save draft** keeps a change as a
+  revision without changing anything that runs. Until it is applied, a bar
+  above every section names the waiting changes and offers **Review and
+  apply**, which lists each change with its running and new value, the services
+  that restart, and asks for approval before **Apply changes**.
 
 ## When someone says the Internet is slow
 

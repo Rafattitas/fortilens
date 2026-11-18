@@ -570,6 +570,8 @@ class Operations:
             plan = self.c.prepare(rev.revision)
             self.docker.validate(plan["plan_id"])
             plan["discovery"] = self.discovery_readiness()
+            plan.update(self.service_effects(plan["settings"]))
+            plan["changes"] = self.c.view()["changes"]
             return plan
         if operation in ("test", "discover"):
             Revision.model_validate(data)
@@ -615,6 +617,29 @@ class Operations:
         result = self.c.view()
         result["discovery"] = self.discovery_readiness()
         return result
+
+    def service_effects(self, settings):
+        """Which services Apply recreates and which running ones it stops.
+
+        Apply recreates every enabled service (Docker.start), so all of them are
+        named. A disabled service is listed only when it runs now; if the status
+        cannot be read, stopping is reported as unknown rather than guessed.
+        """
+        compose = self.c.compose() or {}
+        services = compose.get("services") or {}
+        if not services:
+            return {"restarts": [], "stops": [], "stops_known": True}
+        enabled, disabled = enabled_services(Settings.model_validate(settings), compose)
+        try:
+            running = {r["service"] for r in self.docker.statuses() if r["status"] == "running"}
+            known = True
+        except (Problem, OSError, ValueError, subprocess.SubprocessError):
+            running, known = set(), False
+        return {
+            "restarts": [name for name in enabled if name in services],
+            "stops": [name for name in disabled if name in services and name in running],
+            "stops_known": known,
+        }
 
     def discovery_readiness(self):
         state = self.c.state()

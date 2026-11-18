@@ -125,10 +125,24 @@ Secure/HttpOnly/SameSite=Strict cookies on HTTPS, server sessions and CSRF check
    The accounting database ceiling is entered in GiB (for example, `9` or `9.5`),
    matching the storage measurements. Existing byte ceilings are preserved when
    the field is left unchanged; configuration and API values remain integer bytes.
-7. **Review & Apply:** Save Configuration creates a draft. Review Configuration
-   Changes generates and validates a private candidate and checks published-port
-   conflicts. Approve the review and choose Apply & Start FortiLens. Progress,
-   individual service state and diagnostics update in the page.
+7. **Review & Apply:** Save draft stores the change as a new revision; nothing
+   running changes yet. Check the draft generates and validates a private
+   candidate and checks published-port conflicts. Approve the review and choose
+   Apply & Start FortiLens. Progress, individual service state and diagnostics
+   update in the page.
+
+Later changes on a running installation follow the same steps:
+
+- While a saved draft is not applied, a bar above every Settings section names
+  the waiting changes, Settings in the sidebar shows their count and each
+  section that holds one is marked. **Review and apply** opens the review.
+- Opening Review & Apply checks a saved draft by itself. It lists each changed
+  setting with its running value and the value after Apply, the services Apply
+  restarts (it recreates every enabled service) and any running service it
+  stops. Nothing is changed on the FortiGate. The changed files stay available
+  under **Files that change**.
+- Approve, then choose **Apply changes**. The result names the revision now
+  running and the services that restarted.
 
 The initial connection is never treated as successful until an actual test
 returns success. Deployment may succeed while FortiGate collection is unavailable;
