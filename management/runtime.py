@@ -442,16 +442,24 @@ class Docker:
         finally:
             conn.close()
 
-    def start(self, enabled, disabled):
+    def start(self, enabled, disabled, recreate=None):
+        """Stop disabled services and recreate ``recreate`` (all enabled if None)."""
         services = self.c.compose()["services"]
         # Stop disabled collectors; volumes, images, secrets and definitions stay.
         stopped = [x for x in disabled if x in services]
         if stopped:
             self.run(self.command() + ["stop", *stopped])
-        selected = [x for x in enabled if x in services]
-        if "fortilens-syslog" in selected:
+        selected = [
+            x
+            for x in recreated(enabled, enabled if recreate is None else recreate)
+            if x in services
+        ]
+        if not selected:
+            return
+        if "fortilens-syslog" in selected and "alloy" in selected:
             # Release an old Alloy-owned UDP binding before the bridge claims
-            # it. Compose otherwise schedules replacements concurrently.
+            # it. Compose otherwise schedules replacements concurrently. When
+            # only the receiver is recreated, Alloy holds no UDP binding.
             self.run(self.command() + ["stop", "alloy", "fortilens-syslog"])
         # Always recreate the sidecar when its Grafana namespace is replaced.
         if "grafana" in selected and "fortilens-portal" in services:
@@ -504,6 +512,20 @@ class Docker:
             "readiness_failed",
             "A required service did not become ready. Configuration rollback is available.",
         )
+
+
+def recreated(enabled, chosen):
+    """The enabled services Docker.start recreates for ``chosen``, in order.
+
+    The console gateway shares Grafana's network namespace, so it is added
+    whenever Grafana is. The native receiver can be recreated alone: moving the
+    UDP listener between it and Alloy changes both definitions, so both are
+    chosen then, and Docker.start stops them together.
+    """
+    chosen = set(chosen)
+    if "grafana" in chosen:
+        chosen.add("fortilens-portal")
+    return [name for name in enabled if name in chosen]
 
 
 def enabled_services(settings, compose):
@@ -581,7 +603,7 @@ class Operations:
             plan = self.c.prepare(rev.revision)
             self.docker.validate(plan["plan_id"])
             plan["discovery"] = self.discovery_readiness()
-            plan.update(self.service_effects(plan["settings"]))
+            plan.update(self.service_effects(plan["plan_id"]))
             plan["changes"] = self.c.view()["changes"]
             return plan
         if operation in ("test", "discover"):
@@ -657,27 +679,64 @@ class Operations:
         result["discovery"] = self.discovery_readiness()
         return result
 
-    def service_effects(self, settings):
+    def running_services(self):
+        """Names of running services, or None when Docker status cannot be read."""
+        try:
+            return {r["service"] for r in self.docker.statuses() if r["status"] == "running"}
+        except (Problem, OSError, ValueError, subprocess.SubprocessError):
+            return None
+
+    def recreate_plan(self, plan, compose, running):
+        """(enabled, disabled, recreate) for Apply of ``plan`` over ``compose``.
+
+        Apply recreates only the services that read a changed file (the plan's
+        affected_services), services this plan enables and enabled services that
+        are not running, plus the services recreated with them (recreated()). A
+        first installation, or a plan whose changes could not be traced to
+        particular services, recreates every enabled service. ``running`` is None
+        when Docker status is unknown; then no service is added for not running.
+        """
+        services = compose.get("services") or {}
+        enabled, disabled = enabled_services(Settings.model_validate(plan["settings"]), compose)
+        enabled = [name for name in enabled if name in services]
+        affected = plan.get("affected_services")
+        if plan.get("fresh") or not isinstance(affected, list):
+            return enabled, disabled, enabled
+        try:
+            previous = plan["previous"].get("applied")
+            before = enabled_services(Settings.model_validate(previous), compose)[0]
+        except (TypeError, ValueError):
+            # The previous enabled set cannot be read: treat everything as being enabled.
+            before = []
+        chosen = set(affected) | (set(enabled) - set(before))
+        if running is not None:
+            chosen |= set(enabled) - running
+        return enabled, disabled, recreated(enabled, chosen)
+
+    def service_effects(self, plan_id):
         """Which services Apply recreates and which running ones it stops.
 
-        Apply recreates every enabled service (Docker.start), so all of them are
-        named. A disabled service is listed only when it runs now; if the status
-        cannot be read, stopping is reported as unknown rather than guessed.
+        The restart list comes from recreate_plan(), the same rule _deploy uses,
+        so the review names what Apply actually recreates. A disabled service is
+        listed only when it runs now; if the status cannot be read, stopping is
+        reported as unknown rather than guessed.
         """
-        compose = self.c.compose() or {}
+        folder, plan = self.c.plan(plan_id)
+        candidate = folder / "candidate" / self.c.compose_name
+        compose = (
+            yaml.safe_load(candidate.read_text(encoding="utf-8-sig"))
+            if candidate.is_file()
+            else self.c.compose()
+        ) or {}
         services = compose.get("services") or {}
         if not services:
             return {"restarts": [], "stops": [], "stops_known": True}
-        enabled, disabled = enabled_services(Settings.model_validate(settings), compose)
-        try:
-            running = {r["service"] for r in self.docker.statuses() if r["status"] == "running"}
-            known = True
-        except (Problem, OSError, ValueError, subprocess.SubprocessError):
-            running, known = set(), False
+        running = self.running_services()
+        _, disabled, recreate = self.recreate_plan(plan, compose, running)
         return {
-            "restarts": [name for name in enabled if name in services],
-            "stops": [name for name in disabled if name in services and name in running],
-            "stops_known": known,
+            "restarts": recreate,
+            "stops": [name for name in disabled if name in services and name in (running or ())],
+            "stops_known": running is not None,
         }
 
     def discovery_readiness(self):
@@ -1597,12 +1656,23 @@ class Operations:
                 install_attempted = True
                 self.c.install_files(request.plan_id)
                 installed = True
-                settings = Settings.model_validate(plan["settings"])
-                enabled, disabled = enabled_services(settings, self.c.compose())
-                self._progress(
-                    job, "starting", "Starting enabled services and retaining all data volumes."
+                enabled, disabled, recreate = self.recreate_plan(
+                    plan, self.c.compose(), self.running_services()
                 )
-                self.docker.start(enabled, disabled)
+                self._progress(
+                    job,
+                    "starting",
+                    (
+                        "Starting the enabled services"
+                        if plan["fresh"]
+                        else "Restarting the services this change affects"
+                        if recreate
+                        else "No service needs a restart"
+                    )
+                    + "; all data volumes are kept.",
+                    restarted=recreate,
+                )
+                self.docker.start(enabled, disabled, recreate)
                 self._progress(job, "readiness", "Waiting for monitoring service readiness.")
                 services = self.docker.ready(enabled)
                 if plan["fresh"]:

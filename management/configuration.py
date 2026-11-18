@@ -287,6 +287,54 @@ def prometheus_policy(data, interval, *, update_global=True):
     return data
 
 
+def _compose_changes(before, after):
+    """Service names whose Compose definition differs, or None if untraceable.
+
+    A changed top-level secret or named volume counts for the services that
+    use it. Any other top-level change (networks, project name, extensions)
+    cannot be traced to particular services.
+    """
+
+    def definition(service):
+        # An empty key (ports: []) means the same to Compose as a missing one.
+        return {k: v for k, v in (service or {}).items() if v not in (None, [], {})}
+
+    old, new = before.get("services") or {}, after["services"]
+    changed = {
+        name
+        for name in set(old) | set(new)
+        if definition(old.get(name)) != definition(new.get(name))
+    }
+    for key in set(before) | set(after):
+        if key == "services" or before.get(key) == after.get(key):
+            continue
+        if key not in ("secrets", "volumes"):
+            return None
+        was, now = before.get(key) or {}, after.get(key) or {}
+        names = {name for name in set(was) | set(now) if was.get(name) != now.get(name)}
+        for service_name, service in new.items():
+            for entry in service.get(key) or []:
+                if isinstance(entry, str):
+                    used = entry if key == "secrets" else entry.split(":")[0]
+                else:
+                    used = (entry or {}).get("source")
+                if used in names:
+                    changed.add(service_name)
+    return changed
+
+
+def _same_content(installed, candidate):
+    """True when two YAML/JSON files hold the same data, however they are written."""
+    if installed.suffix not in (".json", ".yaml", ".yml"):
+        return False
+    try:
+        return yaml.safe_load(installed.read_text(encoding="utf-8-sig")) == yaml.safe_load(
+            candidate.read_text(encoding="utf-8-sig")
+        )
+    except (OSError, UnicodeError, yaml.YAMLError):
+        return False
+
+
 def _container_port(binding):
     """The container side of a short-syntax Compose port, e.g. 1514 in 0.0.0.0:514:1514/udp."""
     return binding.rsplit(":", 1)[-1].split("/")[0]
@@ -1024,10 +1072,11 @@ class Configuration:
                     )
             else:
                 text = re.sub(pattern, lambda m: m[1] + json.dumps(value), text)
-        maximum = r"(?m)^\s*max_message_length\s*=\s*\d+\s*\n"
+        maximum = r"(?m)^(\s*max_message_length\s*=\s*)\d+(\s*\n)"
         if native:
             if re.search(maximum, text):
-                text = re.sub(maximum, "    max_message_length = 65536\n", text)
+                # Only the number changes, so an unchanged file restarts nothing.
+                text = re.sub(maximum, r"\g<1>65536\g<2>", text)
             else:
                 text = re.sub(
                     r"(?m)^(\s*use_incoming_timestamp\s*=)",
@@ -1035,7 +1084,7 @@ class Configuration:
                     text,
                     count=1,
                 )
-            if "max_message_length = 65536" not in text:
+            if not re.search(r"(?m)^\s*max_message_length\s*=\s*65536\s*$", text):
                 raise Problem(
                     "custom_alloy_review",
                     "Review the native receiver message limit in the existing Alloy configuration.",
@@ -1396,9 +1445,94 @@ class Configuration:
                 "previous": state,
                 "created": time.time(),
                 "secret_fingerprint": fingerprint(self.secret_path),
+                # A first installation starts every enabled service.
+                "affected_services": (
+                    self.affected_services(folder, records) if state["configured"] else None
+                ),
             }
             atomic(folder / "plan.json", plan)
             return self.review(plan)
+
+    def affected_services(self, folder, records):
+        """Services that read a file this candidate changes, in SERVICES order.
+
+        Readers come from the installed and candidate Compose files: bind
+        mounts, file-backed secrets and build contexts. A Compose change counts
+        only for the service definitions that differ, and a YAML or JSON file
+        whose content is unchanged (only rewritten) affects nothing. Returns
+        None when a change cannot be traced to particular services; Apply then
+        recreates every enabled service, as before.
+        """
+        candidate = folder / "candidate"
+        before = self.compose() or {"services": {}}
+        after = before
+        if guarded(candidate, self.compose_name).is_file():
+            after = yaml.safe_load(
+                guarded(candidate, self.compose_name).read_text(encoding="utf-8-sig")
+            )
+            if not isinstance(after, dict) or not isinstance(after.get("services"), dict):
+                return None
+        affected = set()
+        for row in records:
+            path = row["path"]
+            if row["before"] == row["after"]:
+                continue
+            if path == self.compose_name:
+                changed = _compose_changes(before, after)
+                if changed is None:
+                    return None
+                affected |= changed
+            elif row["before"] is None or not _same_content(
+                guarded(self.root, path), guarded(candidate, path)
+            ):
+                readers = self._readers(path, before) | self._readers(path, after)
+                # The site file reaches services only through mounts; the console
+                # reads it directly. Any other file nothing mounts is untraceable.
+                if not readers and path != self.state()["site_file"]:
+                    return None
+                affected |= readers
+        return [name for name in SERVICES if name in affected]
+
+    def _readers(self, path, compose):
+        """Services in ``compose`` that read the installation file ``path``."""
+        target = Path(os.path.normpath(self.root / path))
+
+        def covers(source):
+            if not isinstance(source, str) or not source.startswith((".", "/")):
+                return False  # A named volume, not a host path.
+            base = Path(os.path.normpath(self.root / source))
+            # A mount outside the installation (node-exporter reads /) is not a reader.
+            if base != self.root and self.root not in base.parents:
+                return False
+            return target == base or base in target.parents
+
+        secrets = {
+            name
+            for name, value in (compose.get("secrets") or {}).items()
+            if isinstance(value, dict) and covers(value.get("file"))
+        }
+        readers = set()
+        for name, service in (compose.get("services") or {}).items():
+            for volume in service.get("volumes") or []:
+                source = (
+                    volume.split(":")[0]
+                    if isinstance(volume, str)
+                    else (volume or {}).get("source")
+                )
+                if covers(source):
+                    readers.add(name)
+            for secret in service.get("secrets") or []:
+                if (secret if isinstance(secret, str) else (secret or {}).get("source")) in secrets:
+                    readers.add(name)
+            build = service.get("build")
+            context = build if isinstance(build, str) else (build or {}).get("context")
+            if covers(context):
+                readers.add(name)
+            env_files = service.get("env_file") or []
+            for env_file in [env_files] if isinstance(env_files, str) else env_files:
+                if covers(env_file if isinstance(env_file, str) else (env_file or {}).get("path")):
+                    readers.add(name)
+        return readers
 
     def review(self, plan):
         return {

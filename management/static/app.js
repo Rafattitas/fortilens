@@ -215,7 +215,8 @@ function renderPlan(){
  const fact=(title,text)=>{const d=E('div');d.append(E('strong',title),E('p',text,'help'));effects.append(d)};
  if(p.fresh_installation)fact('Starts','The monitoring services start for the first time.');
  else{
-  fact('Restarts',(Array.isArray(p.restarts)&&p.restarts.length?serviceList(p.restarts):'Every enabled monitoring service')+'. Collection pauses briefly while they restart. Stored data is kept.');
+  if(Array.isArray(p.restarts)&&!p.restarts.length)fact('Restarts','No service restarts. Collection continues.');
+  else fact('Restarts',(Array.isArray(p.restarts)?serviceList(p.restarts):'Every enabled monitoring service')+'. Collection pauses briefly while they restart. Other services keep running. Stored data is kept.');
   if(Array.isArray(p.stops)&&p.stops.length)fact('Stops',serviceList(p.stops)+'. Stored data is kept.');
  }
  fact('FortiGate','Nothing is changed on the FortiGate. FortiLens only reads from it.');
@@ -428,7 +429,7 @@ async function watchJob(id){
     $('deployment').hidden=true;
     if(firstSetup&&state.view.configured)navigate(defaultPage());
     // Name what happened: the revision now running and the services that restarted.
-    const running=Number.isInteger(job.applied_revision)?' Revision '+job.applied_revision+' is now running.':'',restarted=Array.isArray(state.appliedRestarts)&&state.appliedRestarts.length?' Restarted: '+serviceList(state.appliedRestarts)+'.':'';
+    const running=Number.isInteger(job.applied_revision)?' Revision '+job.applied_revision+' is now running.':'',names=state.appliedRestarts===null?null:Array.isArray(job.restarted)?job.restarted:state.appliedRestarts,restarted=!names?'':names.length?' Restarted: '+serviceList(names)+'.':' No service was restarted.';
     state.appliedRestarts=null;
     const success=refreshed===false?'Configuration applied.'+running+' Current service health could not be refreshed; review Diagnostics.':'Configuration applied successfully.'+running+restarted+' Review collection warnings in Diagnostics.';
     notice(success,refreshed===false);

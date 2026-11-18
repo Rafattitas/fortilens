@@ -138,9 +138,23 @@ Later changes on a running installation follow the same steps:
   section that holds one is marked. **Review and apply** opens the review.
 - Opening Review & Apply checks a saved draft by itself. It lists each changed
   setting with its running value and the value after Apply, the services Apply
-  restarts (it recreates every enabled service) and any running service it
-  stops. Nothing is changed on the FortiGate. The changed files stay available
-  under **Files that change**.
+  restarts and any running service it stops. Nothing is changed on the
+  FortiGate. The changed files stay available under **Files that change**.
+- Apply recreates only the services that read a changed file: their Compose
+  definition, a mounted configuration file such as `site.json`,
+  `prometheus/prometheus.yml`, `loki/loki-config.yaml`, `alloy/config.alloy`
+  or Grafana provisioning, or a secret file. A YAML or JSON file that is only
+  rewritten with the same content counts as unchanged. A service being enabled,
+  or an enabled service that is not running, is started too. The console
+  gateway is recreated whenever Grafana is, because it shares Grafana's
+  network. Every other service keeps running. For example, a new accounting
+  CPU limit restarts only the accounting service. New line speeds restart the
+  accounting service and, with the native syslog receiver, that receiver too,
+  because both read `site.json`. Alloy keeps running unless the syslog
+  listener moves between it and the receiver; then the two stop together. A
+  first installation starts every enabled service, and a change that cannot be
+  traced to particular services, such as a Compose network, recreates every
+  enabled service as before. The review names that list in either case.
 - Approve, then choose **Apply changes**. The result names the revision now
   running and the services that restarted.
 
@@ -192,9 +206,10 @@ The setup introduction disappears after successful deployment. Settings remains
 available for General, FortiGate Connection, Network Interfaces & WAN, Monitoring
 & Syslog, Storage & Retention, Authentication and Diagnostics. Normal changes do
 not need terminal access. Save a draft, review and explicitly apply it. Changes
-require collector/service recreation and can create collection gaps; review the
-listed files and warnings. Concurrent editors receive a revision conflict rather
-than silently overwriting each other. External file edits invalidate a plan.
+recreate the services that read them, which can create collection gaps in those
+services; review the listed restarts, files and warnings. Concurrent editors
+receive a revision conflict rather than silently overwriting each other.
+External file edits invalidate a plan.
 
 Tokens and custom CAs are write-only. Blank inputs keep the stored values unless
 an explicit replacement action is selected. A general settings save never

@@ -42,6 +42,7 @@ class FakeDocker:
         self.calls = []
         self.fail = False
         self.down = False
+        self.stopped = set()
 
     def validate(self, identity):
         self.calls.append(("validate", identity))
@@ -65,10 +66,30 @@ class FakeDocker:
             str(self.c.root / self.c.compose_name),
         ]
 
-    def start(self, enabled, disabled):
+    def start(self, enabled, disabled, recreate=None):
         self.calls.append(("start", list(enabled), list(disabled)))
         if self.fail:
             raise Problem("fixture_start_failed", "Synthetic service startup failed.")
+        # The real ordering rules; each Compose command is recorded, not run.
+        Docker.start(self, enabled, disabled, recreate)
+
+    def commands(self):
+        """Compose arguments after the project options, recorded since the last start."""
+        last = max(i for i, call in enumerate(self.calls) if call[0] == "start")
+        prefix = len(self.command())
+        return [
+            call[1][prefix:]
+            for call in self.calls[last + 1 :]
+            if call[0] == "command" and call[1][prefix : prefix + 1] in (["up"], ["stop"])
+        ]
+
+    def recreated(self):
+        """Services the last start recreated, from its recorded Compose commands."""
+        names = []
+        for args in self.commands():
+            if "--force-recreate" in args:
+                names += [n for n in args[args.index("--force-recreate") + 1 :] if n not in names]
+        return names
 
     def ready(self, enabled):
         return self.statuses()
@@ -77,7 +98,12 @@ class FakeDocker:
         if self.down:
             raise Problem("docker_unavailable", "Docker is unavailable.")
         return [
-            {"service": n, "status": "running", "health": "healthy", "id": "synthetic-" + n}
+            {
+                "service": n,
+                "status": "exited" if n in self.stopped else "running",
+                "health": "healthy",
+                "id": "synthetic-" + n,
+            }
             for n in (self.c.compose() or {"services": {}})["services"]
         ]
 
@@ -919,7 +945,7 @@ class ManagementTests(unittest.TestCase):
         self.assertEqual(plan["stops"], ["node-exporter"])
         # Unreadable status is reported as unknown, never guessed.
         self.docker.down = True
-        self.assertFalse(self.ops.service_effects(view["settings"])["stops_known"])
+        self.assertFalse(self.ops.service_effects(plan["plan_id"])["stops_known"])
         self.docker.down = False
         self.assertEqual(self.apply(view)["status"], "complete")
         self.assertEqual(self.c.view()["changes"], [])
@@ -1016,6 +1042,144 @@ class ManagementTests(unittest.TestCase):
         self.assertEqual(broken.exception.code, "report_unavailable")
         # Without alerts the site file has no notifications block.
         self.assertNotIn("notifications", Settings(fortigate_host="192.0.2.1").portable())
+
+    def review_and_apply(self, **updates):
+        """Save, prepare and apply; the review and the services actually recreated."""
+        view = self.save(**updates)
+        plan = self.ops.dispatch("prepare", {"revision": view["revision"]})
+        with (
+            patch.object(setup, "import_dashboard"),
+            patch.object(setup, "connect_portal"),
+            patch.object(setup, "retire_saved_panels"),
+        ):
+            job = self.wait_job(
+                self.ops.dispatch(
+                    "apply",
+                    {"revision": view["revision"], "plan_id": plan["plan_id"], "confirm": True},
+                )
+            )
+        self.assertEqual(job["status"], "complete", job)
+        # What the review named is exactly what Apply recreated.
+        self.assertEqual(plan["restarts"], self.docker.recreated())
+        self.assertEqual(job["restarted"], self.docker.recreated())
+        return plan, job
+
+    def discovered(self, **updates):
+        """A first installation with one confirmed Internet interface."""
+        view = self.save(**updates)
+        self.ops.dispatch("test", {"revision": view["revision"]})
+        self.ops.dispatch("discover", {"revision": view["revision"]})
+        return self.review_and_apply(wan_interfaces=["uplink-a"], wan_confirmed=True, **updates)
+
+    def test_apply_recreates_only_the_services_whose_inputs_changed(self):
+        # A first installation starts every enabled service.
+        plan, _ = self.discovered()
+        enabled, _ = enabled_services(Settings.model_validate(plan["settings"]), self.c.compose())
+        self.assertEqual(self.docker.recreated(), enabled)
+        self.assertIn("grafana", enabled)
+        # The accounting CPU is in the writer's Compose definition only.
+        plan, _ = self.review_and_apply(accounting_cpus="2")
+        self.assertEqual(plan["restarts"], ["fortilens-usage"])
+        self.assertEqual(
+            self.docker.commands(),
+            [["up", "-d", "--no-deps", "--build", "--force-recreate", "fortilens-usage"]],
+        )
+        # Line speeds and accounting retention live in site.json, which only the
+        # accounting writer reads here; reformatted configs restart nothing.
+        speeds = {"uplink-a": {"down_mbps": 100, "up_mbps": 20}}
+        plan, _ = self.review_and_apply(wan_speeds=speeds)
+        self.assertIn("site.json", plan["changed_files"])
+        self.assertEqual(plan["restarts"], ["fortilens-usage"])
+        retention = deepcopy(self.c.view()["settings"]["retention"])
+        retention["ledger_days"] = 5
+        self.assertEqual(
+            self.review_and_apply(retention=retention)[0]["restarts"], ["fortilens-usage"]
+        )
+        # Raw log retention is Loki's own file.
+        retention["loki_days"] = 90
+        self.assertEqual(self.review_and_apply(retention=retention)[0]["restarts"], ["loki"])
+        # Grafana's port is in its own and the accounting definitions; the gateway
+        # in Grafana's namespace is recreated with it, after it.
+        plan, _ = self.review_and_apply(grafana_port=3005)
+        self.assertEqual(plan["restarts"], ["grafana", "fortilens-usage", "fortilens-portal"])
+        commands = self.docker.commands()
+        self.assertEqual(commands[0], ["stop", "fortilens-portal"])
+        self.assertEqual(
+            commands[-1], ["up", "-d", "--no-deps", "--force-recreate", "fortilens-portal"]
+        )
+        # The site name is in site.json too; saving unchanged settings restarts nothing.
+        self.assertEqual(
+            self.review_and_apply(site_name="Renamed company")[0]["restarts"], ["fortilens-usage"]
+        )
+        plan, _ = self.review_and_apply()
+        self.assertEqual((plan["changed_files"], plan["restarts"]), ([], []))
+        self.assertEqual(self.docker.commands(), [])
+        # Disabled services stop; enabling one again starts it.
+        monitoring = deepcopy(self.c.view()["settings"]["monitoring"])
+        monitoring["server"] = False
+        plan, _ = self.review_and_apply(monitoring=monitoring)
+        self.assertEqual((plan["restarts"], plan["stops"]), ([], ["node-exporter"]))
+        self.assertEqual(self.docker.commands(), [["stop", "node-exporter"]])
+        monitoring["server"] = True
+        self.assertEqual(
+            self.review_and_apply(monitoring=monitoring)[0]["restarts"], ["node-exporter"]
+        )
+        # An enabled service that is not running is started, and named.
+        self.docker.stopped = {"loki"}
+        self.assertEqual(self.review_and_apply()[0]["restarts"], ["loki"])
+        self.docker.stopped = set()
+
+    def test_a_plan_without_traced_services_recreates_every_enabled_service(self):
+        self.discovered()
+        view = self.save(accounting_cpus="1")
+        plan = self.ops.dispatch("prepare", {"revision": view["revision"]})
+        self.assertEqual(plan["restarts"], ["fortilens-usage"])
+        # A plan prepared before services were traced, or with an untraceable
+        # change, keeps the former behavior, and the review says so.
+        folder, stored = self.c.plan(plan["plan_id"])
+        stored["affected_services"] = None
+        atomic(folder / "plan.json", stored)
+        enabled, _ = enabled_services(Settings.model_validate(view["settings"]), self.c.compose())
+        self.assertEqual(self.ops.service_effects(plan["plan_id"])["restarts"], enabled)
+        # A file no service reads cannot be traced either.
+        self.assertIsNone(
+            self.c.affected_services(
+                folder,
+                [{"path": "unmounted.yaml", "before": None, "after": "0" * 64}],
+            )
+        )
+        # A site file nothing mounts affects no service.
+        site = {"path": "site.json", "before": None, "after": "0" * 64}
+        with patch.object(self.c, "_readers", return_value=set()):
+            self.assertEqual(self.c.affected_services(folder, [site]), [])
+        # A changed Compose network cannot be traced to particular services.
+        from management.configuration import _compose_changes
+
+        compose = self.c.compose()
+        self.assertIsNone(_compose_changes(compose, {**compose, "networks": {"extra": {}}}))
+        changed = deepcopy(compose)
+        changed["secrets"]["usage_admin_password"]["file"] = "./secrets/other"
+        self.assertEqual(
+            _compose_changes(compose, changed),
+            {"prometheus", "fortilens-usage", "fortilens-portal"},
+        )
+
+    def test_native_receiver_is_recreated_without_alloy_for_its_own_inputs(self):
+        self.discovered(syslog_format="fortigate", syslog_protocol="udp")
+        self.assertIn("fortilens-syslog", self.c.compose()["services"])
+        self.assertIn(["stop", "alloy", "fortilens-syslog"], self.docker.commands())
+        # site.json is read by the receiver too; Alloy keeps the TCP handoff.
+        plan, _ = self.review_and_apply(
+            syslog_format="fortigate",
+            syslog_protocol="udp",
+            wan_speeds={"uplink-a": {"down_mbps": 50, "up_mbps": 10}},
+        )
+        self.assertEqual(plan["restarts"], ["fortilens-syslog", "fortilens-usage"])
+        self.assertNotIn(["stop", "alloy", "fortilens-syslog"], self.docker.commands())
+        # Moving the listener back to Alloy changes both; they stop together first.
+        plan, _ = self.review_and_apply(syslog_format="rfc5424", syslog_protocol="tcp")
+        self.assertIn("alloy", plan["restarts"])
+        self.assertEqual(plan["stops"], ["fortilens-syslog"])
 
     def test_accounting_cpu_choice_is_read_applied_and_bounded(self):
         c = self.existing()

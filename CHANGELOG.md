@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Settings
+
+- Apply now recreates only the services whose inputs changed, instead of every
+  enabled service. Before, saving any setting, even the line speeds or an alert
+  channel, recreated Grafana, Loki, Prometheus, Alloy, the exporter and the
+  accounting service and left a short gap in collection. A service is affected
+  when its Compose definition, a file it mounts (such as `site.json` or the
+  Prometheus, Loki and Alloy configurations), a secret file or its build
+  context changes; a YAML or JSON file rewritten with the same content does not
+  count. Services being enabled and enabled services that are not running are
+  started too, the console gateway still follows Grafana, and Alloy and the
+  native receiver still stop together when both are recreated. Changing the
+  accounting CPU limit, for example, restarts only the accounting service, so
+  collection in Prometheus, Loki, Alloy and the exporter continues. The
+  review's `restarts` list is computed by the same rule, so it names exactly
+  what Apply recreates, and the finished job reports it as `restarted`. A first
+  installation, a plan prepared before this release and a change that cannot
+  be traced to particular services still recreate every enabled service.
+  Rollback is unchanged.
+- Updating the native receiver's Alloy message limit now changes only the
+  number, so an unchanged Alloy configuration is no longer rewritten (and
+  restarted) on the first Apply after installation.
+
 ## v0.7.0 — 2026-11-21 — alerts and reports, and why the Internet drops or slows down
 
 ### Upgrade
