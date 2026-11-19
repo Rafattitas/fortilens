@@ -9,14 +9,18 @@ import sys
 import tempfile
 import unittest
 import urllib.error
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "portable"))
 import notifications as n  # noqa: E402
 
 TOKEN = "123456789:" + "A" * 35
-CAIRO = ZoneInfo("Africa/Cairo")
+try:
+    CAIRO = ZoneInfo("Africa/Cairo")
+except ZoneInfoNotFoundError:
+    # Windows Python ships no IANA data unless tzdata is installed.
+    raise unittest.SkipTest("IANA timezone database unavailable") from None
 
 
 def settings(**parts):
