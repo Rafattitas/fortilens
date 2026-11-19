@@ -43,6 +43,7 @@ your own server, with your own credentials and data.
 | Which websites used the Internet, and which devices visited them? | **Websites** (opt-in, off by default) groups recorded usage by site name from FortiGate Application Control and Web Filter logs, kept up to 90 days. See [website usage](docs/operations/WEBSITES.md). |
 | Who is using the Internet right now? | **Live usage** shows current download and upload per device, application, segment and WAN link from FortiGate realtime sessions, refreshed every 10 seconds. |
 | What was the total for a period? | **Reports** covers today, the last 7 days, this month, this year, recent 5 minutes or a custom range. |
+| Will I hear about a problem without watching the screen? | **Alerts** sends Telegram or email messages when a line goes down, slows, carries far less than usual or is filled by one device, when logs stop or the FortiGate stops answering, and when SD-WAN rules change. Daily, weekly and monthly reports, including a per-line report for your provider, arrive on a schedule. See [alerts and reports](docs/operations/ALERTS.md). |
 | Can I trust these numbers? | **Data quality** shows collection gaps, pending counters and identity limits. |
 | What is happening right now, in detail? | **Firewall dashboard** opens the native Grafana dashboard. |
 | Is the installation itself working? | **Status**, **Diagnostics** and **Settings** cover services, collection and reviewed configuration changes. |
@@ -51,7 +52,7 @@ Usage figures come from received accounting records. Missing records never becom
 zero traffic or a confirmed outage, and totals are not complete billing figures.
 
 <details>
-<summary>See Live usage, Applications, Devices, Reports and Internet links screenshots</summary>
+<summary>See Live usage, Applications, Devices, Reports, Internet links and Alerts screenshots</summary>
 
 ![Live usage showing current download and upload per device, application, segment and link](docs/design/screenshots/17-live.png)
 
@@ -72,6 +73,10 @@ zero traffic or a confirmed outage, and totals are not complete billing figures.
 ![Internet links showing separate link states, measurements and observed history](docs/design/screenshots/07-internet.png)
 
 *Internet links: SLA observations, physical state and history with missing evidence marked. Shipped UI with synthetic fixtures.*
+
+![Alerts showing one open alert and the messages sent, with each channel's delivery](docs/design/screenshots/19-alerts.png)
+
+*Alerts: what is wrong now and every message FortiLens sent, including failed deliveries. Shipped UI with synthetic fixtures.*
 
 </details>
 
@@ -210,7 +215,7 @@ and [management architecture](docs/architecture/MANAGEMENT_ARCHITECTURE.md).
 - **Usage means received-log evidence.** Valid zero deltas stay zero; unsafe cumulative candidates stay pending. Stable event identities prevent replay double counting. Missing MACs remain explicitly unverified. [Read the accounting contract](docs/architecture/ACCOUNTING_ENGINE.md).
 - **Interface metadata has a scope and time.** VLAN mapping uses exact VDOM/interface keys, never subnets. Current inventory cannot establish an old VLAN assignment. FortiGate settings are never changed automatically.
 - **Early access.** Clean Docker installations and controlled HTTPS/syslog fixtures have been tested. Only FortiOS 7.2.14 has been checked on a real device; Diagnostics shows how well your version is covered (see [FortiOS compatibility](docs/operations/COMPATIBILITY.md)). ARM and new real-device onboarding are not yet validated.
-- **Current scope.** One FortiGate per installation. Optional alerts are paused candidates; production activation and recipient testing are explicit operator actions. Complete topology discovery and per-flow SD-WAN route attribution are not inferred.
+- **Current scope.** One FortiGate per installation. Alerts and reports are off until a channel is set up and applied in Settings; they never change the FortiGate. The older optional Grafana alert candidates stay paused until an operator activates them. Complete topology discovery and per-flow SD-WAN route attribution are not inferred.
 
 ## Also included
 

@@ -74,7 +74,7 @@ const server=http.createServer((req,res)=>{
   res.writeHead(200,{'Content-Type':contentType,'Cache-Control':'no-store'});res.end(body);
 });
 const screenshots=[];
-async function capture(browser,{name,pageName='home',light=false,degraded=false,mobile=false,auth='signed-in',inspector=false}) {
+async function capture(browser,{name,pageName='home',light=false,degraded=false,mobile=false,auth='signed-in',inspector=false,section=null}) {
   const errors=[],external=[];
   const context=await browser.newContext({viewport:mobile?{width:375,height:900}:{width:1600,height:1050},colorScheme:light?'light':'dark',reducedMotion:'reduce',locale:'en-GB',timezoneId:'UTC',serviceWorkers:'block'});
   try {
@@ -112,6 +112,8 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
         if(mobile&&pageName==='devices') await frame.locator('#device-body tr').first().scrollIntoViewIfNeeded();
         await page.waitForFunction(()=>document.getElementById('console-loading').hidden&&!document.getElementById('console-frame').hasAttribute('aria-busy'));
       } else if(pageName==='diagnostics') await page.locator('#diagnostic-checks .diagnostic').first().waitFor();
+      else if(pageName==='alerts') await page.locator('#alerts-history tr').first().waitFor();
+      if(section) {await page.locator('#settings-tabs [data-section="'+section+'"]').click();await page.locator('[data-form-section="'+section+'"]').first().waitFor();}
     } else {
       await page.locator('#auth-submit').filter({hasText:auth==='first-run'?'Create administrator':'Sign in'}).waitFor();
       await page.locator('#username').fill('synthetic-admin');
@@ -145,6 +147,8 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
       {name:'16-applications',pageName:'applications'},
       {name:'17-live',pageName:'live'},
       {name:'18-websites',pageName:'websites'},
+      {name:'19-alerts',pageName:'alerts'},
+      {name:'20-alert-settings',pageName:'settings',section:'alerts'},
     ]) await capture(browser,options);
     const sheet=await browser.newPage({viewport:{width:1600,height:1200}});
     try {await sheet.goto(baseURL+'/qa/contact-sheet');await sheet.evaluate(()=>Promise.all([...document.images].map(img=>img.decode())));await sheet.screenshot({path:path.join(privateDir,'contact-sheet.png'),fullPage:true});} finally {await sheet.close();}

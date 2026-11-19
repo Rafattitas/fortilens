@@ -29,6 +29,9 @@
   [Alerts and reports](docs/operations/ALERTS.md).
 - Upgrades add a code file that a newer version introduces to a deployed
   service, instead of failing its image build.
+- The online demo shows the Alerts page and the Alerts & Reports settings with
+  synthetic data, and its report Preview works. Two new screenshots, and the
+  others are retaken with the current interface.
 
 ### Settings
 
