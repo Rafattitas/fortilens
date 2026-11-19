@@ -11,6 +11,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime, timedelta
 import html
+import http.client
 from email.message import EmailMessage
 import json
 import math
@@ -21,6 +22,7 @@ import smtplib
 import ssl
 import statistics
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -202,7 +204,7 @@ def send_telegram(token, chat_id, text, *, opener=None, timeout=15):
         raise DeliveryError(
             "telegram_rejected" if 400 <= exc.code < 500 else "telegram_unreachable"
         ) from None
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):
         raise DeliveryError("telegram_unreachable") from None
     if not isinstance(result, dict) or result.get("ok") is not True:
         raise DeliveryError("telegram_rejected")
@@ -233,7 +235,7 @@ def send_email(c, password, subject, text, *, smtp=smtplib, timeout=20, html_bod
         raise DeliveryError("email_auth") from None
     except (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused, smtplib.SMTPDataError):
         raise DeliveryError("email_rejected") from None
-    except (smtplib.SMTPException, OSError, ssl.SSLError, ValueError):
+    except (smtplib.SMTPException, OSError, ssl.SSLError, ValueError, http.client.HTTPException):
         raise DeliveryError("email_unreachable") from None
 
 
@@ -291,6 +293,8 @@ class Alerts:
 
     def __init__(self, path):
         self.path = Path(path) if path else None
+        # The alert thread changes the state while the HTTP thread reads it.
+        self.lock = threading.RLock()
         self.state = {
             "pending": {},
             "open": {},
@@ -313,8 +317,10 @@ class Alerts:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         handle, temporary = tempfile.mkstemp(dir=self.path.parent, prefix=".alerts-")
         try:
+            with self.lock:
+                data = json.dumps(self.state)
             with os.fdopen(handle, "w", encoding="utf-8") as stream:
-                json.dump(self.state, stream)
+                stream.write(data)
             os.replace(temporary, self.path)
         except OSError:
             try:
@@ -323,6 +329,17 @@ class Alerts:
                 pass
 
     def step(self, now, signals, c, *, at_work=True):
+        with self.lock:
+            return self._step(now, signals, c, at_work=at_work)
+
+    def forget(self, keep):
+        """Drop pending and open alerts whose key ``keep`` rejects, without a message."""
+        with self.lock:
+            for store in (self.state["pending"], self.state["open"]):
+                for key in [k for k in store if not keep(k)]:
+                    del store[key]
+
+    def _step(self, now, signals, c, *, at_work=True):
         """Advance every alert with this minute's signals; return messages to send.
 
         A signal is ``{"rule", "subject", "bad": True|False|None, "text"}``, or an
@@ -332,6 +349,9 @@ class Alerts:
         """
         pending, active, out = self.state["pending"], self.state["open"], []
         rules = (c or DEFAULT)["rules"]
+        for store in (pending, active):
+            for key in [k for k in store if not rules.get(k.split(":")[0], True)]:
+                del store[key]
         for s in signals:
             rule, key = s["rule"], s["rule"] + ":" + s.get("subject", "")
             label, critical, hold, summary = RULES[rule]
@@ -403,25 +423,33 @@ class Alerts:
         return {"at": now, "key": key, "kind": kind, "title": title, "text": text, "held": quiet}
 
     def record(self, message, deliveries):
+        with self.lock:
+            self._record(message, deliveries)
+
+    def _record(self, message, deliveries):
         entry = {k: message[k] for k in ("at", "key", "kind", "title", "text", "held")}
         entry["deliveries"] = deliveries
         history = self.state["history"]
         history.insert(0, entry)
         del history[HISTORY:]
-        # What was not sent waits for the daily summary; keep a few days of it.
-        if message["held"]:
-            digest = self.state.setdefault("digest", [])
-            digest.append({k: message[k] for k in ("at", "key", "kind", "title", "text")})
-            digest[:] = [d for d in digest if d["at"] >= message["at"] - DIGEST_SECONDS]
+        # The daily summary lists every alert, sent or held; keep a few days of it.
+        digest = self.state.setdefault("digest", [])
+        digest.append({k: message[k] for k in ("at", "key", "kind", "title", "text", "held")})
+        digest[:] = [d for d in digest if d["at"] >= message["at"] - DIGEST_SECONDS]
 
     def digest(self, since, until):
-        return [d for d in self.state.get("digest", []) if since <= d["at"] < until]
+        with self.lock:
+            return [dict(d) for d in self.state.get("digest", []) if since <= d["at"] < until]
 
     def view(self):
-        return {
-            "open": sorted(self.state["open"].values(), key=lambda a: a["opened"]),
-            "history": self.state["history"][:100],
-        }
+        with self.lock:
+            return deepcopy(
+                {
+                    "open": sorted(self.state["open"].values(), key=lambda a: a["opened"]),
+                    "history": self.state["history"][:100],
+                    "reports_sent": self.state.get("reports", {}),
+                }
+            )
 
 
 def deliver(c, secrets, messages, alerts, *, send=None, **kwargs):
@@ -429,18 +457,25 @@ def deliver(c, secrets, messages, alerts, *, send=None, **kwargs):
     send = send or globals()["send"]
     for m in messages:
         deliveries = []
-        if not m["held"] and configured(c):
-            for channel in ("telegram", "email"):
-                if not c[channel]["enabled"]:
-                    continue
-                # Email carries critical alerts only; Telegram carries every alert.
-                if channel == "email" and not RULES[m["key"].split(":")[0]][1]:
-                    continue
+        critical = RULES.get(m["key"].split(":")[0], ("", False))[1]
+        # Email carries critical alerts only; Telegram carries every alert.
+        channels = [
+            ch
+            for ch in ("telegram", "email")
+            if c and c[ch]["enabled"] and (ch == "telegram" or critical)
+        ]
+        if not channels:
+            m = {**m, "held": True}
+        if not m["held"]:
+            for channel in channels:
                 try:
                     send(c, secrets, channel, "FortiLens · " + m["title"], m["text"], **kwargs)
                     deliveries.append({"channel": channel, "status": "delivered"})
                 except DeliveryError as exc:
                     deliveries.append({"channel": channel, "status": "failed", "error": exc.code})
+                except Exception:  # noqa: BLE001 - one channel must not stop the others
+                    error = channel + "_unreachable"
+                    deliveries.append({"channel": channel, "status": "failed", "error": error})
         alerts.record(m, deliveries)
 
 
@@ -615,6 +650,9 @@ def device_signals(live, site, open_subjects):
     Devices that stop qualifying, or vanish from the live list, are signalled
     back to normal so their alerts close. No live reading leaves them unknown.
     """
+    fortiview = ((live or {}).get("compatibility") or {}).get("fortiview")
+    if live is not None and fortiview not in (None, "OK"):
+        return []
     speeds = site.get("wan_speeds") or {}
     if not isinstance(live, dict) or not isinstance(live.get("devices"), list) or not speeds:
         return []
@@ -1167,3 +1205,5 @@ def deliver_report(c, secrets, kind, report, *, send=None, **kwargs):
         return {"channel": channel, "status": "delivered"}
     except DeliveryError as exc:
         return {"channel": channel, "status": "failed", "error": exc.code}
+    except Exception:  # noqa: BLE001 - recorded as a failed delivery
+        return {"channel": channel, "status": "failed", "error": channel + "_unreachable"}

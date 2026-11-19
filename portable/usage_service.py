@@ -72,6 +72,24 @@ ERROR_CODES = frozenset(
 # so either one ends with its reason instead of a gateway timeout.
 READ_WAIT_SECONDS = 10
 REPORT_SCAN_SECONDS = 15
+REPORT_RETRY_SECONDS = 600
+# Rules whose subject starts with a WAN line name.
+LINE_RULES = frozenset(
+    ("line_down", "line_slow", "line_starved", "line_loss", "line_full", "checks_disagree")
+)
+
+
+def watched(key, lines, speeds):
+    """Whether an alert key still concerns a watched line, or a line with a speed."""
+    rule, _, subject = key.partition(":")
+    line = subject.split(" · ")[0]
+    if rule in LINE_RULES:
+        return line in lines
+    if rule == "heavy_device":
+        return line in speeds
+    return True
+
+
 # Readers see these instead of the generic "evidence unavailable".
 ERROR_MESSAGES = {
     "reports_busy": "The report service is busy with another long request. Try again in a minute. "
@@ -479,6 +497,7 @@ class Engine:
         self.alerts = notifications.Alerts(None)
         self.notify_file = None
         self._delay_baseline = (0, {})
+        self._report_retry = {}
         self._traffic_baseline = (None, {})
         self.read_lock = threading.RLock()
         self._reader = None
@@ -1447,9 +1466,9 @@ class Engine:
                 },
                 timeout=15,
             )
-        except (ServiceError, OSError, ValueError):
+            stamps = [row["timestamp_ns"] for row in loki_rows(result)]
+        except (ServiceError, OSError, ValueError, KeyError, TypeError):
             return None
-        stamps = [row["timestamp_ns"] for row in loki_rows(result)]
         return now - max(stamps) / accounting.NS if stamps else 6 * 3600
 
     def alert_step(self, now=None):
@@ -1460,20 +1479,25 @@ class Engine:
         at_work = notifications.working(c, now, zone)
         query = lambda expr: self._query(expr, now)  # noqa: E731
         signals = []
-        try:
-            if now - self._delay_baseline[0] >= 3600:
+        names = (
+            self.config.get("confirmed_wan_interfaces") or self.config.get("wan_interfaces") or []
+        )
+        # A failed baseline keeps the previous one and is retried next hour;
+        # it never stops the line checks below.
+        failed = (ServiceError, OSError, ValueError, KeyError, IndexError, TypeError)
+        if now - self._delay_baseline[0] >= 3600:
+            try:
                 self._delay_baseline = (now, notifications.delay_baselines(query))
-            hour = int(now // 3600)
-            names = (
-                self.config.get("confirmed_wan_interfaces")
-                or self.config.get("wan_interfaces")
-                or []
-            )
-            if self._traffic_baseline[0] != hour:
-                self._traffic_baseline = (
-                    hour,
-                    notifications.traffic_baselines(self._query_range, now, zone, c, names),
-                )
+            except failed:
+                self._delay_baseline = (now, self._delay_baseline[1])
+        hour = int(now // 3600)
+        if self._traffic_baseline[0] != hour:
+            try:
+                baseline = notifications.traffic_baselines(self._query_range, now, zone, c, names)
+            except failed:
+                baseline = self._traffic_baseline[1]
+            self._traffic_baseline = (hour, baseline)
+        try:
             signals += notifications.line_signals(
                 query,
                 self.config,
@@ -1496,7 +1520,10 @@ class Engine:
             free = None
         # The writer thread shares the store; read it under the same lock.
         with self.lock:
-            checkpoint = self.store.state("checkpoint_ns")
+            try:
+                checkpoint = self.store.state("checkpoint_ns")
+            except (sqlite3.Error, ValueError, TypeError):
+                checkpoint = None
             try:
                 used = self.used_bytes() / limit if limit else None
             except (OSError, sqlite3.Error, ServiceError, TypeError):
@@ -1521,17 +1548,23 @@ class Engine:
                 except (ServiceError, OSError, ValueError, sqlite3.Error):
                     live = None
                 signals += notifications.device_signals(live, self.config, heavy)
+        speeds = self.config.get("wan_speeds") or {}
+        self.alerts.forget(lambda key: watched(key, set(names), speeds))
         messages = self.alerts.step(now, signals, c, at_work=at_work)
         secrets = notifications.read_secrets(self.notify_file) if self.notify_file else {}
         notifications.deliver(c, secrets, messages, self.alerts)
-        if notifications.configured(c):
-            for kind in notifications.due_reports(c, now, zone, self.alerts.state["reports"]):
-                self.send_report(kind, c, secrets, now)
         self.alerts.save()
+        if notifications.configured(c):
+            with self.alerts.lock:
+                sent = dict(self.alerts.state["reports"])
+            for kind in notifications.due_reports(c, now, zone, sent):
+                if now >= self._report_retry.get(kind, 0):
+                    self.send_report(kind, c, secrets, now)
+            self.alerts.save()
         return messages
 
     def send_report(self, kind, c, secrets, now):
-        """Build, send and record one scheduled report; a failure is recorded, not retried."""
+        """Build, send and record one scheduled report; a failure is retried within its window."""
         markers = notifications.report_markers(now, self.store.zone())
         try:
             report = self.build_report(kind, now)
@@ -1541,9 +1574,14 @@ class Engine:
             log_failure("report_failed", safe_error(exc))
             result = {"channel": None, "status": "failed", "error": "report_unavailable"}
             title = notifications.TITLES[kind]
-        self.alerts.state["reports"][kind] = markers[kind]
-        if kind == "daily":
-            self.alerts.state["reports"]["daily_at"] = now
+        if result["status"] == "delivered":
+            self._report_retry.pop(kind, None)
+            with self.alerts.lock:
+                self.alerts.state["reports"][kind] = markers[kind]
+                if kind == "daily":
+                    self.alerts.state["reports"]["daily_at"] = now
+        else:
+            self._report_retry[kind] = now + REPORT_RETRY_SECONDS
         message = {"at": now, "key": "report:" + kind, "kind": "report", "title": title}
         self.alerts.record({**message, "text": "", "held": False}, [result])
 
@@ -1603,11 +1641,11 @@ class Engine:
         except (ServiceError, ValueError, OSError, sqlite3.Error):
             data["usage"] = None
         if kind == "daily":
-            data["digest"] = self.alerts.digest(start.timestamp(), now)
+            data["digest"] = self.alerts.digest(start.timestamp(), end.timestamp())
             data["alerts_sent"] = sum(
                 1
-                for h in self.alerts.state["history"]
-                if h["at"] >= start.timestamp()
+                for h in list(self.alerts.state["history"])
+                if start.timestamp() <= h["at"] < end.timestamp()
                 and any(d.get("status") == "delivered" for d in h.get("deliveries", []))
                 and h["kind"] != "report"
             )
@@ -1680,7 +1718,6 @@ class Engine:
             },
             "at_work": notifications.working(c, time.time(), self.store.zone()),
             "reports": c["reports"],
-            "reports_sent": self.alerts.state.get("reports", {}),
             **self.alerts.view(),
         }
 

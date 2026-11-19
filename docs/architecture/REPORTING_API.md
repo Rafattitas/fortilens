@@ -45,10 +45,13 @@ bounded in time (see [Errors](#errors)).
 
 The alert state of the accounting service: `enabled` (a channel is on),
 `channels` (`telegram`, `email`: whether each is on), `rules` (per rule its
-`label`, `critical` and `enabled`), `at_work` (now inside the working hours),
-`open` (alerts open now: `rule`, `subject`, `title`, `text`, `opened`) and
-`history` (the last 100 messages: `at`, `kind` of `start`, `reminder`, `end`
-or `event`, `title`, `text`, `held` and `deliveries` with each channel's
+`label`, `critical`, `summary` (listed in the daily summary only) and
+`enabled`), `at_work` (now inside the working hours), `reports` (each report's
+schedule), `reports_sent` (the period each report was last delivered for, and
+`daily_at`), `open` (alerts open now: `rule`, `subject`, `title`, `text`,
+`opened`) and `history` (the last 100 messages: `at`, `kind` of `start`,
+`reminder`, `end`, `event` or `report`, `title`, `text`, `held` and
+`deliveries` with each `channel` (`null` when a report could not be built),
 `status` and fixed `error` code). It never carries a secret. The management
 console reads it as `GET /api/alerts`; `POST /api/notifications/test` with
 `revision` and `channel` sends one test message from the saved draft.

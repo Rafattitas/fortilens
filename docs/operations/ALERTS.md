@@ -55,9 +55,11 @@ without evidence starts its waiting time over.
 
 ## Listed in the daily summary only
 
-These are recorded, shown on the Alerts page, and counted in the next daily
-summary. They are never sent on their own, because they are frequent: on the
-test installation they would have sent about 44 messages in one week.
+The first three are recorded, shown on the Alerts page as held, and counted in
+the next daily summary. New devices are not alerts: they are a section of the
+daily, weekly and monthly reports. None of these is ever sent on its own,
+because they are frequent: on the test installation they would have sent about
+44 messages in one week.
 
 | Alert | Recorded when |
 |---|---|
@@ -70,18 +72,21 @@ test installation they would have sent about 44 messages in one week.
 
 Outside the working hours (default Sunday to Thursday, 08:00 to 18:00, in the
 accounting timezone), only critical alerts are sent. The others are recorded on
-the Alerts page as held and counted in the next daily summary.
+the Alerts page as held and counted in the next daily summary. Email carries
+critical alerts only, so with email as the only channel the other alerts are
+held the same way.
 
 ## Reports
 
 | Report | When | Covers |
 |---|---|---|
-| Daily summary | Working days at 08:00 | Each day since the last summary (after a weekend, the whole weekend): trouble per line and service, the alerts sent, usage, top 5 devices and new devices. |
+| Daily summary | Working days at 08:00 | The whole days since the last summary (after a weekend, the whole weekend; what happens after midnight goes in the next one): every alert per line and service, sent or held, the number of alerts sent, usage, top 5 devices and new devices. |
 | Weekly report | Sunday at 08:00 | The last 7 whole days: per line average loss, incidents of 20 minutes or longer, busy-time use against its speed and average sessions; usage, top 10 devices, segments, applications and new devices. |
-| Monthly report | The 1st at 08:00, off by default | The last month: the weekly content plus a **provider report per line**: the share of observed time it worked, average loss and delay, and every outage (2 minutes or longer) and degraded period (5% loss or more for 20 minutes or longer) with its start, length, worst loss and delay. Send it to the line's provider as evidence. |
+| Monthly report | The 1st at 08:00, off by default | The last month: per line average loss and incidents, usage, top 10 devices, segments, applications and new devices, plus a **provider report per line**: the share of observed time it worked, average loss and delay, and every outage (2 minutes or longer) and degraded period (5% loss or more for 20 minutes or longer) with its start, length, worst loss and delay. Send it to the line's provider as evidence. |
 
 Times and days follow the accounting timezone. A report is sent once, within an
-hour of its time; if the service was down for that hour it is skipped, not sent
+hour of its time. A failed delivery is tried again every 10 minutes within that
+hour; if the service was down for the hour, the report is skipped, not sent
 late. **Preview** shows the text that would be sent now; **Send a sample now**
 sends it once with the saved draft's channel. Usage figures are recorded usage:
 they count only sessions the FortiGate logs.
@@ -90,5 +95,8 @@ they count only sessions the FortiGate logs.
 
 **System → Alerts** lists what is wrong now and the last 100 messages, including
 held and summary-only alerts and each report, with the delivery on each channel.
-The state is kept in `alerts.json` beside the accounting database, so a restart
-neither repeats nor loses an open alert or a sent report.
+The state is kept in `alerts.json` beside the accounting database and saved
+after every minute's check and every report, so a restart neither repeats an
+open alert nor resends a report. Alerts of a rule that is switched off, of a
+line that is no longer watched, or of a device on a line without a speed are
+dropped without a message.

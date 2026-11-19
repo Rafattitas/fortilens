@@ -5,10 +5,10 @@
   "browser": "158.0.8127.18",
   "source_sha256": {
     "tools/capture_screenshots.cjs": "8a089950f03af371f999cbb2bf3ad36fc51cf8dfbf44f12c8ff43d4ca8a06396",
-    "demo/fixtures.js": "ec6a5ac0f04ed9a45d2a62b2e9bfabdd9b727c19352aeac71300b509c8637fb9",
-    "management/app.py": "08c5bece127ca3aa631f7dd3b68c15865195bfc8e050d4395ad60e9e7fa6ee79",
+    "demo/fixtures.js": "9396e83e03e50d7146c2cc44125ae34007e67bd85762569c845b83a47a325445",
+    "management/app.py": "51b6c839d4428c27a488205259d9a13f2e001457102170345bd222a38a5a1458",
     "management/static/index.html": "ed816963c7a61cdd7079b17664e9a981ffda363f9bb305068c1ab6cc7567a3d8",
-    "management/static/app.js": "17329df8184f579ec18aa04662440204e85563eb58ba6c74f55901e8ffb678f4",
+    "management/static/app.js": "dd324d103a6722c5dd78a55e3ac2d48281512462048d3372ef487114864a717b",
     "management/static/app.css": "35339ced3ed67cead27d6ab268b9c836bde17b8b9f4f169f6032b2cee556f7f5",
     "portable/reporting.html": "368b7a51d43f9e9942297f032b87941916c16a4ed23d8ed56979fcb319d69ca3",
     "management/static/fonts/IBMPlexSans-Light-Latin1.woff2": "a21e7db1965d4c7af07213226fb11ccd2f61a87a0045ce1fed7cd22918431144",
@@ -19,7 +19,7 @@
   "screenshots": [
     {
       "file": "docs/design/screenshots/01-overview-dark.png",
-      "sha256": "f1817e419343f5e5bb768c339374e100adfe7d03f850a8c3871ce7573f2b7269",
+      "sha256": "1284f195f760a831768fc97aea36a6d83311c590bed03dd7b4e9a0ecbf442b7a",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -35,7 +35,7 @@
     },
     {
       "file": "docs/design/screenshots/02-overview-light.png",
-      "sha256": "92f34a152d7250e19b83fa9098286c1094fc0f00a895b058513b0beafe038e7b",
+      "sha256": "e669c83365086abbbee2087d9e98cf43d1333924b3018619451d54235226c8c5",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -51,7 +51,7 @@
     },
     {
       "file": "docs/design/screenshots/03-overview-degraded.png",
-      "sha256": "dc9df396e48fff7b38fb8798f867aef6cc196394209fb53cfddcb28257d35c39",
+      "sha256": "fbb95435a875543fe054ec562ea0de8776ff651aa66fd3d98eeb7ffb2be9b407",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -67,7 +67,7 @@
     },
     {
       "file": "docs/design/screenshots/04-usage-docked.png",
-      "sha256": "4e8fc2905d8dcf00471fc40113af885caea66eb6d1e16d61c887716e82065475",
+      "sha256": "603ba5c4a614166869e037c22567d4d35b547184ba020e21b782e1d25574ba3d",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -83,7 +83,7 @@
     },
     {
       "file": "docs/design/screenshots/05-reports.png",
-      "sha256": "8a77080b1c3db9ed79feb26851156015a3c51a7d3da8e36e625c16d665c9a782",
+      "sha256": "7e8673daaeacab7dbbf18da0113b5a23003b48265610b9da53a9f8b888faaefa",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -99,7 +99,7 @@
     },
     {
       "file": "docs/design/screenshots/06-evidence.png",
-      "sha256": "c5cd20a6d8eb9fabed6148a44f140cfc1842d462d5a43eaff5482952a26e53e7",
+      "sha256": "37f6b0ae29e87970cfbc19f675bc12ab29879036919badba5ad6f813dd236bea",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -115,7 +115,7 @@
     },
     {
       "file": "docs/design/screenshots/07-internet.png",
-      "sha256": "a4bef1b69740665d9b1c7a8553180d862a6aeb828dc35c9b88829c5be463dad7",
+      "sha256": "fe0f1bc46045001abd993c3bd9dfd6259a029a99c7cdd15723b07948092c0691",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -131,7 +131,7 @@
     },
     {
       "file": "docs/design/screenshots/08-system.png",
-      "sha256": "49953484feb227375a04404df557aedb542b42fbc988a124d63c683542a14b59",
+      "sha256": "be479af8beadc21f0fc9303986d3ddb3dcf44c28af283fb58d21f91835f599c5",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -147,7 +147,7 @@
     },
     {
       "file": "docs/design/screenshots/09-diagnostics.png",
-      "sha256": "fefe1d9152e6bf36b398159189585f338e2cdac8368dfd2c40a9eb2709cc9e2c",
+      "sha256": "78c0ea7b7acc846392d4ddd5f3c23791589c2e03b6668da3b95f3b80e561d2ea",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -163,7 +163,7 @@
     },
     {
       "file": "docs/design/screenshots/10-settings.png",
-      "sha256": "800bbde824065aabc1410802b2374888385b4a59c971a30ebf38f2b1c0d92974",
+      "sha256": "25006b43b164f19e68d6a91ce3f6f6812ac3112eb30bcac16764aea4287856f2",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -227,7 +227,7 @@
     },
     {
       "file": "docs/design/screenshots/15-usage-narrow.png",
-      "sha256": "2c3c1f2af387ff895888d90c2c3d0b833adba9ad257417a80b667ec29c3f36cd",
+      "sha256": "5d885ceb6f691445964cc5533354c53e5361ad378a929917aba5155f158e4c90",
       "viewport": {
         "width": 375,
         "height": 900
@@ -243,7 +243,7 @@
     },
     {
       "file": "docs/design/screenshots/16-applications.png",
-      "sha256": "525b5d3e44a1d24a5bfefc624e1b92bfc4a2963a2ef666212bf6e2e2102f7609",
+      "sha256": "5698f2ba609a0130188d3f9de11042738fc33f10dfa46fd58503a10cbbe04e78",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -259,7 +259,7 @@
     },
     {
       "file": "docs/design/screenshots/17-live.png",
-      "sha256": "bd7e716ac216b9260f5bb0c5e083fae22fe292efba2321e26f83a953ceb5e8c4",
+      "sha256": "bd15ba88bff8185abdc894f1f43c6dd08f1db056590a809fcb2ec3e72de16356",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -275,7 +275,7 @@
     },
     {
       "file": "docs/design/screenshots/18-websites.png",
-      "sha256": "d1d6ee0efd43d0bf06a46e769eb97f7597a7d7d0f1988558d22be399b4bdf6e6",
+      "sha256": "cd305f79d93a898a70e619382b46da2a9c1f192fbe969043fadf4a9751c283cd",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -291,7 +291,7 @@
     },
     {
       "file": "docs/design/screenshots/19-alerts.png",
-      "sha256": "069d15f1e3920cf6439cdc18852b55f2e147d9c1713d5f121a4a1b323eac4c38",
+      "sha256": "30e81573c21ca160a0e12ad73f01cd169dae2b65ceead4dcf5729bc61b7d5e09",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -307,7 +307,7 @@
     },
     {
       "file": "docs/design/screenshots/20-alert-settings.png",
-      "sha256": "730853b9443e99ab2776b6ea939d3611b5ab553baa0a4104d1f2f6a1b2e8b6b5",
+      "sha256": "a568c9ca32fe099f938ecf67aa886df8d82bbb1fc0e8fd2df5f7bb848ebf4c2f",
       "viewport": {
         "width": 1600,
         "height": 1050

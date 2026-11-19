@@ -1,6 +1,7 @@
 """Alerts: settings, the open/close lifecycle, signals from metrics and delivery."""
 
 from datetime import datetime
+import http.client
 import json
 from pathlib import Path
 import smtplib
@@ -172,6 +173,77 @@ class DeliveryTests(unittest.TestCase):
             {"channel": "email", "status": "failed", "error": "email_auth"},
         )
 
+    def test_alerts_no_channel_carries_are_held_and_every_alert_reaches_the_summary(self):
+        email_only = settings(
+            email={
+                "enabled": True,
+                "host": "smtp.example.com",
+                "sender": "a@example.com",
+                "to": ["b@example.com"],
+            }
+        )
+        sent, alerts = [], n.Alerts(None)
+        messages = [
+            {
+                "at": 1,
+                "key": "line_down:wan2",
+                "kind": "start",
+                "title": "Down",
+                "text": "x",
+                "held": False,
+            },
+            {
+                "at": 2,
+                "key": "line_slow:wan2",
+                "kind": "start",
+                "title": "Slow",
+                "text": "y",
+                "held": False,
+            },
+        ]
+        n.deliver(email_only, {}, messages, alerts, send=lambda c, s, ch, *a, **k: sent.append(ch))
+        self.assertEqual(sent, ["email"])  # email carries the critical alert only
+        history = alerts.view()["history"]
+        self.assertEqual((history[0]["held"], history[0]["deliveries"]), (True, []))
+        self.assertFalse(history[1]["held"])
+        # The daily summary lists both: the one sent and the one held.
+        self.assertEqual(
+            [d["key"] for d in alerts.digest(0, 10)], ["line_down:wan2", "line_slow:wan2"]
+        )
+
+    def test_an_unexpected_failure_on_one_channel_is_recorded_and_others_still_go(self):
+        c = settings(
+            telegram={"enabled": True, "chat_id": "-1001234"},
+            email={
+                "enabled": True,
+                "host": "smtp.example.com",
+                "sender": "a@example.com",
+                "to": ["b@example.com"],
+            },
+        )
+        sent = []
+
+        def send(c, secrets, channel, *args, **kwargs):
+            if channel == "telegram":
+                raise http.client.IncompleteRead(b"")
+            sent.append(channel)
+
+        alerts = n.Alerts(None)
+        message = {
+            "at": 1,
+            "key": "line_down:wan2",
+            "kind": "start",
+            "title": "Down",
+            "text": "x",
+            "held": False,
+        }
+        n.deliver(c, {}, [message], alerts, send=send)
+        self.assertEqual(sent, ["email"])
+        self.assertEqual(
+            alerts.view()["history"][0]["deliveries"][0],
+            {"channel": "telegram", "status": "failed", "error": "telegram_unreachable"},
+        )
+
     def test_telegram_errors_never_carry_the_token(self):
         class Response:
             def __init__(self, body):
@@ -198,6 +270,11 @@ class DeliveryTests(unittest.TestCase):
 
         ok = Opener(json.dumps({"ok": True}).encode())
         n.send_telegram(TOKEN, "-1001234", "hello", opener=ok)
+        with self.assertRaises(n.DeliveryError) as broken:
+            n.send_telegram(
+                TOKEN, "-1001234", "hello", opener=Opener(http.client.IncompleteRead(b""))
+            )
+        self.assertEqual(broken.exception.code, "telegram_unreachable")
         self.assertIn(b"chat_id=-1001234", ok.requests[0].data)
         for result, code in (
             (
@@ -492,6 +569,9 @@ class SummaryAndDeviceTests(unittest.TestCase):
         gone = n.device_signals({"devices": []}, site, {"internal3 · MICHEAL"})
         self.assertEqual([(s["subject"], s["bad"]) for s in gone], [("internal3 · MICHEAL", False)])
         self.assertEqual(n.device_signals(None, site, {"internal3 · MICHEAL"}), [])
+        # Interface counters without FortiView rows say nothing about devices.
+        blind = {"devices": [], "compatibility": {"fortiview": "UNAVAILABLE"}}
+        self.assertEqual(n.device_signals(blind, site, {"internal3 · MICHEAL"}), [])
         self.assertEqual(n.device_signals(live, {}, set()), [])
 
 
@@ -692,6 +772,54 @@ class ServiceReportTests(unittest.TestCase):
         self.assertIsNone(engine.new_devices("2026-11-01", "2026-11-02"))
         with self.assertRaises(u.ServiceError):
             engine.build_report("yearly")
+
+    def engine(self):
+        import accounting as a
+        import usage_service as u
+        from test_accounting import CONFIG, INVENTORY
+
+        store = a.Store(
+            ":memory:", {**CONFIG, "fortigate_host": "fw:443"}, INVENTORY, storage_format="compact"
+        )
+        self.addCleanup(store.close)
+
+        def fetch(*args, **kwargs):
+            raise OSError("metrics unavailable")
+
+        return u, u.Engine(store, fetch=fetch)
+
+    def test_the_daily_summary_covers_whole_days_and_lists_sent_alerts(self):
+        u, engine = self.engine()
+        now = datetime(2026, 12, 1, 9, tzinfo=CAIRO).timestamp()  # Tuesday
+        for hour, line in ((10, "wan8"), (31, "wan9")):  # Monday 10:00, Tuesday 07:00
+            message = {
+                "at": datetime(2026, 11, 30, tzinfo=CAIRO).timestamp() + hour * 3600,
+                "key": "line_down:" + line,
+                "kind": "start",
+                "title": "Line down · " + line,
+                "text": "x",
+                "held": False,
+            }
+            engine.alerts.record(message, [{"channel": "telegram", "status": "delivered"}])
+        text = engine.build_report("daily", now=now)["text"]
+        self.assertIn("wan8: line down 1×", text)
+        self.assertNotIn("wan9", text)  # after midnight: the next summary's
+        self.assertIn("Alerts sent: 1", text)
+
+    def test_a_failed_report_is_retried_in_its_window_and_alerts_of_unwatched_lines_drop(self):
+        u, engine = self.engine()
+        c = settings(telegram={"enabled": True, "chat_id": "-1001234"})
+        now = datetime(2026, 12, 1, 8, 5, tzinfo=CAIRO).timestamp()
+        engine.send_report("daily", c, {}, now)  # no bot token: not delivered
+        self.assertNotIn("daily", engine.alerts.state["reports"])
+        self.assertEqual(engine._report_retry["daily"], now + u.REPORT_RETRY_SECONDS)
+        self.assertEqual(engine.alerts.view()["history"][0]["kind"], "report")
+        self.assertTrue(u.watched("line_down:wan1", {"wan1"}, {}))
+        self.assertFalse(u.watched("line_down:wan3", {"wan1"}, {}))
+        self.assertFalse(u.watched("heavy_device:wan1 · pc", {"wan1"}, {}))
+        self.assertTrue(u.watched("logs_stopped:", set(), {}))
+        # A whole step without any metrics or logs runs and opens nothing.
+        self.assertEqual(engine.alert_step(now), [])
 
 
 if __name__ == "__main__":

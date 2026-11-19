@@ -23,6 +23,8 @@ from .models import Apply, Change, Job, NotifyReport, NotifyTest, Revision, Stri
 
 STATIC = Path(__file__).parent / "static"
 COOKIE = "fortilens_management"
+# Building and sending a report reads raw records and Prometheus ranges; allow a minute.
+REPORT_TIMEOUT = 75
 EMBEDDED_VIEWS = {
     "monitoring",
     "wan",
@@ -459,11 +461,11 @@ def create_app(
 
     @app.post("/api/notifications/preview")
     def report_preview(body: NotifyReport):
-        return helper.call("report_preview", body.model_dump())
+        return helper.call("report_preview", body.model_dump(), timeout=REPORT_TIMEOUT)
 
     @app.post("/api/notifications/report")
     def report_sample(body: NotifyReport):
-        return helper.call("notify_report", body.model_dump())
+        return helper.call("notify_report", body.model_dump(), timeout=REPORT_TIMEOUT)
 
     @app.get("/api/diagnostics")
     def diagnostics():

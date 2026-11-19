@@ -416,9 +416,9 @@ class Docker:
             )
         return addresses[0], port
 
-    def http(self, service, port, path, *, method="GET", body=None, headers=None):
+    def http(self, service, port, path, *, method="GET", body=None, headers=None, timeout=5):
         host, port = self.address(service, port)
-        conn = http.client.HTTPConnection(host, port, timeout=5)
+        conn = http.client.HTTPConnection(host, port, timeout=timeout)
         try:
             conn.request(method, path, body=body, headers=headers or {})
             r = conn.getresponse()
@@ -629,7 +629,9 @@ class Operations:
         if operation in ("report_preview", "notify_report"):
             request = NotifyReport.model_validate(data)
             try:
-                report = self.usage_get("/api/alerts/report?kind=" + request.kind)
+                # Building a report reads raw records and Prometheus ranges (up to 15 s
+                # and 25 s); sending it can take another 20 s.
+                report = self.usage_get("/api/alerts/report?kind=" + request.kind, timeout=50)
             except ValueError:
                 raise Problem(
                     "alerts_unavailable",
@@ -1418,7 +1420,7 @@ class Operations:
         self.c.audit("notification_report_sample", [request.kind])
         return {"status": "delivered", "channel": result["channel"], "at": time.time()}
 
-    def usage_get(self, route):
+    def usage_get(self, route, *, timeout=5):
         """GET a route of the accounting service with its own report credential."""
         compose = self.c.compose() or {}
         source = compose.get("secrets", {}).get("usage_admin_password", {}).get("file")
@@ -1431,7 +1433,9 @@ class Operations:
         password = guarded(self.c.root, path.relative_to(self.c.root)).read_text().strip()
         auth = "Basic " + base64.b64encode(("admin:" + password).encode()).decode()
         try:
-            return self.docker.http("fortilens-usage", 8080, route, headers={"Authorization": auth})
+            return self.docker.http(
+                "fortilens-usage", 8080, route, headers={"Authorization": auth}, timeout=timeout
+            )
         except Problem:
             raise ValueError("accounting_service_unavailable") from None
 

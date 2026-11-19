@@ -129,7 +129,7 @@ class Helper:
     def __init__(self, operations):
         self.operations = operations
 
-    def call(self, operation, data=None):
+    def call(self, operation, data=None, *, timeout=45):
         return self.operations.dispatch(operation, data or {})
 
 
@@ -999,7 +999,7 @@ class ManagementTests(unittest.TestCase):
         report = {"subject": "FortiLens · Daily summary", "text": "T", "html": "<p>T</p>"}
         revision = self.c.view()["revision"]
         with (
-            patch.object(self.ops, "usage_get", return_value=report),
+            patch.object(self.ops, "usage_get", return_value=report) as usage,
             patch.object(notifications, "send") as send,
         ):
             self.assertEqual(
@@ -1007,6 +1007,8 @@ class ManagementTests(unittest.TestCase):
             )
             sent = self.ops.dispatch("notify_report", {"revision": revision, "kind": "daily"})
         self.assertEqual((sent["status"], sent["channel"]), ("delivered", "telegram"))
+        # Building a report takes longer than an ordinary service read.
+        usage.assert_called_with("/api/alerts/report?kind=daily", timeout=50)
         self.assertEqual(send.call_args.args[2], "telegram")
         with patch.object(self.ops, "usage_get", return_value={"subject": "x"}):
             with self.assertRaises(Problem) as broken:
