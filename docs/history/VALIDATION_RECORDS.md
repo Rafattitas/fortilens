@@ -21,6 +21,35 @@ candidate full archive contained 169 files and its portable archive retained
 27 files. Runtime source, installer inputs and Docker allowlists were unchanged;
 no server deployment or live-device test was performed for this refresh.
 
+### Record: 2026-11-19, alerts and reports, source head `0c65d1f`
+
+On the test installation (web-managed, FortiOS 7.2.14 source), after
+`install.sh --upgrade` from this head:
+
+- The unit suite (688 tests), Ruff, the repository check, the browser
+  deployment test, the demo check (28 pages in two themes) and the screenshot
+  capture (19 images, no browser errors) passed on the head before deployment.
+- The first upgrade attempt of the alerts work failed its image build because
+  the new `notifications.py` was not copied into the deployed service; it rolled
+  back automatically. Upgrades now add such a file; the second upgrade passed.
+- The accounting service returned healthy, its alert thread saved
+  `alerts.json` every minute and logged no `alert_step_failed` or
+  `report_failed`. `/api/alerts` listed 13 rules and nothing open.
+- Reports built from the installation's own data: daily summary in 7.2 s,
+  weekly in 2.3 s, monthly in 0.1 s (October has no retained samples and
+  reads as unknown, not as zero). The daily time exceeded the 5-second limit
+  the console used before review; Preview and Send a sample now now wait up to
+  50 seconds.
+- An independent code review found ten problems (the daily summary leaving out
+  sent alerts, non-critical alerts lost with email as the only channel, heavy-
+  device alerts closing without FortiView rows, one failure stopping the whole
+  step, a thread race, double-counted days, reports lost on one failed send);
+  all were fixed with tests before this deployment.
+
+Not verified: delivery to a real Telegram chat or mail server (no channel is
+configured on the test installation), a scheduled report sent at its hour, and
+a heavy-device alert on live traffic.
+
 ### Record: 2026-11-10, source head `772c7bf`
 
 On the test installation (web-managed, FortiOS 7.2.14 source), after
