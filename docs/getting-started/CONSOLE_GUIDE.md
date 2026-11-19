@@ -187,6 +187,9 @@ ready to read or share.
 
 ## System
 
+- **Alerts** shows what is wrong now and every alert FortiLens sent, with its
+  delivery on Telegram and email. Alerts are set up in Settings → Alerts &
+  Reports; see [Alerts](../operations/ALERTS.md).
 - **Status** lists the monitoring services, storage use and whether the saved
   configuration is applied.
 - **Data quality** follows a record from received to processed to classified and

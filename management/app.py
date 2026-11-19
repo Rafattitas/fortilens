@@ -19,7 +19,7 @@ from pydantic import Field, SecretStr
 from .auth import Auth
 from .common import Problem, report_failure
 from .helper import Client
-from .models import Apply, Change, Job, Revision, Strict
+from .models import Apply, Change, Job, NotifyReport, NotifyTest, Revision, Strict
 
 STATIC = Path(__file__).parent / "static"
 COOKIE = "fortilens_management"
@@ -440,7 +440,7 @@ def create_app(
     @app.post("/api/settings")
     def save(body: Change):
         values = body.model_dump(mode="json")
-        for name in ("api_token", "custom_ca"):
+        for name in ("api_token", "custom_ca", "telegram_bot_token", "smtp_password"):
             if getattr(body, name) is not None:
                 values[name] = getattr(body, name).get_secret_value()
         return helper.call("save", values)
@@ -448,6 +448,22 @@ def create_app(
     @app.get("/api/system")
     def system():
         return helper.call("status")
+
+    @app.get("/api/alerts")
+    def alerts():
+        return helper.call("alerts")
+
+    @app.post("/api/notifications/test")
+    def notification_test(body: NotifyTest):
+        return helper.call("notify_test", body.model_dump())
+
+    @app.post("/api/notifications/preview")
+    def report_preview(body: NotifyReport):
+        return helper.call("report_preview", body.model_dump())
+
+    @app.post("/api/notifications/report")
+    def report_sample(body: NotifyReport):
+        return helper.call("notify_report", body.model_dump())
 
     @app.get("/api/diagnostics")
     def diagnostics():

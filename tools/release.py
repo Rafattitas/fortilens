@@ -90,6 +90,7 @@ PUBLIC_FILES = (
     "docs/operations/CAPACITY.md",
     "docs/operations/COMPATIBILITY.md",
     "docs/operations/WEBSITES.md",
+    "docs/operations/ALERTS.md",
     "docs/operations/OPTIONAL_ALERTS.md",
     "docs/history/PR_PROFESSIONALIZATION.md",
     "docs/development/PROJECT_CONTEXT.md",

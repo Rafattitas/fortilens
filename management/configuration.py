@@ -19,6 +19,7 @@ import time
 import urllib.parse
 import yaml
 from .common import Problem, atomic, fingerprint, guarded, load, report_failure, setup
+import notifications  # noqa: E402  (portable/, on the path through .common)
 from .models import Change, Settings
 
 SERVICES = (
@@ -35,6 +36,9 @@ SERVICES = (
 
 
 ACCOUNTING_CPUS = ("0.5", "1", "2")
+# Telegram bot token and mail password for alerts, as one write-only secret file.
+NOTIFY_SECRET = "secrets/notify_credentials"
+NOTIFY_KEYS = ("telegram_bot_token", "smtp_password")
 
 
 def accounting_cpus(compose):
@@ -96,6 +100,25 @@ SETTING_LABELS = {
     "retention.summary_days": ("Daily summary retention", "storage"),
     "retention.database_bytes": ("Accounting database limit", "storage"),
     "accounting_cpus": ("Accounting processing CPU", "storage"),
+    "notifications.telegram.enabled": ("Send alerts to Telegram", "alerts"),
+    "notifications.telegram.chat_id": ("Telegram chat ID", "alerts"),
+    "notifications.email.enabled": ("Send alerts by email", "alerts"),
+    "notifications.email.host": ("Mail server", "alerts"),
+    "notifications.email.port": ("Mail server port", "alerts"),
+    "notifications.email.security": ("Mail security", "alerts"),
+    "notifications.email.user": ("Mail user", "alerts"),
+    "notifications.email.sender": ("From address", "alerts"),
+    "notifications.email.to": ("Email recipients", "alerts"),
+    "notifications.work_hours.start": ("Working hours start", "alerts"),
+    "notifications.work_hours.end": ("Working hours end", "alerts"),
+    "notifications.work_hours.days": ("Working days", "alerts"),
+    "notifications.reports.daily.enabled": ("Daily summary", "alerts"),
+    "notifications.reports.daily.time": ("Daily summary time", "alerts"),
+    "notifications.reports.weekly.enabled": ("Weekly report", "alerts"),
+    "notifications.reports.weekly.day": ("Weekly report day", "alerts"),
+    "notifications.reports.weekly.time": ("Weekly report time", "alerts"),
+    "notifications.reports.monthly.enabled": ("Monthly report", "alerts"),
+    "notifications.reports.monthly.time": ("Monthly report time", "alerts"),
 }
 
 
@@ -131,7 +154,11 @@ def _flatten(settings, prefix=""):
     flat = {}
     for key, value in (settings or {}).items():
         name = prefix + key
-        if key in ("monitoring", "retention") and isinstance(value, dict) and not prefix:
+        if isinstance(value, dict) and (
+            key in ("monitoring", "retention", "notifications")
+            and not prefix
+            or prefix.startswith("notifications.")
+        ):
             flat.update(_flatten(value, name + "."))
         else:
             flat[name] = value
@@ -159,7 +186,12 @@ def setting_changes(applied, draft, pending=None):
         old, new = before.get(field), after.get(field)
         if old == new or _setting_text(field, old) == _setting_text(field, new):
             continue
-        label, section = SETTING_LABELS.get(field, (field, "general"))
+        rule = field.removeprefix("notifications.rules.")
+        label, section = SETTING_LABELS.get(field) or (
+            ("Alert: " + notifications.RULES[rule][0], "alerts")
+            if rule != field and rule in notifications.RULES
+            else (field, "general")
+        )
         changes.append(
             {
                 "field": field,
@@ -180,6 +212,20 @@ def setting_changes(applied, draft, pending=None):
                 "after": "New token",
             }
         )
+    for key, label in (
+        ("telegram_bot_token", "Telegram bot token"),
+        ("smtp_password", "Mail password"),
+    ):
+        if pending.get(key):
+            changes.append(
+                {
+                    "field": key,
+                    "label": label,
+                    "section": "alerts",
+                    "before": "Current",
+                    "after": "New",
+                }
+            )
     if "ca" in pending:
         changes.append(
             {
@@ -536,6 +582,12 @@ class Configuration:
             )
         return matches[0]
 
+    def notify_secrets(self):
+        """Alert channel secrets: the stored file, overlaid by values saved in the draft."""
+        stored = notifications.read_secrets(self.root / NOTIFY_SECRET)
+        pending = load(self.secret_path, {})
+        return {key: pending.get(key) or stored.get(key) or "" for key in NOTIFY_KEYS}
+
     def view(self):
         state = self.state()
         try:
@@ -565,6 +617,7 @@ class Configuration:
                     load(self.secret_path, {}).get("ca")
                     or load(self.root / state["site_file"], {}).get("api_ca_file")
                 ),
+                **{key + "_present": bool(value) for key, value in self.notify_secrets().items()},
             },
             "pending_changes": state["applied_revision"] != state["revision"],
             # Saved but not applied, as a person reads them; empty before the first Apply.
@@ -728,6 +781,17 @@ class Configuration:
                         "invalid_ca", "The custom CA is not a valid PEM trust bundle."
                     ) from None
                 secret["ca"] = ca
+            # Alert channel secrets: a non-empty value replaces the stored one.
+            sent = []
+            for key in NOTIFY_KEYS:
+                value = getattr(change, key)
+                if value is None or not value.get_secret_value():
+                    continue
+                text = value.get_secret_value()
+                if len(text) > 512 or any(ord(c) < 32 for c in text):
+                    raise Problem("invalid_secret", "Enter the bot token or password as one line.")
+                secret[key] = text
+                sent.append(key)
             # One state transaction owns draft and write-only secret values.
             # Secret staging does not alter active service credentials.
             secret["revision"] = state["revision"] + 1
@@ -735,7 +799,9 @@ class Configuration:
             changed = [key for key in new if new[key] != state["settings"].get(key)]
             state.update(settings=new, revision=state["revision"] + 1)
             atomic(self.state_path, state)
-            self.audit("settings_saved", changed + (["api_token"] if change.api_token else []))
+            self.audit(
+                "settings_saved", changed + (["api_token"] if change.api_token else []) + sent
+            )
             return self.view()
 
     def _patch(self, stage, settings, c):
@@ -856,6 +922,17 @@ class Configuration:
                     p.files[relative] = (p.stage / relative).read_bytes()
             for path in (p.stage / "usage").iterdir():
                 p.files["usage/" + path.name] = path.read_bytes()
+        if "fortilens-usage" in compose["services"] and p.settings.notifications.used():
+            # Telegram and mail secrets reach the writer as one secret file; the
+            # console writes it, the browser never reads it back.
+            service = compose["services"]["fortilens-usage"]
+            if "notify_credentials" not in service.setdefault("secrets", []):
+                service["secrets"].append("notify_credentials")
+            compose.setdefault("secrets", {}).setdefault(
+                "notify_credentials", {"file": "./" + NOTIFY_SECRET}
+            )
+            if not (self.root / NOTIFY_SECRET).exists():
+                p.files[NOTIFY_SECRET] = b"{}\n"
         # Keep an existing source-contract identity, ports, data volumes and images.
         c["portal_enabled"] = p.active.get("portal_enabled", False)
         if "fortilens-portal" in compose["services"]:
@@ -1287,6 +1364,9 @@ class Configuration:
             files = self._patch(stage, settings, c)
             if not self.compose():
                 c = self._fresh_candidate(stage, settings, files)
+            if NOTIFY_SECRET in files or any(pending.get(k) for k in NOTIFY_KEYS):
+                merged = {k: v for k, v in self.notify_secrets().items() if v}
+                files[NOTIFY_SECRET] = (json.dumps(merged) + "\n").encode()
             if self.compose() and "ca" in pending and pending["ca"]:
                 files["secrets/web-fortigate-ca.pem"] = pending["ca"].encode()
             files[state["site_file"]] = setup.dumps(c).encode()

@@ -215,6 +215,7 @@ and [management architecture](docs/architecture/MANAGEMENT_ARCHITECTURE.md).
 ## Also included
 
 - [Compact accounting storage](docs/architecture/COMPACT_ACCOUNTING.md): new databases use compact storage; existing ones can be converted as a verified offline copy, never automatically.
+- [Alerts](docs/operations/ALERTS.md): line down, slow or starved lines, stopped logs and more, sent to Telegram or email.
 - [Optional alert candidates](docs/operations/OPTIONAL_ALERTS.md): paused WAN, performance and collection rules that leave existing notifications alone.
 - [Read-only diagnostics](docs/operations/TROUBLESHOOTING.md): tell failed collection, old samples, missing logs and authentication problems apart.
 - [Upgrades from v0.1.0](docs/operations/UPGRADE.md): a reviewed migration with hash-guarded rollback.

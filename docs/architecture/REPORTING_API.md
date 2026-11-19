@@ -41,6 +41,22 @@ bounded in time (see [Errors](#errors)).
 
 ## Endpoints
 
+### `/api/alerts`
+
+The alert state of the accounting service: `enabled` (a channel is on),
+`channels` (`telegram`, `email`: whether each is on), `rules` (per rule its
+`label`, `critical` and `enabled`), `at_work` (now inside the working hours),
+`open` (alerts open now: `rule`, `subject`, `title`, `text`, `opened`) and
+`history` (the last 100 messages: `at`, `kind` of `start`, `reminder`, `end`
+or `event`, `title`, `text`, `held` and `deliveries` with each channel's
+`status` and fixed `error` code). It never carries a secret. The management
+console reads it as `GET /api/alerts`; `POST /api/notifications/test` with
+`revision` and `channel` sends one test message from the saved draft.
+
+`/api/alerts/report?kind=daily|weekly|monthly` returns the report that would be
+sent now as `subject`, `text` and `html`. It sends nothing; the console uses it
+for Preview and Send a sample now.
+
 ### `/api/report`
 
 Recorded Internet usage per device and segment.

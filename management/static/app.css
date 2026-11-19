@@ -335,6 +335,23 @@ legend { padding: 0 6px; color: var(--sub); font-size: 12.5px; font-weight: 500;
 .change-table td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line2); vertical-align: top; overflow-wrap: anywhere; }
 .change-table td:last-child { font-weight: 500; }
 #plan-effects p { margin: 2px 0 0; }
+/* Alerts & Reports */
+.alert-channels { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.channel { display: flex; flex-direction: column; gap: 10px; min-width: 0; margin: 0; padding: 12px 14px; border: 1px solid var(--line2); border-radius: var(--r2); }
+.channel legend { padding: 0 6px; font-weight: 500; }
+.channel .check { margin: 0; }
+.alert-rules { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
+.alert-rule { margin: 0; padding: 8px 0; border-bottom: 1px solid var(--line2); }
+.alert-rule .help { display: block; }
+.workdays { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0; padding: 0; border: 0; }
+.workdays legend { margin-bottom: 4px; color: var(--sub); font-size: 12.5px; }
+#work-days { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+#work-days .check { margin: 0; }
+.alerts-open { display: flex; flex-direction: column; gap: 8px; }
+#alerts-page .panel { margin-bottom: var(--gap); }
+.report-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
+.report-preview { max-height: 420px; overflow: auto; margin: 8px 0 0; padding: 10px 12px; border-radius: var(--r2); background: var(--well); color: var(--ink); font: 12.5px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
+@media (max-width: 900px) { .alert-channels, .report-grid { grid-template-columns: minmax(0, 1fr); } }
 .review-list > div { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 16px; padding: 6px 0; border-bottom: 1px solid var(--line2); }
 .review-list > div:last-child { border-bottom: 0; }
 dt { color: var(--sub); font-size: 12.5px; }

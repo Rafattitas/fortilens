@@ -391,6 +391,27 @@ class UpgradeTests(unittest.TestCase):
         self.assertEqual(changes, ["usage/usage_service.py"])
         self.assertFalse((self.stack / "syslog").exists())
 
+    def test_a_deployed_service_receives_a_file_a_newer_version_added(self):
+        # An installation from before alerts has no notifications.py; its image
+        # build needs it, so the upgrade adds it with the Dockerfile's mode.
+        (self.stack / "usage/notifications.py").unlink()
+        changes = upgrade.stack_changes(ROOT, self.stack)
+        self.assertIn("usage/notifications.py", changes)
+        self.assertNotIn("syslog/syslog_receiver.py", changes)
+        with mock.patch.object(upgrade.install, "put") as put:
+            upgrade.copy_like(self.stack / "usage/notifications.py", b"code")
+        mode = (self.stack / "usage/Dockerfile").stat().st_mode & 0o777
+        self.assertEqual(put.call_args.kwargs["mode"], mode)
+        # The whole upgrade backs up only files that existed, then adds the new one.
+        journal = upgrade.upgrade(
+            ROOT, self.prefix, host=FakeHost(self.registry), now=1_800_000_000
+        )
+        self.assertIn("usage/notifications.py", journal["stack"])
+        self.assertEqual(
+            (self.stack / "usage/notifications.py").read_bytes(),
+            (ROOT / "portable/notifications.py").read_bytes(),
+        )
+
     def test_installer_points_existing_installations_to_the_upgrade(self):
         text = (ROOT / "management/install.py").read_text()
         self.assertIn("--upgrade", text)

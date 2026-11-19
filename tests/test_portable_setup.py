@@ -251,7 +251,7 @@ class PortableSetupTests(unittest.TestCase):
             p = Path(parent) / "bundle.zip"
             setup.bundle(p)
             with zipfile.ZipFile(p) as archive:
-                self.assertEqual(len(archive.namelist()), 27)
+                self.assertEqual(len(archive.namelist()), 28)
                 for name in archive.namelist():
                     self.assertTrue(name.startswith("forti-monitor/"))
                     self.assertNotIn("local/", name)

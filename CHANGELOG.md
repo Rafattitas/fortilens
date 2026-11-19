@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### Alerts
+
+- FortiLens can now send alerts to Telegram, and critical ones by email. Set
+  up in Settings → Alerts & Reports, off until applied. Alerts: line down,
+  Internet slow on a line, line carries little traffic for its hour, logs
+  stopped arriving, FortiGate unreachable, accounting behind, storage nearly
+  full, SD-WAN rules changed. Each sends one message when it starts, a
+  reminder every 2 hours and one when it ends; missing evidence never opens or
+  closes one. Outside working hours only critical alerts are sent.
+- **Send test message** checks a channel from the saved draft. The bot token
+  and mail password are write-only and reach only the accounting service, as
+  `secrets/notify_credentials`.
+- One device filling a line (half of its upload or download for 20 minutes)
+  is sent right away, naming the device. Line losing packets, line nearly full,
+  health checks that disagree and new devices are listed in the daily summary
+  only.
+- Reports: a daily summary on working days (Telegram), a weekly report and an
+  optional monthly report (email). The monthly report adds a provider report per
+  line: the share of time it worked, and every outage and degraded period with
+  its time, length, loss and delay. **Preview** and **Send a sample now** in
+  Settings.
+- New page System → Alerts: open alerts and the last 100 messages with their
+  delivery. New endpoints `/api/alerts`, `/api/alerts/report` and, in the
+  console, `POST /api/notifications/test`, `/preview` and `/report`. See
+  [Alerts and reports](docs/operations/ALERTS.md).
+- Upgrades add a code file that a newer version introduces to a deployed
+  service, instead of failing its image build.
+
 ### Settings
 
 - Saved changes that are not applied yet are now visible everywhere in
