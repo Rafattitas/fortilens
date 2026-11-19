@@ -26,6 +26,13 @@
       grafana_port: 3001, usage_port: 3002, monitoring_interval: 60,
       monitoring: {wan: true, sla: true, interfaces: true, syslog: true, accounting: true, vlans: true, server: true, websites: true},
       retention: {loki_days: 60, prometheus_days: 90, ledger_days: 8, summary_days: 400, database_bytes: 9 * GiB},
+      notifications: {
+        telegram: {enabled: true, chat_id: '-1001234567890'},
+        email: {enabled: true, host: 'smtp.example.com', port: 587, security: 'starttls', user: 'fortilens', sender: 'fortilens@example.com', to: ['noc@example.com']},
+        rules: Object.fromEntries(['line_down', 'line_slow', 'line_starved', 'heavy_device', 'logs_stopped', 'fortigate_unreachable', 'accounting_behind', 'storage_full', 'sdwan_changed', 'line_loss', 'line_full', 'checks_disagree', 'new_device'].map(name => [name, true])),
+        work_hours: {start: '08:00', end: '18:00', days: ['sun', 'mon', 'tue', 'wed', 'thu']},
+        reports: {daily: {enabled: true, time: '08:00'}, weekly: {enabled: true, day: 'sun', time: '08:00'}, monthly: {enabled: true, time: '08:00'}},
+      },
     };
     const vlans = [
       {key: 'vlan:100:staff', status: 'MAPPED', vlan_id: 100, interface: 'staff'},
@@ -219,7 +226,7 @@
     }
     function view() {
       return {settings, configured: true, revision: 7, applied_revision: 7, pending_changes: false,
-        scope_locked: true, accounting_scope: {vdom: settings.vdom, accounting_timezone: settings.accounting_timezone, expected_devid: settings.expected_devid}, secret_status: {api_token_present: true, custom_ca_present: true}, active_monitoring: settings.monitoring,
+        scope_locked: true, accounting_scope: {vdom: settings.vdom, accounting_timezone: settings.accounting_timezone, expected_devid: settings.expected_devid}, secret_status: {api_token_present: true, custom_ca_present: true, telegram_bot_token_present: true, smtp_password_present: true}, active_monitoring: settings.monitoring,
         active_sla: settings.sla, discovery: {required: true, current: true, reason: 'Synthetic discovery matches this fixture.', changed_fields: []}};
     }
     const diagnostics = dashboard => ({system: system(dashboard), monitoring: {status: 'Recorded evidence', checks: [
@@ -233,6 +240,45 @@
       {id: 'completeness', status: 'UNKNOWN', message: 'Received records do not certify complete traffic collection.', action: 'Compare sender, listener and processing evidence before interpreting totals.'},
     ]}, collection: {latest_log_at: new Date(now - 12000).toISOString(), latest_metric_at: new Date(now - 15000).toISOString(), processing_lag_seconds: 4, log_timestamp_kind: 'receipt time'}});
 
+    // Synthetic alert state: one alert open now and what was sent before it.
+    const RULES = [['line_down', 'Line down', true], ['line_slow', 'Internet slow on a line', false], ['line_starved', 'Line carries little traffic', false],
+      ['heavy_device', 'One device fills a line', false], ['logs_stopped', 'Logs stopped arriving', true], ['fortigate_unreachable', 'FortiGate unreachable', true],
+      ['accounting_behind', 'Accounting behind', false], ['storage_full', 'Storage nearly full', true], ['sdwan_changed', 'SD-WAN rules changed', false],
+      ['line_loss', 'Line losing packets', false, true], ['line_full', 'Line nearly full', false, true], ['checks_disagree', 'Health checks disagree', false, true],
+      ['new_device', 'New device on the network', false, true]];
+    function alerts() {
+      const both = [{channel: 'telegram', status: 'delivered'}, {channel: 'email', status: 'delivered'}];
+      const telegram = [{channel: 'telegram', status: 'delivered'}];
+      const heavy = 'Build server uses 18.4 of 20 Mbps upload on uplink-a (92%). FortiGate live estimate.';
+      return {enabled: true, channels: {telegram: true, email: true}, at_work: true,
+        rules: Object.fromEntries(RULES.map(([name, label, critical, summary]) => [name, {label, critical, summary: !!summary, enabled: true}])),
+        reports: settings.notifications.reports, reports_sent: {},
+        open: [{rule: 'heavy_device', subject: 'uplink-a · Build server', title: 'One device fills a line · uplink-a · Build server', text: heavy, opened: seconds - 1500}],
+        history: [
+          {at: seconds - 300, key: 'heavy_device:uplink-a · Build server', kind: 'start', title: 'One device fills a line · uplink-a · Build server', text: heavy, held: false, deliveries: telegram},
+          {at: seconds - 3 * 3600, key: 'line_loss:uplink-a', kind: 'start', title: 'Line losing packets · uplink-a', text: 'Packet loss 6.2% on health check synthetic-sla.', held: true, deliveries: []},
+          {at: seconds - 20 * 3600, key: 'line_down:uplink-b', kind: 'end', title: 'Recovered · uplink-b', text: 'Line down ended after 14 min.', held: false, deliveries: both},
+          {at: seconds - 20.3 * 3600, key: 'line_down:uplink-b', kind: 'start', title: 'Line down · uplink-b', text: 'No health check reports uplink-b alive (synthetic-ping down, synthetic-sla down).', held: false, deliveries: both},
+          {at: seconds - 26 * 3600, key: 'sdwan_changed:', kind: 'event', title: 'SD-WAN rules changed', text: 'engineering now uses uplink-b, uplink-a.', held: false, deliveries: [{channel: 'telegram', status: 'failed', error: 'telegram_unreachable'}]},
+        ]};
+    }
+    // What Preview shows in the demo: the layout of a real report, from the synthetic lab.
+    function preview(kind) {
+      const title = {daily: 'Daily summary', weekly: 'Weekly report', monthly: 'Monthly report'}[kind] || 'Daily summary';
+      const when = new Date(now).toUTCString().slice(0, 11);
+      const gb = bytes => (bytes / 1e9).toFixed(1) + ' GB';
+      const top = devices.slice(0, kind === 'daily' ? 5 : 10).map(d => '  ' + d.hostname + ' (' + d.ip + ')  ' + gb(d.download_bytes) + ' down  ' + gb(d.upload_bytes) + ' up');
+      const lines = kind === 'daily'
+        ? ['Lines and services', 'uplink-a: line losing packets 1×', 'uplink-b: line down 1×', '', 'Alerts sent: 3']
+        : ['Internet lines', '  uplink-a  avg loss 0.9%  incidents 12  busy use 71% / 64%  sessions 742', '  uplink-b  avg loss 0.4%  incidents 3  busy use not measured  sessions 118'];
+      const text = [title + ' · ' + when, settings.site_name, '', ...lines, '', 'Usage',
+        gb(sum(devices, 'download_bytes')) + ' down, ' + gb(sum(devices, 'upload_bytes')) + ' up, ' + devices.length + ' devices.',
+        '', 'Top devices', ...top, '', 'New devices', '1 seen for the first time.', '  Guest phone · VLAN 200 · guests · ' + dateOf(seconds),
+        ...(kind === 'monthly' ? ['', 'Provider report · uplink-a', 'Worked 99.82% of observed time; 2 outages of 2 minutes or longer; 5 degraded periods.'] : []),
+        '', 'Usage counts only sessions the FortiGate logs. Missing data is shown as missing, never as zero.'];
+      return {subject: 'FortiLens · ' + title + ' · ' + when, text: text.join('\n'), html: ''};
+    }
+
     // Answer one read-only API request. Returns null for routes without a fixture.
     function respond(url, {auth = 'signed-in', degraded = false, dashboard, jitter = 1} = {}) {
       const p = url.pathname.slice(url.pathname.indexOf('/api/'));
@@ -245,6 +291,7 @@
         if (p === '/api/settings') return {status: 200, payload: view()};
         if (p === '/api/system') return {status: 200, payload: system(dashboard)};
         if (p === '/api/diagnostics') return {status: 200, payload: diagnostics(dashboard)};
+        if (p === '/api/alerts') return {status: 200, payload: alerts()};
         return null;
       }
       const routes = {
@@ -263,7 +310,7 @@
       };
       return routes[p] ? {status: 200, payload: routes[p]()} : null;
     }
-    return {now, seconds, settings, devices, respond};
+    return {now, seconds, settings, devices, respond, preview};
   }
 
   const api = {create};

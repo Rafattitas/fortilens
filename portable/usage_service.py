@@ -11,6 +11,7 @@ import hmac
 import json
 import logging
 import math
+import os
 import re
 from pathlib import Path
 import signal
@@ -24,6 +25,7 @@ import urllib.request
 
 import accounting
 import interfaces
+import notifications
 import wan_health
 
 
@@ -70,6 +72,24 @@ ERROR_CODES = frozenset(
 # so either one ends with its reason instead of a gateway timeout.
 READ_WAIT_SECONDS = 10
 REPORT_SCAN_SECONDS = 15
+REPORT_RETRY_SECONDS = 600
+# Rules whose subject starts with a WAN line name.
+LINE_RULES = frozenset(
+    ("line_down", "line_slow", "line_starved", "line_loss", "line_full", "checks_disagree")
+)
+
+
+def watched(key, lines, speeds):
+    """Whether an alert key still concerns a watched line, or a line with a speed."""
+    rule, _, subject = key.partition(":")
+    line = subject.split(" · ")[0]
+    if rule in LINE_RULES:
+        return line in lines
+    if rule == "heavy_device":
+        return line in speeds
+    return True
+
+
 # Readers see these instead of the generic "evidence unavailable".
 ERROR_MESSAGES = {
     "reports_busy": "The report service is busy with another long request. Try again in a minute. "
@@ -255,11 +275,16 @@ def build_live(
                 "upload_bps": 0,
                 "sessions": 0,
                 "apps": {},
+                "lines": {},
             },
         )
         device["download_bps"] += down
         device["upload_bps"] += up
         device["sessions"] += sessions
+        # Per line, so an alert can name the device that fills one.
+        per_line = device["lines"].setdefault(out, {"download_bps": 0, "upload_bps": 0})
+        per_line["download_bps"] += down
+        per_line["upload_bps"] += up
         for entry in row.get("apps") or []:
             if isinstance(entry, dict):
                 label = app_label(entry)
@@ -468,6 +493,12 @@ class Engine:
         self._insight_cache = {}
         self._sdwan_cache = None
         self._initial_inventory = json.loads(json.dumps(store.inventory))
+        # Alerts: state beside the database, secrets read fresh at every step.
+        self.alerts = notifications.Alerts(None)
+        self.notify_file = None
+        self._delay_baseline = (0, {})
+        self._report_retry = {}
+        self._traffic_baseline = (None, {})
         self.read_lock = threading.RLock()
         self._reader = None
         self._reader_identity = None
@@ -1396,6 +1427,308 @@ class Engine:
         self._insight_cache[seconds] = (key, result)
         return result
 
+    def notification_settings(self):
+        try:
+            return notifications.validate(self.config.get("notifications") or {})
+        except ValueError:
+            return notifications.validate({})
+
+    def _query(self, expr, now):
+        response = self.fetch(
+            self.prometheus, "/api/v1/query", {"query": expr, "time": str(now)}, timeout=15
+        )
+        data = response.get("data") if isinstance(response, dict) else None
+        return data.get("result", []) if isinstance(data, dict) else []
+
+    def _query_range(self, expr, start, end, step):
+        response = self.fetch(
+            self.prometheus,
+            "/api/v1/query_range",
+            {"query": expr, "start": str(int(start)), "end": str(int(end)), "step": str(step)},
+            timeout=25,
+        )
+        data = response.get("data") if isinstance(response, dict) else None
+        result = data.get("result", []) if isinstance(data, dict) else []
+        return result[0].get("values", []) if result else []
+
+    def _log_age(self, now):
+        """Seconds since the newest FortiGate log reached Loki; None when Loki is unreadable."""
+        try:
+            result = self.fetch(
+                self.loki.base,
+                "/loki/api/v1/query_range",
+                {
+                    "query": '{job="fortigate-syslog"}',
+                    "start": str(int((now - 6 * 3600) * accounting.NS)),
+                    "end": str(int(now * accounting.NS)),
+                    "direction": "backward",
+                    "limit": "1",
+                },
+                timeout=15,
+            )
+            stamps = [row["timestamp_ns"] for row in loki_rows(result)]
+        except (ServiceError, OSError, ValueError, KeyError, TypeError):
+            return None
+        return now - max(stamps) / accounting.NS if stamps else 6 * 3600
+
+    def alert_step(self, now=None):
+        """Evaluate every alert once and send what is due. Collection failures leave alerts unknown."""
+        now = time.time() if now is None else now
+        c = self.notification_settings()
+        zone = self.store.zone()
+        at_work = notifications.working(c, now, zone)
+        query = lambda expr: self._query(expr, now)  # noqa: E731
+        signals = []
+        names = (
+            self.config.get("confirmed_wan_interfaces") or self.config.get("wan_interfaces") or []
+        )
+        # A failed baseline keeps the previous one and is retried next hour;
+        # it never stops the line checks below.
+        failed = (ServiceError, OSError, ValueError, KeyError, IndexError, TypeError)
+        if now - self._delay_baseline[0] >= 3600:
+            try:
+                self._delay_baseline = (now, notifications.delay_baselines(query))
+            except failed:
+                self._delay_baseline = (now, self._delay_baseline[1])
+        hour = int(now // 3600)
+        if self._traffic_baseline[0] != hour:
+            try:
+                baseline = notifications.traffic_baselines(self._query_range, now, zone, c, names)
+            except failed:
+                baseline = self._traffic_baseline[1]
+            self._traffic_baseline = (hour, baseline)
+        try:
+            signals += notifications.line_signals(
+                query,
+                self.config,
+                delay_baseline=self._delay_baseline[1],
+                traffic_baseline=self._traffic_baseline[1],
+                at_work=at_work,
+            )
+            up = [
+                float(r["value"][1])
+                for r in query('up{job="fortigate"}') + query('probe_success{job="fortigate"}')
+            ]
+            fortigate_up = None if not up else min(up) >= 1
+        except (ServiceError, OSError, ValueError, KeyError, IndexError, TypeError):
+            fortigate_up = None
+        limit = self.config.get("accounting_max_bytes")
+        try:
+            disk = os.statvfs(self.store.path.parent)
+            free = disk.f_bavail / disk.f_blocks if disk.f_blocks else None
+        except (OSError, AttributeError):
+            free = None
+        # The writer thread shares the store; read it under the same lock.
+        with self.lock:
+            try:
+                checkpoint = self.store.state("checkpoint_ns")
+            except (sqlite3.Error, ValueError, TypeError):
+                checkpoint = None
+            try:
+                used = self.used_bytes() / limit if limit else None
+            except (OSError, sqlite3.Error, ServiceError, TypeError):
+                used = None
+        signals += notifications.service_signals(
+            fortigate_up=fortigate_up,
+            log_age=self._log_age(now),
+            lag=max(0, now - checkpoint / accounting.NS) if checkpoint else None,
+            disk_free_share=free,
+            db_share=used,
+        )
+        if self.token_file:
+            signals += notifications.sdwan_signal(self.alerts, self.sdwan_rules(now))
+            if c["rules"].get("heavy_device", True) and self.config.get("wan_speeds"):
+                heavy = {
+                    a["subject"]
+                    for a in self.alerts.state["open"].values()
+                    if a["rule"] == "heavy_device"
+                }
+                try:
+                    live = self.live(now)
+                except (ServiceError, OSError, ValueError, sqlite3.Error):
+                    live = None
+                signals += notifications.device_signals(live, self.config, heavy)
+        speeds = self.config.get("wan_speeds") or {}
+        self.alerts.forget(lambda key: watched(key, set(names), speeds))
+        messages = self.alerts.step(now, signals, c, at_work=at_work)
+        secrets = notifications.read_secrets(self.notify_file) if self.notify_file else {}
+        notifications.deliver(c, secrets, messages, self.alerts)
+        self.alerts.save()
+        if notifications.configured(c):
+            with self.alerts.lock:
+                sent = dict(self.alerts.state["reports"])
+            for kind in notifications.due_reports(c, now, zone, sent):
+                if now >= self._report_retry.get(kind, 0):
+                    self.send_report(kind, c, secrets, now)
+            self.alerts.save()
+        return messages
+
+    def send_report(self, kind, c, secrets, now):
+        """Build, send and record one scheduled report; a failure is retried within its window."""
+        markers = notifications.report_markers(now, self.store.zone())
+        try:
+            report = self.build_report(kind, now)
+            result = notifications.deliver_report(c, secrets, kind, report)
+            title = report["subject"].removeprefix("FortiLens · ")
+        except Exception as exc:
+            log_failure("report_failed", safe_error(exc))
+            result = {"channel": None, "status": "failed", "error": "report_unavailable"}
+            title = notifications.TITLES[kind]
+        if result["status"] == "delivered":
+            self._report_retry.pop(kind, None)
+            with self.alerts.lock:
+                self.alerts.state["reports"][kind] = markers[kind]
+                if kind == "daily":
+                    self.alerts.state["reports"]["daily_at"] = now
+        else:
+            self._report_retry[kind] = now + REPORT_RETRY_SECONDS
+        message = {"at": now, "key": "report:" + kind, "kind": "report", "title": title}
+        self.alerts.record({**message, "text": "", "held": False}, [result])
+
+    def new_devices(self, first_day, end_day):
+        """Devices whose first recorded day falls in [first_day, end_day); None if unknown.
+
+        Empty while the records do not reach before the window: every device
+        would be new on an installation's first days.
+        """
+        with self._read_snapshot() as (store, _version):
+            db = store.db
+            earliest = db.execute("SELECT MIN(day) FROM daily").fetchone()[0]
+            if not earliest or earliest >= first_day:
+                return None
+            rows = db.execute(
+                "SELECT device, MIN(day) AS first FROM daily GROUP BY device "
+                "HAVING first >= ? AND first < ? ORDER BY first LIMIT 50",
+                (first_day, end_day),
+            ).fetchall()
+            out = []
+            for device, day in rows:
+                found = db.execute(
+                    "SELECT vlan, payload FROM daily WHERE device = ? AND day = ? LIMIT 1",
+                    (device, day),
+                ).fetchone()
+                payload = json.loads(found[1]) if found else {}
+                out.append(
+                    {
+                        "name": payload.get("hostname") or payload.get("ip") or device[:12],
+                        "segment": (found[0] if found else "").split(":")[-1] or "unknown",
+                        "day": day,
+                    }
+                )
+            return out
+
+    def build_report(self, kind, now=None):
+        """One report's message from recorded usage, line health and the alert digest."""
+        if kind not in notifications.TITLES:
+            raise ServiceError("invalid_report")
+        now = time.time() if now is None else now
+        c = self.notification_settings()
+        zone = self.store.zone()
+        last = self.alerts.state["reports"].get("daily_at")
+        start, end = notifications.report_window(kind, now, zone, last)
+        names = (
+            self.config.get("confirmed_wan_interfaces") or self.config.get("wan_interfaces") or []
+        )
+        data = {
+            "start": start,
+            "end": end,
+            "site": self.config.get("site_name", ""),
+            "line_names": names,
+        }
+        span = {"start": start.isoformat(), "end": end.isoformat()}
+        try:
+            data["usage"] = self.report("custom", **span)
+        except (ServiceError, ValueError, OSError, sqlite3.Error):
+            data["usage"] = None
+        if kind == "daily":
+            data["digest"] = self.alerts.digest(start.timestamp(), end.timestamp())
+            data["alerts_sent"] = sum(
+                1
+                for h in list(self.alerts.state["history"])
+                if start.timestamp() <= h["at"] < end.timestamp()
+                and any(d.get("status") == "delivered" for d in h.get("deliveries", []))
+                and h["kind"] != "report"
+            )
+        else:
+            try:
+                data["applications"] = self.applications("custom", **span).get("applications")
+            except (ServiceError, ValueError, OSError, sqlite3.Error):
+                data["applications"] = None
+            try:
+                if kind == "weekly":
+                    insights = self.wan_insights(7 * 86400, end.timestamp())
+                    data["lines"] = [
+                        {
+                            "interface": link["interface"],
+                            "avg_loss_pct": link["summary"].get("avg_loss_pct"),
+                            "avg_sessions": link["summary"].get("avg_sessions"),
+                            "speed": link.get("speed"),
+                            "incidents": sum(
+                                1
+                                for i in insights.get("incidents", [])
+                                if i["interface"] == link["interface"]
+                            ),
+                        }
+                        for link in insights.get("links", [])
+                    ]
+                else:
+                    isp = notifications.isp_lines(
+                        self._query_range,
+                        names,
+                        start.timestamp(),
+                        end.timestamp(),
+                        self.config.get("sla", ""),
+                    )
+                    data["isp"] = isp
+                    data["lines"] = [
+                        {
+                            "interface": line["interface"],
+                            "avg_loss_pct": line["avg_loss_pct"],
+                            # No samples: the number of incidents is unknown, not zero.
+                            "incidents": len(line["outages"]) + len(line["degraded"])
+                            if line["observed_pct"]
+                            else None,
+                        }
+                        for line in isp
+                    ]
+            except (ServiceError, OSError, ValueError, KeyError, TypeError):
+                data["lines"] = []
+        if c["rules"].get("new_device", True):
+            try:
+                data["new_devices"] = self.new_devices(
+                    start.date().isoformat(), end.date().isoformat()
+                )
+            except (sqlite3.Error, ValueError, OSError):
+                data["new_devices"] = None
+        return notifications.render_report(kind, data, zone)
+
+    def alerts_view(self):
+        c = self.notification_settings()
+        return {
+            "enabled": notifications.configured(c),
+            "channels": {k: c[k]["enabled"] for k in ("telegram", "email")},
+            "rules": {
+                name: {
+                    "label": label,
+                    "critical": critical,
+                    "summary": summary,
+                    "enabled": c["rules"].get(name, True),
+                }
+                for name, (label, critical, _hold, summary) in notifications.RULES.items()
+            },
+            "at_work": notifications.working(c, time.time(), self.store.zone()),
+            "reports": c["reports"],
+            **self.alerts.view(),
+        }
+
+    def alerts_run(self):
+        while not self.stop.is_set():
+            try:
+                self.alert_step()
+            except Exception as exc:
+                log_failure("alert_step_failed", safe_error(exc))
+            self.stop.wait(60)
+
     def run(self):
         last_metadata, last_prune, last_wan = 0, 0, 0
         while not self.stop.is_set():
@@ -1651,6 +1984,10 @@ def handler(engine, password, root):
                     return self.send(200, engine.diagnostics())
                 if parsed.path == "/api/inventory":
                     return self.send(200, engine.inventory())
+                if parsed.path == "/api/alerts/report":
+                    return self.send(200, engine.build_report(value("kind", "daily")))
+                if parsed.path == "/api/alerts":
+                    return self.send(200, engine.alerts_view())
                 if parsed.path == "/api/wan":
                     return self.send(200, engine.wan(int(value("seconds", "86400"))))
                 if parsed.path == "/api/wan/insights":
@@ -1773,6 +2110,8 @@ def main(argv=None):
     parser.add_argument("--prometheus-url", default="http://prometheus:9090")
     parser.add_argument("--listen", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8080)
+    # Telegram bot token and mail password, written by the console; absent until set.
+    parser.add_argument("--notify-file", type=Path, default=Path("/run/secrets/notify_credentials"))
     args = parser.parse_args(argv)
     if not 0 <= args.port <= 65535:
         parser.error("Choose a valid reporting port.")
@@ -1798,6 +2137,8 @@ def main(argv=None):
             token_file=args.token_file,
             config_root=args.config.parent,
         )
+        engine.alerts = notifications.Alerts(args.database.parent / "alerts.json")
+        engine.notify_file = args.notify_file
         # Bind before starting ingestion: a port failure must not leave a writer
         # running after startup has already failed.
         server = ThreadingHTTPServer(
@@ -1805,6 +2146,7 @@ def main(argv=None):
         )
         thread = threading.Thread(target=engine.run, daemon=True)
         thread.start()
+        threading.Thread(target=engine.alerts_run, daemon=True).start()
         if threading.current_thread() is threading.main_thread():
             signal.signal(signal.SIGTERM, stop_on_terminate)
         server.serve_forever()

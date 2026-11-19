@@ -61,6 +61,7 @@ choosing or building an archive.
 | [Troubleshooting](operations/TROUBLESHOOTING.md) | Read-only doctor evidence, missing telemetry, processing lag and storage failures. |
 | [Native FortiGate UDP reception](operations/SYSLOG_NATIVE_UDP.md) | Explicit managed native UDP profile, bounded delivery evidence and the separate legacy rsyslog alternative. |
 | [Upgrade from v0.1.0](operations/UPGRADE.md) | Reviewed accounting migration and hash-guarded configuration rollback. |
+| [Alerts and reports](operations/ALERTS.md) | Telegram and email alerts, the daily summary, weekly and monthly reports and the provider report per line. |
 | [Optional alerts](operations/OPTIONAL_ALERTS.md) | Paused review candidates and explicit operator activation. |
 | [Security policy](../SECURITY.md) | Private reporting and deployment/data-protection boundaries. |
 

@@ -267,11 +267,15 @@ def read_plan(root, identity):
     # Prepared older plans remain valid; adding the compact reader does not
     # implicitly migrate their existing databases or invalidate recovery.
     current = allowed | {"usage/accounting_storage.py"}
+    # Plans prepared since alerts also carry the alert engine.
+    alerting = current | {"usage/notifications.py"}
     if paths not in (
         allowed,
         allowed - {"usage/portal.py"},
         current,
         current - {"usage/portal.py"},
+        alerting,
+        alerting - {"usage/portal.py"},
     ) or len(manifest["files"]) != len(paths):
         raise UpgradeError("Unexpected migration file list")
     return plan_root, manifest

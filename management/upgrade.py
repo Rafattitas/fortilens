@@ -40,6 +40,7 @@ STACK_CODE = {
             "accounting_storage.py",
             "interfaces.py",
             "wan_health.py",
+            "notifications.py",
             "usage_service.py",
             "portal.py",
             "reporting.html",
@@ -70,8 +71,9 @@ def digest(data):
 def stack_changes(source, stack):
     """Stack files whose code differs from the new source.
 
-    Only files that already exist are refreshed: an upgrade never enables a
-    service the operator has not deployed.
+    Only services that are deployed are refreshed: an upgrade never enables a
+    service the operator has not deployed. A deployed service (its directory
+    holds a Dockerfile) also receives a code file that a newer version added.
     """
     changes = []
     for relative, origin in sorted(STACK_CODE.items()):
@@ -79,6 +81,8 @@ def stack_changes(source, stack):
         if target.is_symlink():
             raise UpgradeError("Refusing to replace a symbolic link in the monitoring stack.")
         if target.is_file() and target.read_bytes() != (Path(source) / origin).read_bytes():
+            changes.append(relative)
+        elif not target.exists() and (target.parent / "Dockerfile").is_file():
             changes.append(relative)
     return changes
 
@@ -315,8 +319,12 @@ def restore_source(prefix, folder):
 
 
 def copy_like(target, data):
-    """Replace a stack file keeping its existing owner and mode."""
-    info = Path(target).stat()
+    """Replace a stack file keeping its existing owner and mode.
+
+    A file the new version adds takes the owner and mode of its service's Dockerfile.
+    """
+    target = Path(target)
+    info = (target if target.exists() else target.parent / "Dockerfile").stat()
     install.put(target, data, mode=info.st_mode & 0o777, uid=info.st_uid, gid=info.st_gid)
 
 
@@ -465,7 +473,9 @@ def upgrade(source, prefix, host=None, now=None):
     backup_source(prefix, folder)
     install.put(folder / "installation.json", (prefix / "installation.json").read_bytes())
     for relative in changes:
-        install.put(folder / "stack" / relative, (stack / relative).read_bytes())
+        # A file this version adds has nothing to back up; rollback leaves it unused.
+        if (stack / relative).is_file():
+            install.put(folder / "stack" / relative, (stack / relative).read_bytes())
     journal = {
         "id": label,
         "status": "APPLYING",

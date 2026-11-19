@@ -30,6 +30,8 @@ release archives. The captures here use `management/static/` and the actual
 | [Applications](16-applications.png) | Labelled usage, largest named applications and filters, with generic example application names. |
 | [Live usage](17-live.png) | Current download and upload per device, application, segment and link, refreshed every 10 seconds. |
 | [Websites](18-websites.png) | Opt-in: recorded usage by website and the devices that used a selected site (synthetic data). |
+| [Alerts](19-alerts.png) | One alert open now and the messages sent before it, with each channel's delivery. |
+| [Alerts & Reports settings](20-alert-settings.png) | Telegram and email channels, alert rules, working hours and reports; stored secrets are never shown. |
 
 ## Regenerate
 

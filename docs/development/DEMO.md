@@ -14,7 +14,9 @@ lets people click through every page without a FortiGate or a server.
   (`tools/capture_screenshots.cjs`) use the same file, so the demo and the
   screenshots always show the same lab.
 - `demo/demo.js`: replaces `fetch` for `/api/` paths with those answers and
-  refuses every write with a "read-only demo" message. It also sets the first
+  refuses every write with a "read-only demo" message. A report Preview sends
+  nothing, so the demo answers it with a synthetic report; Send test message
+  and Send a sample now are refused like any other write. It also sets the first
   embedded view, which the management service normally writes into its HTML.
 
 Nothing in `demo/` is installed, packaged into a container or loaded by a real

@@ -27,6 +27,7 @@ flowchart LR
     PM --> AC
     GF --> GW[Protected read-only gateway]
     AC --> GW
+    AC --> NT[Alerts and reports: Telegram / email]
     GW --> UI[FortiLens management console]
     UI --> HP[Restricted local helper]
     HP --> CM[Registered Compose / configuration]
@@ -57,6 +58,7 @@ documentation refresh.
 | `portable/accounting_storage.py`, `accounting_migrate.py` | Legacy/optional compact ledger representation and explicit verified offline copy; no automatic conversion or activation. See [compact storage](../architecture/COMPACT_ACCOUNTING.md). |
 | `portable/portal.py`, `reporting.html` | Existing protected native Grafana/report console and allowed read-only query routes. |
 | `portable/wan_health.py` | Observed WAN states/history/coverage and destination-specific route evidence. |
+| `portable/notifications.py` | Alert rules, hold/reminder/recovery state, daily/weekly/monthly report text and Telegram/SMTP delivery, run by the accounting service once a minute. Channel secrets are write-only and mounted as a Compose secret. See [alerts and reports](../operations/ALERTS.md). |
 | `portable/upgrade.py` | Existing reviewed CLI upgrade/rollback; do not run concurrently with management deployment. |
 | `tests/`, `.github/workflows/ci.yml` | Unit/security/regression checks, isolated real Docker and Ubuntu installer acceptance. |
 | `tools/check_repository.py`, `pyproject.toml`, `requirements-dev.txt` | Development-only grammar/link/YAML/source checks, narrow Ruff rules and measured branch coverage. No production dependencies or package/import migration. |
@@ -280,5 +282,6 @@ skew is known. Direct legacy portal access still requires choosing its actual SL
 
 Future work should follow the current user's request. Real-device source
 completeness, source identity, packet-time allocation and production capacity need
-site-specific evidence. Alert candidates remain opt-in; multi-device/tenant and
+site-specific evidence. Alerts and reports stay off until a channel is set up and
+applied in Settings; the older Grafana alert candidates remain opt-in. Multi-device/tenant and
 new analytics are not implied by maintenance or setup work.
