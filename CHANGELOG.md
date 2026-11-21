@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## v0.7.0 — 2026-11-21 — alerts and reports, and why the Internet drops or slows down
+
+### Upgrade
+
+- No configuration, database or dashboard migration. Upgrade in place with
+  `install.sh --upgrade`. Line speeds are optional, and the site configuration
+  is unchanged until they are set.
+- Alerts and reports are off after the upgrade and send nothing until a
+  channel is set up and applied in Settings → Alerts & Reports. Their state is
+  kept in `alerts.json` beside the accounting database.
+- The SD-WAN rules are read with the existing FortiGate API token
+  (`GET /api/v2/cmdb/system/sdwan`, read-only). When the token cannot read
+  them, **Who goes where** says so and the rest of the page works from metrics.
 
 ### Alerts
 
@@ -54,17 +66,6 @@
   running one, with its label, section and both values as text. A new API
   token or trust bundle is listed without its value. The prepared review gains
   the same list plus `restarts`, `stops` and `stops_known`.
-
-## v0.7.0 — 2026-11-18 — why the Internet drops or slows down, line by line
-
-### Upgrade
-
-- No configuration, database or dashboard migration. Upgrade in place with
-  `install.sh --upgrade`. Line speeds are optional, and the site configuration
-  is unchanged until they are set.
-- The SD-WAN rules are read with the existing FortiGate API token
-  (`GET /api/v2/cmdb/system/sdwan`, read-only). When the token cannot read
-  them, **Who goes where** says so and the rest of the page works from metrics.
 
 ### Internet links
 
