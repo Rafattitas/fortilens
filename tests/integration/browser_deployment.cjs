@@ -336,6 +336,7 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
   else if(pathname==='/api/configuration/prepare')payload={plan_id:'b'.repeat(32),revision:7,settings,changed_files:['site.json'],warnings:['Synthetic warning.'],discovery:view().discovery,restarts:['grafana','fortilens-usage'],stops:[],stops_known:true,...(waiting?{changes:waitingChanges}:{})};
   else if(pathname==='/api/configuration/apply'){applies++;mode='starting';payload=job()}
   else if(pathname.startsWith('/api/jobs/')){requests++;if(mode==='unavailable'){status=503;payload={error:'operation_unavailable',message:'Synthetic helper unavailable.'}}else payload=pathname.endsWith('c'.repeat(32))?{...job(),job_id:'c'.repeat(32),status:'complete',phase:'complete',applied_revision:5,requested_revision:5}:job()}
+  else if(pathname==='/api/alerts')payload={enabled:true,channels:{telegram:true,email:false},rules:{line_down:{label:'Line down',critical:true,summary:false,enabled:true}},at_work:true,reports:{},reports_sent:{},open:[{rule:'line_slow',subject:'internal3',title:'Internet slow on a line · internal3',text:'Packet loss 24% for 10 minutes on health check google. Upload 5.0 of 5 Mbps: the line is full.',opened:1793606400}],history:[{at:1793606400,key:'line_slow:internal3',kind:'start',title:'Internet slow on a line · internal3',text:'Packet loss 24%.',held:false,deliveries:[{channel:'telegram',status:'delivered'}]},{at:1793602800,key:'line_loss:wan2',kind:'start',title:'Line losing packets · wan2',text:'Packet loss 9%.',held:true,deliveries:[]}]};
   else if(pathname==='/api/diagnostics')payload={monitoring:{status:'UNKNOWN',checks:[]},system:system()};
   else{status=404;payload={error:'not_found'}}
   await route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
@@ -365,6 +366,19 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  if(output){fs.mkdirSync(output,{recursive:true});await page.screenshot({path:path.join(output,'review-and-apply.png'),fullPage:true})}
  waiting=false;await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);
  assert.equal(await visible('pending-bar'),false,'Applied settings still announced as waiting');assert.equal(await visible('settings-badge'),false);
+ // Alerts & Reports: every rule and report has a control, and the Alerts page lists what is open and sent.
+ await page.locator('[data-section="alerts"]').click();
+ assert.equal(await page.locator('#alert-rules input[type="checkbox"]').count(),13,'Every alert rule has a switch');
+ assert.equal(await page.locator('[data-report-send]').count(),3,'Every report can be sent as a sample');
+ assert.equal(await page.locator('#work-days input').count(),7);
+ assert.equal(await page.evaluate(()=>Array.from(document.getElementById('configuration-form').elements).filter(input=>input.type==='password').length),0,'Alert secrets joined the settings form');
+ if(output)await page.screenshot({path:path.join(output,'alerts-and-reports-settings.png'),fullPage:true});
+ await page.locator('a[data-page="alerts"]').click();await page.waitForFunction(()=>document.getElementById('alerts-history').children.length===2);
+ assert.match(await page.locator('#alerts-open').innerText(),/Internet slow on a line · internal3/);
+ assert.match(await page.locator('#alerts-history').innerText(),/Telegram: delivered[\s\S]*Held for the daily summary/);
+ assert.equal(await page.locator('#alerts-badge').textContent(),'1');
+ if(output)await page.screenshot({path:path.join(output,'alerts-page.png'),fullPage:true});
+ await page.locator('a[data-page="settings"]').click();
  await page.locator('[data-section="review"]').click();await page.locator('#prepare').click();await page.locator('#approve-plan').check();assert.equal(await page.locator('#apply').isEnabled(),true);
  await page.locator('#apply').click();await page.waitForFunction(()=>!document.getElementById('deployment').hidden);
  assert.equal(await page.locator('#apply').isDisabled(),true);assert.equal(await page.locator('#prepare').isDisabled(),true);

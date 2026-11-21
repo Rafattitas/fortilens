@@ -89,7 +89,7 @@ class ReleaseTests(unittest.TestCase):
             first = release.build(ROOT, folder / "first", "v0.3.0-test.1")
             second = release.build(ROOT, folder / "second", "v0.3.0-test.1")
             counts = release.verify(ROOT, folder / "first", "v0.3.0-test.1")
-            self.assertEqual(counts["portable_files"], 27)
+            self.assertEqual(counts["portable_files"], 28)
             for before, after in zip(first, second):
                 self.assertEqual(before.read_bytes(), after.read_bytes())
             full = release.full_members(first[0])

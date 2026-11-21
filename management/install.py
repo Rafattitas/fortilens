@@ -157,6 +157,7 @@ def source_files(source):
             "usage_service.py",
             "portal.py",
             "wan_health.py",
+            "notifications.py",
             "upgrade.py",
             "usage_quality.py",
             "dashboard_style.py",

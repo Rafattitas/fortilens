@@ -26,11 +26,11 @@ class Client:
         self.path = str(path)
         self.key_file = Path(key_file)
 
-    def call(self, operation, data=None):
+    def call(self, operation, data=None, *, timeout=45):
         class Local(http.client.HTTPConnection):
             def connect(inner):
                 inner.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                inner.sock.settimeout(45)
+                inner.sock.settimeout(timeout)
                 inner.sock.connect(self.path)
 
         connection = Local("localhost")

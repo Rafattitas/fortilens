@@ -160,7 +160,7 @@ def validate_line_speeds(value, wans):
 
 
 # Optional keys are absent unless set, so files without them stay byte-identical.
-OPTIONAL = {"wan_speeds"}
+OPTIONAL = {"wan_speeds", "notifications"}
 
 
 def validate_config(raw):
@@ -169,6 +169,13 @@ def validate_config(raw):
     c = {**deepcopy(DEFAULTS), **raw}
     if "wan_speeds" in c:
         validate_line_speeds(c["wan_speeds"], c.get("confirmed_wan_interfaces") or [])
+    if "notifications" in c:
+        import notifications
+
+        try:
+            c["notifications"] = notifications.validate(c["notifications"])
+        except ValueError as exc:
+            raise SetupError(str(exc)) from None
     if type(c["schema_version"]) is not int or c["schema_version"] != 1:
         raise SetupError("Unsupported schema_version")
     for key in ["site_name", "fortigate_host", "vdom", "sla", "timezone", "api_ca_file"]:
@@ -620,6 +627,7 @@ def render(c, output, token, admin_password=None, inventory_report=None):
             "accounting_storage.py",
             "interfaces.py",
             "wan_health.py",
+            "notifications.py",
             "usage_service.py",
             "portal.py",
             "reporting.html",
@@ -1174,6 +1182,7 @@ def bundle(destination):
             "accounting_storage.py",
             "accounting_migrate.py",
             "wan_health.py",
+            "notifications.py",
             "usage_service.py",
             "portal.py",
             "upgrade.py",

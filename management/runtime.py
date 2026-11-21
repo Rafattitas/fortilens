@@ -22,7 +22,18 @@ import urllib.request
 import yaml
 from .common import Problem, atomic, load, report_failure, setup
 from .configuration import SERVICES
-from .models import Apply, Change, Console, Job, Retention, Revision, Settings
+from .models import (
+    Apply,
+    Change,
+    Console,
+    Job,
+    NotifyReport,
+    NotifyTest,
+    Retention,
+    Revision,
+    Settings,
+)
+import notifications  # noqa: E402  (portable/, on the path through .common)
 from .storage import observe
 import doctor
 import interfaces
@@ -405,9 +416,9 @@ class Docker:
             )
         return addresses[0], port
 
-    def http(self, service, port, path, *, method="GET", body=None, headers=None):
+    def http(self, service, port, path, *, method="GET", body=None, headers=None, timeout=5):
         host, port = self.address(service, port)
-        conn = http.client.HTTPConnection(host, port, timeout=5)
+        conn = http.client.HTTPConnection(host, port, timeout=timeout)
         try:
             conn.request(method, path, body=body, headers=headers or {})
             r = conn.getresponse()
@@ -602,6 +613,34 @@ class Operations:
                         },
                     )
                 raise
+        if operation == "alerts":
+            if data:
+                raise Problem("unexpected_fields", "This operation accepts no additional fields.")
+            try:
+                return self.usage_get("/api/alerts")
+            except ValueError:
+                raise Problem(
+                    "alerts_unavailable",
+                    "Alerts are unavailable while accounting is not running.",
+                    503,
+                ) from None
+        if operation == "notify_test":
+            return self.notify_test(NotifyTest.model_validate(data))
+        if operation in ("report_preview", "notify_report"):
+            request = NotifyReport.model_validate(data)
+            try:
+                # Building a report reads raw records and Prometheus ranges (up to 15 s
+                # and 25 s); sending it can take another 20 s.
+                report = self.usage_get("/api/alerts/report?kind=" + request.kind, timeout=50)
+            except ValueError:
+                raise Problem(
+                    "alerts_unavailable",
+                    "Reports are unavailable while accounting is not running.",
+                    503,
+                ) from None
+            if operation == "report_preview":
+                return report
+            return self.notify_report(request, report)
         if operation == "apply":
             return self.apply(Apply.model_validate(data))
         if operation == "rollback":
@@ -1342,6 +1381,63 @@ class Operations:
             action,
             tested_at=tested,
         )
+
+    def notify_test(self, request):
+        """Send one test message with the saved draft's channel and secrets."""
+        state = self.c.state()
+        if request.revision != state["revision"]:
+            raise Problem("revision_conflict", "Save the draft, then send the test.", 409)
+        settings = Settings.model_validate(state["settings"])
+        c = notifications.validate(settings.notifications.model_dump(mode="json"))
+        try:
+            notifications.send(
+                c,
+                self.c.notify_secrets(),
+                request.channel,
+                "FortiLens · Test message",
+                "A test from " + settings.installation_name + ". Alerts will arrive here.",
+            )
+        except notifications.DeliveryError as exc:
+            raise Problem(exc.code, notifications.MESSAGES[exc.code], 502) from None
+        self.c.audit("notification_test", [request.channel])
+        return {"status": "delivered", "channel": request.channel, "at": time.time()}
+
+    def notify_report(self, request, report):
+        """Send one report now as a sample, with the saved draft's channels."""
+        state = self.c.state()
+        if request.revision != state["revision"]:
+            raise Problem("revision_conflict", "Save the draft, then send the sample.", 409)
+        if not isinstance(report, dict) or not all(
+            isinstance(report.get(k), str) for k in ("subject", "text", "html")
+        ):
+            raise Problem("report_unavailable", "The report could not be built.", 503)
+        settings = Settings.model_validate(state["settings"])
+        c = notifications.validate(settings.notifications.model_dump(mode="json"))
+        result = notifications.deliver_report(c, self.c.notify_secrets(), request.kind, report)
+        if result["status"] != "delivered":
+            code = result.get("error", "not_configured")
+            raise Problem(code, notifications.MESSAGES.get(code, "The report was not sent."), 502)
+        self.c.audit("notification_report_sample", [request.kind])
+        return {"status": "delivered", "channel": result["channel"], "at": time.time()}
+
+    def usage_get(self, route, *, timeout=5):
+        """GET a route of the accounting service with its own report credential."""
+        compose = self.c.compose() or {}
+        source = compose.get("secrets", {}).get("usage_admin_password", {}).get("file")
+        if not source:
+            raise ValueError("report_secret_unavailable")
+        from .common import guarded
+
+        path = Path(source)
+        path = path if path.is_absolute() else self.c.root / path
+        password = guarded(self.c.root, path.relative_to(self.c.root)).read_text().strip()
+        auth = "Basic " + base64.b64encode(("admin:" + password).encode()).decode()
+        try:
+            return self.docker.http(
+                "fortilens-usage", 8080, route, headers={"Authorization": auth}, timeout=timeout
+            )
+        except Problem:
+            raise ValueError("accounting_service_unavailable") from None
 
     def accounting_diagnostics(self, c):
         compose = self.c.compose() or {}

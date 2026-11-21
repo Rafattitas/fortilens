@@ -4,6 +4,7 @@ from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 from .common import Problem, setup
+import notifications  # noqa: E402  (portable/, on the path through .common)
 
 
 class Strict(BaseModel):
@@ -35,6 +36,67 @@ class Retention(Strict):
     ledger_days: int = Field(default=3, ge=1, le=365)
     summary_days: int = Field(default=400, ge=31, le=3650)
     database_bytes: int = Field(default=4294967296, ge=67108864, le=1099511627776)
+
+
+class TelegramChannel(Strict):
+    enabled: bool = False
+    chat_id: str = Field(default="", max_length=40)
+
+
+class EmailChannel(Strict):
+    enabled: bool = False
+    host: str = Field(default="", max_length=253)
+    port: int = Field(default=587, ge=1, le=65535)
+    security: Literal["starttls", "tls"] = "starttls"
+    user: str = Field(default="", max_length=254)
+    sender: str = Field(default="", max_length=254)
+    to: list[str] = Field(default_factory=list, max_length=20)
+
+
+class WorkHours(Strict):
+    start: str = "08:00"
+    end: str = "18:00"
+    days: list[Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]] = Field(
+        default_factory=lambda: ["sun", "mon", "tue", "wed", "thu"]
+    )
+
+
+class DailyReport(Strict):
+    enabled: bool = True
+    time: str = "08:00"
+
+
+class WeeklyReport(Strict):
+    enabled: bool = True
+    day: Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"] = "sun"
+    time: str = "08:00"
+
+
+class MonthlyReport(Strict):
+    enabled: bool = False
+    time: str = "08:00"
+
+
+class Reports(Strict):
+    daily: DailyReport = Field(default_factory=DailyReport)
+    weekly: WeeklyReport = Field(default_factory=WeeklyReport)
+    monthly: MonthlyReport = Field(default_factory=MonthlyReport)
+
+
+class Notifications(Strict):
+    """Where alerts go and which ones. Secrets travel separately, write-only."""
+
+    telegram: TelegramChannel = Field(default_factory=TelegramChannel)
+    email: EmailChannel = Field(default_factory=EmailChannel)
+    rules: dict[str, bool] = Field(
+        default_factory=lambda: {name: True for name in notifications.RULES}, max_length=32
+    )
+    work_hours: WorkHours = Field(default_factory=WorkHours)
+    reports: Reports = Field(default_factory=Reports)
+
+    def used(self):
+        """Anything differs from the defaults, so the site file needs the block."""
+        return self.model_dump(mode="json") != Notifications().model_dump(mode="json")
 
 
 class Settings(Strict):
@@ -76,6 +138,7 @@ class Settings(Strict):
     retention: Retention = Field(default_factory=Retention)
     # Compose CPU limit of the single accounting writer; see docs/operations/CAPACITY.md.
     accounting_cpus: Literal["0.5", "1", "2"] = "0.5"
+    notifications: Notifications = Field(default_factory=Notifications)
 
     @model_validator(mode="after")
     def supported(self):
@@ -111,6 +174,10 @@ class Settings(Strict):
             raise ValueError("Explicitly confirm the selected Internet interfaces.")
         if set(self.wan_speeds) - set(self.wan_interfaces):
             raise ValueError("Line speeds can only be set for selected Internet interfaces.")
+        try:
+            notifications.validate(self.notifications.model_dump(mode="json"))
+        except ValueError as exc:
+            raise ValueError(str(exc)) from None
         return self
 
     def portable(self, baseline=None, *, validate=False):
@@ -154,6 +221,11 @@ class Settings(Strict):
             }
         else:
             c.pop("wan_speeds", None)
+        # Also written only when set: an installation without alerts keeps its file.
+        if self.notifications.used():
+            c["notifications"] = self.notifications.model_dump(mode="json")
+        else:
+            c.pop("notifications", None)
         if validate:
             # A pending custom CA is handled by the helper, never as a browser path.
             c["api_ca_file"] = ""
@@ -168,10 +240,21 @@ class Change(Strict):
     custom_ca: SecretStr | None = None
     replace_ca: bool = False
     acknowledge_insecure_tls: bool = False
+    # Write-only alert channel secrets; empty keeps the stored value.
+    telegram_bot_token: SecretStr | None = None
+    smtp_password: SecretStr | None = None
 
 
 class Revision(Strict):
     revision: int = Field(ge=0)
+
+
+class NotifyReport(Revision):
+    kind: Literal["daily", "weekly", "monthly"]
+
+
+class NotifyTest(Revision):
+    channel: Literal["telegram", "email"]
 
 
 class Apply(Revision):

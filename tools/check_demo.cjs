@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => {
 const pages = [
   ['home', null], ['live', '#live-devices tr'], ['wan', '#wan-body tr'], ['monitoring', null],
   ['devices', '#device-body tr'], ['vlans', '#vlan-body tr'], ['applications', '#apps-body tr'], ['websites', '#sites-body tr'], ['reports', '#refresh'],
-  ['overview', null], ['quality', '#refresh'], ['diagnostics', null], ['settings', null],
+  ['overview', null], ['quality', '#refresh'], ['alerts', null], ['diagnostics', null], ['settings', null],
 ];
 
 (async () => {
@@ -65,6 +65,7 @@ const pages = [
           await page.waitForFunction(() => document.getElementById('console-loading').hidden);
         } else if (name === 'home') await page.waitForFunction(() => !document.getElementById('home-refresh').disabled);
         else if (name === 'diagnostics') await page.locator('#diagnostic-checks .diagnostic').first().waitFor();
+        else if (name === 'alerts') await page.locator('#alerts-history tr').first().waitFor();
         await page.waitForTimeout(150);
         if (theme === 'dark') await page.screenshot({path: path.join(shots, name + '.png')});
         results.push(theme + ':' + name);

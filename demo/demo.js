@@ -15,6 +15,12 @@
     const url = new URL(typeof input === 'string' ? input : input.url, location.href);
     if (url.origin !== location.origin || !url.pathname.includes('/api/')) return original(input, init);
     const method = ((init && init.method) || (typeof input === 'string' ? 'GET' : input.method) || 'GET').toUpperCase();
+    // A report preview sends nothing, so the demo answers it; every other write is refused.
+    if (method === 'POST' && url.pathname.endsWith('/api/notifications/preview')) {
+      let kind = 'daily';
+      try {kind = JSON.parse((init && init.body) || '{}').kind || kind;} catch (error) { /* keep the daily summary */ }
+      return Promise.resolve(json(200, fixtures.preview(kind)));
+    }
     if (method !== 'GET') return Promise.resolve(json(403, readOnly));
     const answer = fixtures.respond(url, {dashboard: 'grafana.html', jitter: 0.85 + Math.random() * 0.3});
     return Promise.resolve(answer ? json(answer.status, answer.payload) : json(404, {error: 'not_found', message: 'This view is not part of the online demo.'}));

@@ -129,7 +129,7 @@ class Helper:
     def __init__(self, operations):
         self.operations = operations
 
-    def call(self, operation, data=None):
+    def call(self, operation, data=None, *, timeout=45):
         return self.operations.dispatch(operation, data or {})
 
 
@@ -944,6 +944,78 @@ class ManagementTests(unittest.TestCase):
         self.assertEqual(rows["api_token"], ("Current token", "New token"))
         self.assertEqual(rows["custom_ca"], ("Current", "Removed"))
         self.assertNotIn("synthetic-secret", json.dumps(changes))
+
+    def test_alert_channels_keep_secrets_write_only_and_reach_the_writer(self):
+        import notifications
+
+        token = "123456789:" + "B" * 35
+        self.assertEqual(self.apply(self.save())["status"], "complete")
+        notify = {"telegram": {"enabled": True, "chat_id": "-1001234"}}
+        config = self.c.view()
+        settings = deepcopy(config["settings"])
+        settings["notifications"]["telegram"] = notify["telegram"]
+        view = self.c.save(
+            {"revision": config["revision"], "settings": settings, "telegram_bot_token": token}
+        )
+        self.assertTrue(view["secret_status"]["telegram_bot_token_present"])
+        self.assertFalse(view["secret_status"]["smtp_password_present"])
+        self.assertNotIn(token, json.dumps(view))
+        self.assertIn(
+            ("Telegram bot token", "Current", "New"),
+            [(c["label"], c["before"], c["after"]) for c in view["changes"]],
+        )
+        # A test message uses the saved draft and its pending secret.
+        with patch.object(notifications, "send") as send:
+            result = self.ops.dispatch(
+                "notify_test", {"revision": view["revision"], "channel": "telegram"}
+            )
+        self.assertEqual(result["status"], "delivered")
+        self.assertEqual(send.call_args.args[1]["telegram_bot_token"], token)
+        with patch.object(
+            notifications, "send", side_effect=notifications.DeliveryError("telegram_rejected")
+        ):
+            with self.assertRaises(Problem) as failed:
+                self.ops.dispatch(
+                    "notify_test", {"revision": view["revision"], "channel": "telegram"}
+                )
+        self.assertEqual(
+            (failed.exception.code, failed.exception.status), ("telegram_rejected", 502)
+        )
+        with self.assertRaises(Problem):
+            self.ops.dispatch(
+                "notify_test", {"revision": view["revision"] - 1, "channel": "telegram"}
+            )
+        # Apply writes the secret file, mounts it into the writer and keeps it out of site.json.
+        self.assertEqual(self.apply(view)["status"], "complete")
+        stored = json.loads((self.c.root / "secrets/notify_credentials").read_text())
+        self.assertEqual(stored, {"telegram_bot_token": token})
+        compose = self.c.compose()
+        self.assertIn("notify_credentials", compose["services"]["fortilens-usage"]["secrets"])
+        site = (self.c.root / self.c.state()["site_file"]).read_text()
+        self.assertNotIn(token, site)
+        self.assertEqual(json.loads(site)["notifications"]["telegram"]["chat_id"], "-1001234")
+        self.assertTrue(self.c.view()["secret_status"]["telegram_bot_token_present"])
+        # A report sample is built by the accounting service and sent with the draft's channel.
+        report = {"subject": "FortiLens · Daily summary", "text": "T", "html": "<p>T</p>"}
+        revision = self.c.view()["revision"]
+        with (
+            patch.object(self.ops, "usage_get", return_value=report) as usage,
+            patch.object(notifications, "send") as send,
+        ):
+            self.assertEqual(
+                self.ops.dispatch("report_preview", {"revision": revision, "kind": "daily"}), report
+            )
+            sent = self.ops.dispatch("notify_report", {"revision": revision, "kind": "daily"})
+        self.assertEqual((sent["status"], sent["channel"]), ("delivered", "telegram"))
+        # Building a report takes longer than an ordinary service read.
+        usage.assert_called_with("/api/alerts/report?kind=daily", timeout=50)
+        self.assertEqual(send.call_args.args[2], "telegram")
+        with patch.object(self.ops, "usage_get", return_value={"subject": "x"}):
+            with self.assertRaises(Problem) as broken:
+                self.ops.dispatch("notify_report", {"revision": revision, "kind": "weekly"})
+        self.assertEqual(broken.exception.code, "report_unavailable")
+        # Without alerts the site file has no notifications block.
+        self.assertNotIn("notifications", Settings(fortigate_host="192.0.2.1").portable())
 
     def test_accounting_cpu_choice_is_read_applied_and_bounded(self):
         c = self.existing()
