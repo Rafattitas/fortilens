@@ -1007,6 +1007,17 @@ class ManagementTests(unittest.TestCase):
         self.assertEqual(
             (failed.exception.code, failed.exception.status), ("telegram_rejected", 502)
         )
+        # The failure is in the audit log with its fixed code and no secret.
+        audit = (self.c.control / "audit.jsonl").read_text().splitlines()
+        self.assertEqual(
+            {k: v for k, v in json.loads(audit[-1]).items() if k != "time"},
+            {
+                "event": "notification_test",
+                "fields": ["telegram", "telegram_rejected"],
+                "outcome": "failed",
+            },
+        )
+        self.assertNotIn(token, "\n".join(audit))
         with self.assertRaises(Problem):
             self.ops.dispatch(
                 "notify_test", {"revision": view["revision"] - 1, "channel": "telegram"}
@@ -1040,6 +1051,23 @@ class ManagementTests(unittest.TestCase):
             with self.assertRaises(Problem) as broken:
                 self.ops.dispatch("notify_report", {"revision": revision, "kind": "weekly"})
         self.assertEqual(broken.exception.code, "report_unavailable")
+        # A sample that fails to send is recorded with its code.
+        with (
+            patch.object(self.ops, "usage_get", return_value=report),
+            patch.object(
+                notifications,
+                "send",
+                side_effect=notifications.DeliveryError("telegram_unreachable"),
+            ),
+        ):
+            with self.assertRaises(Problem) as unsent:
+                self.ops.dispatch("notify_report", {"revision": revision, "kind": "daily"})
+        self.assertEqual(unsent.exception.code, "telegram_unreachable")
+        last = json.loads((self.c.control / "audit.jsonl").read_text().splitlines()[-1])
+        self.assertEqual(
+            (last["event"], last["fields"], last["outcome"]),
+            ("notification_report_sample", ["daily", "telegram_unreachable"], "failed"),
+        )
         # Without alerts the site file has no notifications block.
         self.assertNotIn("notifications", Settings(fortigate_host="192.0.2.1").portable())
 

@@ -25,6 +25,19 @@
   number, so an unchanged Alloy configuration is no longer rewritten (and
   restarted) on the first Apply after installation.
 
+### Alerts
+
+- **Send test message** now says whether alerts will use the channel. A test
+  is sent even when "Send alerts to Telegram" or "Send critical alerts by
+  email" is off, so a delivered test looked like a working setup while no alert
+  would be sent. The result now names the switch to turn on, or asks to apply
+  the saved draft.
+- Send test message, Preview and Send a sample now save the draft without the
+  "Review and apply it when ready" notice, which appeared while the test was
+  still sending and read as if Apply were required first.
+- A failed test or report sample is recorded in the management audit log with
+  its fixed reason, like a delivered one. Before, only deliveries were recorded.
+
 ## v0.7.0 — 2026-11-21 — alerts and reports, and why the Internet drops or slows down
 
 ### Upgrade
