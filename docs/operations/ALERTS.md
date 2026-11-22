@@ -24,9 +24,14 @@ summary comes by email.
 The bot token and the mail password are write-only, like the FortiGate API
 token. They are saved with the draft, written on Apply to
 `secrets/notify_credentials` in the installation, mounted into the accounting
-service only, and never shown again. **Send test message** uses the saved draft,
-so it works before Apply. It reports a fixed reason when delivery fails, such as
-a refused token or an unreachable mail server, never the server's own text.
+service only, and never shown again. **Send test message** saves the draft
+first and uses it, so it works before Apply. A test is sent even when the
+channel is switched off, so its result also says whether alerts will use the
+channel: off, saved but not applied yet, or on. It reports a fixed reason when
+delivery fails, such as a refused token or an unreachable mail server, never the
+server's own text. Every test and report sample, sent or failed, is recorded
+in the management audit log with its channel or report and, when it failed,
+that fixed reason.
 
 ## Alerts sent right away
 

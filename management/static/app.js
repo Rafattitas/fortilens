@@ -186,7 +186,9 @@ function fillSettings(){
  updateSelection();renderReview();renderWorkflowReadiness();renderPending();
 }
 function readSettings(){const settings=structuredClone(state.draftSettings||state.view.settings);settings.wan_interfaces=[...state.selected];settings.wan_speeds=Object.fromEntries(Object.entries(settings.wan_speeds||{}).filter(([name])=>state.selected.has(name)));return settings}
-async function saveDraft(){if(state.databaseLimitError)throw safeError(state.databaseLimitError,'invalid_fields');const body={revision:state.view.revision,settings:readSettings(),acknowledge_insecure_tls:$('insecure-ack').checked};if(state.apiTokenDraft){body.api_token=state.apiTokenDraft;body.replace_token=$('replace-token').checked}if($('replace-ca').checked){body.custom_ca=state.customCADraft??'';body.replace_ca=true}for(const [id,key] of [['telegram-token','telegram_bot_token'],['smtp-password','smtp_password']]){const value=$(id).value.trim();if(value)body[key]=value}state.view=await api('/api/settings',body);$('telegram-token').value='';$('smtp-password').value='';state.plan=null;$('plan-review').hidden=true;fillSettings();$('save-status').textContent='Draft saved. Not active until you apply it.';notice(state.view.configured?'Draft saved. Review and apply it when ready.':'Configuration draft saved. Review and apply when ready.');return state.view}
+// quiet: a test, preview or sample saves the draft first; its own result
+// says what happened, so no "Review and apply" notice competes with it.
+async function saveDraft({quiet=false}={}){if(state.databaseLimitError)throw safeError(state.databaseLimitError,'invalid_fields');const body={revision:state.view.revision,settings:readSettings(),acknowledge_insecure_tls:$('insecure-ack').checked};if(state.apiTokenDraft){body.api_token=state.apiTokenDraft;body.replace_token=$('replace-token').checked}if($('replace-ca').checked){body.custom_ca=state.customCADraft??'';body.replace_ca=true}for(const [id,key] of [['telegram-token','telegram_bot_token'],['smtp-password','smtp_password']]){const value=$(id).value.trim();if(value)body[key]=value}state.view=await api('/api/settings',body);$('telegram-token').value='';$('smtp-password').value='';state.plan=null;$('plan-review').hidden=true;fillSettings();$('save-status').textContent='Draft saved. Not active until you apply it.';if(!quiet)notice(state.view.configured?'Draft saved. Review and apply it when ready.':'Configuration draft saved. Review and apply when ready.');return state.view}
 function selectSection(section){state.section=section;renderDraftInputs();if(section==='connection'){$('api-token').value=state.apiTokenDraft??'';$('custom-ca').value=state.customCADraft??''}$('settings-section-picker').value=section;for(const b of document.querySelectorAll('[data-section]')){const active=b.dataset.section===section;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')}const auth=section==='authentication';$('configuration-form').hidden=auth;$('authentication-section').hidden=!auth;for(const part of document.querySelectorAll('[data-form-section]'))part.hidden=part.dataset.formSection!==section;const index=sections.indexOf(section);$('step-label').textContent='Step '+(index+2)+' of '+(sections.length+1);$('previous-section').hidden=index===0;$('next-section').hidden=index===sections.length-1||auth;$('save').hidden=auth;renderReview();if(section==='review')maybeAutoPrepare()}
 // Saved changes waiting for Apply: one bar above every section, a count on
 // Settings and a mark on each section that holds one.
@@ -476,9 +478,17 @@ for(const input of document.querySelectorAll('[data-setting]'))for(const type of
 $('smtp-to').addEventListener('input',event=>{if(!intentionalDraftEdit($('smtp-to'),event))return;state.draftSettings.notifications.email.to=$('smtp-to').value.split(',').map(x=>x.trim()).filter(Boolean);dirty()});
 for(const input of document.querySelectorAll('[data-workday]'))input.addEventListener('change',event=>{if(!intentionalDraftEdit(input,event))return;state.draftSettings.notifications.work_hours.days=WORK_DAYS.map(([d])=>d).filter(d=>document.querySelector('[data-workday="'+d+'"]').checked);dirty()});
 for(const input of [$('telegram-token'),$('smtp-password')])input.addEventListener('input',event=>{if(event.isTrusted)dirty()});
+// A test is sent even when the channel is off, so its result says whether
+// alerts will use the channel: off in the draft, saved but not applied, or on.
+function testFollowUp(channel){
+ const box=channel==='telegram'?'Send alerts to Telegram':'Send critical alerts by email',name=channel==='telegram'?'Telegram':'email';
+ if(!state.view.settings.notifications[channel].enabled)return 'Alerts are not sent by '+name+' yet: turn on “'+box+'”, save and apply.';
+ if((state.view.changes||[]).some(c=>c.section==='alerts'))return 'Apply the saved draft so alerts use these settings.';
+ return 'Alerts use these settings.';
+}
 for(const channel of ['telegram','email'])$('test-'+channel).addEventListener('click',()=>action($('test-'+channel),async()=>{
  const result=$(channel+'-test-result');result.textContent='Sending…';
- try{if(state.unsaved)await saveDraft();const sent=await api('/api/notifications/test',{revision:state.view.revision,channel});result.textContent='Delivered at '+clockFormat(sent.at)+'. Check that it arrived.'}
+ try{if(state.unsaved)await saveDraft({quiet:true});const sent=await api('/api/notifications/test',{revision:state.view.revision,channel});result.textContent='Delivered at '+clockFormat(sent.at)+'. Check that it arrived. '+testFollowUp(channel)}
  catch(error){result.textContent=errorText(error);throw error}
 }));
 // Alerts page: what is open now and what was sent, from the accounting service.
@@ -500,13 +510,13 @@ function refreshAlertBadge(){if(state.view?.configured&&pageEnabled('alerts'))ap
 $('reload-alerts').addEventListener('click',()=>action($('reload-alerts'),loadAlerts));
 // Reports: preview the text that would be sent now, or send it once as a sample.
 for(const button of document.querySelectorAll('[data-report-preview]'))button.addEventListener('click',()=>action(button,async()=>{
- if(state.unsaved)await saveDraft();
+ if(state.unsaved)await saveDraft({quiet:true});
  const report=await api('/api/notifications/preview',{revision:state.view.revision,kind:button.dataset.reportPreview});
  $('report-preview').textContent=report.subject+'\n\n'+report.text;$('report-preview').hidden=false;$('report-result').textContent='Preview of what would be sent now. Nothing was sent.';
 }));
 for(const button of document.querySelectorAll('[data-report-send]'))button.addEventListener('click',()=>action(button,async()=>{
  const result=$('report-result');result.textContent='Sending…';
- try{if(state.unsaved)await saveDraft();const sent=await api('/api/notifications/report',{revision:state.view.revision,kind:button.dataset.reportSend});result.textContent='Sent to '+(sent.channel==='email'?'email':'Telegram')+' at '+clockFormat(sent.at)+'. Check that it arrived.'}
+ try{if(state.unsaved)await saveDraft({quiet:true});const sent=await api('/api/notifications/report',{revision:state.view.revision,kind:button.dataset.reportSend});result.textContent='Sent to '+(sent.channel==='email'?'email':'Telegram')+' at '+clockFormat(sent.at)+'. Check that it arrived.'}
  catch(error){result.textContent=errorText(error);throw error}
 }));
 for(const input of document.querySelectorAll('[data-optional-probe]'))input.addEventListener('change',event=>{
