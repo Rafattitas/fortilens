@@ -1398,6 +1398,8 @@ class Operations:
                 "A test from " + settings.installation_name + ". Alerts will arrive here.",
             )
         except notifications.DeliveryError as exc:
+            # A failed test is recorded with its fixed code, never the server's reply.
+            self.c.audit("notification_test", [request.channel, exc.code], outcome="failed")
             raise Problem(exc.code, notifications.MESSAGES[exc.code], 502) from None
         self.c.audit("notification_test", [request.channel])
         return {"status": "delivered", "channel": request.channel, "at": time.time()}
@@ -1416,6 +1418,7 @@ class Operations:
         result = notifications.deliver_report(c, self.c.notify_secrets(), request.kind, report)
         if result["status"] != "delivered":
             code = result.get("error", "not_configured")
+            self.c.audit("notification_report_sample", [request.kind, code], outcome="failed")
             raise Problem(code, notifications.MESSAGES.get(code, "The report was not sent."), 502)
         self.c.audit("notification_report_sample", [request.kind])
         return {"status": "delivered", "channel": result["channel"], "at": time.time()}
