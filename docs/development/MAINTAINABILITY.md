@@ -34,7 +34,12 @@ across the repository, and every Python file is formatted with `ruff format`,
 which CI checks. The runtime's former dense formatting was converted in one
 mechanical change: every file's syntax tree was compared before and after
 (docstring text aside) and the full suite was run on the result. Import ordering
-is enforced for the newer tooling and tests only. No broad
+is enforced for the newer tooling and tests only. The console script
+`management/static/app.js` was converted the same way: formatted with Prettier
+3.3.3 (`--single-quote --print-width 100 --arrow-parens avoid --no-bracket-spacing
+--trailing-comma none`) and its acorn syntax tree compared before and after,
+ignoring positions and literal spelling. Keep it formatted with that command.
+Tests that look for code in it compare it without whitespace. No broad
 type-checking claim is made for existing dynamically loaded runtime modules.
 Typed internal APIs can be introduced one characterized seam at a time.
 

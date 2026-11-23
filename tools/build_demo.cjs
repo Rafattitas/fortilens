@@ -66,7 +66,7 @@ write('static/app.js', rewrite(read('management/static/app.js'), 'app.js', [
   ["'/console/?section=live#", "'console/live.html#"],
   ["'/console/#", "'console/index.html#"],
   ["pathname.startsWith('/console/')", "pathname.includes('/console/')"],
-  ["new URL('/',location.origin)", 'new URL(location.pathname,location.origin)'],
+  ["new URL('/', location.origin)", 'new URL(location.pathname, location.origin)'],
 ]));
 for (const name of ['app.css', 'favicon.svg', 'favicon-32.png', 'apple-touch-icon.png']) copy('management/static/' + name, 'static/' + name);
 for (const name of fs.readdirSync(path.join(root, 'management/static/fonts'))) copy('management/static/fonts/' + name, 'static/fonts/' + name);

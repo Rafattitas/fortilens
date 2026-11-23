@@ -3,6 +3,7 @@
 from copy import deepcopy
 import base64
 import json
+import re
 import os
 import argparse
 import contextlib
@@ -1403,9 +1404,11 @@ class ManagementTests(unittest.TestCase):
         self.assertEqual(self.c.view()["accounting_scope"]["expected_devid"], "FG-SYNTHETIC")
         with self.assertRaises(Problem):
             self.save(expected_devid="")
-        script = (ROOT / "management/static/app.js").read_text(encoding="utf-8")
+        # Compared without whitespace: app.js is formatted code.
+        script = re.sub(r"\s+", "", (ROOT / "management/static/app.js").read_text(encoding="utf-8"))
         self.assertIn(
-            "$('accounting-timezone').readOnly=!!scope&&scope.accounting_timezone==='fortigate';$('expected-devid').readOnly=!!scope&&!!scope.expected_devid;",
+            "$('accounting-timezone').readOnly=!!scope&&scope.accounting_timezone==='fortigate';"
+            "$('expected-devid').readOnly=!!scope&&!!scope.expected_devid;",
             script,
         )
 

@@ -252,7 +252,8 @@ class ApplicationTests(unittest.TestCase):
         # The console hides the report page's own menu, so it needs its own entry.
         root = Path(__file__).resolve().parents[1] / "management"
         index = (root / "static" / "index.html").read_text(encoding="utf-8")
-        script = (root / "static" / "app.js").read_text(encoding="utf-8")
+        # app.js is formatted code; compare it without whitespace.
+        script = re.sub(r"\s+", "", (root / "static" / "app.js").read_text(encoding="utf-8"))
         server = (root / "app.py").read_text(encoding="utf-8")
         self.assertIn('href="#applications" data-page="applications"', index)
         self.assertIn("applications:['Applications'", script)
