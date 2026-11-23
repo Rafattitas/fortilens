@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## v0.7.1 — 2026-11-23 — Apply restarts only what changed, and alert tests say whether alerts will be sent
+
+### Upgrade
+
+- No configuration, database or dashboard migration. Upgrade in place with
+  `install.sh --upgrade`; the upgrade itself restarts the management service
+  only.
+- A review prepared before the upgrade still recreates every enabled service
+  when applied. Prepare it again to apply with the new rule.
 
 ### Settings
 
