@@ -101,8 +101,8 @@ class StorageRuntimeTests(unittest.TestCase):
         for volume in self.volumes.values():
             (volume / "synthetic-data").write_bytes(b"x" * size)
         with (
-            patch("management.runtime.time.time", return_value=self.now),
-            patch("management.runtime.shutil.disk_usage", return_value=SimpleNamespace(free=free)),
+            patch("management.health.time.time", return_value=self.now),
+            patch("management.health.shutil.disk_usage", return_value=SimpleNamespace(free=free)),
         ):
             return self.operations.storage()
 
@@ -197,9 +197,9 @@ class StorageRuntimeTests(unittest.TestCase):
         self.trend()
         self.now = 13660
         with (
-            patch("management.runtime.time.time", return_value=self.now),
+            patch("management.health.time.time", return_value=self.now),
             patch(
-                "management.runtime.shutil.disk_usage",
+                "management.health.shutil.disk_usage",
                 side_effect=lambda path: SimpleNamespace(
                     free=10**12 if Path(path) == self.config.control else 100
                 ),
@@ -218,7 +218,7 @@ class StorageRuntimeTests(unittest.TestCase):
             self.assertNotIn("projection_bytes", value)
 
     def test_history_write_failure_is_safe_and_sanitized(self):
-        with patch("management.runtime.atomic", side_effect=OSError("synthetic-private-error")):
+        with patch("management.health.atomic", side_effect=OSError("synthetic-private-error")):
             result = self.sample()
         self.assertEqual(len(result["components"]), 3)
         self.assertIn("could not be saved", result["message"])
@@ -267,7 +267,7 @@ class StorageRuntimeTests(unittest.TestCase):
         self.docker.services = {"fortilens-usage"}
         self.sample()
         with (
-            patch("management.runtime.time.time", side_effect=[10000, 10020]),
+            patch("management.health.time.time", side_effect=[10000, 10020]),
             patch.object(
                 self.operations,
                 "accounting_diagnostics",
@@ -291,9 +291,9 @@ class StorageRuntimeTests(unittest.TestCase):
             with (self.volumes["fortilens-usage"] / "synthetic-data").open("wb") as stream:
                 stream.truncate(ceiling - 1000 + index * 100)
             with (
-                patch("management.runtime.time.time", return_value=self.now),
+                patch("management.health.time.time", return_value=self.now),
                 patch(
-                    "management.runtime.shutil.disk_usage",
+                    "management.health.shutil.disk_usage",
                     return_value=SimpleNamespace(free=10**12),
                 ),
             ):

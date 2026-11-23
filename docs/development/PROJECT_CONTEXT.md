@@ -47,8 +47,8 @@ documentation refresh.
 | Location | Responsibility |
 |---|---|
 | `management/app.py`, `auth.py` | Independent FastAPI API/UI, bootstrap, sessions, CSRF and admin authentication. |
-| `management/configuration.py`, `models.py` | Validated settings, optimistic revisions, candidates, file fingerprints and configuration-only recovery. |
-| `management/helper.py`, `runtime.py` | Peer-UID/key authenticated Unix socket, fixed local engine operations, readiness, diagnostics and read-only console bridge. |
+| `management/configuration.py`, `models.py` | Validated settings, optimistic revisions, saving drafts and secret binding. `settings_changes.py` words a draft's changes, `compose_policy.py` holds the Compose/Prometheus/exporter rules, `candidate.py` patches Prepare's candidate files and `plans.py` runs the plan lifecycle (prepare, review, install, complete, restore, prune). |
+| `management/helper.py`, `runtime.py` | Peer-UID/key authenticated Unix socket and the operation dispatcher. `compose_engine.py` runs the fixed Docker Compose commands, `device.py` the read-only FortiGate requests, `health.py` status, storage and diagnostics, and `deployment.py` Apply/rollback jobs. |
 | `management/install.py`, `install.sh` | Ubuntu/systemd bootstrap, explicit adoption and reviewed source-file allowlist. |
 | `management/static/` | English responsive setup, permanent settings, progress and diagnostics; no CDN/build toolchain. |
 | `portable/setup.py`, `templates/` | Existing dependency-free setup/render/import/bundle CLI and monitoring templates. |

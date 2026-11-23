@@ -190,7 +190,7 @@ class RepairRuntimeTests(unittest.TestCase):
                 return_value=[{"id": "synthetic", "service": "alloy", "status": "running"}],
             ),
             patch.object(docker, "run", return_value=json.dumps(info)) as command,
-            patch("management.runtime.socket.socket") as sock,
+            patch("management.compose_engine.socket.socket") as sock,
         ):
             docker.check_ports(candidate)
             sock.assert_not_called()
@@ -216,7 +216,7 @@ class RepairRuntimeTests(unittest.TestCase):
         self.c.install_files(plan["id"])
         self.c.complete(plan["id"])
         with patch(
-            "management.runtime.doctor.run", return_value={"checks": [], "status": "UNKNOWN"}
+            "management.health.doctor.run", return_value={"checks": [], "status": "UNKNOWN"}
         ) as run:
             self.ops.diagnostics()
         callback = run.call_args.kwargs["native_receiver_request"]
@@ -275,7 +275,7 @@ class RepairRuntimeTests(unittest.TestCase):
             {"revision": view["revision"], "settings": settings, "acknowledge_insecure_tls": True}
         )
         with patch(
-            "management.runtime.doctor.run", return_value={"checks": [], "status": "UNKNOWN"}
+            "management.health.doctor.run", return_value={"checks": [], "status": "UNKNOWN"}
         ) as run:
             result = self.ops.diagnostics()
         self.assertTrue(run.call_args.args[1]["api_tls_verify"])
