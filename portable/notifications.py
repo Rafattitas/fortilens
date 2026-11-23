@@ -9,7 +9,7 @@ never logged, stored with the alert history, or returned.
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import html
 import http.client
 from email.message import EmailMessage
@@ -53,6 +53,14 @@ DIGEST_SECONDS = 4 * 86400
 RECOVERY_SECONDS = 120
 REMINDER_SECONDS = 2 * 3600
 HISTORY = 300
+# An alert that could not reach its channel (the server or the network was
+# down, often the very line the alert is about) is sent again after these
+# delays, then every 15 minutes, for up to six hours.
+RETRY_DELAYS = (60, 120, 300, 600, 900)
+RETRY_MAX_AGE = 6 * 3600
+RETRYABLE = {"telegram_unreachable", "email_unreachable"}
+# A report says its usage is incomplete when counting lags the period's end by more.
+BEHIND_NOTE_SECONDS = 300
 SLOW_LOSS_PCT = 20
 SLOW_DELAY_FACTOR = 3
 SLOW_DELAY_FLOOR_MS = 150
@@ -302,6 +310,7 @@ class Alerts:
             "sdwan": None,
             "digest": [],
             "reports": {},
+            "retry": [],
         }
         if self.path:
             try:
@@ -321,6 +330,9 @@ class Alerts:
                 data = json.dumps(self.state)
             with os.fdopen(handle, "w", encoding="utf-8") as stream:
                 stream.write(data)
+                stream.flush()
+                # A power cut must not leave an empty file in place of the history.
+                os.fsync(stream.fileno())
             os.replace(temporary, self.path)
         except OSError:
             try:
@@ -452,9 +464,107 @@ class Alerts:
             )
 
 
-def deliver(c, secrets, messages, alerts, *, send=None, **kwargs):
-    """Send each message on every enabled channel and record the outcome."""
+def _attempt(send, c, secrets, channel, subject, text, kwargs):
+    """Send once; return None when delivered, else the failure code."""
+    try:
+        send(c, secrets, channel, subject, text, **kwargs)
+        return None
+    except DeliveryError as exc:
+        return exc.code
+    except Exception:  # noqa: BLE001 - one channel must not stop the others
+        return channel + "_unreachable"
+
+
+def _resolve(alerts, item, delivery):
+    """Write a retried message's final outcome into its history entry."""
+    m = item["message"]
+    for entry in alerts.state["history"]:
+        if (entry["at"], entry["key"], entry["kind"]) == (m["at"], m["key"], m["kind"]):
+            entry["deliveries"] = [
+                delivery if d.get("channel") == item["channel"] else d
+                for d in entry.get("deliveries", [])
+            ]
+            return
+
+
+def _late_text(m, zone):
+    return (
+        m["text"]
+        + "\n\nSent late: this alert is from "
+        + _when(m["at"], zone)
+        + " and could not be sent then."
+    )
+
+
+def retry(
+    c, secrets, alerts, now, zone, *, send=None, keys=None, channel=None, down=None, **kwargs
+):
+    """Send again the alerts that could not reach their channel, oldest first.
+
+    Due ones are tried, or, with ``keys`` and ``channel``, every one waiting
+    for that alert on that channel, so a delayed start always goes before its
+    reminder or recovery. A channel found unreachable is added to ``down`` and
+    not tried again in this pass. Messages are sent without holding the alert
+    lock, so a slow server never blocks the pages that read the history.
+    Returns True when nothing for those keys is left waiting.
+    """
     send = send or globals()["send"]
+    zone = zone or timezone.utc
+    down = set() if down is None else down
+    with alerts.lock:
+        queue = alerts.state.setdefault("retry", [])
+        items = list(queue)
+    # An alert still waiting holds back the later ones of its subject.
+    blocked = set()
+
+    def finish(item, delivery):
+        with alerts.lock:
+            queue.remove(item)
+            _resolve(alerts, item, {"channel": item["channel"], **delivery})
+
+    for item in items:
+        m, where = item["message"], item["channel"]
+        if keys is not None and (m["key"] not in keys or where != channel):
+            continue
+        if (m["key"], where) in blocked or where in down:
+            continue
+        if keys is None and item["next"] > now:
+            blocked.add((m["key"], where))
+            continue
+        if not (c and c[where]["enabled"]) or now - m["at"] > RETRY_MAX_AGE:
+            finish(item, {"status": "failed", "error": item["error"], "attempts": item["attempts"]})
+            continue
+        subject = "FortiLens · " + m["title"]
+        error = _attempt(send, c, secrets, where, subject, _late_text(m, zone), kwargs)
+        item["attempts"] += 1
+        if error is None:
+            finish(item, {"status": "delivered", "late": True, "attempts": item["attempts"]})
+        elif error in RETRYABLE:
+            with alerts.lock:
+                item["error"] = error
+                delays = RETRY_DELAYS
+                item["next"] = now + delays[min(item["attempts"] - 1, len(delays) - 1)]
+            blocked.add((m["key"], where))
+            down.add(where)
+        else:
+            finish(item, {"status": "failed", "error": error, "attempts": item["attempts"]})
+    with alerts.lock:
+        return not any(
+            i["message"]["key"] in (keys or ()) and i["channel"] == channel for i in queue
+        )
+
+
+def deliver(c, secrets, messages, alerts, *, send=None, zone=None, down=None, **kwargs):
+    """Send each message on every enabled channel and record the outcome.
+
+    A message that could not reach a channel is queued and sent again by
+    ``retry``. One that waits behind an earlier alert of the same subject, or
+    whose channel was found unreachable in this pass (``down``), is queued
+    without trying, so the channel never receives them out of order and an
+    unreachable server costs one timeout per pass.
+    """
+    send = send or globals()["send"]
+    down = set() if down is None else down
     for m in messages:
         deliveries = []
         critical = RULES.get(m["key"].split(":")[0], ("", False))[1]
@@ -468,14 +578,51 @@ def deliver(c, secrets, messages, alerts, *, send=None, **kwargs):
             m = {**m, "held": True}
         if not m["held"]:
             for channel in channels:
-                try:
-                    send(c, secrets, channel, "FortiLens · " + m["title"], m["text"], **kwargs)
-                    deliveries.append({"channel": channel, "status": "delivered"})
-                except DeliveryError as exc:
-                    deliveries.append({"channel": channel, "status": "failed", "error": exc.code})
-                except Exception:  # noqa: BLE001 - one channel must not stop the others
+                tried = False
+                if channel in down:
                     error = channel + "_unreachable"
-                    deliveries.append({"channel": channel, "status": "failed", "error": error})
+                elif retry(
+                    c,
+                    secrets,
+                    alerts,
+                    m["at"],
+                    zone,
+                    send=send,
+                    keys={m["key"]},
+                    channel=channel,
+                    down=down,
+                    **kwargs,
+                ):
+                    subject = "FortiLens · " + m["title"]
+                    error = _attempt(send, c, secrets, channel, subject, m["text"], kwargs)
+                    tried = True
+                else:
+                    with alerts.lock:
+                        error = [
+                            i["error"]
+                            for i in alerts.state["retry"]
+                            if i["message"]["key"] == m["key"] and i["channel"] == channel
+                        ][-1]
+                if error is None:
+                    deliveries.append({"channel": channel, "status": "delivered"})
+                    continue
+                delivery = {"channel": channel, "status": "failed", "error": error}
+                if error in RETRYABLE:
+                    down.add(channel)
+                    delivery["status"] = "retrying"
+                    with alerts.lock:
+                        alerts.state.setdefault("retry", []).append(
+                            {
+                                "message": {
+                                    k: m[k] for k in ("at", "key", "kind", "title", "text")
+                                },
+                                "channel": channel,
+                                "error": error,
+                                "attempts": int(tried),
+                                "next": m["at"] + RETRY_DELAYS[0],
+                            }
+                        )
+                deliveries.append(delivery)
         alerts.record(m, deliveries)
 
 
@@ -859,7 +1006,9 @@ def report_window(kind, now, zone, last_daily=None):
 def isp_lines(query_range, names, start, end, preferred, *, step=300):
     """Per line, for its provider: time it worked, outages and degraded periods.
 
-    Down means no health check reported the line alive. Loss is the configured
+    Down means no health check reported the line alive. Each interval holds
+    the share of its scrapes the line was alive, so an outage shorter than the
+    interval still shows, with the minutes it was actually down. Loss is the configured
     check when it covers the line, otherwise the line's best check, as on the
     Internet links page. Intervals without samples count as unobserved.
     """
@@ -868,7 +1017,14 @@ def isp_lines(query_range, names, start, end, preferred, *, step=300):
     for name in names:
         where = 'interface="' + name + '"'
         alive = query_range(
-            'max(fortigate_virtual_wan_status{state="up",' + where + "})", start, end, step
+            'max(avg_over_time(fortigate_virtual_wan_status{state="up",'
+            + where
+            + "}"
+            + window
+            + "))",
+            start,
+            end,
+            step,
         )
         loss = query_range(
             "avg_over_time(fortigate_virtual_wan_packet_loss_ratio{"
@@ -907,23 +1063,19 @@ def isp_lines(query_range, names, start, end, preferred, *, step=300):
         times = sorted(values)
         expected = max(1, int((end - start) // step))
 
-        def runs(flag, minimum):
-            found, first, last = [], None, None
-            for t in times:
-                if not flag(t):
+        def runs(flag, minimum, length=lambda t: step):
+            """Consecutive flagged intervals: (start, end, seconds), seconds >= minimum."""
+            found, run = [], []
+            for t in times + [None]:
+                if t is not None and flag(t) and (not run or t - run[-1] <= step):
+                    run.append(t)
                     continue
-                if first is not None and t - last > step:
-                    if last - first + step >= minimum:
-                        found.append((first, last + step))
-                    first = None
-                if first is None:
-                    first = t
-                last = t
-            if first is not None and last - first + step >= minimum:
-                found.append((first, last + step))
+                if run and sum(length(x) for x in run) >= minimum:
+                    found.append((run[0], run[-1] + step, sum(length(x) for x in run)))
+                run = [t] if t is not None and flag(t) else []
             return found
 
-        outages = runs(lambda t: values[t] < 1, 2 * 60)
+        outages = runs(lambda t: values[t] < 1, 2 * 60, lambda t: (1 - values[t]) * step)
         degraded = runs(lambda t: values[t] >= 1 and lost.get(t, 0) >= 5, 20 * 60)
         up = [t for t in times if values[t] >= 1]
         up_loss = [lost[t] for t in up if t in lost]
@@ -932,10 +1084,14 @@ def isp_lines(query_range, names, start, end, preferred, *, step=300):
             {
                 "interface": name,
                 "observed_pct": 100 * len(times) / expected,
-                "up_pct": 100 * len(up) / len(times) if times else None,
+                "up_pct": 100 * sum(min(1.0, values[t]) for t in times) / len(times)
+                if times
+                else None,
                 "avg_loss_pct": statistics.fmean(up_loss) if up_loss else None,
                 "avg_delay_ms": statistics.fmean(up_delay) if up_delay else None,
-                "outages": [{"start": a, "end": b} for a, b in outages],
+                "outages": [
+                    {"start": a, "end": b, "down_seconds": round(s)} for a, b, s in outages
+                ],
                 "degraded": [
                     {
                         "start": a,
@@ -945,7 +1101,7 @@ def isp_lines(query_range, names, start, end, preferred, *, step=300):
                             [late[t] for t in times if a <= t < b and t in late] or [0]
                         ),
                     }
-                    for a, b in degraded
+                    for a, b, _ in degraded
                 ],
             }
         )
@@ -1036,7 +1192,13 @@ def _isp_section(line, zone):
     if line["avg_delay_ms"] is not None:
         facts.append(f"average delay {line['avg_delay_ms']:.0f} ms")
     rows = [
-        ["Down", _when(o["start"], zone), duration(o["end"] - o["start"]), "", ""]
+        [
+            "Down",
+            _when(o["start"], zone),
+            duration(o.get("down_seconds", o["end"] - o["start"])),
+            "",
+            "",
+        ]
         for o in line["outages"]
     ]
     rows += [
@@ -1086,12 +1248,25 @@ def render_report(kind, data, zone):
             )
         )
     usage = data.get("usage")
+    # Usage counted only part of the period must not read as the whole of it.
+    counted = data.get("counted_until", end.timestamp())
+    behind = []
+    if usage is not None and counted is None:
+        behind = [
+            "It is unknown how far usage has been counted, so these figures may be incomplete."
+        ]
+    elif usage is not None and counted < end.timestamp() - BEHIND_NOTE_SECONDS:
+        behind = [
+            "Usage is counted only up to "
+            + _when(counted, zone)
+            + ": later records were still being processed, so these figures are incomplete."
+        ]
     if usage is not None and not usage.get("devices"):
         # No records is not zero usage: the records may not reach back that far.
         sections.append(
             (
                 "Usage",
-                ["No usage was recorded in this period; it is unknown, not zero."],
+                ["No usage was recorded in this period; it is unknown, not zero."] + behind,
                 None,
             )
         )
@@ -1102,7 +1277,8 @@ def render_report(kind, data, zone):
         sections.append(
             (
                 "Usage",
-                [
+                behind
+                + [
                     f"{_gb(totals.get('download_bytes'))} down, "
                     f"{_gb(totals.get('upload_bytes'))} up, {count} devices."
                 ],

@@ -438,6 +438,8 @@ def slim(source, destination, *, batch_size=2000, min_free_bytes=2 * 1024**3, pr
         del ledger
         final = temporary("final")  # VACUUM INTO accepts an existing empty file
         notify("vacuum")
+        # The copy returns space freed by later pruning to the filesystem itself.
+        work.execute("PRAGMA auto_vacuum=INCREMENTAL")
         work.execute("VACUUM INTO ?", (str(final),))
         work.close()
         work = None

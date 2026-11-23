@@ -75,7 +75,11 @@
       ],
       [
         "secrets/fortigate-key.yaml",
-        "6bd8ae45e84b0fae22412725bd75ac238cb0c022d597e93ce5c59de64ac803fc"
+        "b393738ffb06d9942dbf5208a5e58a8cb6acd6d3e26823a0f938bdcf42741ffb"
+      ],
+      [
+        "secrets/fortigate_api_token",
+        "copied from the rendered template"
       ],
       [
         "site.json",
@@ -795,7 +799,11 @@
       ],
       [
         "secrets/fortigate-key.yaml",
-        "e5f0a872bba35d43be92f914f15d972ce96fad71fcfbc6e8727872ca1ff66f5e"
+        "3a1a71ff9ec9ddffe189815ffacaefc93219b96d2164774be917fdc5335a7683"
+      ],
+      [
+        "secrets/fortigate_api_token",
+        "copied from the rendered template"
       ],
       [
         "site.json",
@@ -1355,6 +1363,9 @@
       ]
     ]
   },
+  "refuse-adopted-endpoint-without-token": {
+    "problem": "token_reentry_required"
+  },
   "refuse-alloy-mapping-ports": {
     "problem": "custom_ports_review"
   },
@@ -1368,7 +1379,7 @@
     "problem": "custom_syslog_review"
   },
   "refuse-endpoint-to-known-target": {
-    "problem": "token_action_required"
+    "problem": "token_reentry_required"
   },
   "refuse-extra-host-handoff": {
     "problem": "custom_ports_review"
@@ -1387,6 +1398,9 @@
   },
   "refuse-leave-native-with-alloy-receiver": {
     "problem": "custom_ports_review"
+  },
+  "refuse-managed-port-without-token": {
+    "problem": "token_reentry_required"
   },
   "refuse-native-alloy-mapping-port": {
     "problem": "custom_ports_review"

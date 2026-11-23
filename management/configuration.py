@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shutil
 import ssl
 import stat
 import threading
@@ -36,9 +37,26 @@ SERVICES = (
 
 
 ACCOUNTING_CPUS = ("0.5", "1", "2")
+# Reviewed plans kept after an Apply, newest first, for rollback.
+PLANS_KEPT = 5
 # Telegram bot token and mail password for alerts, as one write-only secret file.
 NOTIFY_SECRET = "secrets/notify_credentials"
 NOTIFY_KEYS = ("telegram_bot_token", "smtp_password")
+# Secrets sent to a server the settings name: a saved one goes only to the
+# server it was entered for. (The Telegram token only ever goes to Telegram.)
+SECRET_DESTINATIONS = {
+    "token": ("token_reentry_required", "FortiGate"),
+    "smtp_password": ("password_reentry_required", "mail"),
+}
+
+
+def destination(settings, key):
+    """The server a secret is sent to under ``settings``: [host, port]."""
+    settings = settings or {}
+    if key == "token":
+        return [settings.get("fortigate_host", ""), settings.get("api_port", 443)]
+    email = (settings.get("notifications") or {}).get("email") or {}
+    return [email.get("host", ""), email.get("port", 587)]
 
 
 def accounting_cpus(compose):
@@ -630,6 +648,34 @@ class Configuration:
             )
         return matches[0]
 
+    def secret_bound(self, key, settings, state=None, secret=None):
+        """Whether the ``key`` secret these settings would use was entered for their server.
+
+        A secret typed with the draft is bound to the server it was saved with,
+        a stored one to the applied server. Without a secret, or without a
+        server to send it to, there is nothing to protect.
+        """
+        state = self.state() if state is None else state
+        secret = load(self.secret_path, {}) if secret is None else secret
+        wanted = destination(settings, key)
+        if not wanted[0]:
+            return True
+        if key == "smtp_password" and not settings["notifications"]["email"]["user"]:
+            return True  # No login: the password is never sent.
+        if secret.get(key):
+            # Typed before destinations were recorded: bound to the draft it was saved with.
+            bound = secret.get(key + "_for") or destination(state["settings"], key)
+        else:
+            try:
+                present = bool(self.token() if key == "token" else self.notify_secrets()[key])
+            except Problem:
+                present = False
+            if not present:
+                return True
+            applied = state.get("applied")
+            bound = destination(applied, key) if applied else None
+        return list(bound or []) == wanted
+
     def notify_secrets(self):
         """Alert channel secrets: the stored file, overlaid by values saved in the draft."""
         stored = notifications.read_secrets(self.root / NOTIFY_SECRET)
@@ -840,6 +886,22 @@ class Configuration:
                     raise Problem("invalid_secret", "Enter the bot token or password as one line.")
                 secret[key] = text
                 sent.append(key)
+            entered = {
+                "token": change.api_token is not None,
+                "smtp_password": "smtp_password" in sent,
+            }
+            for key, (code, label) in SECRET_DESTINATIONS.items():
+                if entered[key]:
+                    secret[key + "_for"] = destination(new, key)
+                elif not self.secret_bound(key, new, state, secret):
+                    raise Problem(
+                        code,
+                        "The "
+                        + label
+                        + " server changed. Enter the "
+                        + ("API token" if key == "token" else "mail password")
+                        + " again: a saved one is only sent to the server it was entered for.",
+                    )
             # One state transaction owns draft and write-only secret values.
             # Secret staging does not alter active service credentials.
             secret["revision"] = state["revision"] + 1
@@ -1696,6 +1758,22 @@ class Configuration:
             self.audit("configuration_rollback")
             return previous
 
+    def prune_plans(self, keep):
+        """Delete all but the newest reviewed plans; ``keep`` and running ones stay.
+
+        Each plan holds copies of the configuration and its secrets, so old
+        ones must not pile up. The newest few remain for rollback.
+        """
+        root = self.control / "plans"
+        folders = [
+            p for p in root.iterdir() if p.is_dir() and re.fullmatch(r"[a-f0-9]{32}", p.name)
+        ]
+        folders.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        for folder in folders[PLANS_KEPT:]:
+            if folder.name == keep or load(folder / "plan.json", {}).get("status") == "APPLYING":
+                continue
+            shutil.rmtree(folder)
+
     def write_target(self, row, data):
         target = guarded(self.root, row["path"])
         # Directory mounts must be traversable by the existing nonroot service
@@ -1727,6 +1805,10 @@ class Configuration:
                 atomic(self.secret_path, {})
             except OSError as exc:
                 report_failure("pending_secret_clear_failed", exc)
+            try:
+                self.prune_plans(identity)
+            except OSError as exc:
+                report_failure("plan_prune_failed", exc)
             self.audit(
                 "configuration_applied",
                 [row["path"] for row in plan["files"] if row["before"] != row["after"]],

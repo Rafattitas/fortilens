@@ -111,6 +111,8 @@ def site_name(hostname):
 GENERIC_APP = re.compile(r"(?:QUIC|SSL(?:[._].*)?|TLS(?:[._v].*)?|HTTPS?\.BROWSER)", re.IGNORECASE)
 UINT64 = 2**64 - 1
 NS = 1000000000
+# Free pages kept for reuse before space goes back to the filesystem.
+RECLAIM_RESERVE_BYTES = 256 * 1024**2
 
 
 class ReportTooLarge(Exception):
@@ -323,6 +325,20 @@ def number(value):
     return value if value <= UINT64 else None
 
 
+def eventtime_ns(value):
+    """FortiOS eventtime in seconds, milliseconds, microseconds or nanoseconds, as nanoseconds.
+
+    The unit follows the number of digits, as the doctor reads it. Seconds and
+    nanoseconds, the forms FortiOS sends by default, convert as before.
+    """
+    if value is None:
+        return None
+    for digits, scale in ((18, 1), (15, 1000), (12, 1000000)):
+        if value >= 10**digits:
+            return value * scale
+    return value * NS
+
+
 def digest(value):
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
@@ -413,9 +429,7 @@ def normalize(record, source_id):
     utc_offset = parse_utc_offset(fields.get("tz"))
     fields = {k: v for k, v in fields.items() if k in FIELDS}
     eventtime = fields.get("eventtime", "")
-    event_ns = number(eventtime)
-    if event_ns is not None and len(eventtime) <= 10:
-        event_ns *= NS
+    event_ns = eventtime_ns(number(eventtime))
     strong = event_ns is not None and 0 <= event_ns < 2**63
     event_ns = event_ns if strong else stamp
     uid = digest([source_id, event_ns, fields])
@@ -1693,6 +1707,9 @@ class Store(StoreReports):
         self.db = sqlite3.connect(str(path), timeout=20, check_same_thread=False)
         try:
             self.db.row_factory = sqlite3.Row
+            if not self.db.execute("SELECT count(*) FROM sqlite_master").fetchone()[0]:
+                # A new file returns freed space to the filesystem (reclaim_space).
+                self.db.execute("PRAGMA auto_vacuum=INCREMENTAL")
             selected_format = detect_storage_format(self.db, storage_format)
             self.db.executescript(
                 "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA journal_size_limit=134217728; PRAGMA cache_size=-2048; PRAGMA foreign_keys=ON;"
@@ -1844,6 +1861,28 @@ class Store(StoreReports):
             "INSERT INTO state VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             (key, json.dumps(value)),
         )
+
+    def reclaim_space(self, max_bytes=1024**3):
+        """Return free pages above a reserve to the filesystem; the bytes returned.
+
+        Pruning frees pages inside the file. Writes reuse them, so a reserve is
+        kept; the rest is released, at most ``max_bytes`` per call, so the file
+        shrinks back after a backlog instead of keeping its largest size. Only
+        files created with incremental auto-vacuum can do this; an older file
+        needs one offline compaction (accounting_migrate.py --slim).
+        """
+        db = self.db
+        if db.execute("PRAGMA auto_vacuum").fetchone()[0] != 2:
+            return 0
+        page = db.execute("PRAGMA page_size").fetchone()[0]
+        total = db.execute("PRAGMA page_count").fetchone()[0]
+        free = db.execute("PRAGMA freelist_count").fetchone()[0]
+        reserve = max(RECLAIM_RESERVE_BYTES // page, (total - free) // 10)
+        pages = min(free - reserve, max_bytes // page)
+        if pages <= 0:
+            return 0
+        db.execute("PRAGMA incremental_vacuum(" + str(int(pages)) + ")").fetchall()
+        return pages * page
 
     def delivery_max(self):
         missing = object()

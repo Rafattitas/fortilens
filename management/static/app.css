@@ -61,6 +61,7 @@ details { margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--line2)
 summary { display: flex; align-items: center; min-height: 32px; font-size: 13px; cursor: pointer; }
 summary::before { content: "▸"; margin-right: 7px; color: var(--sub); }
 details[open] > summary::before { content: "▾"; }
+.syslog-cli pre { margin: 6px 0 0; padding: 8px 10px; overflow-x: auto; border-radius: var(--r1); background: var(--well); color: var(--ink); font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }
 
 /* State: shape and word, never colour alone. */
 .pill, .st { display: inline-flex; align-items: center; gap: 6px; color: var(--unk); font-size: 12.5px; font-weight: 500; white-space: nowrap; }

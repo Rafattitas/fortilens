@@ -238,8 +238,9 @@ SCENARIOS = {
     ),
     "managed-endpoint": (
         "managed",
-        [Step({"fortigate_host": "192.0.2.2", "api_port": 8443})],
+        [Step({"fortigate_host": "192.0.2.2", "api_port": 8443}, token="synthetic-moved-token")],
     ),
+    "refuse-managed-port-without-token": ("managed", [Step({"api_port": 8443})]),
     "managed-endpoint-and-token": (
         "managed",
         [Step({"fortigate_host": "192.0.2.3"}, token="synthetic-second-token")],
@@ -379,7 +380,12 @@ SCENARIOS = {
     ),
     "adopted-native-bridge": ("adopted", [Step(NATIVE)]),
     "adopted-native-host": ("adopted", [Step(HOST)]),
-    "adopted-endpoint": ("adopted", [Step({"fortigate_host": "192.0.2.9"})]),
+    "adopted-endpoint": (
+        "adopted",
+        [Step({"fortigate_host": "192.0.2.9"}, token="synthetic-adopted-token")],
+    ),
+    # A stored token is never sent to a new address without being entered again.
+    "refuse-adopted-endpoint-without-token": ("adopted", [Step({"fortigate_host": "192.0.2.9"})]),
     "adopted-cli-native": ("adopted-native", [Step({**NATIVE, "syslog_port": 6514})]),
     "adopted-minimal-ca-accounting-on": (
         "adopted-minimal-ca",

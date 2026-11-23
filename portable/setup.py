@@ -783,36 +783,93 @@ def saved_dashboard(p, c):
     return existing
 
 
-def retire_saved_panels(p, c, existing=None):
-    """Remove FortiLens's former raw-log usage panels from the running dashboard.
+# Template variables whose choices come from Settings: the FortiGate, VDOM,
+# SLA and the Internet lines. Their saved copies go stale when Settings change.
+SETTINGS_VARIABLES = ("fortigate", "vdom", "sla", "wan")
+SETTINGS_VARIABLE_FIELDS = ("query", "definition", "regex", "options", "description")
+TITLE_PREFIX = "FortiLens — "
 
-    Saved dashboards are otherwise never overwritten. This removes only panels
-    that still match what FortiLens generated, and the rows they leave empty;
-    every other panel, row, selector and permission is kept. The previous
-    dashboard is saved privately first. A missing dashboard is not re-created.
+
+def refresh_settings(saved, generated):
+    """Copy what Settings own from a freshly generated dashboard into a saved one.
+
+    Settings own the selectors' choices (FortiGate, VDOM, SLA and Internet
+    lines) and a title FortiLens wrote. A selection that is still offered is
+    kept, and so is a title someone changed in Grafana. The time settings,
+    panels, rows, links and every other variable are the dashboard's own and
+    are left as they are. Returns the dashboard and the names of the parts
+    that changed.
+    """
+    result = deepcopy(saved)
+    spec, fresh = result["spec"], generated["spec"]
+    changed = []
+    title = spec.get("title")
+    if isinstance(title, str) and title.startswith(TITLE_PREFIX) and title != fresh["title"]:
+        spec["title"] = fresh["title"]
+        changed.append("title")
+    wanted = {v["spec"]["name"]: v for v in fresh["variables"]}
+    for variable in spec.get("variables") or []:
+        current = variable.get("spec") if isinstance(variable, dict) else None
+        name = current.get("name") if isinstance(current, dict) else None
+        if name not in SETTINGS_VARIABLES or name not in wanted:
+            continue
+        if variable.get("kind") != wanted[name]["kind"]:
+            continue
+        source = wanted[name]["spec"]
+        before = deepcopy(current)
+        for field in SETTINGS_VARIABLE_FIELDS:
+            if field in source:
+                current[field] = deepcopy(source[field])
+            else:
+                current.pop(field, None)
+        for field in ("staticOptions", "staticOptionsOrder", "allValue"):
+            current.pop(field, None)
+        # Keep the saved selection while every value in it is still offered.
+        offered = {o.get("value") for o in current.get("options") or [] if isinstance(o, dict)}
+        selected = (current.get("current") or {}).get("value")
+        values = selected if isinstance(selected, list) else [selected]
+        if not values or any(not isinstance(x, str) or x not in offered for x in values):
+            current["current"] = deepcopy(source["current"])
+            values = [current["current"]["value"]]
+        for option in current.get("options") or []:
+            option["selected"] = option.get("value") in values
+        if current != before:
+            changed.append(name)
+    return result, changed
+
+
+def update_saved_dashboard(p, c, existing=None):
+    """Bring the running dashboard in line with Settings without overwriting it.
+
+    Saved dashboards are never replaced. This updates only what Settings own
+    (see refresh_settings) and removes FortiLens's former raw-log usage panels
+    that still match what it generated, with the rows they leave empty. Every
+    other panel, row, selector and permission is kept. The previous dashboard
+    is saved privately first. A missing dashboard is not re-created.
     """
     from dashboard_style import retire_usage_panels
 
     existing = saved_dashboard(p, c) if existing is None else existing
     if existing is None:
-        return {"removed": [], "kept": []}
+        return {"removed": [], "kept": [], "refreshed": []}
     candidate, removed, kept = retire_usage_panels(existing)
+    candidate, refreshed = refresh_settings(candidate, make_dashboard(c))
     for name in kept:
         print(
             "Kept "
             + name
             + ": it no longer matches the panel FortiLens generated. Remove it in Grafana if it is not needed."
         )
-    if not removed:
+    if not removed and not refreshed:
         print("Existing dashboard preserved (no overwrite).")
-        return {"removed": [], "kept": kept}
+        return {"removed": [], "kept": kept, "refreshed": []}
     write_file(
         p,
-        "grafana/dashboard.before-retired-panels-" + str(time.time_ns()) + ".json",
+        "grafana/dashboard.before-update-" + str(time.time_ns()) + ".json",
         dumps(existing),
         mode=0o600,
     )
-    # Send back what Grafana returned, with only the panels changed. Its
+    # Send back what Grafana returned, with only these parts changed. Its
     # resourceVersion makes Grafana refuse the update if someone saved meanwhile.
     update = deepcopy(existing)
     update["spec"] = candidate["spec"]
@@ -823,18 +880,25 @@ def retire_saved_panels(p, c, existing=None):
         or result["metadata"].get("name") != UID
     ):
         raise SetupError("Dashboard update returned an unexpected identifier")
-    print(
-        "Removed retired usage panels from the saved dashboard ("
-        + str(len(removed))
-        + "); other panels were kept."
-    )
-    return {"removed": removed, "kept": kept}
+    if removed:
+        print(
+            "Removed retired usage panels from the saved dashboard ("
+            + str(len(removed))
+            + "); other panels were kept."
+        )
+    if refreshed:
+        print(
+            "Updated the saved dashboard to match Settings ("
+            + ", ".join(refreshed)
+            + "); other panels and selectors were kept."
+        )
+    return {"removed": removed, "kept": kept, "refreshed": refreshed}
 
 
 def import_dashboard(p, c):
     existing = saved_dashboard(p, c)
     if existing is not None:
-        retire_saved_panels(p, c, existing)
+        update_saved_dashboard(p, c, existing)
         return
     result = grafana_request(p, c, DASHBOARD_ROUTE, "POST", load(p / "grafana/dashboard.json"))
     if (
