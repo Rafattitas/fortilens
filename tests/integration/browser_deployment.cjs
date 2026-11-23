@@ -57,7 +57,7 @@ async function monitoringClockRegression(browser,baseURL,offset,supported=true){
   assert.equal(await page.locator('#console-clock-warning').isVisible(),warning);
   if(aligned)assert.match(await page.locator('#console-clock-warning').textContent(),/Monitoring uses server time/);
   else if(warning)assert.match(await page.locator('#console-clock-warning').textContent(),/unavailable/);
-  await page.locator('#workspace-nav a[data-page="overview"]').click();await page.locator('#workspace-nav a[data-page="monitoring"]').click();
+  await page.locator('#workspace-nav a[data-page="diagnostics"]').click();await page.locator('#workspace-nav a[data-page="monitoring"]').click();
   await page.waitForFunction(()=>document.getElementById('console-frame').contentDocument?.title==='Synthetic monitoring');checkPath(await page.locator('#console-frame').getAttribute('src'));
   let explicit=await page.evaluate(path=>monitoringLaunch(path,2612,true),nativePath+'&from=now-1h&to=now');
   assert.equal(new URL(explicit.path,baseURL).searchParams.get('from'),'now-1h');assert.equal(new URL(explicit.path,baseURL).searchParams.get('to'),'now');
@@ -385,7 +385,7 @@ async function setupAutofillRegression(browser,baseURL,{bootstrap,expectedDevice
  await page.locator('#apply').evaluate(el=>el.click());assert.equal(applies,1,'Duplicate Apply was sent');
  mode='complete';await page.waitForFunction(()=>document.getElementById('deployment').hidden);await page.waitForFunction(()=>document.getElementById('notice').textContent.includes('applied successfully'));assert.match(await page.locator('#notice').textContent(),/applied successfully/);
  assert.equal(await visible('deployment-history'),true);await page.reload();await page.waitForFunction(()=>!document.getElementById('workspace').hidden);assert.equal(await visible('deployment'),false,'Completed reload restored progress');
- await page.locator('a[data-page="overview"]').click();await page.locator('a[data-page="settings"]').click();assert.equal(await visible('deployment'),false,'Navigation restored completed progress');
+ await page.locator('a[data-page="diagnostics"]').click();await page.locator('a[data-page="settings"]').click();assert.equal(await visible('deployment'),false,'Navigation restored completed progress');
  mode='starting';await page.reload();await page.waitForFunction(()=>!document.getElementById('deployment').hidden);assert.equal(await page.locator('#prepare').isDisabled(),true,'Running reload did not lock Apply workflow');
  mode='failed';await page.waitForFunction(()=>document.getElementById('deployment-status').textContent==='failed');assert.equal(await visible('rollback'),true);assert.match(await page.locator('#deployment-message').textContent(),/Failed stage: readiness/);
  await page.waitForTimeout(1400);assert.equal(await visible('deployment'),true,'Failure disappeared without acknowledgement');

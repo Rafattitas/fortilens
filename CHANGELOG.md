@@ -67,6 +67,16 @@
   steps, including Alerts & Reports.
 - Review & Apply shows a middle dot instead of "Â·" between values.
 
+### Console navigation
+
+- Status and Diagnostics are one page, **Health**: services, storage and
+  configuration readiness at the top, then the read-only checks. Old `#overview`
+  and `#diagnostics` links open it, and messages that pointed to Diagnostics now
+  name Health.
+- **Data quality** moved under Recorded usage, next to the figures it explains.
+  The sidebar has 13 entries instead of 14, in three groups.
+- The FortiLens logo opens Overview instead of the Firewall dashboard.
+
 ## v0.7.1 — 2026-11-23 — Apply restarts only what changed, and alert tests say whether alerts will be sent
 
 ### Upgrade

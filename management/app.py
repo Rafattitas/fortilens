@@ -109,11 +109,11 @@ input,select{border-color:#63728b}.notice{border-radius:0;border-width:0 0 0 2px
 @media(max-width:700px){main{padding:0 0 20px!important}.toolbar{padding:0 0 16px}.stats{row-gap:22px}.metric-value{font-size:23px}.periods{gap:4px}.periods button{font-size:12px;padding:8px 10px}input,select{font-size:16px}.filters{gap:14px}.section-head{padding:18px 0}.context{font-size:11px}.quality-grid>.card{padding:16px 0}}
 """
 
-HOSTED_REPORT_STATUS = """<section id="managed-report-status" role="status"><p id="managed-report-message">Connecting to reports…</p><a id="managed-report-recovery" href="/#diagnostics" target="_top" hidden>Open diagnostics</a></section>"""
+HOSTED_REPORT_STATUS = """<section id="managed-report-status" role="status"><p id="managed-report-message">Connecting to reports…</p><a id="managed-report-recovery" href="/#diagnostics" target="_top" hidden>Open Health</a></section>"""
 HOSTED_REPORT_SCRIPT = """<script>
 (()=>{const app=document.getElementById('application'),status=document.getElementById('managed-report-status'),message=document.getElementById('managed-report-message'),recovery=document.getElementById('managed-report-recovery');let connected=false;
-const timer=setTimeout(()=>{if(app.hidden){message.textContent='Reports are taking longer than expected. Refresh this view or check diagnostics.';recovery.hidden=false}},8000);
-const update=()=>{status.hidden=!app.hidden;if(!app.hidden){connected=true;clearTimeout(timer)}else if(connected){message.textContent='Reports need to reconnect. Refresh this view or check diagnostics.';recovery.hidden=false}};
+const timer=setTimeout(()=>{if(app.hidden){message.textContent='Reports are taking longer than expected. Refresh this view or check Health.';recovery.hidden=false}},8000);
+const update=()=>{status.hidden=!app.hidden;if(!app.hidden){connected=true;clearTimeout(timer)}else if(connected){message.textContent='Reports need to reconnect. Refresh this view or check Health.';recovery.hidden=false}};
 new MutationObserver(update).observe(app,{attributes:true,attributeFilter:['hidden']});update()})();
 </script>"""
 

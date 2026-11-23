@@ -8,7 +8,7 @@ For what each check means, see the [Diagnostics reference](../operations/DIAGNOS
 
 | Question | Page |
 |---|---|
-| Is everything collecting right now? | Overview, then Diagnostics |
+| Is everything collecting right now? | Overview, then Health |
 | Who is using the Internet this minute? | Live usage |
 | Who used the most in the last five minutes, today, this week or this month? | Devices, with the period you need |
 | Which network segment uses the most? | Segments |
@@ -16,7 +16,7 @@ For what each check means, see the [Diagnostics reference](../operations/DIAGNOS
 | Is an Internet link down or degraded? | Internet links |
 | Firewall CPU, memory, sessions and interface traffic over time | Firewall dashboard |
 | Why does a number look low or is missing? | Data quality |
-| Why is a page unavailable or slow? | Diagnostics |
+| Why is a page unavailable or slow? | Health |
 
 ## Two kinds of numbers
 
@@ -185,17 +185,20 @@ for what is stored and for how long.
 A summary for the chosen period: the largest consumers and the usage per segment,
 ready to read or share.
 
+### Data quality
+
+Follows a record from received to processed to classified and counts what was
+excluded and why. Use it when a figure looks low.
+
 ## System
 
 - **Alerts** shows what is wrong now and every alert FortiLens sent, with its
   delivery on Telegram and email. Alerts are set up in Settings → Alerts &
   Reports; see [Alerts](../operations/ALERTS.md).
-- **Status** lists the monitoring services, storage use and whether the saved
-  configuration is applied.
-- **Data quality** follows a record from received to processed to classified and
-  counts what was excluded and why. Use it when a figure looks low.
-- **Diagnostics** runs read-only checks and says what to do about each finding.
-  See the [Diagnostics reference](../operations/DIAGNOSTICS.md).
+- **Health** lists the monitoring services, storage use and whether the saved
+  configuration is applied, then runs read-only checks and says what to do
+  about each finding. See the [checks reference](../operations/DIAGNOSTICS.md).
+  It replaces the former Status and Diagnostics pages; their old links open it.
 - **Settings** changes the installation. **Save draft** keeps a change as a
   revision without changing anything that runs. Until it is applied, a bar
   above every section names the waiting changes and offers **Review and
@@ -212,5 +215,5 @@ ready to read or share.
 4. If the device that complained is not listed, its traffic may not pass a
    logging policy, or the problem is before the FortiGate (Wi-Fi, cable, the
    device itself).
-5. If pages are slow or unavailable, open **Diagnostics** and check
+5. If pages are slow or unavailable, open **Health** and check
    `clock_offset` first.

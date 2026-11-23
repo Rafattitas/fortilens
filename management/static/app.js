@@ -43,13 +43,13 @@ function consoleDocumentReady(frame){
   if(!doc||doc.URL==='about:blank'||doc.readyState==='loading')return false;
   clearConsoleCheck();$('console-loading').hidden=true;frame.removeAttribute('aria-busy');
   if(doc.contentType==='application/json'){
-   frame.hidden=true;$('console-error').textContent='This view is unavailable. Reload it or open Diagnostics.';$('console-error').hidden=false;
+   frame.hidden=true;$('console-error').textContent='This view is unavailable. Reload it or open Health.';$('console-error').hidden=false;
   }
   return true;
  }catch(e){return false}
 }
-const titles={home:['Overview','What the links, logs and usage evidence say right now.'],overview:['Status','Monitoring services, storage and configuration readiness.'],wan:['Internet links','Observed health, physical link and route evidence remain separate.'],devices:['Devices','Recorded upload and download, with identity and coverage limits.'],vlans:['Segments','Internet usage grouped by exact interface metadata.'],reports:['Reports','Daily, weekly and monthly reports from the existing accounting engine.'],applications:['Applications','Recorded Internet usage by application and category, and the devices that used them.'],websites:['Websites','Recorded Internet usage by website, and the devices that visited them.'],live:['Live usage','Who is using the Internet right now, from FortiGate realtime session statistics.'],monitoring:['Firewall dashboard','Firewall health, Internet links and interface traffic in native Grafana.'],quality:['Data quality','Collection gaps, accounting evidence and identity limits.'],settings:['Settings','Manage your installation without editing configuration files.'],alerts:['Alerts','What is wrong now, and every alert FortiLens sent.'],diagnostics:['Diagnostics','Read-only evidence, service readiness and actionable next steps.']};
-const pageGroups={home:'Overview',live:'Right now',wan:'Right now',monitoring:'Right now',devices:'Recorded usage',vlans:'Recorded usage',applications:'Recorded usage',websites:'Recorded usage',reports:'Recorded usage',overview:'System',quality:'System',alerts:'System',diagnostics:'System',settings:'System'};
+const titles={home:['Overview','What the links, logs and usage evidence say right now.'],wan:['Internet links','Observed health, physical link and route evidence remain separate.'],devices:['Devices','Recorded upload and download, with identity and coverage limits.'],vlans:['Segments','Internet usage grouped by exact interface metadata.'],reports:['Reports','Daily, weekly and monthly reports from the existing accounting engine.'],applications:['Applications','Recorded Internet usage by application and category, and the devices that used them.'],websites:['Websites','Recorded Internet usage by website, and the devices that visited them.'],live:['Live usage','Who is using the Internet right now, from FortiGate realtime session statistics.'],monitoring:['Firewall dashboard','Firewall health, Internet links and interface traffic in native Grafana.'],quality:['Data quality','Collection gaps, accounting evidence and identity limits.'],settings:['Settings','Manage your installation without editing configuration files.'],alerts:['Alerts','What is wrong now, and every alert FortiLens sent.'],diagnostics:['Health','Monitoring services, storage and configuration readiness, with read-only checks and next steps.']};
+const pageGroups={home:'Overview',live:'Right now',wan:'Right now',monitoring:'Right now',devices:'Recorded usage',vlans:'Recorded usage',applications:'Recorded usage',websites:'Recorded usage',reports:'Recorded usage',quality:'Recorded usage',alerts:'System',diagnostics:'System',settings:'System'};
 // Theme choice is shared with the same-origin report frame through storage.
 function savedTheme(){try{const value=localStorage.getItem('fortilens.theme');if(value==='light'||value==='dark')return value}catch{}return window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}
 function applyTheme(theme){document.documentElement.dataset.theme=theme;try{const doc=$('console-frame').contentDocument;if(doc?.location.pathname.startsWith('/console/'))doc.documentElement.dataset.theme=theme}catch{}$('theme-toggle').textContent=theme==='dark'?'Light':'Dark';$('theme-toggle').setAttribute('aria-label','Switch to '+(theme==='dark'?'light':'dark')+' theme')}
@@ -130,7 +130,7 @@ function renderDraftInputs(){
  const exclusions=state.draftSettings.optional_exporter_exclusions??state.view.exporter_policy?.optional_exclusions??[];
  for(const input of document.querySelectorAll('[data-optional-probe]')){input.checked=exclusions.includes(input.dataset.optionalProbe);input.disabled=state.view.exporter_policy?.available===false}
  $('syslog-profile-help').textContent=state.draftSettings.syslog_format==='fortigate'?'Native FortiGate default messages require UDP. Set the incoming port to match the firewall (commonly 514). FortiLens forwards internally to Alloy over RFC5424/TCP. UDP delivery is best effort.':'Match the sender protocol, port and RFC format. Native FortiGate default messages need the FortiGate default / native UDP profile.';{const s=state.draftSettings,host=/^\d{1,3}(\.\d{1,3}){3}$/.test(location.hostname)?location.hostname:'<FortiLens server IP>',cli=['config log syslogd setting','    set status enable','    set server "'+host+'"','    set mode '+(s.syslog_protocol==='tcp'?'reliable':'udp'),'    set port '+s.syslog_port];if(s.syslog_format==='rfc5424')cli.push('    set format rfc5424');else if(s.syslog_format==='fortigate')cli.push('    set format default');cli.push('end');$('syslog-fortigate-cli').textContent=cli.join('\n')}
- $('sla-help').textContent=state.draftSettings.sla?'Uses this exact check name. A failed check remains failed; another destination is never substituted.':'No SLA selected. Internet state, latency, jitter and loss remain unknown until you choose the device’s actual check name. Diagnostics lists recently observed names.';
+ $('sla-help').textContent=state.draftSettings.sla?'Uses this exact check name. A failed check remains failed; another destination is never substituted.':'No SLA selected. Internet state, latency, jitter and loss remain unknown until you choose the device’s actual check name. The Health page lists recently observed names.';
 }
 function intentionalDraftEdit(input,event){
  if(!state.draftSettings||!event.isTrusted||input.disabled||input.readOnly||$('workspace').hidden||$('settings-page').hidden||$('configuration-form').hidden||!input.getClientRects().length)return false;
@@ -232,7 +232,7 @@ function renderPlan(){
 async function preparePlan(save){if(save)await saveDraft();state.plan=await api('/api/configuration/prepare',{revision:state.view.revision});if(state.plan.discovery)state.view.discovery=state.plan.discovery;renderPlan();renderWorkflowReadiness()}
 // Opening Review checks a saved draft by itself; unsaved edits wait for Check the draft.
 function maybeAutoPrepare(){const v=state.view;if(!v?.configured||!v.pending_changes||state.plan||state.unsaved||$('prepare').disabled)return;action($('prepare'),()=>preparePlan(false))}
-async function loadSystem(){const sequence=state.systemSequence=(state.systemSequence||0)+1;try{const system=await api('/api/system');if(sequence===state.systemSequence){rememberSystem(system);renderSystem()}return true}catch(e){if(sequence!==state.systemSequence)return false;notice(errorText(e),true);$('overview-cards').replaceChildren(metric('Management portal','Running','Independent of monitoring'),metric('Monitoring status','Unavailable','Open Diagnostics for recovery'));return false}}
+async function loadSystem(){const sequence=state.systemSequence=(state.systemSequence||0)+1;try{const system=await api('/api/system');if(sequence===state.systemSequence){rememberSystem(system);renderSystem()}return true}catch(e){if(sequence!==state.systemSequence)return false;notice(errorText(e),true);$('overview-cards').replaceChildren(metric('Management portal','Running','Independent of monitoring'),metric('Monitoring status','Unavailable','See the read-only checks below'));return false}}
 function metric(title,value,caption){const card=E('div',undefined,'metric-card');card.append(E('span',title,'metric-label'),E('div',value,'metric'),E('small',caption));return card}
 function fact(root,title,value){const block=E('div',undefined,'fact');block.append(E('span',title),E('strong',value));root.append(block)}
 function renderStorage(projection,disk){
@@ -267,10 +267,12 @@ function renderReview(){if(!state.view)return;const s=readSettings();$('review-s
 function defaultPage(){return 'home'}
 function pageEnabled(page){const f=state.view?.active_monitoring;if(!f)return true;return page==='alerts'?f.accounting:page==='wan'?f.wan:page==='websites'?f.accounting&&f.websites:['devices','reports','applications','live','quality'].includes(page)?f.accounting:page==='vlans'?f.vlans:page==='monitoring'?(f.wan||f.sla||f.interfaces||f.server):true}
 function navigate(page){
+ // Status was merged into Health; its old links still arrive.
+ if(page==='overview')page='diagnostics';
  if(!Object.hasOwn(titles,page))page=defaultPage();
- if(!state.view)page='diagnostics';else if(!pageEnabled(page))page='overview';
+ if(!state.view)page='diagnostics';else if(!pageEnabled(page))page='diagnostics';
  if(state.view&&!state.view.configured&&!['settings','diagnostics'].includes(page))page='settings';
- const embedded=!['home','overview','settings','diagnostics','alerts'].includes(page);
+ const embedded=!['home','settings','diagnostics','alerts'].includes(page);
  const route=new URL('/',location.origin);route.searchParams.set('view',page);route.hash=page;
  // Legacy hash links remain valid. If the server could not know that first
  // destination (including immediately after sign-in), request its initial HTML.
@@ -286,9 +288,9 @@ function navigate(page){
  for(const a of document.querySelectorAll('[data-page]')){a.classList.toggle('active',a.dataset.page===page);if(a.dataset.page===page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')}
  state.page=page;clearTimeout(state.homeTimer);$('workspace').classList.toggle('home-mode',page==='home');
  $('page-title').textContent=titles[page][0];$('page-caption').textContent=titles[page][1];
- for(const id of ['home-page','overview-page','settings-page','diagnostics-page','alerts-page','console-page'])$(id).hidden=true;
+ for(const id of ['home-page','settings-page','diagnostics-page','alerts-page','console-page'])$(id).hidden=true;
  if(!embedded)$(page+'-page').hidden=false;else{$('console-page').hidden=false;loadConsole(page)}
- if(page==='settings')selectSection(state.section);if(page==='diagnostics')runDiagnostics();if(page==='alerts')loadAlerts().catch(e=>notice(errorText(e),true));if(page==='overview')loadSystem();if(page==='home')loadHome();
+ if(page==='settings')selectSection(state.section);if(page==='diagnostics'){if(state.view)loadSystem();runDiagnostics()}if(page==='alerts')loadAlerts().catch(e=>notice(errorText(e),true));if(page==='home')loadHome();
  if(location.hash!=='#'+page)history.pushState(null,'',route);else history.replaceState(null,'',route);
  notice('');
 }
@@ -297,7 +299,7 @@ function loadConsole(page){
  const previous=$('console-frame');
  $('console-error').hidden=true;$('console-loading').hidden=true;
  $('console-clock-warning').hidden=true;
- if(!state.system){previous.removeAttribute('src');$('console-error').textContent='Service state could not be read. Reload this view or open Diagnostics.';$('console-error').hidden=false;return}
+ if(!state.system){previous.removeAttribute('src');$('console-error').textContent='Service state could not be read. Reload this view or open Health.';$('console-error').hidden=false;return}
  if(!state.system.links?.console){
   previous.removeAttribute('src');$('console-error').hidden=false;
   $('console-error').textContent='This existing deployment retains separate native service authentication. Open the existing service below, or review the unified-console migration guide.';
@@ -322,7 +324,7 @@ function loadConsole(page){
  frame.onload=()=>consoleDocumentReady(frame);if(!initial)previous.replaceWith(frame);
  $('console-loading').textContent='Loading '+titles[page][0].toLowerCase()+'…';$('console-loading').hidden=false;
  if(!initial)frame.src=destination;
- let checks=0;state.consoleCheck=setInterval(()=>{if(consoleDocumentReady(frame))return;if(++checks>=100){clearConsoleCheck();$('console-loading').textContent='This view is still loading. Reload it or check Diagnostics.'}},100);
+ let checks=0;state.consoleCheck=setInterval(()=>{if(consoleDocumentReady(frame))return;if(++checks>=100){clearConsoleCheck();$('console-loading').textContent='This view is still loading. Reload it or check Health.'}},100);
 }
 async function runDiagnostics(){
  $('diagnostic-checks').setAttribute('aria-busy','true');
@@ -422,8 +424,8 @@ async function watchJob(id){
    const firstSetup=!state.view.configured;let refreshed=false;
    try{await reloadSettings();refreshed=await loadSystem()}catch(error){
     if(!state.csrf)return;
-    if(job.status==='complete'){$('deployment').hidden=true;notice('Configuration applied. Settings or service health could not be refreshed; review Diagnostics before another operation.',true)}
-    else notice((job.message||'Deployment failed.')+' Current settings could not be refreshed; review Diagnostics.',true);
+    if(job.status==='complete'){$('deployment').hidden=true;notice('Configuration applied. Settings or service health could not be refreshed; review Health before another operation.',true)}
+    else notice((job.message||'Deployment failed.')+' Current settings could not be refreshed; review Health.',true);
     updateDeploymentControls();return;
    }
    if(!state.csrf)return;
@@ -433,7 +435,7 @@ async function watchJob(id){
     // Name what happened: the revision now running and the services that restarted.
     const running=Number.isInteger(job.applied_revision)?' Revision '+job.applied_revision+' is now running.':'',names=state.appliedRestarts===null?null:Array.isArray(job.restarted)?job.restarted:state.appliedRestarts,restarted=!names?'':names.length?' Restarted: '+serviceList(names)+'.':' No service was restarted.';
     state.appliedRestarts=null;
-    const success=refreshed===false?'Configuration applied.'+running+' Current service health could not be refreshed; review Diagnostics.':'Configuration applied successfully.'+running+restarted+' Review collection warnings in Diagnostics.';
+    const success=refreshed===false?'Configuration applied.'+running+' Current service health could not be refreshed; review Health.':'Configuration applied successfully.'+running+restarted+' Review collection warnings in Health.';
     notice(success,refreshed===false);
     clearTimeout(state.successTimer);if(refreshed!==false)state.successTimer=setTimeout(()=>{if($('notice').textContent===success&&!$('notice').classList.contains('error'))notice('')},20000);
    }else if(!acknowledgedJob(job.job_id))notice(job.message,true);
@@ -443,7 +445,7 @@ async function watchJob(id){
  }catch(error){
   state.jobUnknown=true;state.jobPending=false;updateDeploymentControls();
   $('deployment').hidden=false;$('deployment-title').textContent='Deployment status unavailable';$('deployment-status').textContent='Unknown';
-  $('deployment-message').textContent=errorText(error)+' Deployment may still be running. Refresh deployment status and review Diagnostics before repeating Apply or rollback.';
+  $('deployment-message').textContent=errorText(error)+' Deployment may still be running. Refresh deployment status and review Health before repeating Apply or rollback.';
   notice(errorText(error),true);
  }
 }
@@ -536,7 +538,7 @@ $('apply').addEventListener('click',()=>action($('apply'),async()=>{if(!state.pl
 $('rollback').addEventListener('click',()=>action($('rollback'),async()=>{if(!state.job)throw safeError('Choose a deployment with a retained configuration backup.');await beginDeployment('/api/configuration/rollback',{revision:state.view.revision,plan_id:state.job.plan_id,confirm:true})}));
 $('approve-plan').addEventListener('change',updateDeploymentControls);
 $('deployment-acknowledge').addEventListener('click',acknowledgeJob);
-$('deployment-refresh').addEventListener('click',()=>action($('deployment-refresh'),async()=>{if(!await loadSystem())return;const latest=state.system?.latest_job;if(latest){state.jobUnknown=false;restoreLatestJob(latest)}else notice('No deployment history was returned. Review Diagnostics before retrying.',true)}));
+$('deployment-refresh').addEventListener('click',()=>action($('deployment-refresh'),async()=>{if(!await loadSystem())return;const latest=state.system?.latest_job;if(latest){state.jobUnknown=false;restoreLatestJob(latest)}else notice('No deployment history was returned. Review Health before retrying.',true)}));
 $('history-lookup-form').addEventListener('submit',e=>{e.preventDefault();action($('history-lookup'),async()=>{const id=$('history-lookup-id').value.trim();if(!/^[a-f0-9]{32}$/.test(id))throw safeError('Enter a recorded 32-character deployment ID.');const job=await api('/api/jobs/'+id);renderJobHistory(job)})});
 $('history-rollback').addEventListener('click',()=>action($('history-rollback'),async()=>{const plan=$('history-rollback').dataset.planId;if(!plan)throw safeError('Choose a deployment with a retained configuration backup.');await beginDeployment('/api/configuration/rollback',{revision:state.view.revision,plan_id:plan,confirm:true})}));
 $('password-form').addEventListener('submit',e=>{e.preventDefault();action($('password-form').querySelector('button'),async()=>{await api('/api/password',{current:$('current-password').value,password:$('new-password').value,confirmation:$('confirm-password').value});signedOut();$('auth-caption').textContent='Password changed. Sign in with your new password.'})});
@@ -554,14 +556,14 @@ function homeStatus(kind,head,sub,action,label){const root=$('home-status');root
 function renderHomeStatus(wan,report,links){
  const wans=wan?.interfaces||[],now=serverNow(),lastLog=state.evidence?.lastLog,accounting=state.view?.active_monitoring?.accounting!==false,age=lastLog?now-lastLog:null;
  const failing=wans.filter(w=>w.internet_state==='DOWN'),errored=wans.filter(w=>w.internet_state==='ERROR');
- if(!links)return homeStatus('is-u','Service state is unavailable.','Monitoring may still be running. Nothing here is treated as an outage.','diagnostics','Open diagnostics');
- if(!links.console)return homeStatus('is-u','This deployment keeps separate service sign-in.','Live evidence opens in the existing services until the unified-console migration is complete. Nothing here is treated as an outage.','diagnostics','Open diagnostics');
+ if(!links)return homeStatus('is-u','Service state is unavailable.','Monitoring may still be running. Nothing here is treated as an outage.','diagnostics','Open Health');
+ if(!links.console)return homeStatus('is-u','This deployment keeps separate service sign-in.','Live evidence opens in the existing services until the unified-console migration is complete. Nothing here is treated as an outage.','diagnostics','Open Health');
  if(failing.length){const w=failing[0],more=failing.length>1?' '+(failing.length-1)+' more failing.':'';return homeStatus('is-w',w.interface+' is failing its Internet SLA.','Latency '+reading(w.latency_ms,' ms')+', loss '+reading(w.packet_loss_pct,'%')+'. '+(w.physical_state==='UP'?'The physical link is up, so look upstream first.':w.physical_state==='DOWN'?'The physical link is also down.':'Physical link evidence is unavailable.')+more,'wan','Inspect '+w.interface)}
  if(errored.length)return homeStatus('is-w',errored[0].interface+' reports an SLA error.','The check could not produce a healthy result. Review the observed history before drawing conclusions.','wan','Inspect '+errored[0].interface);
  const behind=processingBehind(state.evidence,now);
  if(accounting&&report&&behind)return homeStatus('is-u','Accounting is '+agoText(behind).replace(' ago','')+' behind.','Logs were received up to the point processed; the rest waits its turn. Usage reads low until it catches up. If the delay keeps growing, give accounting more CPU in Settings → Storage.','settings','Open settings');
  if(accounting&&report&&(!lastLog||age>900))return homeStatus('is-u',lastLog?'No logs received for '+agoText(age).replace(' ago','')+'.':'No logs have been received yet.','Usage may read low. That does not prove zero traffic or an outage.','quality','Find where it stopped');
- if(!wan||!wans.length||wans.some(w=>stateClass(w.internet_state)==='unknown')||(accounting&&!report))return homeStatus('is-u','Some evidence is unavailable.','Missing samples stay unknown. They are not an outage and not zero traffic.','diagnostics','Open diagnostics');
+ if(!wan||!wans.length||wans.some(w=>stateClass(w.internet_state)==='unknown')||(accounting&&!report))return homeStatus('is-u','Some evidence is unavailable.','Missing samples stay unknown. They are not an outage and not zero traffic.','diagnostics','Open Health');
  homeStatus('is-g','All links pass'+(accounting?' and logs are current.':'.'),wans.map(w=>w.interface+' '+reading(w.latency_ms,' ms')).join(', ')+'.'+(lastLog?' Last log '+agoText(age)+'.':''));
 }
 function drawChannels(wan){
@@ -671,5 +673,5 @@ $('palette-open').addEventListener('click',openPalette);$('palette-input').addEv
 $('palette-input').addEventListener('keydown',e=>{const count=state.paletteMatches?.length||0;if(e.key==='ArrowDown'&&count){e.preventDefault();state.paletteIndex=(state.paletteIndex+1)%count;renderPalette()}else if(e.key==='ArrowUp'&&count){e.preventDefault();state.paletteIndex=(state.paletteIndex-1+count)%count;renderPalette()}else if(e.key==='Enter'){e.preventDefault();runPalette(state.paletteIndex)}});
 window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&!e.altKey&&!e.shiftKey){e.preventDefault();openPalette()}});
 // Local SVG navigation icons; no trackers, CDN or external assets.
-for(const node of document.querySelectorAll('.nav-icon')){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d',({home:'M3 12h4l2.500-7 4 14 2.500-7h5',wan:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',devices:'M3 5h13v9H3zM7 18h5M18 9h3v9h-3z',vlans:'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5',applications:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',websites:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M9 4.500c-1 3.500-1 11.500 0 15M15 4.500c1 3.500 1 11.500 0 15',reports:'M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5',live:'M5 12a7 7 0 0 1 14 0M8.500 12a3.500 3.500 0 0 1 7 0M12 12h.01',monitoring:'M3 4h18v14H3zM7 14l3-4 3 3 4-5',alerts:'M6 9a6 6 0 0 1 12 0c0 6 3 7 3 7H3s3-1 3-7M10 20a2 2 0 0 0 4 0',diagnostics:'M9 3v6l-5 9a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-5-9V3M8 3h8',quality:'M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6zM8.500 12l2.500 2.500 4.500-5',overview:'M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01',settings:'M4 7h10M18 7h2M4 17h2M10 17h10M16 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4M8 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4'})[node.parentElement.dataset.page]||'M4 5h16v14H4z');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.6');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');svg.append(p);node.replaceChildren(svg)}
+for(const node of document.querySelectorAll('.nav-icon')){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d',({home:'M3 12h4l2.500-7 4 14 2.500-7h5',wan:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',devices:'M3 5h13v9H3zM7 18h5M18 9h3v9h-3z',vlans:'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5',applications:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',websites:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M9 4.500c-1 3.500-1 11.500 0 15M15 4.500c1 3.500 1 11.500 0 15',reports:'M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5',live:'M5 12a7 7 0 0 1 14 0M8.500 12a3.500 3.500 0 0 1 7 0M12 12h.01',monitoring:'M3 4h18v14H3zM7 14l3-4 3 3 4-5',alerts:'M6 9a6 6 0 0 1 12 0c0 6 3 7 3 7H3s3-1 3-7M10 20a2 2 0 0 0 4 0',diagnostics:'M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01',quality:'M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6zM8.500 12l2.500 2.500 4.500-5',settings:'M4 7h10M18 7h2M4 17h2M10 17h10M16 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4M8 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4'})[node.parentElement.dataset.page]||'M4 5h16v14H4z');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.6');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');svg.append(p);node.replaceChildren(svg)}
 (async()=>{try{const b=await api('/api/bootstrap/status');state.bootstrap=b.required;$('bootstrap-fields').hidden=!b.required;$('confirmation-field').hidden=!b.required;if(b.required){$('auth-title').textContent='Your workspace starts here.';$('auth-caption').textContent='Create the first administrator using the one-time installation token.';$('auth-submit').textContent='Create administrator';$('password').autocomplete='new-password'}else{try{const s=await api('/api/session');state.csrf=s.csrf;await enter()}catch(e){if(e.code!=='authentication_required')$('auth-error').textContent=errorText(e)}}}catch(e){$('auth-error').textContent=errorText(e)}})();
