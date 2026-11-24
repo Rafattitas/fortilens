@@ -87,7 +87,7 @@ held the same way.
 |---|---|---|
 | Daily summary | Working days at 08:00 | The whole days since the last summary (after a weekend, the whole weekend; what happens after midnight goes in the next one): every alert per line and service, sent or held, the number of alerts sent, usage, top 5 devices and new devices. |
 | Weekly report | Sunday at 08:00 | The last 7 whole days: per line average loss, incidents of 20 minutes or longer, busy-time use against its speed and average sessions; usage, top 10 devices, segments, applications and new devices. |
-| Monthly report | The 1st at 08:00, off by default | The last month: per line average loss and incidents, usage, top 10 devices, segments, applications and new devices, plus a **provider report per line**: the share of observed time it worked, average loss and delay, and every outage (2 minutes or longer) and degraded period (5% loss or more for 20 minutes or longer) with its start, length, worst loss and delay. Send it to the line's provider as evidence. |
+| Monthly report | The 1st at 08:00, off by default | The last month: per line average loss and incidents, usage, top 10 devices, segments, applications and new devices, plus a **provider report per line**: the share of observed time it worked, average loss and delay, and every outage (2 minutes or longer, counted from the share of each 5-minute interval the line was down, so a short outage inside one interval is included with its length) and degraded period (5% loss or more for 20 minutes or longer) with its start, length, worst loss and delay. Send it to the line's provider as evidence. |
 
 Times and days follow the accounting timezone. A report is sent once, within an
 hour of its time. A failed delivery is tried again every 10 minutes within that

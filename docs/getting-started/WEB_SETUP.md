@@ -77,7 +77,7 @@ the helper. Set `--origin` to the exact external HTTPS origin during installatio
 keep the listener on loopback. Forwarded headers are not trusted. The portal uses
 Secure/HttpOnly/SameSite=Strict cookies on HTTPS, server sessions and CSRF checks.
 
-## The seven setup steps
+## The eight setup steps
 
 1. **Administrator:** present the one-time token and create the first account.
 2. **General:** company/installation name, display timezone (`browser` by default,
@@ -98,7 +98,11 @@ Secure/HttpOnly/SameSite=Strict cookies on HTTPS, server sessions and CSRF check
    syslog transport/format/port, SLA name, interval, accounting days and expected
    serial. Accounting days default to `fortigate`: midnight on the FortiGate clock,
    read from every log. The workspace display timezone defaults to `browser`, so each
-   viewer sees times in their own device timezone. Accounting requires syslog; VLAN reports require accounting. WAN/SLA/
+   viewer sees times in their own device timezone. **Send logs from the FortiGate**
+   below the syslog fields shows the FortiGate CLI for the chosen protocol, port
+   and format (`config log syslogd setting`); run it on the FortiGate with the
+   address it reaches this server on, and keep logging of allowed traffic on the
+   firewall policies. Accounting requires syslog; VLAN reports require accounting. WAN/SLA/
    interface controls share the existing exporter; it stops only if all three are
    disabled. Saved Grafana panels are preserved. General timezone/date format are
    management display preferences; saved native dashboards keep their own settings.
@@ -125,7 +129,11 @@ Secure/HttpOnly/SameSite=Strict cookies on HTTPS, server sessions and CSRF check
    The accounting database ceiling is entered in GiB (for example, `9` or `9.5`),
    matching the storage measurements. Existing byte ceilings are preserved when
    the field is left unchanged; configuration and API values remain integer bytes.
-7. **Review & Apply:** Save draft stores the change as a new revision; nothing
+7. **Alerts & Reports:** choose the Telegram and email destinations, the alert
+   rules, working hours and the daily, weekly and monthly reports. Alerts go only
+   to the destinations set here. An alert that cannot reach its channel is sent
+   again, marked as late, for up to six hours.
+8. **Review & Apply:** Save draft stores the change as a new revision; nothing
    running changes yet. Check the draft generates and validates a private
    candidate and checks published-port conflicts. Approve the review and choose
    Apply & Start FortiLens. Progress, individual service state and diagnostics

@@ -73,6 +73,11 @@ ERROR_CODES = frozenset(
 READ_WAIT_SECONDS = 10
 REPORT_SCAN_SECONDS = 15
 REPORT_RETRY_SECONDS = 600
+# Lines Loki stores after the poll has passed them (a restart, a retried push)
+# are found by comparing counts over recent windows and read again.
+LATE_SWEEP_SECONDS = 600
+LATE_WINDOW_SECONDS = 1800
+LATE_BUCKET_SECONDS = 300
 # Rules whose subject starts with a WAN line name.
 LINE_RULES = frozenset(
     ("line_down", "line_slow", "line_starved", "line_loss", "line_full", "checks_disagree")
@@ -412,6 +417,37 @@ class LokiReader:
             start = stop
         return None
 
+    def count(self, start, end):
+        """How many lines Loki holds in [start, end); both on whole seconds."""
+        seconds = (end - start) // accounting.NS
+        if seconds <= 0 or start % accounting.NS or end % accounting.NS:
+            raise ValueError("Count windows are whole seconds")
+        response = self.fetch(
+            self.base,
+            "/loki/api/v1/query",
+            {
+                # The range is (time - seconds, time]: with time one nanosecond
+                # before end it is exactly [start, end).
+                "query": 'sum(count_over_time({job="fortigate-syslog"}[' + str(seconds) + "s]))",
+                "time": str(end - 1),
+            },
+        )
+        data = response.get("data") if isinstance(response, dict) else None
+        if not isinstance(data, dict) or data.get("resultType") != "vector":
+            raise ServiceError("unexpected_loki_response")
+        result = data.get("result")
+        if not isinstance(result, list) or len(result) > 1:
+            raise ServiceError("unexpected_loki_response")
+        if not result:
+            return 0
+        try:
+            value = float(result[0]["value"][1])
+        except (KeyError, IndexError, TypeError, ValueError):
+            raise ServiceError("unexpected_loki_response") from None
+        if not 0 <= value < 2**53:
+            raise ServiceError("unexpected_loki_response")
+        return int(value)
+
     def read(self, start, end):
         budget = {"requests": 0, "records": 0}
 
@@ -498,6 +534,7 @@ class Engine:
         self.notify_file = None
         self._delay_baseline = (0, {})
         self._report_retry = {}
+        self._late_seen = {}
         self._traffic_baseline = (None, {})
         self.read_lock = threading.RLock()
         self._reader = None
@@ -989,6 +1026,46 @@ class Engine:
         self.last_error = None
         self.last_attempt = now
         return target >= end
+
+    def reconcile_late(self):
+        """Read again recent windows where Loki now holds more lines than were counted.
+
+        The poll reads each window once, with a short overlap. A line Loki
+        stores later with an earlier timestamp (Loki restarted, Alloy retried a
+        push) would be missed. Windows of the last half hour that the poll has
+        passed are compared by count; one with more lines in Loki is read again.
+        Records already counted are recognised and not counted twice. A window
+        is not read again while its count in Loki stays the same, so lines
+        that are never recorded (exact duplicates) cost one extra read only.
+        Returns the number of windows read again.
+        """
+        ns = accounting.NS
+        with self.lock:
+            checkpoint = self.store.state("checkpoint_ns")
+            floor = self.store.state("scan_start_ns", 0)
+        if not checkpoint:
+            return 0
+        bucket = LATE_BUCKET_SECONDS * ns
+        overlap = int(self.config.get("accounting_overlap_seconds", 30) * ns)
+        end = (checkpoint - overlap) // bucket * bucket
+        start = max(end - LATE_WINDOW_SECONDS * ns, -(-floor // bucket) * bucket)
+        self._late_seen = {k: v for k, v in self._late_seen.items() if k >= start}
+        reread = 0
+        for a in range(start, end, bucket):
+            held = self.loki.count(a, a + bucket)
+            with self.lock:
+                counted = self.store.ledger.count_deliveries(a, a + bucket)
+            if held <= counted or self._late_seen.get(a) == held:
+                continue
+            records, _budget = self.loki.read(a, a + bucket)
+            with self.lock:
+                result = self.store.ingest(records)
+                with self.store.db:
+                    found = self.store.state("late_records_found", 0) + result["new_events"]
+                    self.store.set_state("late_records_found", found)
+            self._late_seen[a] = held
+            reread += 1
+        return reread
 
     def _cached(self, key, version, compute):
         """A result from the snapshot cache, or compute() stored for the next caller.
@@ -1552,7 +1629,11 @@ class Engine:
         self.alerts.forget(lambda key: watched(key, set(names), speeds))
         messages = self.alerts.step(now, signals, c, at_work=at_work)
         secrets = notifications.read_secrets(self.notify_file) if self.notify_file else {}
-        notifications.deliver(c, secrets, messages, self.alerts)
+        # Alerts that could not be sent earlier go first, in the order they happened.
+        # A channel found unreachable is not tried again until the next minute.
+        down = set()
+        notifications.retry(c, secrets, self.alerts, now, zone, down=down)
+        notifications.deliver(c, secrets, messages, self.alerts, zone=zone, down=down)
         self.alerts.save()
         if notifications.configured(c):
             with self.alerts.lock:
@@ -1640,6 +1721,13 @@ class Engine:
             data["usage"] = self.report("custom", **span)
         except (ServiceError, ValueError, OSError, sqlite3.Error):
             data["usage"] = None
+        # How far the logs have been counted: the report says so when it falls short.
+        with self.lock:
+            try:
+                checkpoint = self.store.state("checkpoint_ns")
+            except (sqlite3.Error, ValueError, TypeError):
+                checkpoint = None
+        data["counted_until"] = checkpoint / accounting.NS if checkpoint else None
         if kind == "daily":
             data["digest"] = self.alerts.digest(start.timestamp(), end.timestamp())
             data["alerts_sent"] = sum(
@@ -1730,7 +1818,7 @@ class Engine:
             self.stop.wait(60)
 
     def run(self):
-        last_metadata, last_prune, last_wan = 0, 0, 0
+        last_metadata, last_prune, last_wan, last_late = 0, 0, 0, 0
         while not self.stop.is_set():
             now = time.time()
             caught_up = True
@@ -1747,6 +1835,8 @@ class Engine:
                                     self.config.get("accounting_ledger_days", 3),
                                     self.config.get("accounting_summary_days", 400),
                                 )
+                                # Hand freed space back so the file does not keep its peak size.
+                                self.store.reclaim_space()
                         last_prune = now
                     except Exception as exc:
                         log_failure("accounting_prune_failed", safe_error(exc))
@@ -1760,6 +1850,13 @@ class Engine:
                     self.refresh_inventory()
                     last_metadata = now
                 caught_up = self.poll(now)
+                if caught_up and now - last_late >= LATE_SWEEP_SECONDS:
+                    # Its own failure must not count as a failed poll.
+                    try:
+                        self.reconcile_late()
+                    except Exception as exc:
+                        log_failure("accounting_late_sweep_failed", safe_error(exc))
+                    last_late = now
                 if now - last_wan >= 60:
                     try:
                         self.wan_cache = self.wan()

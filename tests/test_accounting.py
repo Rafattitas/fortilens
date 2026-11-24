@@ -314,6 +314,15 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(self.report()["totals"]["upload_bytes"], 0)
         self.assertIn("upload_invalid_delta", self.report()["flags"])
 
+    def test_eventtime_in_any_fortios_unit_is_the_same_moment(self):
+        moment = 1792497600 * a.NS
+        for text in ("1792497600", "1792497600000", "1792497600000000", "1792497600000000000"):
+            self.assertEqual(a.eventtime_ns(a.number(text)), moment, text)
+        self.assertIsNone(a.eventtime_ns(None))
+        # Microseconds were read as nanoseconds: a 1970 time and a wrong day.
+        event = a.normalize(record(eventtime="1792497600000000"), "fixture")
+        self.assertEqual(event["event_ns"], moment)
+
     def test_retries_restart_and_transport_replays_are_idempotent(self):
         item = record(eventtime="1792497600000000000")
         self.store.ingest([item], checkpoint=10)
@@ -473,6 +482,60 @@ class StorageMaintenanceTests(unittest.TestCase):
         self.assertIsNotNone(
             store.db.execute("SELECT 1 FROM sqlite_master WHERE name='deliveries_stamp'").fetchone()
         )
+
+
+class ReclaimSpaceTests(unittest.TestCase):
+    """Pruned space goes back to the filesystem instead of keeping the file at its peak."""
+
+    def fill(self, store, megabytes):
+        with store.db:
+            store.db.execute("CREATE TABLE IF NOT EXISTS ballast(x BLOB)")
+            for _ in range(megabytes):
+                store.db.execute("INSERT INTO ballast VALUES (zeroblob(1048576))")
+
+    def test_a_new_file_shrinks_back_after_pruning_but_keeps_a_reserve(self):
+        with tempfile.TemporaryDirectory() as path:
+            filename = Path(path) / "usage.db"
+            store = a.Store(str(filename), CONFIG, INVENTORY)
+            self.assertEqual(store.db.execute("PRAGMA auto_vacuum").fetchone()[0], 2)
+            self.fill(store, 400)
+            with store.db:
+                store.db.execute("DELETE FROM ballast")
+            store.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            peak = filename.stat().st_size
+            self.assertGreater(peak, 400 * 1024**2)
+            released = store.reclaim_space(max_bytes=64 * 1024**2)
+            self.assertEqual(released, 64 * 1024**2)  # Bounded per call.
+            while store.reclaim_space():
+                pass
+            store.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            size = filename.stat().st_size
+            self.assertLess(size, peak - 100 * 1024**2)
+            page = store.db.execute("PRAGMA page_size").fetchone()[0]
+            free = store.db.execute("PRAGMA freelist_count").fetchone()[0] * page
+            self.assertGreaterEqual(free, a.RECLAIM_RESERVE_BYTES - page)
+            store.close()
+            # Reopening keeps the mode and loses nothing.
+            store = a.Store(str(filename), CONFIG, INVENTORY)
+            self.assertEqual(store.db.execute("PRAGMA auto_vacuum").fetchone()[0], 2)
+            store.close()
+
+    def test_an_older_file_without_incremental_vacuum_is_left_alone(self):
+        with tempfile.TemporaryDirectory() as path:
+            filename = Path(path) / "usage.db"
+            import sqlite3
+
+            legacy = sqlite3.connect(filename)
+            legacy.execute("CREATE TABLE ballast(x BLOB)")
+            legacy.commit()
+            legacy.close()
+            store = a.Store(str(filename), CONFIG, INVENTORY)
+            self.assertEqual(store.db.execute("PRAGMA auto_vacuum").fetchone()[0], 0)
+            self.fill(store, 10)
+            with store.db:
+                store.db.execute("DELETE FROM ballast")
+            self.assertEqual(store.reclaim_space(), 0)
+            store.close()
 
 
 if __name__ == "__main__":

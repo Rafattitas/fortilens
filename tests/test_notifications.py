@@ -7,6 +7,7 @@ from pathlib import Path
 import smtplib
 import sys
 import tempfile
+import threading
 import unittest
 import urllib.error
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -121,6 +122,167 @@ class LifecycleTests(unittest.TestCase):
             again = n.Alerts(path)
             self.assertEqual(len(again.view()["open"]), 1)
             self.assertEqual(again.step(180, [self.signal(True, "line_down")], c), [])
+
+
+class RetryTests(unittest.TestCase):
+    """An alert that could not reach its channel is sent again, in order, until it does."""
+
+    def setUp(self):
+        self.c = settings(
+            email={
+                "enabled": True,
+                "host": "smtp.example.com",
+                "sender": "a@example.com",
+                "to": ["b@example.com"],
+            }
+        )
+        self.alerts = n.Alerts(None)
+        self.sent, self.down = [], True
+
+    def send(self, c, secrets, channel, subject, text, **kwargs):
+        if self.down:
+            raise n.DeliveryError("email_unreachable")
+        self.sent.append((subject, text))
+
+    def message(self, at, kind, title):
+        return {"at": at, "key": "line_down:wan2", "kind": kind, "title": title, "text": "t"}
+
+    def deliver(self, *messages):
+        n.deliver(
+            self.c,
+            {},
+            [{**m, "held": False} for m in messages],
+            self.alerts,
+            send=self.send,
+            zone=CAIRO,
+        )
+
+    def retry(self, now):
+        n.retry(self.c, {}, self.alerts, now, CAIRO, send=self.send, down=set())
+
+    def status(self, kind):
+        [entry] = [h for h in self.alerts.state["history"] if h["kind"] == kind]
+        return entry["deliveries"][0]
+
+    def test_a_lost_start_is_sent_late_once_the_network_is_back(self):
+        start = 1_795_000_000
+        self.deliver(self.message(start, "start", "Line down · wan2"))
+        self.assertEqual(self.status("start")["status"], "retrying")
+        self.retry(start + 30)  # Not due yet.
+        self.retry(start + 60)  # Due, still unreachable.
+        self.assertEqual(self.alerts.state["retry"][0]["attempts"], 2)
+        self.down = False
+        self.retry(start + 100)  # Backed off to two minutes.
+        self.assertEqual(self.sent, [])
+        self.retry(start + 180)
+        [(subject, text)] = self.sent
+        self.assertEqual(subject, "FortiLens · Line down · wan2")
+        self.assertIn("Sent late: this alert is from", text)
+        self.assertEqual(
+            self.status("start"),
+            {"channel": "email", "status": "delivered", "late": True, "attempts": 3},
+        )
+        self.assertEqual(self.alerts.state["retry"], [])
+
+    def test_a_recovery_waits_behind_its_lost_start(self):
+        start = 1_795_000_000
+        self.deliver(self.message(start, "start", "Line down · wan2"))
+        self.down = False
+        # The line is back before the start's next try: the start goes first.
+        self.deliver(self.message(start + 30, "end", "Recovered · wan2"))
+        self.assertEqual(
+            [s for s, _ in self.sent],
+            ["FortiLens · Line down · wan2", "FortiLens · Recovered · wan2"],
+        )
+        self.assertEqual(self.status("start")["status"], "delivered")
+        self.assertEqual(self.status("end"), {"channel": "email", "status": "delivered"})
+
+    def test_a_reminder_queued_behind_a_waiting_start_is_not_sent_before_it(self):
+        start = 1_795_000_000
+        self.deliver(self.message(start, "start", "Line down · wan2"))
+        self.deliver(self.message(start + 10, "reminder", "Still: Line down · wan2"))
+        self.assertEqual(self.status("reminder")["status"], "retrying")
+        self.down = False
+        # The reminder's first try is due before the start's; the start still leads.
+        self.alerts.state["retry"][0]["next"] = start + 500
+        self.retry(start + 100)
+        self.assertEqual(self.sent, [])
+        self.retry(start + 500)
+        self.assertEqual(
+            [s for s, _ in self.sent],
+            ["FortiLens · Line down · wan2", "FortiLens · Still: Line down · wan2"],
+        )
+
+    def test_retries_stop_after_six_hours_and_on_a_refusal(self):
+        start = 1_795_000_000
+        self.deliver(self.message(start, "start", "Line down · wan2"))
+        self.retry(start + n.RETRY_MAX_AGE + 1)
+        self.assertEqual(self.alerts.state["retry"], [])
+        self.assertEqual(
+            self.status("start"),
+            {"channel": "email", "status": "failed", "error": "email_unreachable", "attempts": 1},
+        )
+
+        def refused(c, secrets, channel, subject, text, **kwargs):
+            raise n.DeliveryError("email_auth")
+
+        alerts = n.Alerts(None)
+        n.deliver(
+            self.c,
+            {},
+            [{**self.message(start, "start", "x"), "held": False}],
+            alerts,
+            send=refused,
+            zone=CAIRO,
+        )
+        self.assertEqual(alerts.state["retry"], [])  # A wrong password is not retried.
+
+    def test_an_unreachable_server_costs_one_try_per_pass_and_no_lock_is_held(self):
+        tries = []
+
+        def send(c, secrets, channel, subject, text, **kwargs):
+            tries.append(subject)
+            # Another thread must be able to read the history meanwhile.
+            free = []
+
+            def reader():
+                free.append(self.alerts.lock.acquire(blocking=False))
+                if free[0]:
+                    self.alerts.lock.release()
+
+            thread = threading.Thread(target=reader)
+            thread.start()
+            thread.join()
+            self.assertEqual(free, [True])
+            raise n.DeliveryError("email_unreachable")
+
+        start = 1_795_000_000
+        messages = [
+            {**self.message(start, "start", "Line down · wan2"), "held": False},
+            {
+                **self.message(start, "start", "Line down · wan1"),
+                "key": "line_down:wan1",
+                "held": False,
+            },
+        ]
+        down = set()
+        n.retry(self.c, {}, self.alerts, start, CAIRO, send=send, down=down)
+        n.deliver(self.c, {}, messages, self.alerts, send=send, zone=CAIRO, down=down)
+        self.assertEqual(len(tries), 1)
+        self.assertEqual(len(self.alerts.state["retry"]), 2)
+        self.assertEqual([i["attempts"] for i in self.alerts.state["retry"]], [1, 0])
+        # Next pass: one try again, the rest wait for the server to answer.
+        tries.clear()
+        n.retry(self.c, {}, self.alerts, start + 600, CAIRO, send=send, down=set())
+        self.assertEqual(len(tries), 1)
+
+    def test_the_queue_survives_a_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "alerts.json"
+            self.alerts = n.Alerts(path)
+            self.deliver(self.message(1_795_000_000, "start", "Line down · wan2"))
+            self.alerts.save()
+            self.assertEqual(len(n.Alerts(path).state["retry"]), 1)
 
 
 class DeliveryTests(unittest.TestCase):
@@ -243,10 +405,12 @@ class DeliveryTests(unittest.TestCase):
         }
         n.deliver(c, {}, [message], alerts, send=send)
         self.assertEqual(sent, ["email"])
+        # Unreachable is not final: the message waits to be sent again.
         self.assertEqual(
             alerts.view()["history"][0]["deliveries"][0],
-            {"channel": "telegram", "status": "failed", "error": "telegram_unreachable"},
+            {"channel": "telegram", "status": "retrying", "error": "telegram_unreachable"},
         )
+        self.assertEqual([i["channel"] for i in alerts.state["retry"]], ["telegram"])
 
     def test_telegram_errors_never_carry_the_token(self):
         class Response:
@@ -632,6 +796,55 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(line["degraded"][0]["worst_loss_pct"], 12)
         self.assertAlmostEqual(line["up_pct"], 97.0)
         self.assertAlmostEqual(line["observed_pct"], 100.0)
+        self.assertEqual(line["outages"][0]["down_seconds"], 3 * step)
+
+    def test_provider_report_catches_an_outage_shorter_than_the_interval(self):
+        step, start = 300, 1_000_000_200
+        # Interval 10: up 3 of 5 minutes. Interval 50: up 4 of 5 minutes.
+        share = {10: "0.6", 50: "0.8"}
+        alive = [[start + i * step, share.get(i, "1")] for i in range(100)]
+        queries = []
+
+        def query_range(expr, a, b, s):
+            queries.append(expr)
+            return alive if "status" in expr else []
+
+        line = n.isp_lines(query_range, ["wan2"], start, start + 100 * step, "google")[0]
+        self.assertIn("avg_over_time(fortigate_virtual_wan_status", queries[0])
+        self.assertIn("[300s]", queries[0])
+        # Two minutes down is reported with its length; one minute is below the threshold.
+        self.assertEqual(
+            line["outages"],
+            [{"start": start + 10 * step, "end": start + 11 * step, "down_seconds": 120}],
+        )
+        self.assertAlmostEqual(line["up_pct"], 100 - (0.4 + 0.2))
+        _, body, table = n._isp_section(line, CAIRO)
+        self.assertEqual(table[1][2], "2 min")
+
+    def test_usage_counted_short_of_the_period_end_says_it_is_incomplete(self):
+        start = datetime(2026, 11, 14, tzinfo=CAIRO)
+        end = datetime(2026, 11, 15, tzinfo=CAIRO)
+        usage = {
+            "totals": {"download_bytes": 5e9, "upload_bytes": 1e9},
+            "devices": [{"hostname": "pc", "download_bytes": 2e9, "upload_bytes": 0}],
+        }
+
+        def text(counted):
+            data = {"start": start, "end": end, "site": "Site", "usage": usage}
+            if counted != "absent":
+                data["counted_until"] = counted
+            return n.render_report("daily", data, CAIRO)["text"]
+
+        behind = text(end.timestamp() - 3 * 3600)
+        self.assertIn("Usage is counted only up to Sat 14 Nov 21:00", behind)
+        self.assertIn("these figures are incomplete", behind)
+        self.assertLess(behind.index("counted only"), behind.index("5.0 GB down"))
+        self.assertIn("It is unknown how far usage has been counted", text(None))
+        for complete in (end.timestamp() + 600, end.timestamp() - 60, "absent"):
+            self.assertNotIn("incomplete", text(complete))
+        # A report without usage has nothing to qualify.
+        data = {"start": start, "end": end, "site": "Site", "usage": None, "counted_until": None}
+        self.assertNotIn("counted", n.render_report("daily", data, CAIRO)["text"])
 
     def test_messages_say_what_is_missing_and_escape_names(self):
         start = datetime(2026, 11, 14, tzinfo=CAIRO)

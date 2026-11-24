@@ -3,6 +3,7 @@
 from copy import deepcopy
 import base64
 import json
+import os
 import argparse
 import contextlib
 import io
@@ -199,14 +200,14 @@ class ManagementTests(unittest.TestCase):
         self.csrf = {**self.headers, "X-CSRF-Token": r.json()["csrf"]}
         return r
 
-    def save(self, **updates):
+    def save(self, token=None, **updates):
         config = self.c.view()
         settings = deepcopy(config["settings"])
         settings["fortigate_host"] = "192.0.2.1"
         settings.update(updates)
         body = {"revision": config["revision"], "settings": settings}
-        if not config["secret_status"]["api_token_present"]:
-            body.update(api_token=TOKEN, replace_token=True)
+        if token or not config["secret_status"]["api_token_present"]:
+            body.update(api_token=token or TOKEN, replace_token=True)
         return self.c.save(body)
 
     def wait_job(self, job):
@@ -713,6 +714,71 @@ class ManagementTests(unittest.TestCase):
         )
         self.assertFalse(saved["settings"]["api_tls_verify"])
 
+    def test_a_saved_secret_is_never_redirected_to_another_server(self):
+        view = self.save()
+        settings = deepcopy(view["settings"])
+        settings["notifications"]["email"].update(
+            enabled=True,
+            host="smtp.example.com",
+            user="alerts",
+            sender="a@example.com",
+            to=["b@example.com"],
+        )
+        view = self.c.save(
+            {"revision": view["revision"], "settings": settings, "smtp_password": "mail-secret"}
+        )
+        # The draft's own secrets stay bound to the servers they were typed for.
+        for field, value, code in (
+            ("fortigate_host", "203.0.113.9", "token_reentry_required"),
+            ("api_port", 8443, "token_reentry_required"),
+        ):
+            moved = deepcopy(view["settings"])
+            moved[field] = value
+            with self.assertRaises(Problem) as caught:
+                self.c.save({"revision": view["revision"], "settings": moved})
+            self.assertEqual(caught.exception.code, code)
+        moved = deepcopy(view["settings"])
+        moved["notifications"]["email"]["host"] = "mail.attacker.example"
+        with self.assertRaises(Problem) as caught:
+            self.c.save({"revision": view["revision"], "settings": moved})
+        self.assertEqual(caught.exception.code, "password_reentry_required")
+        self.assertEqual(self.c.view()["revision"], view["revision"])  # Nothing was saved.
+        # Entering the secret again with the new server is accepted.
+        moved = deepcopy(view["settings"])
+        moved["fortigate_host"] = "203.0.113.9"
+        moved["notifications"]["email"]["host"] = "mail.example.net"
+        saved = self.c.save(
+            {
+                "revision": view["revision"],
+                "settings": moved,
+                "api_token": TOKEN,
+                "replace_token": True,
+                "smtp_password": "mail-secret",
+            }
+        )
+        self.assertEqual(saved["settings"]["fortigate_host"], "203.0.113.9")
+        # Without a login the mail password is never sent, so the server may change.
+        unsent = deepcopy(saved["settings"])
+        unsent["notifications"]["email"].update(user="", host="relay.example.org")
+        self.c.save({"revision": saved["revision"], "settings": unsent})
+
+    def test_old_plans_with_their_secret_copies_are_pruned(self):
+        root = self.c.control / "plans"
+        names = [f"{i:032x}" for i in range(9)]
+        for age, name in enumerate(names):
+            folder = root / name
+            (folder / "generated" / "secrets").mkdir(parents=True)
+            (folder / "generated" / "secrets" / "fortigate_api_token").write_text(TOKEN)
+            status = "APPLYING" if name == names[2] else "APPLIED"
+            (folder / "plan.json").write_text(json.dumps({"status": status}))
+            stamp = time.time() - 1000 * (len(names) - age)
+            os.utime(folder, (stamp, stamp))
+        (root / "not-a-plan").mkdir()
+        # names[0] is the oldest but was just applied; names[2] is still running.
+        self.c.prune_plans(names[0])
+        left = sorted(p.name for p in root.iterdir())
+        self.assertEqual(left, sorted([names[0], names[2], *names[4:], "not-a-plan"]))
+
     def test_read_only_device_testing_discovery_and_explicit_wan_confirmation(self):
         view = self.save()
         result = self.ops.dispatch("test", {"revision": view["revision"]})
@@ -735,7 +801,7 @@ class ManagementTests(unittest.TestCase):
         with (
             patch.object(setup, "import_dashboard"),
             patch.object(setup, "connect_portal"),
-            patch.object(setup, "retire_saved_panels"),
+            patch.object(setup, "update_saved_dashboard"),
         ):
             job = self.wait_job(
                 self.ops.dispatch(
@@ -786,7 +852,7 @@ class ManagementTests(unittest.TestCase):
         with (
             patch.object(setup, "import_dashboard") as dashboard,
             patch.object(setup, "connect_portal"),
-            patch.object(setup, "retire_saved_panels") as retire,
+            patch.object(setup, "update_saved_dashboard") as retire,
         ):
             job = self.wait_job(
                 self.ops.dispatch(
@@ -808,7 +874,7 @@ class ManagementTests(unittest.TestCase):
         with (
             patch.object(setup, "import_dashboard") as dashboard,
             patch.object(setup, "connect_portal"),
-            patch.object(setup, "retire_saved_panels") as retire,
+            patch.object(setup, "update_saved_dashboard") as retire,
         ):
             job = self.wait_job(
                 self.ops.dispatch(
@@ -827,7 +893,7 @@ class ManagementTests(unittest.TestCase):
         with (
             patch.object(setup, "import_dashboard"),
             patch.object(setup, "connect_portal"),
-            patch.object(setup, "retire_saved_panels", side_effect=OSError("grafana down")),
+            patch.object(setup, "update_saved_dashboard", side_effect=OSError("grafana down")),
         ):
             job = self.wait_job(
                 self.ops.dispatch(
@@ -1078,7 +1144,7 @@ class ManagementTests(unittest.TestCase):
         with (
             patch.object(setup, "import_dashboard"),
             patch.object(setup, "connect_portal"),
-            patch.object(setup, "retire_saved_panels"),
+            patch.object(setup, "update_saved_dashboard"),
         ):
             job = self.wait_job(
                 self.ops.dispatch(
@@ -1302,7 +1368,7 @@ class ManagementTests(unittest.TestCase):
         with (
             patch.object(setup, "import_dashboard"),
             patch.object(setup, "connect_portal"),
-            patch.object(setup, "retire_saved_panels"),
+            patch.object(setup, "update_saved_dashboard"),
         ):
             return self.wait_job(
                 self.ops.dispatch(
@@ -1358,7 +1424,7 @@ class ManagementTests(unittest.TestCase):
         self.assertEqual(result["evidence"]["age_seconds"], 86400)
         self.assertRegex(result["evidence"]["tested_at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
         # Changed connection settings make it out of date.
-        self.save(fortigate_host="192.0.2.9")
+        self.save(fortigate_host="192.0.2.9", token=TOKEN)  # A new address needs the token again.
         changed = Settings.model_validate(self.c.state()["settings"])
         self.assertEqual(
             self.ops.connection_test_check(changed, self.c.state()["revision"])["code"],

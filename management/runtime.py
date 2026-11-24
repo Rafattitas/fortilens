@@ -1684,21 +1684,23 @@ class Operations:
                     if c.get("portal_enabled"):
                         setup.connect_portal(self.c.root, c)
                 else:
-                    # Saved dashboards are kept, except the former raw-log usage
-                    # panels, which outran the gateway. Services are already
-                    # running, so a failure here must not undo the deployment.
+                    # Saved dashboards are kept. Only what Settings own (the
+                    # line and device selectors and the generated title)
+                    # is updated, and the former raw-log usage panels removed.
+                    # Services are already running, so a failure here must not
+                    # undo the deployment.
                     self._progress(
                         job,
                         "dashboard",
-                        "Removing retired usage panels from the saved Grafana dashboard; other panels are kept.",
+                        "Updating the saved Grafana dashboard to match Settings; other panels are kept.",
                     )
                     try:
-                        setup.retire_saved_panels(
+                        setup.update_saved_dashboard(
                             self.c.root,
                             setup.validate_config(load(self.c.root / self.c.state()["site_file"])),
                         )
                     except Exception as exc:
-                        report_failure("dashboard_panel_retirement_failed", exc)
+                        report_failure("dashboard_update_failed", exc)
                 self._progress(
                     job,
                     "diagnostics",

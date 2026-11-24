@@ -1,5 +1,72 @@
 # Changelog
 
+## Unreleased
+
+### Firewall dashboard
+
+- A line added or removed in Settings now reaches the Grafana dashboard. Apply
+  updates only what Settings own in the saved dashboard: the FortiGate, VDOM,
+  SLA and Internet line selectors and a title FortiLens wrote. A selection that
+  is still offered, a title changed in Grafana, the time settings and every
+  panel, row and other selector stay as they are. Before, the line list was
+  fixed at installation. The dashboard as it was is saved first to a private
+  `grafana/dashboard.before-update-*.json`.
+
+### Alerts and reports
+
+- An alert that could not reach Telegram or the mail server is sent again after
+  1, 2, 5, 10 and 15 minutes, then every 15 minutes, for up to six hours, marked
+  "Sent late" with its original time. Later alerts about the same subject wait
+  behind it, so a recovery never arrives before its outage. A refused password
+  or recipient is not retried. History shows "not reached yet, trying again",
+  "delivered late" or the final failure with the number of tries. Before, a
+  "Line down" alert sent over the line that was down was lost.
+- A scheduled report says when usage was counted only part of the period
+  ("Usage is counted only up to …; these figures are incomplete"), or that it is
+  unknown how far usage was counted, instead of showing partial totals as the
+  whole period.
+- The monthly provider report finds outages shorter than its 5-minute sample
+  interval. Each interval now holds the share of the time the line was alive, so
+  an outage of 2 minutes or longer is listed with the minutes it was down, and
+  "worked" counts partial intervals. Before, one sample per 5 minutes could miss
+  an outage between samples, as the guide promised 2 minutes.
+  whole period.
+- The alert history file is flushed to disk before it replaces the previous one.
+
+### Security
+
+- A saved FortiGate API token or mail password is only sent to the server it
+  was entered for. Saving a different FortiGate address or port, or a different
+  mail server while a login is set, now asks for the token or password again.
+  Before, an administrator session could point the draft at another host and
+  use Test or Send test message to send the stored secret there.
+- After an Apply, only the five newest reviewed plans are kept. Older plans,
+  which each held copies of the configuration and its secrets, are deleted.
+
+### Accounting
+
+- Lines that Loki stores after the poll has passed them (Loki restarted, Alloy
+  retried a push) are no longer lost. Every 10 minutes the last half hour is
+  compared with Loki in 5-minute windows by count, and a window with more lines
+  in Loki is read again. Records already counted are recognised and not counted
+  twice.
+- A new accounting database returns space freed by retention to the
+  filesystem every hour, keeping a 256 MiB or 10% reserve, so the file shrinks
+  back after a backlog. An existing database keeps its size until one offline
+  compaction with `accounting_migrate.py --slim`, whose copy now has the same
+  behaviour.
+- FortiOS `eventtime` in milliseconds or microseconds is read in its unit, as
+  the doctor already did. Before, it was taken as nanoseconds and placed the
+  record in 1970. Seconds and nanoseconds, the FortiOS defaults, are unchanged.
+
+### Setup
+
+- The syslog fields show the FortiGate CLI (`config log syslogd setting`) for
+  the chosen protocol, port and format under **Send logs from the FortiGate**.
+- The first-run label says "Step 2 of 8" and the setup guide lists the eight
+  steps, including Alerts & Reports.
+- Review & Apply shows a middle dot instead of "Â·" between values.
+
 ## v0.7.1 — 2026-11-23 — Apply restarts only what changed, and alert tests say whether alerts will be sent
 
 ### Upgrade

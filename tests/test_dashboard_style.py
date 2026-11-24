@@ -330,12 +330,12 @@ class SavedDashboardTests(unittest.TestCase):
         return patch.object(setup, "grafana_request", side_effect=request)
 
     def backups(self):
-        return list((self.p / "grafana").glob("dashboard.before-retired-panels-*.json"))
+        return list((self.p / "grafana").glob("dashboard.before-update-*.json"))
 
     def test_retired_panels_are_removed_and_everything_else_is_sent_back(self):
         original = deepcopy(self.live)
         with self.grafana(), contextlib.redirect_stdout(io.StringIO()):
-            result = setup.retire_saved_panels(self.p, self.c)
+            result = setup.update_saved_dashboard(self.p, self.c)
         self.assertEqual(result["removed"], sorted("panel-" + str(i) for i in style.RETIRED_IDS))
         self.assertEqual([c[0] for c in self.calls], ["GET", "PUT"])
         sent = self.calls[1][2]
@@ -352,7 +352,7 @@ class SavedDashboardTests(unittest.TestCase):
         # Applying again changes nothing.
         self.calls.clear()
         with self.grafana(), contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(setup.retire_saved_panels(self.p, self.c)["removed"], [])
+            self.assertEqual(setup.update_saved_dashboard(self.p, self.c)["removed"], [])
         self.assertEqual([c[0] for c in self.calls], ["GET"])
         self.assertEqual(len(self.backups()), 1)
 
@@ -363,16 +363,128 @@ class SavedDashboardTests(unittest.TestCase):
 
     def test_a_missing_dashboard_is_not_recreated_by_retirement(self):
         with self.grafana(missing=True), contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(setup.retire_saved_panels(self.p, self.c), {"removed": [], "kept": []})
+            self.assertEqual(
+                setup.update_saved_dashboard(self.p, self.c),
+                {"removed": [], "kept": [], "refreshed": []},
+            )
         self.assertEqual([c[0] for c in self.calls], ["GET"])
         self.assertEqual(self.backups(), [])
 
     def test_another_dashboard_under_the_uid_is_never_changed(self):
         self.live["spec"]["tags"] = ["someone-else"]
         with self.grafana(), self.assertRaises(setup.SetupError):
-            setup.retire_saved_panels(self.p, self.c)
+            setup.update_saved_dashboard(self.p, self.c)
         self.assertEqual([c[0] for c in self.calls], ["GET"])
         self.assertEqual(self.backups(), [])
+
+
+class DashboardFollowsSettingsTests(unittest.TestCase):
+    """A line added in Settings reaches the saved dashboard; nothing else in it changes."""
+
+    LINES = ["internal3", "wan1", "wan2"]
+
+    def config(self, lines, **changes):
+        return setup.validate_config(
+            {
+                "fortigate_host": "fw.example.test",
+                "sla": "google",
+                "wan_interfaces": lines,
+                "confirmed_wan_interfaces": lines,
+                **changes,
+            }
+        )
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.p = Path(folder.name) / "installation"
+        with contextlib.redirect_stdout(io.StringIO()):
+            setup.render(self.config(self.LINES), self.p, "FAKE_FIXTURE_TOKEN")
+        generated = setup.load(self.p / "grafana/dashboard.json")
+        self.live = {
+            "apiVersion": generated["apiVersion"],
+            "kind": generated["kind"],
+            "metadata": {"name": "forti-monitor", "resourceVersion": "7"},
+            "spec": generated["spec"],
+        }
+        self.calls = []
+
+    def grafana(self):
+        def request(p, c, path, method="GET", body=None, timeout=100):
+            self.calls.append((method, path, deepcopy(body)))
+            if method == "GET":
+                return deepcopy(self.live)
+            if method == "PUT":
+                self.live = deepcopy(body)
+                return {"metadata": {"name": "forti-monitor", "resourceVersion": "8"}}
+            raise AssertionError("Unexpected " + method)
+
+        return patch.object(setup, "grafana_request", side_effect=request)
+
+    def update(self, c):
+        with self.grafana(), contextlib.redirect_stdout(io.StringIO()):
+            return setup.update_saved_dashboard(self.p, c)
+
+    @staticmethod
+    def variable(dashboard, name):
+        [found] = [v["spec"] for v in dashboard["spec"]["variables"] if v["spec"]["name"] == name]
+        return found
+
+    def test_unchanged_settings_leave_the_dashboard_alone(self):
+        self.assertEqual(self.update(self.config(self.LINES))["refreshed"], [])
+        self.assertEqual([c[0] for c in self.calls], ["GET"])
+
+    def test_an_added_line_is_offered_and_queried_and_panels_are_kept(self):
+        first = sorted(self.live["spec"]["elements"])[0]
+        self.live["spec"]["elements"][first]["spec"]["title"] = "Renamed in Grafana"
+        before = deepcopy(self.live)
+        result = self.update(self.config(self.LINES + ["internal5"]))
+        self.assertEqual(result["refreshed"], ["wan"])
+        self.assertEqual([c[0] for c in self.calls], ["GET", "PUT"])
+        sent = self.calls[1][2]
+        wan = self.variable(sent, "wan")
+        self.assertIn("internal5", wan["query"]["spec"]["query"])
+        self.assertIn("internal5", [o["value"] for o in wan["options"]])
+        self.assertEqual(wan["current"]["value"], "$__all")
+        self.assertEqual(sent["spec"]["elements"], before["spec"]["elements"])
+        self.assertEqual(sent["spec"]["layout"], before["spec"]["layout"])
+        self.assertEqual(sent["metadata"], before["metadata"])
+        self.assertEqual(len(list((self.p / "grafana").glob("dashboard.before-update-*.json"))), 1)
+        # Applying the same settings again sends nothing.
+        self.calls.clear()
+        self.assertEqual(self.update(self.config(self.LINES + ["internal5"]))["refreshed"], [])
+        self.assertEqual([c[0] for c in self.calls], ["GET"])
+
+    def test_a_removed_line_drops_a_selection_that_named_it(self):
+        wan = self.variable(self.live, "wan")
+        wan["current"] = {"text": "wan2", "value": "wan2"}
+        self.update(self.config(["internal3", "wan1"]))
+        wan = self.variable(self.calls[1][2], "wan")
+        self.assertNotIn("wan2", [o["value"] for o in wan["options"]])
+        self.assertEqual(wan["current"]["value"], "$__all")
+
+    def test_a_selection_that_is_still_offered_is_kept(self):
+        wan = self.variable(self.live, "wan")
+        wan["current"] = {"text": "wan1", "value": "wan1"}
+        self.update(self.config(self.LINES + ["internal5"]))
+        wan = self.variable(self.calls[1][2], "wan")
+        self.assertEqual(wan["current"]["value"], "wan1")
+        self.assertEqual([o["value"] for o in wan["options"] if o["selected"]], ["wan1"])
+
+    def test_the_site_name_follows_settings_but_a_custom_title_and_time_zone_are_kept(self):
+        zone = deepcopy(self.live["spec"]["timeSettings"])
+        result = self.update(
+            self.config(self.LINES, site_name="Head office", timezone="Africa/Cairo")
+        )
+        self.assertEqual(result["refreshed"], ["title"])
+        sent = self.calls[1][2]["spec"]
+        self.assertEqual(sent["title"], "FortiLens — Head office")
+        self.assertEqual(sent["timeSettings"], zone)  # The dashboard's own setting.
+        self.calls.clear()
+        self.live["spec"]["title"] = "Our firewall"
+        self.update(self.config(self.LINES, site_name="Branch"))
+        self.assertEqual([c[0] for c in self.calls], ["GET"])
+        self.assertEqual(self.live["spec"]["title"], "Our firewall")
 
 
 if __name__ == "__main__":

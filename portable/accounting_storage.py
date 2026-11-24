@@ -340,6 +340,11 @@ class LegacyLedger:
     def max_delivery_stamp(self):
         return self.db.execute("SELECT MAX(stamp) FROM deliveries").fetchone()[0]
 
+    def count_deliveries(self, start, end):
+        return self.db.execute(
+            "SELECT count(*) FROM deliveries WHERE stamp>=? AND stamp<?", (start, end)
+        ).fetchone()[0]
+
     def insert_delivery(self, uid, event_uid, stamp):
         return self.db.execute(
             "INSERT OR IGNORE INTO deliveries VALUES(?,?,?)", (uid, event_uid, stamp)
@@ -565,6 +570,11 @@ class CompactLedger:
 
     def delete_skipped_before(self, floor):
         self.db.execute("DELETE FROM compact_skipped WHERE stamp<?", (floor,))
+
+    def count_deliveries(self, start, end):
+        return self.db.execute(
+            "SELECT count(*) FROM compact_deliveries WHERE stamp>=? AND stamp<?", (start, end)
+        ).fetchone()[0]
 
     def insert_delivery(self, uid, event_uid, stamp):
         invalid = event_uid == "invalid"
