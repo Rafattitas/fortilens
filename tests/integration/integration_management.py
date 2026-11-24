@@ -458,7 +458,7 @@ def main():
             load(c.root / "site.json"),
             "/apis/dashboard.grafana.app/v2/namespaces/default/dashboards/forti-monitor",
         )
-        before_dashboard = dashboard["metadata"]["resourceVersion"]
+        before_dashboard = dashboard
         # A normal Settings edit does not require the live FortiGate to stay up.
         fixture.shutdown()
         fixture.server_close()
@@ -486,7 +486,16 @@ def main():
             load(c.root / "site.json"),
             "/apis/dashboard.grafana.app/v2/namespaces/default/dashboards/forti-monitor",
         )
-        assert dashboard["metadata"]["resourceVersion"] == before_dashboard
+        # The site name is part of the title FortiLens generated, so Apply
+        # updates that title in the saved dashboard and keeps its panels,
+        # layout, selectors and time settings.
+        assert dashboard["spec"]["title"] == "FortiLens — Updated display name"
+        for part in ("elements", "layout", "timeSettings", "links"):
+            assert dashboard["spec"].get(part) == before_dashboard["spec"].get(part), part
+        assert [v["spec"]["name"] for v in dashboard["spec"]["variables"]] == [
+            v["spec"]["name"] for v in before_dashboard["spec"]["variables"]
+        ]
+        assert list((c.root / "grafana").glob("dashboard.before-update-*.json"))
         preserved_data()
         assert (
             console("api/report?period=today")[0] == 200
