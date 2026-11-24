@@ -2,6 +2,7 @@
 
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -206,9 +207,11 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(fields["accounting_timezone"].default, "fortigate")
 
     def test_console_formats_browser_as_the_viewer_zone(self):
-        script = (ROOT / "management/static/app.js").read_text(encoding="utf-8")
+        # Compared without whitespace: app.js is formatted code.
+        script = re.sub(r"\s+", "", (ROOT / "management/static/app.js").read_text(encoding="utf-8"))
         self.assertIn(
-            "function displayZone(){const zone=state.view?.settings.timezone;return zone&&zone!=='browser'?zone:undefined}",
+            "functiondisplayZone(){constzone=state.view?.settings.timezone;"
+            "returnzone&&zone!=='browser'?zone:undefined;}",
             script,
         )
         self.assertNotIn("settings.timezone||'UTC'", script)

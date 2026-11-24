@@ -262,7 +262,7 @@ class LiveTests(unittest.TestCase):
         # Layout-independent: the page may be reformatted.
         self.assertIn("if(route==='/api/live')", re.sub(r"\s+", "", page))
         index = (ROOT / "management/static/index.html").read_text(encoding="utf-8")
-        script = (ROOT / "management/static/app.js").read_text(encoding="utf-8")
+        script = re.sub(r"\s+", "", (ROOT / "management/static/app.js").read_text(encoding="utf-8"))
         server = (ROOT / "management/app.py").read_text(encoding="utf-8")
         self.assertIn('href="#live" data-page="live"', index)
         self.assertIn("live:'/console/?section=live#live'", script)

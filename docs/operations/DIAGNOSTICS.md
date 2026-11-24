@@ -1,6 +1,6 @@
 # Diagnostics reference
 
-Every check the console's **Diagnostics** page and `python3 setup.py doctor` can
+Every check the console's **Health** page and `python3 setup.py doctor` can
 show: what it looks at, what each result means and what to do. All checks are
 read-only. Credentials, raw log lines and upstream error bodies are never shown.
 
@@ -84,6 +84,6 @@ Shown only with the native UDP profile. See [Native FortiGate UDP reception](SYS
 python3 setup.py doctor --json --output /path/to/installation
 ```
 
-On a web-managed installation the console's Diagnostics page is the reference.
+On a web-managed installation the console's Health page is the reference.
 There, `direct_api` reports the last Test Connection. On the command line it is a
 live read of `system/status` and runs only with `--api-check`.

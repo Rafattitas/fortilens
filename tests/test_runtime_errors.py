@@ -65,7 +65,7 @@ class RuntimeErrorTests(unittest.TestCase):
 
     def test_queue_disk_failure_releases_lock_before_any_engine_operation(self):
         request = Apply(plan_id="a" * 32, revision=0, confirm=True)
-        with patch("management.runtime.atomic", side_effect=OSError(SECRET)):
+        with patch("management.deployment.atomic", side_effect=OSError(SECRET)):
             with self.assertRaises(Problem) as caught:
                 self.operations.apply(request)
         self.assertEqual(caught.exception.status, 503)
@@ -169,7 +169,7 @@ class RuntimeErrorTests(unittest.TestCase):
                 raise OSError(SECRET)
             return original(path, value, **kwargs)
 
-        with patch("management.runtime.atomic", side_effect=failed_journal):
+        with patch("management.deployment.atomic", side_effect=failed_journal):
             job = self.operations.apply(request)
             result = self.wait(job["job_id"])
         self.assertEqual(result["status"], "failed")
@@ -186,7 +186,7 @@ class RuntimeErrorTests(unittest.TestCase):
             return original(path, value, **kwargs)
 
         with (
-            patch("management.runtime.atomic", side_effect=failed_journal),
+            patch("management.deployment.atomic", side_effect=failed_journal),
             patch.object(self.operations, "diagnostics", return_value={"checks": []}),
         ):
             job = self.operations.apply(request)
@@ -210,8 +210,8 @@ class RuntimeErrorTests(unittest.TestCase):
 
     def test_storage_probe_or_cache_failure_does_not_take_down_status(self):
         with (
-            patch("management.runtime.shutil.disk_usage", side_effect=OSError(SECRET)),
-            patch("management.runtime.atomic", side_effect=OSError(SECRET)),
+            patch("management.health.shutil.disk_usage", side_effect=OSError(SECRET)),
+            patch("management.health.atomic", side_effect=OSError(SECRET)),
         ):
             result = self.operations.status()
         self.assertEqual(result["disk"], {"total": None, "used": None, "available": None})

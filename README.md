@@ -46,7 +46,7 @@ your own server, with your own credentials and data.
 | Will I hear about a problem without watching the screen? | **Alerts** sends Telegram or email messages when a line goes down, slows, carries far less than usual or is filled by one device, when logs stop or the FortiGate stops answering, and when SD-WAN rules change. Daily, weekly and monthly reports, including a per-line report for your provider, arrive on a schedule. See [alerts and reports](docs/operations/ALERTS.md). |
 | Can I trust these numbers? | **Data quality** shows collection gaps, pending counters and identity limits. |
 | What is happening right now, in detail? | **Firewall dashboard** opens the native Grafana dashboard. |
-| Is the installation itself working? | **Status**, **Diagnostics** and **Settings** cover services, collection and reviewed configuration changes. |
+| Is the installation itself working? | **Health** and **Settings** cover services, collection checks and reviewed configuration changes. |
 
 Usage figures come from received accounting records. Missing records never become
 zero traffic or a confirmed outage, and totals are not complete billing figures.
@@ -182,7 +182,7 @@ Credentials must not cross an untrusted plain-HTTP network.
 
 Give it a few minutes after Apply (web) or `start` (portable), while there is traffic.
 
-- **Web setup:** open **Diagnostics**. `fortigate_scrape` and `fortigate_api` at
+- **Web setup:** open **Health**. `fortigate_scrape` and `fortigate_api` at
   `PASS` mean metrics arrive; `recent_logs` at `PASS` means Loki received logs in
   the last five minutes. With accounting on, **Data quality** then shows records
   moving from received to processed, and **Devices** fills in.

@@ -258,7 +258,7 @@ class NativeHostManagementTests(unittest.TestCase):
             docker = Docker(self.c)
             with (
                 patch.object(docker, "statuses", return_value=[]),
-                patch("management.runtime.platform.system", return_value="Linux"),
+                patch("management.compose_engine.platform.system", return_value="Linux"),
                 patch.object(docker, "run", return_value=json.dumps({"OSType": "linux"})),
             ):
                 with self.assertRaises(Problem) as caught:
@@ -283,7 +283,7 @@ class NativeHostManagementTests(unittest.TestCase):
             with (
                 self.subTest(engine=engine),
                 patch.object(docker, "statuses", return_value=[]),
-                patch("management.runtime.platform.system", return_value="Linux"),
+                patch("management.compose_engine.platform.system", return_value="Linux"),
                 patch.object(docker, "run", return_value=json.dumps(engine)),
             ):
                 with self.assertRaises(Problem) as caught:

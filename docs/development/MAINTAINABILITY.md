@@ -13,8 +13,8 @@ contracts instead of changing them.
 |---|---|---|
 | `management/app.py` | HTTP/auth boundaries, fixed routes, trusted initial-view launch and hosted-report presentation. | Separate presentation constants only after native mount, cache policy, frame entry/reload and packaging tests; preserve import names/routes. |
 | `management/auth.py`, `models.py` | Private auth state, session/CSRF contracts and strict validated browser/helper inputs. | Keep management and gateway/service authentication separate; characterize errors and session persistence first. |
-| `management/configuration.py` | Import existing layout, revisions, candidate merge, fingerprints and file-only recovery. Prepare patches a registered installation in one step per installed file (`_patch_*`), in a fixed order that is also the plan order. | `tests/test_configuration_patch.py` pins Prepare's candidate files for 56 settings changes; it must pass unchanged before candidate serialization is split from transactions. Add a scenario for any newly accepted mount or config form. |
-| `management/runtime.py` | Fixed Docker operations, readiness, diagnostics, apply jobs and read-only console bridge. | Separate gateway/device adapters behind existing injected interfaces; retain peer/helper registry and fixed command boundaries. |
+| `management/configuration.py` | Import existing layout, revisions, drafts and secret binding. Its parts live in `settings_changes.py` (Review wording), `compose_policy.py` (file rules), `candidate.py` (Prepare patches a registered installation in one step per installed file, `_patch_*`, in a fixed order that is also the plan order) and `plans.py` (plan lifecycle and file-only recovery), mixed into `Configuration`. | `tests/test_configuration_patch.py` pins Prepare's candidate files for 56 settings changes; it must pass unchanged before candidate serialization is split from transactions. Add a scenario for any newly accepted mount or config form. |
+| `management/runtime.py` | The operation dispatcher and read-only console bridge. `compose_engine.py` holds the fixed Docker operations and readiness, `device.py` FortiGate requests, `health.py` status, storage and diagnostics, `deployment.py` Apply/rollback jobs; they are mixed into `Operations`. Tests patch names in the module that holds the code. | Separate gateway/device adapters behind existing injected interfaces; retain peer/helper registry and fixed command boundaries. |
 | `management/common.py` | Safety primitives and deliberate loading of portable setup. | Preserve standard-library CLI paths and copied-worker imports; test both installed and source contexts before changing loading. |
 | `portable/setup.py` | Configuration validation, rendering, CLI, dashboard import and portable bundle. | Keep command/argument/error compatibility and install output unchanged; isolated extraction needs explicit installer/bundle/Docker file updates. |
 | `portable/accounting.py` | Normalization, source/session identity, conservative byte contributions, transactional ledger and summaries. Record interpretation and session contribution are module functions (`parse_line` to `derive_session`); `StoreReports` holds the read side (reports, histories, diagnostics) and `Store` adds opening, ingestion, roll-ups and pruning in one transaction per batch. `tests/test_accounting_flow.py` pins results, schema and table contents. | Require independently known fixtures, late-arrival/replay/restart/retention equivalence and database compatibility; no algorithm changes in organizational work. |
@@ -34,7 +34,12 @@ across the repository, and every Python file is formatted with `ruff format`,
 which CI checks. The runtime's former dense formatting was converted in one
 mechanical change: every file's syntax tree was compared before and after
 (docstring text aside) and the full suite was run on the result. Import ordering
-is enforced for the newer tooling and tests only. No broad
+is enforced for the newer tooling and tests only. The console script
+`management/static/app.js` was converted the same way: formatted with Prettier
+3.3.3 (`--single-quote --print-width 100 --arrow-parens avoid --no-bracket-spacing
+--trailing-comma none`) and its acorn syntax tree compared before and after,
+ignoring positions and literal spelling. Keep it formatted with that command.
+Tests that look for code in it compare it without whitespace. No broad
 type-checking claim is made for existing dynamically loaded runtime modules.
 Typed internal APIs can be introduced one characterized seam at a time.
 

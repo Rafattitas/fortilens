@@ -17,7 +17,7 @@ shows a version that answers differently.
 ## How a different version is handled
 
 The FortiOS version and build are read from the FortiGate's own API replies.
-**Diagnostics** shows them with one of these levels:
+**Health** shows them with one of these levels:
 
 | Level | Meaning |
 |---|---|
