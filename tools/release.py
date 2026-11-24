@@ -159,6 +159,7 @@ PUBLIC_FILES = (
     "tests/test_accounting_migrate.py",
     "tests/test_alerts.py",
     "tests/test_notifications.py",
+    "tests/test_late_logs.py",
     "tests/test_cli_errors.py",
     "tests/test_configuration_ca.py",
     "tests/test_configuration_patch.py",
