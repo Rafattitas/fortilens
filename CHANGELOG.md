@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Who uses each line
+
+- **Live usage** has a line chooser. Choosing a line shows its download and
+  upload now and how full it is against the speed set in Settings, with a
+  "Full" mark at 90%, the devices on it with what each takes from that line and
+  its sessions, and the busiest device. **All lines** shows each device's total
+  and the lines it uses. Before, the page showed only each device's total, so a
+  full line and the devices filling it had to be worked out from the logs.
+- **Internet links** has **Who used each line**: for one line and the last
+  15 minutes, hour, 3 hours or 12 hours, the devices whose recorded traffic left
+  through it, with each one's share of the line's upload and download, and the
+  line's average rate against its speed. Before, this was shown only for an
+  incident.
+- Both, and the devices of an incident, name the SD-WAN rules that can carry
+  each device's traffic, in the order the FortiGate checks them, for example
+  "infra-team: wan1". They are matched on the device's address and MAC address
+  against the rules' source objects. A rule limited to some destinations, such
+  as Office 365, is listed before the rule that takes the rest. A source that
+  cannot be judged from an address, such as an FQDN object, is marked "maybe".
+  FortiLens reads the firewall address objects for this, read-only and at most
+  every 5 minutes; when the API token cannot read them, the pages say so and
+  show the rest.
+
 ## v0.7.2 — 2026-11-25 — Loki gets a memory limit, failed alerts are sent again, and one Health page
 
 ### Upgrade

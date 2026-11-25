@@ -163,6 +163,9 @@ LIVE_CHECK_SECONDS = 3600
 INSIGHT_BUCKETS = 1008  # 7 days of 10-minute intervals
 SDWAN_ROUTE = "/api/v2/cmdb/system/sdwan"  # read-only: the configured rules
 SDWAN_CACHE_SECONDS = 300
+# read-only: firewall address objects, to tell which SD-WAN rule a device's source matches
+ADDRESS_ROUTE = "/api/v2/cmdb/firewall/address"
+ADDRGRP_ROUTE = "/api/v2/cmdb/firewall/addrgrp"
 INCIDENT_MAX_SECONDS = 12 * 3600
 
 
@@ -287,9 +290,12 @@ def build_live(
         device["upload_bps"] += up
         device["sessions"] += sessions
         # Per line, so an alert can name the device that fills one.
-        per_line = device["lines"].setdefault(out, {"download_bps": 0, "upload_bps": 0})
+        per_line = device["lines"].setdefault(
+            out, {"download_bps": 0, "upload_bps": 0, "sessions": 0}
+        )
         per_line["download_bps"] += down
         per_line["upload_bps"] += up
+        per_line["sessions"] += sessions
         for entry in row.get("apps") or []:
             if isinstance(entry, dict):
                 label = app_label(entry)
@@ -528,6 +534,7 @@ class Engine:
         self.wan_cache = {"status": "UNAVAILABLE", "interfaces": []}
         self._insight_cache = {}
         self._sdwan_cache = None
+        self._address_cache = None
         self._initial_inventory = json.loads(json.dumps(store.inventory))
         # Alerts: state beside the database, secrets read fresh at every step.
         self.alerts = notifications.Alerts(None)
@@ -871,6 +878,8 @@ class Engine:
             LIVE_ROUTE,
             INTERFACE_ROUTE,
             SDWAN_ROUTE,
+            ADDRESS_ROUTE,
+            ADDRGRP_ROUTE,
         ):
             raise ServiceError("device_endpoint_not_allowlisted")
         c = self.config
@@ -1348,8 +1357,64 @@ class Engine:
             "bandwidth_note": "Observed counter-sample rate; not proof of the routing decision for every flow.",
         }
 
+    def address_book(self, now=None):
+        """Firewall address objects for SD-WAN source matching, read-only and kept for a few minutes."""
+        now = time.time() if now is None else now
+        cached = self._address_cache
+        if cached and 0 <= now - cached[0] < SDWAN_CACHE_SECONDS:
+            return cached[1], cached[2]
+        book, reason = None, None
+        if not self.token_file:
+            reason = "api_token_unavailable"
+        else:
+            try:
+                book = wan_health.address_book(
+                    self.read_device(ADDRESS_ROUTE, {}), self.read_device(ADDRGRP_ROUTE, {})
+                )
+            except Exception as exc:
+                reason = safe_error(exc)
+        self._address_cache = (now, book, reason)
+        return book, reason
+
+    def sdwan_devices(self, devices, now=None):
+        """Add the SD-WAN rules that can carry each device's traffic, judged on its source.
+
+        Each device dict gets ``sdwan`` ({"rules", "settled"}) or None. Returns the
+        status: OBSERVED, or UNAVAILABLE with the reason the rules or addresses
+        could not be read. Which rule one session used is not observable here.
+        """
+        routing = self.sdwan_rules(now)
+        reason = None if routing.get("status") == "OBSERVED" else routing.get("reason")
+        book = None
+        if reason is None:
+            book, reason = self.address_book(now)
+        for device in devices:
+            device["sdwan"] = (
+                None
+                if book is None
+                else wan_health.device_rules(
+                    routing["rules"], book, device.get("ip"), device.get("mac")
+                )
+            )
+        if book is None:
+            return {"status": "UNAVAILABLE", "reason": reason or "unavailable"}
+        return {"status": "OBSERVED"}
+
+    def live_view(self, now=None):
+        """Live usage for the console: each line's configured speed and each device's SD-WAN rules."""
+        result = self.live(now)
+        speeds = self.config.get("wan_speeds") or {}
+        for link in result["links"]:
+            link["speed"] = speeds.get(link.get("interface"))
+        result["sdwan"] = self.sdwan_devices(result["devices"], now)
+        return result
+
     def wan_incident(self, interface, start, end):
-        """Devices whose recorded traffic left through one line during an incident."""
+        """Devices whose recorded traffic left through one line in a window of up to 12 hours.
+
+        Used for an incident and for "who used this line" over a chosen window. Each
+        device carries the SD-WAN rules its source matches now.
+        """
         names = self.config.get("confirmed_wan_interfaces") or []
         if interface not in names:
             raise ServiceError("unknown_wan_interface")
@@ -1374,7 +1439,12 @@ class Engine:
             result = self._cached(
                 ("wan_incident", version, interface, start, end), version, compute
             )
+        # A copy: the cached detail is shared, and rules are read fresh.
+        result = {**result, "devices": [dict(d) for d in result.get("devices") or []]}
         result.update(interface=interface, start=start, end=end, ledger_days=days)
+        result["speed"] = (self.config.get("wan_speeds") or {}).get(interface)
+        if self.token_file and result["devices"]:
+            result["sdwan"] = self.sdwan_devices(result["devices"])
         return result
 
     def sdwan_rules(self, now=None):
@@ -2109,7 +2179,7 @@ def handler(engine, password, root):
                     )
                     return self.send(200, result)
                 if parsed.path == "/api/live":
-                    return self.send(200, engine.live())
+                    return self.send(200, engine.live_view())
                 if parsed.path == "/api/applications":
                     # An empty app or category selects unidentified records; absent means no filter.
                     result = engine.applications(

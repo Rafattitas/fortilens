@@ -122,6 +122,22 @@ to), `links`, `devices`, `vlans`, `applications`, `truncated` and
 `compatibility` (which FortiGate API parts responded). These are estimates, not
 recorded usage.
 
+- `links[].speed`: the line's `down_mbps` and `up_mbps` from Settings, or `null`.
+- `devices[].lines`: per line the device uses, its `download_bps`, `upload_bps`
+  and `sessions`.
+- `devices[].sdwan`: the SD-WAN rules that can carry the device's traffic, in the
+  order the FortiGate checks them, judged on the device's address and MAC
+  address: `rules` (each with `order`, `name`, `mode`, `lines`, `all_traffic` and
+  `certain`) and `settled` (`false` when some traffic can still reach the
+  implicit rule). A rule with `all_traffic: false` is limited to some
+  destinations, Internet services, ports, users or an incoming interface; the
+  list continues to the first rule that takes everything else. `certain: false`
+  marks a source object that cannot be judged from an address, such as an FQDN.
+  `null` when the rules or addresses could not be read.
+- `sdwan`: `{"status": "OBSERVED"}`, or `UNAVAILABLE` with a `reason`. The rules
+  come from `cmdb/system/sdwan` and the objects from `cmdb/firewall/address` and
+  `cmdb/firewall/addrgrp`, all read-only and kept for 5 minutes.
+
 ### `/api/wan`
 
 Health of the Internet links from stored metrics.
@@ -176,8 +192,8 @@ The period is split into at most 1,008 intervals (10 minutes for 7 days,
 ### `/api/wan/incident`
 
 Devices whose recorded Internet traffic left through one line in a window,
-largest first. It reads the raw records, so the window must be within the ledger
-retention.
+largest first: an incident, or the window chosen under **Who used each line**.
+It reads the raw records, so the window must be within the ledger retention.
 
 | Parameter | Meaning |
 |---|---|
@@ -188,7 +204,9 @@ Response: `available` (`false` with `reason` `expired` when the raw records are
 gone), `ledger_days`, `complete` and `scanned_until` (reading stops after 15
 seconds and reports how far it got), `device_count`, `upload_bytes`,
 `download_bytes` and `devices` (up to 15, each with `device_id`, `hostname`,
-`ip`, `mac`, `vlan`, `upload_bytes`, `download_bytes` and `records`).
+`ip`, `mac`, `vlan`, `upload_bytes`, `download_bytes` and `records`), `speed`
+(the line's speed from Settings, or `null`) and, when the FortiGate API token
+is available, `sdwan` and each device's `sdwan`, as in `/api/live`.
 
 ### `/api/inventory`
 

@@ -1,8 +1,10 @@
 """WAN observation math. Missing collection never becomes an Internet outage."""
 
+import ipaddress
 import math
+import re
 
-KNOWN = {"UP", "DOWN", "ERROR", "DISABLED", "UNKNOWN"}
+KNOWN ={"UP", "DOWN", "ERROR", "DISABLED", "UNKNOWN"}
 
 
 def finite(value):
@@ -324,6 +326,15 @@ def sdwan_rules(payload, wans):
         every_destination = (
             "all" in destinations and s.get("internet-service", "disable") != "enable"
         )
+        # A protocol or port range limits the rule to part of a source's traffic.
+        try:
+            any_port = (
+                int(s.get("protocol") or 0) == 0
+                and int(s.get("start-port") or 1) <= 1
+                and int(s.get("end-port") or 65535) >= 65535
+            )
+        except (TypeError, ValueError):
+            any_port = False
         rule = {
             "id": s.get("id"),
             "name": str(s.get("name") or "rule " + str(s.get("id"))),
@@ -336,6 +347,12 @@ def sdwan_rules(payload, wans):
             "restricted_by": restricted_by,
             "lines": [l for l in lines if not wans or l in wans] or lines,
             "health_checks": checks,
+            "source_negated": s.get("src-negate") == "enable",
+            # True when the rule takes every connection of the sources it matches.
+            "all_traffic": every_destination
+            and s.get("dst-negate") != "enable"
+            and not restricted_by
+            and any_port,
             "issues": [],
         }
         if not enabled:
@@ -395,6 +412,127 @@ def sdwan_rules(payload, wans):
         "rules": rules,
         "note": "Rules apply in this order and the first match wins. Traffic that matches no rule follows the zone's implicit rule.",
     }
+
+
+def _mac_number(text):
+    digits = re.sub(r"[^0-9a-f]", "", str(text).lower())
+    return int(digits, 16) if len(digits) == 12 else None
+
+
+def address_book(addresses, groups):
+    """Firewall address and address-group objects, reduced to what a source match needs.
+
+    Reads ``cmdb/firewall/address`` and ``cmdb/firewall/addrgrp`` payloads. Subnets,
+    IP ranges and MAC addresses can be judged for one device; any other kind (FQDN,
+    geography, dynamic, wildcard) is kept as unknown rather than guessed.
+    """
+    book = {}
+    for item in (addresses or {}).get("results") or []:
+        if not isinstance(item, dict) or not item.get("name"):
+            continue
+        kind, entry = item.get("type", "ipmask"), ("unknown",)
+        try:
+            if kind in ("ipmask", "interface-subnet") and item.get("subnet"):
+                net, mask = str(item["subnet"]).split()
+                entry = ("net", ipaddress.ip_network(net + "/" + mask, strict=False))
+            elif kind == "iprange" and item.get("start-ip") and item.get("end-ip"):
+                entry = (
+                    "range",
+                    ipaddress.ip_address(item["start-ip"]),
+                    ipaddress.ip_address(item["end-ip"]),
+                )
+            elif kind == "mac":
+                spans = []
+                values = [m.get("macaddr") for m in item.get("macaddr") or [] if isinstance(m, dict)]
+                if item.get("start-mac") and item.get("end-mac"):
+                    values.append(str(item["start-mac"]) + "-" + str(item["end-mac"]))
+                for value in values:
+                    low, _, high = str(value).partition("-")
+                    low, high = _mac_number(low), _mac_number(high or low)
+                    if low is None or high is None:
+                        spans = None
+                        break
+                    spans.append((low, high))
+                entry = ("mac", spans) if spans else ("unknown",)
+        except ValueError:
+            entry = ("unknown",)
+        book[str(item["name"])] = entry
+    for item in (groups or {}).get("results") or []:
+        if not isinstance(item, dict) or not item.get("name"):
+            continue
+        excluded = _names(item.get("exclude-member")) if item.get("exclude") == "enable" else []
+        book[str(item["name"])] = ("group", _names(item.get("member")), excluded)
+    return book
+
+
+def source_match(book, name, ip, mac, seen=()):
+    """Whether one source object holds a device: True, False or None when it cannot be told."""
+    if name == "all":
+        return True
+    entry = book.get(name)
+    if entry is None or name in seen:
+        return None
+    kind = entry[0]
+    if kind == "group":
+        inside = [source_match(book, m, ip, mac, seen + (name,)) for m in entry[1]]
+        held = True if True in inside else None if None in inside else False
+        if held is False or not entry[2]:
+            return held
+        out = [source_match(book, m, ip, mac, seen + (name,)) for m in entry[2]]
+        if True in out:
+            return False
+        return None if None in out else held
+    if kind in ("net", "range"):
+        try:
+            address = ipaddress.ip_address(ip) if ip else None
+        except ValueError:
+            address = None
+        if address is None:
+            return None
+        if kind == "net":
+            return address.version == entry[1].version and address in entry[1]
+        return address.version == entry[1].version and entry[1] <= address <= entry[2]
+    if kind == "mac":
+        number = _mac_number(mac) if mac else None
+        if number is None:
+            return None
+        return any(low <= number <= high for low, high in entry[1])
+    return None
+
+
+def device_rules(rules, book, ip, mac):
+    """The SD-WAN rules that can carry one device's traffic, in the order they are checked.
+
+    Judged on the rule's sources only, as the FortiGate checks rules in order and the
+    first match wins. A rule limited to some destinations, Internet services, ports,
+    users or an incoming interface takes only part of the traffic, so the search goes
+    on; it stops at the first rule that surely takes everything else. ``settled`` is
+    False when some traffic can still reach the zone's implicit rule.
+    """
+    out = []
+    for rule in rules:
+        if not rule.get("enabled") or not rule.get("lines"):
+            continue
+        hits = [source_match(book, name, ip, mac) for name in rule.get("sources") or []]
+        held = True if True in hits else None if None in hits else False
+        if rule.get("source_negated") and held is not None:
+            held = not held
+        if held is False:
+            continue
+        everything = bool(rule.get("all_traffic"))
+        out.append(
+            {
+                "order": rule["order"],
+                "name": rule["name"],
+                "mode": rule["mode"],
+                "lines": rule["lines"],
+                "all_traffic": everything,
+                "certain": held is True,
+            }
+        )
+        if held is True and everything:
+            return {"rules": out, "settled": True}
+    return {"rules": out, "settled": False}
 
 
 def _routing_findings(routing, links, findings):
