@@ -2862,7 +2862,13 @@ function liveLinesText(d) {
   const used = Object.entries(d.lines || {})
     .sort((a, b) => b[1].download_bps + b[1].upload_bps - (a[1].download_bps + a[1].upload_bps))
     .map(([name]) => name);
-  const rule = sdwanText(d.sdwan);
+  const rules = d.sdwan && Array.isArray(d.sdwan.rules) ? d.sdwan.rules : null,
+    names = (rules || []).map(x => (x.certain ? '' : 'maybe ') + x.name),
+    rule = !rules
+      ? ''
+      : names.length
+        ? (names.length > 1 ? 'SD-WAN rules ' : 'SD-WAN rule ') + names.join(', ')
+        : 'implicit SD-WAN rule';
   return [used.join(' + '), rule].filter(Boolean).join(' · ');
 }
 function renderLiveRest(r, line) {
@@ -2891,7 +2897,11 @@ function renderLiveRest(r, line) {
     who.append(
       element('span', [d.ip, profileText(d)].filter(Boolean).join(' · ') || d.mac, 'secondary')
     );
-    if (!line && liveLinesText(d)) who.append(element('span', liveLinesText(d), 'secondary'));
+    if (!line && liveLinesText(d)) {
+      const where = element('span', liveLinesText(d), 'secondary');
+      where.title = sdwanText(d.sdwan);
+      who.append(where);
+    }
     tr.append(
       who,
       element('td', vlanName(d.vlan) + ' / ' + d.vlan.interface),

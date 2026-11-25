@@ -61,10 +61,12 @@ Who is using the Internet this minute. It refreshes every 10 seconds.
 - **Choose a line** above the totals to see only that line: its download and
   upload now, how full it is (when its speed is set in Settings → Network
   Interfaces), the devices on it with what each takes from that line, and the
-  busiest one. **All lines** shows each device's total and the lines it uses.
-- **Line · SD-WAN rule** names the SD-WAN rules that can carry the device's
-  traffic, in the order the FortiGate checks them, matched on the device's
-  address and MAC address now. A rule limited to some destinations, such as
+  busiest one. **All lines** shows each device's total, with the lines it uses
+  under its name.
+- Each device also names the SD-WAN rules that can carry its traffic, in the
+  order the FortiGate checks them, matched on the device's address and MAC
+  address now: under its name for all lines, and with each rule's lines in
+  **Share of the line · SD-WAN rule** for a chosen line. A rule limited to some destinations, such as
   Office 365, takes only part of the traffic and is followed by the rule for
   the rest. "maybe" marks a rule whose source cannot be judged from an address
   (for example an FQDN object). The FortiGate does not report which rule one
