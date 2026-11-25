@@ -1,6 +1,20 @@
 # Changelog
 
-## Unreleased
+## v0.7.3 — 2026-11-25 — How much each line carries, who is on it and which SD-WAN rule put them there
+
+### Upgrade
+
+- No configuration, database or dashboard migration. Upgrade in place with
+  `install.sh --upgrade`; it restarts the management service and rebuilds the
+  accounting service and the console gateway. Collection (Alloy, Loki,
+  Prometheus) and Grafana keep running.
+- Usage per line reads the interface counters Prometheus already keeps, so it
+  covers the past as far back as the metric retention set in Settings.
+- The SD-WAN rule of each device needs the FortiGate API token to read firewall
+  address objects and address groups. Without that permission the pages say so
+  and show everything else.
+- How full a line is shows only for lines whose speed is set in Settings →
+  Network Interfaces.
 
 ### Who uses each line
 
