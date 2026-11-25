@@ -5,12 +5,12 @@
   "browser": "158.0.8127.18",
   "source_sha256": {
     "tools/capture_screenshots.cjs": "3453082436028fa224d96bd4e3153dfc6b02f7d6da92a0662c5b56581c24cb51",
-    "demo/fixtures.js": "9396e83e03e50d7146c2cc44125ae34007e67bd85762569c845b83a47a325445",
+    "demo/fixtures.js": "e8ffb3607be57f8d14fc882e5f80f61da369f92d714faaeae644982a7461969f",
     "management/app.py": "b22378fdee8296aa95bbe00c78189ce6c94898889a3f2c6a6cd6de2f7a53f7c0",
     "management/static/index.html": "e8c517f99287c1950d0e5cb4ee5635f8a3af9d082033bd97105a401699292942",
     "management/static/app.js": "ebbd5e705de16527e2941147ad7d12dcf4497ba1d8a98238ab726a37fa451321",
     "management/static/app.css": "5ca28b59c311c883acc11c842d4c8c6e03ec71e37816d64b6663f205a4a1be27",
-    "portable/reporting.html": "0821f2fbe8641faf573991bd0a39b6d02813190523d73f0aa05cb75f8fa99e26",
+    "portable/reporting.html": "69264a4a95801f2ed6215f699c71fdf04439413f2eb4fa73daff01fa1811ecb5",
     "management/static/fonts/IBMPlexSans-Light-Latin1.woff2": "a21e7db1965d4c7af07213226fb11ccd2f61a87a0045ce1fed7cd22918431144",
     "management/static/fonts/IBMPlexSans-Medium-Latin1.woff2": "b5610af04d0d4b5a14a621d96d974b993e945a065db1a8861918f69ef9321934",
     "management/static/fonts/IBMPlexSans-Regular-Latin1.woff2": "b5ad7bd39f996144915f0ad9849a90183b27d8c28ad97ed98af5b1bebc51f6b1",
@@ -115,7 +115,7 @@
     },
     {
       "file": "docs/design/screenshots/07-internet.png",
-      "sha256": "afdf5dacd23a2ee3c38cb098d03048834b6233ccd2e598220fb77d9e2e52dee7",
+      "sha256": "cc9f1bf1fc6ee0a912c0a7b82d9d3b8855a22f9b590a171c74e98b209005e9de",
       "viewport": {
         "width": 1600,
         "height": 1050
@@ -227,7 +227,7 @@
     },
     {
       "file": "docs/design/screenshots/15-usage-narrow.png",
-      "sha256": "2c3c1f2af387ff895888d90c2c3d0b833adba9ad257417a80b667ec29c3f36cd",
+      "sha256": "5d885ceb6f691445964cc5533354c53e5361ad378a929917aba5155f158e4c90",
       "viewport": {
         "width": 375,
         "height": 900
@@ -259,7 +259,7 @@
     },
     {
       "file": "docs/design/screenshots/17-live.png",
-      "sha256": "a4e814fe3bd30fab9a2003ec899bb24100cd1ed5faf913009c90ac19101588f0",
+      "sha256": "4aa84085acd0a946830de9ce366590fb2939f3b58dbe6f628d1600d0a7afa34a",
       "viewport": {
         "width": 1600,
         "height": 1050
