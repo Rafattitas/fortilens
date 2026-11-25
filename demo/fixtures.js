@@ -108,16 +108,52 @@
       const doing = [['Microsoft Teams', 'Web Mail'], ['Software Update'], ['Video streaming', 'Cloud Storage'], ['Video streaming'], ['AI Assistant', 'Code Hosting'], ['Remote Desktop'], ['Web Mail'], ['Video streaming']];
       const rows = devices.map((d, i) => ({device_id: d.device_id, hostname: d.hostname, ip: d.ip, mac: d.mac, profile: i % 3 ? {vendor: 'Example', os: 'Windows', type: 'Computer'} : {os: 'Android', type: 'Mobile'},
         vlan: d.vlans[0], download_bps: Math.round([18.4, 9.6, 7.2, 4.1, 2.6, 1.2, 0.6, 0.3][i] * 1e6 * jitter), upload_bps: Math.round([2.1, 6.8, 0.9, 0.4, 0.5, 0.9, 0.1, 0.05][i] * 1e6 * jitter), sessions: [42, 18, 25, 12, 9, 6, 4, 3][i], top_apps: doing[i]}));
+      // The build server and office tablet follow the engineering rule to uplink-b; the rest go to uplink-a.
+      const rule = {engineering: {order: 1, name: 'engineering', mode: 'sla', lines: ['uplink-b', 'uplink-a'], all_traffic: true, certain: true},
+        everyone: {order: 2, name: 'everyone-else', mode: 'manual', lines: ['uplink-a'], all_traffic: true, certain: true}};
+      for (const [i, d] of rows.entries()) {
+        const line = i === 1 || i === 4 ? 'uplink-b' : 'uplink-a';
+        d.lines = {[line]: {download_bps: d.download_bps, upload_bps: d.upload_bps, sessions: d.sessions}};
+        d.sdwan = {rules: [line === 'uplink-b' ? rule.engineering : rule.everyone], settled: true};
+      }
+      const onLine = (line, key) => sum(rows.filter(d => d.lines[line]).map(d => d.lines[line]), key);
       const download = sum(rows, 'download_bps'), upload = sum(rows, 'upload_bps');
       const apps = [['Video streaming', 'Video/Audio', 14.1, 0.9], ['Microsoft Teams', 'Collaboration', 6.2, 1.8], ['Software Update', 'Update', 5.9, 3.1], ['Cloud Storage', 'Storage.Backup', 3.4, 4.2], ['AI Assistant', 'GenAI', 1.9, 0.4], ['Web Mail', 'Email', 1.1, 0.3]]
         .map(([app, category, d, u], i) => ({appid: String(41000 + i), app, category, risk: 'medium', download_bps: Math.round(d * 1e6 * jitter), upload_bps: Math.round(u * 1e6 * jitter), sessions: 10 + i}));
       const segmentRows = vlans.map(vlan => {const r = rows.filter(d => d.vlan.key === vlan.key); return {vlan, download_bps: sum(r, 'download_bps'), upload_bps: sum(r, 'upload_bps'), devices: r.length};}).filter(x => x.devices);
       return {observed_at: seconds, source: 'FORTIVIEW_REALTIME', unit: 'bits_per_second', totals_source: 'INTERFACE_COUNTERS',
-        totals: {download_bps: Math.round(download * 1.08), upload_bps: Math.round(upload * 1.12), sessions: sum(rows, 'sessions'), devices: rows.length},
+        totals: {download_bps: Math.round(download * 1.08), upload_bps: Math.round(upload * 1.1), sessions: sum(rows, 'sessions'), devices: rows.length},
         listed: {download_bps: download, upload_bps: upload}, listed_sources: rows.length, truncated: false,
-        links: [{interface: 'uplink-a', download_bps: Math.round(download * 0.78), upload_bps: Math.round(upload * 0.8), measured_seconds: 5, sessions_now: 742}, {interface: 'uplink-b', download_bps: Math.round(download * 0.3), upload_bps: Math.round(upload * 0.32), measured_seconds: 5, sessions_now: 118}],
-        devices: rows, vlans: segmentRows, applications: apps, wan_interfaces: ['uplink-a', 'uplink-b'],
+        links: [{interface: 'uplink-a', download_bps: Math.round(onLine('uplink-a', 'download_bps') * 1.08), upload_bps: Math.round(onLine('uplink-a', 'upload_bps') * 1.1), measured_seconds: 5, sessions_now: 742, speed: {down_mbps: 100, up_mbps: 20}}, {interface: 'uplink-b', download_bps: Math.round(onLine('uplink-b', 'download_bps') * 1.08), upload_bps: Math.round(onLine('uplink-b', 'upload_bps') * 1.1), measured_seconds: 5, sessions_now: 118, speed: null}],
+        devices: rows, vlans: segmentRows, applications: apps, wan_interfaces: ['uplink-a', 'uplink-b'], sdwan: {status: 'OBSERVED'},
         note: 'Synthetic live estimates.'};
+    }
+    // Bytes each line carried, from its counters: hours for one day, days for longer periods.
+    function volume(url) {
+      const period = url.searchParams.get('period') || 'today', hour = 3600;
+      const first = new Date(now); first.setUTCDate(1); first.setUTCHours(0, 0, 0, 0);
+      const monthStart = first.getTime() / 1000;
+      const previous = new Date(first); previous.setUTCMonth(previous.getUTCMonth() - 1);
+      const [start, end, step] = {today: [startOfDay, seconds, hour], yesterday: [startOfDay - day, startOfDay, hour],
+        week: [startOfDay - 6 * day, seconds, day], month: [monthStart, seconds, day],
+        last_month: [previous.getTime() / 1000, monthStart, day]}[period] || [startOfDay, seconds, hour];
+      const shape = [.3, .2, .2, .2, .2, .3, .5, .8, 1.2, 1.6, 1.7, 1.6, 1.4, 1.5, 1.6, 1.5, 1.3, 1.0, .8, .7, .6, .5, .4, .3];
+      const lines = [['uplink-a', 1.6, .45], ['uplink-b', .4, .1]];
+      const buckets = [];
+      for (let t = start, i = 0; t < end; t += step, i++) {
+        const until = Math.min(t + step, end), part = (until - t) / step;
+        const weight = step === hour ? shape[new Date(t * 1000).getUTCHours()] : [1, 1.1, .9, 1.2, 1, .4, .3][new Date(t * 1000).getUTCDay()] * 24;
+        buckets.push({start: iso(t), end: iso(until), label: step === hour ? pad(new Date(t * 1000).getUTCHours()) + ':00' : dateOf(t),
+          lines: Object.fromEntries(lines.map(([name, down, up]) => [name, period === 'last_month' && name === 'uplink-b' && i === 2
+            ? {download_bytes: null, upload_bytes: null, coverage_pct: 0}
+            : {download_bytes: Math.round(down * weight * part * GiB), upload_bytes: Math.round(up * weight * part * GiB), coverage_pct: 100}]))});
+      }
+      return {period, start: iso(start), end: iso(end), bucket: step === hour ? 'hour' : 'day', source: 'INTERFACE_COUNTERS', status: 'OBSERVED', buckets,
+        lines: lines.map(([name]) => {
+          const known = buckets.map(b => b.lines[name]).filter(x => x.download_bytes !== null);
+          return {interface: name, download_bytes: sum(known, 'download_bytes'), upload_bytes: sum(known, 'upload_bytes'),
+            coverage_pct: 100 * known.length / buckets.length, speed: name === 'uplink-a' ? {down_mbps: 100, up_mbps: 20} : null};
+        })};
     }
     // Generic example site names only; one site selected.
     function websites(url) {
@@ -301,8 +337,10 @@
         '/api/device': () => report(url, true, degraded),
         '/api/wan': () => wan(degraded),
         '/api/wan/insights': () => wanInsights(url, degraded),
-        '/api/wan/incident': () => ({available: true, complete: true, interface: url.searchParams.get('interface'), start: Number(url.searchParams.get('start')), end: Number(url.searchParams.get('end')), scanned_until: Number(url.searchParams.get('end')), ledger_days: 8, device_count: 14, upload_bytes: 0.6 * GiB, download_bytes: 3.1 * GiB,
-          devices: [['design-ws-01', 'design', 1.4, 0.21], ['finance-lt-07', 'finance', 0.62, 0.08], ['meeting-room-tv', 'guest-wifi', 0.41, 0.02]].map(([hostname, vlan, down, up], i) => ({device_id: String(i + 1).repeat(64), hostname, ip: '192.0.2.' + (20 + i), mac: '', vlan, download_bytes: down * GiB, upload_bytes: up * GiB, records: 40 - i * 9}))}),
+        '/api/wan/volume': () => volume(url),
+        '/api/wan/incident': () => ({available: true, complete: true, interface: url.searchParams.get('interface'), speed: url.searchParams.get('interface') === 'uplink-a' ? {down_mbps: 100, up_mbps: 20} : null, sdwan: {status: 'OBSERVED'}, start: Number(url.searchParams.get('start')), end: Number(url.searchParams.get('end')), scanned_until: Number(url.searchParams.get('end')), ledger_days: 8, device_count: 14, upload_bytes: 0.6 * GiB, download_bytes: 3.1 * GiB,
+          devices: [['design-ws-01', 'design', 1.4, 0.21], ['finance-lt-07', 'finance', 0.62, 0.08], ['meeting-room-tv', 'guest-wifi', 0.41, 0.02]].map(([hostname, vlan, down, up], i) => ({device_id: String(i + 1).repeat(64), hostname, ip: '192.0.2.' + (20 + i), mac: '', vlan, download_bytes: down * GiB, upload_bytes: up * GiB, records: 40 - i * 9,
+            sdwan: {rules: [{order: 2, name: 'everyone-else', mode: 'manual', lines: ['uplink-a'], all_traffic: true, certain: true}], settled: true}}))}),
         '/api/applications': () => applications(url),
         '/api/inventory': () => inventory(),
         '/api/live': () => live(jitter),

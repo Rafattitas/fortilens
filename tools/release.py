@@ -200,6 +200,7 @@ PUBLIC_FILES = (
     "tests/test_favicon.py",
     "tests/test_fortios_compat.py",
     "tests/test_live.py",
+    "tests/test_line_usage.py",
     "tests/test_poll_window.py",
     "tests/test_rollup_batch.py",
     "tests/test_source_binding.py",

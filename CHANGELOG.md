@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+### Who uses each line
+
+- **Live usage** opens with a tile per line: download and upload now, a bar for
+  how full each is against the speed set in Settings (amber from 70%, red and
+  "Full" from 90%), and its devices and sessions. Selecting a tile shows only
+  that line's devices, each rate with a bar for its share of the line, and the
+  SD-WAN rule. **All lines** shows each device's total and the lines it uses.
+  When the listed devices explain less than 70% of what the line's counter
+  measured, the page says so and offers the devices that used the line in the
+  last 15 minutes from the logs, which include sessions the FortiGate's live
+  estimates miss (network-processor offload, short bursts). Before, the page
+  showed only each device's total, so a full line and the devices filling it
+  had to be worked out from the logs.
+- **Internet links** has **Usage per line**: what each line carried today,
+  yesterday, in the last 7 days, this month or last month, from its own
+  counters (all traffic, as the provider counts it), with each line's share and
+  a chart per hour or per day. Hours or days the counters were not read show as
+  not recorded, never zero. The daily, weekly and monthly reports list the same
+  per line. Before, no page said how much each line carried.
+- **Internet links** has **Who used each line**: for one line and the last
+  15 minutes, hour, 3 hours or 12 hours, the devices whose recorded traffic left
+  through it, with bars for each one's share of the line's upload and download,
+  and the line's totals and average rate against its speed. Before, this was
+  shown only for an incident.
+- Both, and the devices of an incident, name the SD-WAN rules that can carry
+  each device's traffic, in the order the FortiGate checks them, for example
+  "engineering → uplink-b". They are matched on the device's address and MAC address
+  against the rules' source objects. A rule limited to some destinations, such
+  as Office 365, is listed before the rule that takes the rest. A source that
+  cannot be judged from an address, such as an FQDN object, is marked "maybe".
+  FortiLens reads the firewall address objects for this, read-only and at most
+  every 5 minutes; when the API token cannot read them, the pages say so and
+  show the rest.
+
 ## v0.7.2 — 2026-11-25 — Loki gets a memory limit, failed alerts are sent again, and one Health page
 
 ### Upgrade

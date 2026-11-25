@@ -29,6 +29,8 @@
 }
 :root {
   color-scheme: dark;
+  --chart-down: #3987e5;
+  --chart-up: #d95926;
   --pg: #1a2024;
   --panel: #22292e;
   --well: #161b1f;
@@ -66,6 +68,8 @@
 }
 :root[data-theme="light"] {
   color-scheme: light;
+  --chart-down: #2a78d6;
+  --chart-up: #eb6834;
   --pg: #e4e8e7;
   --panel: #f3f5f4;
   --well: #fff;
@@ -379,6 +383,325 @@ html .periods button.selected {
   background: var(--well);
   box-shadow: 0 0 0 1px var(--line);
   color: var(--ink);
+}
+.usage-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  margin: 0 12px;
+}
+/* Line tiles: each Internet line with how full it is now; the chosen one filters the page. */
+.line-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+  margin: 10px 12px 2px;
+}
+.line-tiles[hidden] {
+  display: none;
+}
+html .line-tile {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 5px;
+  min-height: 0;
+  white-space: normal;
+  padding: 9px 11px;
+  border: 1px solid var(--line2);
+  border-radius: 5px;
+  background: var(--well);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+html .line-tile:hover {
+  border-color: var(--line);
+}
+html .line-tile[aria-pressed="true"] {
+  border-color: var(--acc);
+  box-shadow: inset 0 0 0 1px var(--acc);
+  background: var(--acc-s);
+}
+.tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 20px;
+}
+.tile-foot {
+  color: var(--sub);
+  font-size: 12px;
+}
+.meter {
+  display: grid;
+  grid-template-columns: 12px minmax(40px, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  color: var(--sub);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.meter-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--raise);
+}
+.meter-track.no-speed {
+  visibility: hidden;
+}
+.meter-track i,
+.share-mini b i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--acc);
+}
+.meter.up .meter-track i,
+.share-mini.up b i {
+  background: #b39ddb;
+}
+.meter.busy .meter-track i {
+  background: var(--warn);
+}
+.meter.full .meter-track i {
+  background: var(--bad);
+}
+.meter.full .meter-value {
+  color: var(--bad);
+  font-weight: 600;
+}
+.share-mini {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 3px;
+  color: var(--sub);
+  font-size: 11.5px;
+}
+.share-mini b {
+  display: block;
+  width: 56px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--raise);
+}
+.rule-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 12px;
+}
+.rule-tag {
+  padding: 1px 7px;
+  border-radius: 3px;
+  background: var(--raise);
+  white-space: nowrap;
+}
+.rule-tag.maybe {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--sub);
+}
+html .live-coverage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 12px 8px;
+  border-left: 3px solid var(--warn);
+}
+html .live-coverage.quiet {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.live-recorded {
+  display: grid;
+  gap: 8px;
+  margin: 0 12px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line2);
+  border-radius: 5px;
+}
+.live-recorded p,
+.live-recorded h3 {
+  margin: 0;
+}
+#wan-volume {
+  display: grid;
+  gap: 8px;
+  margin: 0 12px 12px;
+}
+#wan-volume p {
+  margin: 0;
+}
+.warn-text {
+  color: var(--warn);
+}
+.total-row td {
+  font-weight: 600;
+}
+/* Usage per line chart: a column per hour or day, download below upload. */
+.vol-wrap {
+  display: grid;
+  gap: 8px;
+}
+.vol-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.vol-head .periods,
+.vol-head .apps-legend {
+  margin: 0;
+}
+.vol-chart {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 8px;
+  padding: 12px 12px 6px;
+  border-radius: 5px;
+  background: var(--well);
+}
+.vol-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 160px;
+  color: var(--sub);
+  font-size: 11.5px;
+  line-height: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.vol-plot {
+  position: relative;
+  min-width: 0;
+}
+.vol-grid {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 160px;
+  pointer-events: none;
+}
+.vol-grid i {
+  display: block;
+  border-top: 1px solid var(--line2);
+}
+.vol-cols {
+  position: relative;
+  display: flex;
+  gap: 2px;
+}
+.vol-col {
+  display: grid;
+  flex: 1;
+  grid-template-rows: 160px auto;
+  justify-items: center;
+  min-width: 0;
+}
+.vol-bar {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+  width: 100%;
+  max-width: 24px;
+  height: 160px;
+}
+.vol-bar i {
+  display: block;
+  flex: none;
+  width: 100%;
+}
+.vol-bar i:first-child {
+  border-radius: 4px 4px 0 0;
+}
+.vol-bar .down {
+  background: var(--chart-down);
+}
+.vol-bar .up {
+  background: var(--chart-up);
+}
+.vol-col:hover .vol-bar i {
+  opacity: 0.8;
+}
+.vol-col.missing .vol-bar {
+  opacity: 0.6;
+  background: repeating-linear-gradient(135deg, var(--hatch) 0 1px, transparent 1px 6px);
+}
+.vol-x {
+  margin-top: 4px;
+  color: var(--sub);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.vol-values summary {
+  color: var(--sub);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.line-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+.line-summary > div {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 9px 11px;
+  border-radius: 5px;
+  background: var(--well);
+}
+.line-summary b {
+  font-size: 20px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.line-summary .meter {
+  grid-template-columns: minmax(40px, 1fr) auto;
+}
+.line-summary .meter-label {
+  display: none;
+}
+.line-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.line-pill {
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--raise);
+  color: var(--sub);
+  font-size: 11.5px;
+}
+#wan-usage {
+  display: grid;
+  gap: 8px;
+  margin: 0 12px 12px;
+}
+#wan-usage p,
+#wan-usage h3 {
+  margin: 0;
 }
 html .filters {
   display: grid;
@@ -1539,6 +1862,9 @@ html .apps-field select {
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   gap: 0 24px;
 }
+.live-grid.one-line {
+  grid-template-columns: minmax(0, 1fr);
+}
 .live-grid .apps-block h3:not(:first-child) {
   margin-top: 22px;
 }
@@ -1593,8 +1919,8 @@ html .apps-field select {
 <section id="device-section" class="section"><div class="section-head"><div><h2 id="device-title">Largest recorded consumers</h2><p id="device-caption">Upload + download for the selected period. Device names are not authenticated user accounts.</p></div><label>Show <select id="top" aria-label="Number of devices"><option value="20">Top 20</option><option value="10">Top 10</option><option value="all">All devices</option></select></label></div><div class="table-wrap"><table class="cards"><thead><tr><th>Device</th><th>Identity</th><th>Segment</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th></tr></thead><tbody id="device-body"></tbody></table></div><div id="device-empty" class="empty" hidden>No received accounting evidence for this selection. This is not proof of zero traffic.</div><div class="pager"><span id="device-count"></span><div><button id="previous">Previous</button><button id="next">Next</button></div></div></section>
 <section id="vlan-section" class="section"><div class="section-head"><div><h2>Internet usage by segment</h2><p>Exact FortiGate interface metadata. Unknown mappings stay unknown.</p></div></div><div class="table-wrap"><table class="cards"><thead><tr><th>VLAN</th><th>Interface</th><th class="number">Identities</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th></tr></thead><tbody id="vlan-body"></tbody></table></div><div id="vlan-empty" class="empty" hidden>No received segment totals are available.</div><p id="vlan-missing" class="notice" hidden></p></section>
 <section id="apps-section" class="section" hidden><div class="section-head"><div><h2 id="apps-title">Applications</h2><p id="apps-caption">Recorded Internet usage by FortiGate Application Control label. Device names are not authenticated user accounts; let people know this view exists.</p></div><div class="apps-filters"><button id="apps-genai" aria-pressed="false">GenAI only</button><button id="apps-clear" hidden>Show all applications</button></div></div><div id="apps-stats" class="stats"></div><ul id="apps-notes" class="apps-notes" hidden></ul><div class="apps-block"><h3>Largest identified applications</h3><div id="apps-chart" class="apps-chart" role="list" aria-label="Largest identified applications"></div><p id="apps-chart-empty" class="muted" hidden>No application was identified by name in this period.</p></div><div class="apps-block"><div class="apps-tools"><div class="apps-field"><label for="apps-search">Find an application or category</label><input id="apps-search" type="search" placeholder="Name or category"></div><div class="apps-field"><label for="apps-top">Show</label><select id="apps-top"><option value="20">Top 20</option><option value="10">Top 10</option><option value="all">All applications</option></select></div><div class="apps-field"><label for="apps-risk">Minimum risk</label><select id="apps-risk"><option value="">Any risk</option><option value="elevated">Elevated or higher</option><option value="high">High or critical</option></select></div></div><div class="table-wrap"><table class="cards apps-table apps-main"><thead><tr><th>Application</th><th>Category</th><th>Risk</th><th class="number">Devices</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th><th class="number">Share</th></tr></thead><tbody id="apps-body"></tbody></table></div><div id="apps-empty" class="empty" hidden>No labelled application evidence for this selection. This is not proof of zero traffic.</div><p id="apps-count" class="muted"></p></div><div class="apps-block"><h3>Categories</h3><div id="apps-mix" class="apps-mix" role="img" aria-label="Share of recorded usage by category"></div><div id="apps-legend" class="apps-legend"></div><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Category</th><th class="number">Applications</th><th class="number">Devices</th><th class="number">Total</th><th class="number">Share</th></tr></thead><tbody id="categories-body"></tbody></table></div></div></section><section id="sites-section" class="section" hidden><div class="section-head"><div><h2 id="sites-title">Websites</h2><p>Recorded Internet usage by website, from FortiGate Application Control and Web Filter logs for the same session. Site names only, never full addresses. Device names are not authenticated user accounts; let people know this view exists.</p></div><div class="apps-filters"><button id="sites-clear" hidden>Show all websites</button></div></div><div id="sites-stats" class="stats"></div><p id="sites-note" class="notice" hidden></p><div class="apps-block"><div class="apps-tools"><div class="apps-field"><label for="sites-search">Find a website</label><input id="sites-search" type="search" placeholder="Site name"></div><div class="apps-field"><label for="sites-top">Show</label><select id="sites-top"><option value="25">Top 25</option><option value="100">Top 100</option><option value="all">All websites</option></select></div></div><div class="table-wrap"><table class="cards apps-table apps-main"><thead><tr><th>Website</th><th class="number">Devices</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th><th class="number">Share</th></tr></thead><tbody id="sites-body"></tbody></table></div><div id="sites-empty" class="empty" hidden>No website evidence for this selection. This is not proof of zero traffic.</div><p id="sites-count" class="muted"></p></div><div id="sites-devices-block" class="apps-block" hidden><h3 id="sites-devices-title">Devices</h3><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Device</th><th>Segment</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th></tr></thead><tbody id="sites-devices"></tbody></table></div></div></section>
-<section id="live-section" class="section" hidden><div class="section-head"><div><h2>Internet usage right now</h2><p id="live-caption">Link totals come from WAN interface counters and include traffic no device owns, such as FortiGate updates, probes and VPN. Device figures are FortiGate realtime session estimates. Updated every 10 seconds; not recorded totals.</p></div><div class="apps-filters"><button id="live-pause" aria-pressed="false">Pause</button></div></div><div id="live-stats" class="stats"></div><p id="live-compat" class="notice" hidden></p><div class="live-meta"><p id="live-status" class="muted live-status" role="status"></p><div class="apps-legend live-legend" aria-hidden="true"><span class="apps-key"><i style="background:var(--acc)"></i>Download</span><span class="apps-key"><i style="background:#b39ddb"></i>Upload</span></div></div><div class="live-grid"><div class="apps-block"><h3>Devices using the Internet now</h3><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Device</th><th>Segment</th><th>Doing</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Sessions</th></tr></thead><tbody id="live-devices"></tbody></table></div><div id="live-devices-empty" class="empty" hidden>No device is sending Internet traffic through a WAN interface right now.</div></div><div class="apps-block"><h3>Applications now</h3><div id="live-apps" class="apps-chart" role="list" aria-label="Applications by current bandwidth"></div><p id="live-apps-empty" class="muted" hidden>No application traffic right now.</p><h3>Segments now</h3><div id="live-vlans" class="apps-chart" role="list" aria-label="Segments by current bandwidth"></div><h3>Internet links</h3><div id="live-links" class="apps-chart" role="list" aria-label="WAN links by current bandwidth"></div></div></div></section>
-<section id="wan-section" hidden><div class="section-head"><div><h2>Internet health &amp; observed history</h2><p>Physical link, Internet SLA and route selection are separate signals.</p></div><label>History<select id="wan-window"><option value="86400">Last 24 hours</option><option value="604800">Last 7 days</option><option value="3600">Last hour</option></select></label></div><div id="wan-insights"><section class="section" id="wan-findings-sec"><div class="section-head"><h2>What is going on</h2><p>Findings from the measurements on this page.</p></div><div id="wan-findings" class="findings"></div></section><section class="section" id="wan-lines-sec"><div class="section-head"><h2>Lines in this period</h2><p>SD-WAN health checks and session counters from the FortiGate.</p></div><div class="table-wrap"><table class="cards"><thead><tr><th>Line</th><th>Judged by</th><th>Sessions: share · average · peak</th><th class="number">Avg down / up Mbps</th><th class="number">Avg loss</th><th class="number">Time losing packets</th><th class="number">Down</th><th>Use of speed</th><th>Health checks</th></tr></thead><tbody id="wan-lines"></tbody></table></div></section><section class="section" id="wan-when-sec"><div class="section-head"><h2>When it happened</h2><p id="wan-when-note"></p></div><div class="chart"><div id="wan-lanes" class="lanes"></div><div class="lkey"><span class="up">Working</span><span class="degraded">Losing packets</span><span class="down">Down</span><span class="probe">Health checks disagree</span><span class="unknown">No evidence</span></div></div></section><div class="wan-grid"><section class="section" id="wan-incidents-sec"><div class="section-head"><h2>Incidents</h2><p id="wan-incidents-note"></p></div><div id="wan-incidents" class="incidents"></div><div id="wan-incident" class="incident" aria-live="polite"></div></section><section class="section" id="wan-load-sec"><div class="section-head"><h2>Does load cause the loss?</h2><p>Average loss by sessions on the line.</p></div><div class="chart" id="wan-load"></div><p class="chart-note" id="wan-load-note"></p></section></div><section class="section" id="wan-routing-sec"><div class="section-head"><h2>Who goes where</h2><p>SD-WAN rules, read from the FortiGate. The first matching rule wins.</p></div><div id="wan-routing" class="rules"></div></section></div><div id="wan-tip" class="wan-tip" hidden></div><h2 class="subhead">Right now</h2><p id="route" class="notice">Route-selection evidence unavailable.</p><div class="section table-wrap"><table class="cards"><thead><tr><th>Link</th><th>Internet SLA</th><th>Physical</th><th class="number">Sessions now</th><th class="number">Down / Up Mbps</th><th class="number">Latency / Jitter</th><th class="number">Loss</th><th class="number">Observed up</th><th class="number">Valid coverage</th></tr></thead><tbody id="wan-body"></tbody></table></div><div id="wan-empty" class="empty" hidden>No current WAN evidence. Missing collection is not a WAN outage.</div><div id="wan-history"></div></section>
+<section id="live-section" class="section" hidden><div class="section-head"><div><h2>Internet usage right now</h2><p id="live-caption">Link totals come from WAN interface counters and include traffic no device owns, such as FortiGate updates, probes and VPN. Device figures are FortiGate realtime session estimates. Updated every 10 seconds; not recorded totals.</p></div><div class="apps-filters"><button id="live-pause" aria-pressed="false">Pause</button></div></div><div id="live-lines" class="line-tiles" role="group" aria-label="Choose an Internet line" hidden></div><div id="live-stats" class="stats"></div><p id="live-compat" class="notice" hidden></p><div class="live-meta"><p id="live-status" class="muted live-status" role="status"></p><div class="apps-legend live-legend" aria-hidden="true"><span class="apps-key"><i style="background:var(--acc)"></i>Download</span><span class="apps-key"><i style="background:#b39ddb"></i>Upload</span></div></div><div id="live-grid" class="live-grid"><div class="apps-block"><h3 id="live-devices-title">Devices using the Internet now</h3><div id="live-coverage" class="notice live-coverage" hidden></div><div id="live-recorded" class="live-recorded" aria-live="polite" hidden></div><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Device</th><th>Segment</th><th>Doing</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Sessions</th><th id="live-line-head" hidden>SD-WAN rule</th></tr></thead><tbody id="live-devices"></tbody></table></div><div id="live-devices-empty" class="empty" hidden>No device is sending Internet traffic through a WAN interface right now.</div></div><div class="apps-block"><h3 id="live-apps-title">Applications now</h3><div id="live-apps" class="apps-chart" role="list" aria-label="Applications by current bandwidth"></div><p id="live-apps-empty" class="muted" hidden>No application traffic right now.</p><h3 id="live-vlans-title">Segments now</h3><div id="live-vlans" class="apps-chart" role="list" aria-label="Segments by current bandwidth"></div><h3>Internet links</h3><div id="live-links" class="apps-chart" role="list" aria-label="WAN links by current bandwidth"></div></div></div></section>
+<section id="wan-section" hidden><div class="section-head"><div><h2>Internet health &amp; observed history</h2><p>Physical link, Internet SLA and route selection are separate signals.</p></div><label>History<select id="wan-window"><option value="86400">Last 24 hours</option><option value="604800">Last 7 days</option><option value="3600">Last hour</option></select></label></div><div id="wan-insights"><section class="section" id="wan-findings-sec"><div class="section-head"><h2>What is going on</h2><p>Findings from the measurements on this page.</p></div><div id="wan-findings" class="findings"></div></section><section class="section" id="wan-lines-sec"><div class="section-head"><h2>Lines in this period</h2><p>SD-WAN health checks and session counters from the FortiGate.</p></div><div class="table-wrap"><table class="cards"><thead><tr><th>Line</th><th>Judged by</th><th>Sessions: share · average · peak</th><th class="number">Avg down / up Mbps</th><th class="number">Avg loss</th><th class="number">Time losing packets</th><th class="number">Down</th><th>Use of speed</th><th>Health checks</th></tr></thead><tbody id="wan-lines"></tbody></table></div></section><section class="section" id="wan-when-sec"><div class="section-head"><h2>When it happened</h2><p id="wan-when-note"></p></div><div class="chart"><div id="wan-lanes" class="lanes"></div><div class="lkey"><span class="up">Working</span><span class="degraded">Losing packets</span><span class="down">Down</span><span class="probe">Health checks disagree</span><span class="unknown">No evidence</span></div></div></section><div class="wan-grid"><section class="section" id="wan-incidents-sec"><div class="section-head"><h2>Incidents</h2><p id="wan-incidents-note"></p></div><div id="wan-incidents" class="incidents"></div><div id="wan-incident" class="incident" aria-live="polite"></div></section><section class="section" id="wan-load-sec"><div class="section-head"><h2>Does load cause the loss?</h2><p>Average loss by sessions on the line.</p></div><div class="chart" id="wan-load"></div><p class="chart-note" id="wan-load-note"></p></section></div><section class="section" id="wan-routing-sec"><div class="section-head"><h2>Who goes where</h2><p>SD-WAN rules, read from the FortiGate. The first matching rule wins.</p></div><div id="wan-routing" class="rules"></div></section></div><section class="section" id="wan-volume-sec"><div class="section-head"><div><h2>Usage per line</h2><p>What each line carried, from its own counters: all traffic through it, including traffic no device owns, as the provider counts it. Days start at midnight in the accounting timezone.</p></div></div><div class="usage-tools"><div id="wan-volume-period" class="periods" role="group" aria-label="Period"><button data-volume="today" class="selected" aria-pressed="true">Today</button><button data-volume="yesterday" aria-pressed="false">Yesterday</button><button data-volume="week" aria-pressed="false">Last 7 days</button><button data-volume="month" aria-pressed="false">This month</button><button data-volume="last_month" aria-pressed="false">Last month</button></div></div><div id="wan-volume" aria-live="polite"><p class="muted">Loading the lines…</p></div></section><section class="section" id="wan-usage-sec"><div class="section-head"><div><h2>Who used each line</h2><p>Recorded traffic that left through the line, per device, with the SD-WAN rule its source matches now. From logs, so the last two minutes can still be missing.</p></div></div><div class="usage-tools"><div id="wan-usage-lines" class="periods" role="group" aria-label="Line"></div><div id="wan-usage-window" class="periods" role="group" aria-label="Period"><button data-seconds="900" aria-pressed="false">Last 15 minutes</button><button data-seconds="3600" class="selected" aria-pressed="true">Last hour</button><button data-seconds="10800" aria-pressed="false">Last 3 hours</button><button data-seconds="43200" aria-pressed="false">Last 12 hours</button></div></div><div id="wan-usage" class="incident-devices" aria-live="polite"><p class="muted">Loading the lines…</p></div></section><div id="wan-tip" class="wan-tip" hidden></div><h2 class="subhead">Right now</h2><p id="route" class="notice">Route-selection evidence unavailable.</p><div class="section table-wrap"><table class="cards"><thead><tr><th>Link</th><th>Internet SLA</th><th>Physical</th><th class="number">Sessions now</th><th class="number">Down / Up Mbps</th><th class="number">Latency / Jitter</th><th class="number">Loss</th><th class="number">Observed up</th><th class="number">Valid coverage</th></tr></thead><tbody id="wan-body"></tbody></table></div><div id="wan-empty" class="empty" hidden>No current WAN evidence. Missing collection is not a WAN outage.</div><div id="wan-history"></div></section>
 <section id="quality-section" hidden><ol id="quality-path" class="path" aria-label="Path of evidence"></ol><div class="quality-grid"><div class="card"><h2>Collection &amp; processing</h2><div id="quality-state"></div></div><div class="card"><h2>Interpret the evidence</h2><p class="muted">A successful poll proves that received records were processed. It cannot prove that all traffic was logged and delivered.</p><p class="muted">MAC identities are preferred. Missing-MAC identities remain scoped to a session or observation. Shared IPs and changing hostnames never become a verified person.</p><p class="muted">Availability excludes unknown intervals. Gaps are neither outages nor recoveries. Route lookup applies to its stated destination and may differ from policy or per-flow SD-WAN selection.</p></div></div><div class="section"><div class="section-head"><h2>Accounting evidence in this report</h2></div><div id="quality-flags" class="card"></div></div></section>
 <footer>FortiLens · Read-only evidence and reporting. Exact packet-time attribution and end-to-end traffic completeness are not inferred. Use HTTPS when exposing this service beyond loopback.</footer>
 </main></div>
@@ -1863,6 +2189,13 @@ function validPayload(path, data) {
     );
   if (route === '/api/wan/incident')
     return typeof data.available === 'boolean' && Array.isArray(data.devices);
+  if (route === '/api/wan/volume')
+    return (
+      Array.isArray(data.lines) &&
+      Array.isArray(data.buckets) &&
+      typeof data.start === 'string' &&
+      typeof data.end === 'string'
+    );
   if (route === '/api/wan/insights')
     return (
       Array.isArray(data.links) &&
@@ -2699,7 +3032,159 @@ async function loadLive() {
       errorText(e) + (state.liveReport ? ' Showing the last successful update.' : '');
   }
 }
+// The SD-WAN rules a device's source matches, in the order the FortiGate checks them.
+function sdwanText(s) {
+  if (!s || !Array.isArray(s.rules)) return '';
+  if (!s.rules.length) return 'No SD-WAN rule matches its source: implicit rule';
+  const parts = s.rules.map(
+    x =>
+      (x.certain ? '' : 'maybe ') +
+      x.name +
+      (x.all_traffic ? '' : ' (part of its traffic)') +
+      ': ' +
+      (x.lines.join(x.mode === 'load-balance' ? ' + ' : ' → ') || 'no line')
+  );
+  return 'SD-WAN ' + parts.join(' · otherwise ') + (s.settled ? '' : ' · otherwise implicit rule');
+}
+// The SD-WAN rules as tags in the order they apply: "o365 → uplink-b" then "engineering → uplink-a".
+function ruleTags(s) {
+  const box = element('div', undefined, 'rule-tags');
+  if (!s || !Array.isArray(s.rules)) {
+    box.append(element('span', '—', 'muted'));
+    return box;
+  }
+  s.rules.forEach((x, i) => {
+    if (i) box.append(element('span', 'then', 'muted'));
+    const tag = element(
+      'span',
+      x.name + ' → ' + (x.lines.join(x.mode === 'load-balance' ? ' + ' : ' → ') || 'no line'),
+      'rule-tag' + (x.certain ? '' : ' maybe')
+    );
+    tag.title =
+      (x.certain ? '' : 'Its source cannot be judged from an address, so this rule may apply. ') +
+      (x.all_traffic
+        ? 'Takes all of this device’s remaining traffic.'
+        : 'Takes only part of its traffic, such as some destinations or services.') +
+      ' Mode: ' +
+      x.mode +
+      '.';
+    box.append(tag);
+  });
+  if (!s.settled) {
+    if (s.rules.length) box.append(element('span', 'then', 'muted'));
+    const tag = element('span', 'implicit rule', 'rule-tag maybe');
+    tag.title = 'No rule takes all of its traffic; the rest follows the zone’s implicit rule.';
+    box.append(tag);
+  }
+  return box;
+}
+// A thin bar with a value: a line's use of its speed, or a device's share of a line.
+function meter(label, text, pct, kind) {
+  const row = element('div', undefined, 'meter' + (kind ? ' ' + kind : ''));
+  row.append(element('span', label, 'meter-label'));
+  const track = element('span', undefined, 'meter-track');
+  if (pct != null) {
+    const fill = element('i');
+    fill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+    track.append(fill);
+    if (pct >= 90) row.classList.add('full');
+    else if (pct >= 70) row.classList.add('busy');
+  } else track.classList.add('no-speed');
+  row.append(track, element('span', text, 'meter-value'));
+  return row;
+}
+// Live usage: one tile per line, each showing how full it is now; choosing one filters the devices.
+function lineTiles(r, names, selected, choose) {
+  const box = $('live-lines');
+  box.replaceChildren();
+  const t = r.totals;
+  for (const name of ['', ...names]) {
+    const link = name ? r.links.find(l => l.interface === name) || {} : null,
+      speed = (link && link.speed) || {},
+      tile = element('button', undefined, 'line-tile'),
+      head = element('span', undefined, 'tile-head');
+    tile.type = 'button';
+    tile.setAttribute('aria-pressed', String(name === selected));
+    head.append(element('b', name || 'All lines'));
+    const down = link ? link.download_bps : t.download_bps,
+      up = link ? link.upload_bps : t.upload_bps,
+      pct = (bps, mbps) => (mbps && bps != null ? bps / (mbps * 1e4) : null),
+      downPct = pct(down, speed.down_mbps),
+      upPct = pct(up, speed.up_mbps);
+    if (Math.max(downPct || 0, upPct || 0) >= 90) head.append(badge('Full', 'bad'));
+    const value = (bps, mbps) => rate(bps) + (mbps ? ' of ' + number(mbps) : '');
+    const devices = name
+      ? r.devices.filter(d => d.lines && d.lines[name]).length
+      : t.devices,
+      sessions = name ? link.sessions_now : t.sessions;
+    tile.append(
+      head,
+      meter('↓', value(down, speed.down_mbps), downPct, 'down'),
+      meter('↑', value(up, speed.up_mbps), upPct, 'up'),
+      element(
+        'span',
+        number(devices) +
+          ' device' +
+          (devices === 1 ? '' : 's') +
+          (sessions == null ? '' : ' · ' + number(Math.round(sessions)) + ' sessions') +
+          (name && !speed.up_mbps ? ' · speed not set' : ''),
+        'tile-foot'
+      )
+    );
+    tile.addEventListener('click', () => choose(name));
+    box.append(tile);
+  }
+  box.hidden = !names.length;
+}
+// A rate or amount with the device's share of the line drawn under it.
+function shareCell(text, part, whole, kind) {
+  const td = element('td', undefined, 'number');
+  td.append(element('span', text));
+  if (whole) {
+    const pct = (100 * part) / whole,
+      row = element('span', undefined, 'share-mini' + (kind ? ' ' + kind : '')),
+      track = element('b'),
+      fill = element('i');
+    fill.style.width = Math.min(100, pct) + '%';
+    track.append(fill);
+    row.append(track, element('span', percent(part, whole)));
+    td.append(row);
+  }
+  return td;
+}
+function lineButtons(target, names, selected, choose, all) {
+  const box = $(target);
+  box.replaceChildren();
+  for (const name of all ? ['', ...names] : names) {
+    const button = element('button', name || all);
+    button.type = 'button';
+    button.classList.toggle('selected', name === selected);
+    button.setAttribute('aria-pressed', String(name === selected));
+    button.addEventListener('click', () => choose(name));
+    box.append(button);
+  }
+  box.hidden = !names.length;
+}
 function renderLive(r) {
+  const names = [...new Set([...r.links.map(l => l.interface), ...(r.wan_interfaces || [])])];
+  if (state.liveLine && !names.includes(state.liveLine)) state.liveLine = '';
+  const line = state.liveLine || '';
+  lineTiles(r, names, line, name => {
+    state.liveLine = name;
+    renderLive(state.liveReport);
+  });
+  $('live-devices-title').textContent = line
+    ? 'Devices using ' + line + ' now'
+    : 'Devices using the Internet now';
+  for (const id of ['live-apps-title', 'live-vlans-title'])
+    $(id).textContent =
+      $(id).textContent.replace(/ \(all lines\)$/, '') + (line ? ' (all lines)' : '');
+  // A chosen line's tile already shows its totals; the all-lines figures would mislead.
+  $('live-stats').hidden = !!line;
+  if (!line) renderLiveTotals(r);
+  renderLiveRest(r, line);
+}
+function renderLiveTotals(r) {
   const t = r.totals,
     first = r.devices[0];
   $('live-stats').replaceChildren(
@@ -2726,6 +3211,91 @@ function renderLive(r) {
       first ? rate(first.download_bps + first.upload_bps) : 'No traffic now'
     )
   );
+}
+// Devices on one line show that line's figures; "All lines" shows each device's total.
+function liveRows(r, line) {
+  if (!line) return r.devices;
+  return r.devices
+    .filter(d => d.lines && d.lines[line])
+    .map(d => ({...d, ...d.lines[line], sessions: d.lines[line].sessions}))
+    .sort((a, b) => b.download_bps + b.upload_bps - (a.download_bps + a.upload_bps));
+}
+// A chosen line: how much of its measured traffic the listed devices explain, and the
+// recorded traffic from the logs, which also holds sessions the live estimates miss.
+function liveCoverage(line, link, listed) {
+  const box = $('live-coverage'),
+    recorded = $('live-recorded');
+  if (state.liveRecordedLine !== line) {
+    invalidate('liveRecordedSequence');
+    state.liveRecordedLine = null;
+    recorded.hidden = true;
+    recorded.replaceChildren();
+  }
+  if (!line) {
+    box.hidden = true;
+    return;
+  }
+  const speed = link.speed || {},
+    gap = [
+      ['upload', link.upload_bps, listed.up, speed.up_mbps],
+      ['download', link.download_bps, listed.down, speed.down_mbps]
+    ].find(
+      ([, total, part, mbps]) =>
+        total != null && total >= Math.max(5e5, mbps ? mbps * 2e5 : 0) && part < 0.7 * total
+    );
+  box.classList.toggle('quiet', !gap);
+  box.replaceChildren();
+  if (gap)
+    box.append(
+      element(
+        'span',
+        'The devices listed account for ' +
+          rate(gap[2]) +
+          ' of the ' +
+          rate(gap[1]) +
+          ' ' +
+          gap[0] +
+          ' on ' +
+          line +
+          ' right now. The FortiGate’s per-device estimates can miss sessions handled by its network processor and short bursts; the logs include them.'
+      )
+    );
+  const button = element('button', 'Who used ' + line + ' in the last 15 minutes');
+  button.type = 'button';
+  button.addEventListener('click', () => loadLiveRecorded(line));
+  box.append(button);
+  box.hidden = false;
+}
+async function loadLiveRecorded(line) {
+  const box = $('live-recorded'),
+    current = latest('liveRecordedSequence'),
+    end = Math.floor(Date.now() / 1000),
+    x = {interface: line, start: end - 900, end};
+  state.liveRecordedLine = line;
+  box.hidden = false;
+  box.replaceChildren(element('p', 'Reading recorded traffic on ' + line + '…', 'muted'));
+  try {
+    const d = await api(
+      '/api/wan/incident?interface=' + encodeURIComponent(line) + '&start=' + x.start + '&end=' + x.end
+    );
+    if (!current() || !state.auth) return;
+    renderLineDevices(box, d, x, 'this window is older', 'in the last 15 minutes');
+  } catch (e) {
+    if (!current() || !state.auth) return;
+    box.replaceChildren(element('p', 'Recorded traffic unavailable: ' + errorText(e), 'muted'));
+  }
+}
+// All lines: small tags for the lines a device uses, busiest first; its rules on hover.
+function linePills(d) {
+  const used = Object.entries(d.lines || {})
+    .sort((a, b) => b[1].download_bps + b[1].upload_bps - (a[1].download_bps + a[1].upload_bps))
+    .map(([name]) => name);
+  const box = element('span', undefined, 'line-pills');
+  for (const name of used) box.append(element('span', name, 'line-pill'));
+  box.title = sdwanText(d.sdwan);
+  return used.length ? box : null;
+}
+function renderLiveRest(r, line) {
   $('live-status').textContent =
     'Updated ' +
     new Date(r.observed_at * 1000).toLocaleTimeString() +
@@ -2735,29 +3305,62 @@ function renderLive(r) {
         number(r.listed_sources) +
         ' busiest sources; totals include all traffic'
       : '');
+  const rows = liveRows(r, line),
+    link = line ? r.links.find(l => l.interface === line) || {} : null,
+    listed = {
+      down: rows.reduce((n, d) => n + (d.download_bps || 0), 0),
+      up: rows.reduce((n, d) => n + (d.upload_bps || 0), 0)
+    };
+  liveCoverage(link && line, link, listed);
+  // A chosen line gets the full width for its rule column; the all-lines charts move below.
+  $('live-grid').classList.toggle('one-line', !!line);
+  $('live-line-head').hidden = !line;
   $('live-devices').replaceChildren();
-  for (const d of r.devices.slice(0, 25)) {
+  for (const d of rows.slice(0, 25)) {
     const tr = element('tr'),
       who = element('td');
     if (d.device_id) {
-      const link = element('button', d.hostname || d.ip, 'entity');
-      link.addEventListener('click', () => openDevice(d.device_id));
-      who.append(link);
+      const button = element('button', d.hostname || d.ip, 'entity');
+      button.addEventListener('click', () => openDevice(d.device_id));
+      who.append(button);
     } else who.append(element('span', d.hostname || d.ip));
     who.append(
       element('span', [d.ip, profileText(d)].filter(Boolean).join(' · ') || d.mac, 'secondary')
     );
+    const pills = !line && linePills(d);
+    if (pills) who.append(pills);
     tr.append(
       who,
       element('td', vlanName(d.vlan) + ' / ' + d.vlan.interface),
       element('td', d.top_apps.map(x => prettyLabel(x)).join(', ') || '—')
     );
-    for (const n of [d.download_bps, d.upload_bps]) tr.append(element('td', rate(n), 'number'));
-    tr.append(element('td', number(d.sessions), 'number'));
-    labelRow(tr, ['Device', 'Segment', 'Doing', 'Download', 'Upload', 'Sessions']);
+    if (link) {
+      // Each rate carries the device's share of the chosen line. The line counter and the
+      // per-device estimates are sampled apart, so the larger of the two is the whole.
+      tr.append(
+        shareCell(rate(d.download_bps), d.download_bps, Math.max(link.download_bps || 0, listed.down), 'down'),
+        shareCell(rate(d.upload_bps), d.upload_bps, Math.max(link.upload_bps || 0, listed.up), 'up')
+      );
+    } else
+      for (const n of [d.download_bps, d.upload_bps]) tr.append(element('td', rate(n), 'number'));
+    tr.append(element('td', d.sessions == null ? '—' : number(d.sessions), 'number'));
+    if (link) {
+      const td = element('td');
+      td.append(ruleTags(d.sdwan));
+      tr.append(td);
+    }
+    labelRow(
+      tr,
+      ['Device', 'Segment', 'Doing', 'Download', 'Upload', 'Sessions'].concat(
+        link ? ['SD-WAN rule'] : []
+      )
+    );
     $('live-devices').append(tr);
   }
-  $('live-devices-empty').hidden = r.devices.length > 0;
+  $('live-devices-empty').textContent = line
+    ? 'No listed device is using ' + line + ' right now.'
+    : 'No device is sending Internet traffic through a WAN interface right now.';
+  $('live-devices-empty').hidden = rows.length > 0;
   liveBars(
     'live-apps',
     r.applications.slice(0, 10),
@@ -2765,10 +3368,24 @@ function renderLive(r) {
     'live-apps-empty'
   );
   liveBars('live-vlans', r.vlans, v => vlanName(v.vlan) + ' / ' + v.vlan.interface);
-  liveBars('live-links', r.links, l => l.interface, undefined, l =>
-    l.sessions_now == null ? '' : ' · ' + number(Math.round(l.sessions_now)) + ' sessions'
+  liveBars(
+    'live-links',
+    r.links,
+    l => l.interface,
+    undefined,
+    l =>
+      (l.sessions_now == null ? '' : ' · ' + number(Math.round(l.sessions_now)) + ' sessions') +
+      (l.speed && l.upload_bps != null && l.speed.up_mbps
+        ? ' · up ' + Math.round(l.upload_bps / (l.speed.up_mbps * 1e4)) + '%'
+        : '')
   );
   const notes = liveNotes(r.compatibility);
+  if (r.sdwan && r.sdwan.status !== 'OBSERVED')
+    notes.push(
+      'The SD-WAN rule for each device is unavailable' +
+        (r.sdwan.reason ? ' (' + r.sdwan.reason + ')' : '') +
+        '; the FortiGate API token needs read access to SD-WAN and firewall addresses.'
+    );
   $('live-compat').hidden = !notes.length;
   $('live-compat').textContent = notes.join(' ');
 }
@@ -3859,75 +4476,394 @@ async function loadIncidentDevices(x, box) {
         Math.ceil(x.end)
     );
     if (!current() || !state.auth) return;
-    box.replaceChildren();
-    if (!d.available) {
-      box.append(
-        element(
-          'p',
-          'Device detail is kept for ' +
-            d.ledger_days +
-            ' days, and this incident is older. Daily totals per device remain in Devices.',
-          'muted'
-        )
-      );
-      return;
-    }
-    if (!d.devices.length) {
-      box.append(element('p', 'No recorded traffic left through ' + x.interface + ' then.', 'muted'));
-      return;
-    }
-    box.append(
-      element(
-        'h3',
-        d.device_count +
-          ' device' +
-          (d.device_count === 1 ? '' : 's') +
-          ' used ' +
-          x.interface +
-          ' · ' +
-          bytes(d.upload_bytes + d.download_bytes)
-      )
-    );
-    const table = element('table', undefined, 'cards'),
-      head = element('thead'),
-      headRow = element('tr'),
-      body = element('tbody');
-    for (const [name, cls] of [
-      ['Device', ''],
-      ['Segment', ''],
-      ['Download', 'number'],
-      ['Upload', 'number']
-    ])
-      headRow.append(element('th', name, cls));
-    head.append(headRow);
-    for (const row of d.devices) {
-      const tr = element('tr');
-      tr.append(
-        element('td', row.hostname || row.ip || row.mac || row.device_id.slice(0, 12)),
-        element('td', row.vlan || '—'),
-        element('td', bytes(row.download_bytes), 'number'),
-        element('td', bytes(row.upload_bytes), 'number')
-      );
-      labelRow(tr, ['Device', 'Segment', 'Download', 'Upload']);
-      body.append(tr);
-    }
-    table.append(head, body);
-    const wrap = element('div', undefined, 'table-wrap');
-    wrap.append(table);
-    box.append(wrap);
-    const notes = [];
-    if (d.device_count > d.devices.length)
-      notes.push('Largest ' + d.devices.length + ' of ' + d.device_count + '.');
-    if (!d.complete)
-      notes.push(
-        'Covers ' + shortWhen(x.start) + ' → ' + shortWhen(d.scanned_until) + ' only; reading the rest took too long.'
-      );
-    notes.push('From recorded traffic that left through ' + x.interface + '.');
-    box.append(element('p', notes.join(' '), 'muted'));
+    renderLineDevices(box, d, x, 'this incident is older', 'then');
   } catch (e) {
     if (!current() || !state.auth) return;
     box.replaceChildren(element('p', 'Device detail unavailable: ' + errorText(e), 'muted'));
   }
+}
+// Devices whose recorded traffic left through one line, largest first, each with its
+// share of the line and the SD-WAN rules its source matches now.
+function renderLineDevices(box, d, x, olderText, whenText) {
+  box.replaceChildren();
+  if (!d.available) {
+    box.append(
+      element(
+        'p',
+        'Device detail is kept for ' +
+          d.ledger_days +
+          ' days, and ' +
+          olderText +
+          '. Daily totals per device remain in Devices.',
+        'muted'
+      )
+    );
+    return;
+  }
+  if (!d.devices.length) {
+    box.append(
+      element('p', 'No recorded traffic left through ' + x.interface + ' ' + whenText + '.', 'muted')
+    );
+    return;
+  }
+  const covered = Math.max(1, (d.complete ? x.end : d.scanned_until) - x.start),
+    speed = d.speed || {};
+  // Totals first: how much left through the line, its average rate and how full that is.
+  const summary = element('div', undefined, 'line-summary');
+  summary.append(
+    element('div', undefined, 'line-summary-count'),
+    ...[
+      ['↓ Download', d.download_bytes, speed.down_mbps, 'down'],
+      ['↑ Upload', d.upload_bytes, speed.up_mbps, 'up']
+    ].map(([label, amount, limit, kind]) => {
+      const bps = (amount * 8) / covered,
+        card = element('div', undefined, 'line-summary-card');
+      card.append(
+        element('span', label, 'metric-label'),
+        element('b', bytes(amount)),
+        meter(
+          '',
+          'avg ' + rate(bps) + (limit ? ' of ' + number(limit) + ' Mbps' : ''),
+          limit ? bps / (limit * 1e4) : null,
+          kind
+        )
+      );
+      return card;
+    })
+  );
+  summary.firstChild.append(
+    element('b', number(d.device_count)),
+    element(
+      'span',
+      'device' + (d.device_count === 1 ? '' : 's') + ' on ' + x.interface + ' ' + whenText,
+      'metric-label'
+    )
+  );
+  box.append(summary);
+  const table = element('table', undefined, 'cards'),
+    head = element('thead'),
+    headRow = element('tr'),
+    body = element('tbody'),
+    names = ['Device', 'Segment', 'Download', 'Upload', 'SD-WAN rule'];
+  for (const [name, cls] of [
+    ['Device', ''],
+    ['Segment', ''],
+    ['Download', 'number'],
+    ['Upload', 'number'],
+    ['SD-WAN rule', '']
+  ])
+    headRow.append(element('th', name, cls));
+  head.append(headRow);
+  for (const row of d.devices) {
+    const tr = element('tr'),
+      who = element('td');
+    who.append(element('span', row.hostname || row.ip || row.mac || row.device_id.slice(0, 12)));
+    if (row.hostname && row.ip) who.append(element('span', row.ip, 'secondary'));
+    tr.append(
+      who,
+      element('td', row.vlan || '—'),
+      shareCell(bytes(row.download_bytes), row.download_bytes, d.download_bytes, 'down'),
+      shareCell(bytes(row.upload_bytes), row.upload_bytes, d.upload_bytes, 'up')
+    );
+    const rules = element('td');
+    rules.append(
+      row.sdwan ? ruleTags(row.sdwan) : element('span', d.sdwan ? '—' : 'Not read', 'muted')
+    );
+    tr.append(rules);
+    labelRow(tr, names);
+    body.append(tr);
+  }
+  table.append(head, body);
+  const wrap = element('div', undefined, 'table-wrap');
+  wrap.append(table);
+  box.append(wrap);
+  const notes = [];
+  if (d.device_count > d.devices.length)
+    notes.push('Largest ' + d.devices.length + ' of ' + d.device_count + '.');
+  if (!d.complete)
+    notes.push(
+      'Covers ' +
+        shortWhen(x.start) +
+        ' → ' +
+        shortWhen(d.scanned_until) +
+        ' only; reading the rest took too long.'
+    );
+  notes.push('From recorded traffic that left through ' + x.interface + '.');
+  if (d.sdwan && d.sdwan.status !== 'OBSERVED')
+    notes.push(
+      'SD-WAN rules unavailable' + (d.sdwan.reason ? ' (' + d.sdwan.reason + ')' : '') + '.'
+    );
+  else if (d.sdwan)
+    notes.push(
+      'SD-WAN rules are matched on the device’s address now; a rule for some destinations takes only part of its traffic.'
+    );
+  box.append(element('p', notes.join(' '), 'muted'));
+}
+// "Who used each line": one line, one recent window.
+async function loadLineUsage() {
+  const box = $('wan-usage'),
+    line = state.usageLine,
+    seconds = state.usageSeconds || 3600;
+  if (!line) {
+    box.replaceChildren(element('p', 'No confirmed Internet line.', 'muted'));
+    return;
+  }
+  const current = latest('usageSequence'),
+    end = Math.floor(Date.now() / 1000),
+    x = {interface: line, start: end - seconds, end};
+  box.replaceChildren(element('p', 'Reading recorded traffic on ' + line + '…', 'muted'));
+  const label = {900: 'in the last 15 minutes', 3600: 'in the last hour', 10800: 'in the last 3 hours', 43200: 'in the last 12 hours'}[seconds];
+  try {
+    const d = await api(
+      '/api/wan/incident?interface=' + encodeURIComponent(line) + '&start=' + x.start + '&end=' + x.end
+    );
+    if (!current() || !state.auth) return;
+    renderLineDevices(box, d, x, 'this window is older', label);
+  } catch (e) {
+    if (!current() || !state.auth) return;
+    box.replaceChildren(element('p', 'Device detail unavailable: ' + errorText(e), 'muted'));
+  }
+}
+// "Usage per line": what each line carried in a period, from its own counters.
+async function loadVolume() {
+  const box = $('wan-volume'),
+    current = latest('volumeSequence');
+  box.replaceChildren(element('p', 'Reading the line counters…', 'muted'));
+  try {
+    const v = await api(
+      '/api/wan/volume?period=' + encodeURIComponent(state.volumePeriod || 'today')
+    );
+    if (!current() || !state.auth) return;
+    state.volume = v;
+    renderVolume(v);
+  } catch (e) {
+    if (!current() || !state.auth) return;
+    box.replaceChildren(element('p', 'Usage per line is unavailable: ' + errorText(e), 'muted'));
+  }
+}
+function lineTotal(x) {
+  return x.download_bytes == null && x.upload_bytes == null
+    ? null
+    : (x.download_bytes || 0) + (x.upload_bytes || 0);
+}
+function renderVolume(v) {
+  const box = $('wan-volume');
+  box.replaceChildren();
+  const lines = [...v.lines].sort((a, b) => (lineTotal(b) ?? -1) - (lineTotal(a) ?? -1)),
+    known = lines.filter(x => lineTotal(x) != null),
+    all = known.reduce((n, x) => n + lineTotal(x), 0);
+  if (!known.length) {
+    box.append(
+      element(
+        'p',
+        'No line counter was recorded in this period. Usage is unknown, not zero.',
+        'muted'
+      )
+    );
+    return;
+  }
+  // The table: each line's download, upload and total, with its share of all lines.
+  const table = element('table', undefined, 'cards'),
+    head = element('thead'),
+    headRow = element('tr'),
+    body = element('tbody'),
+    names = ['Line', 'Download', 'Upload', 'Total', 'Recorded'];
+  for (const [name, cls] of [
+    ['Line', ''],
+    ['Download', 'number'],
+    ['Upload', 'number'],
+    ['Total', 'number'],
+    ['Recorded', 'number']
+  ])
+    headRow.append(element('th', name, cls));
+  head.append(headRow);
+  const amount = n => (n == null ? 'unknown' : bytes(n));
+  for (const x of lines) {
+    const tr = element('tr'),
+      total = lineTotal(x),
+      recorded = element(
+        'td',
+        total == null ? 'not recorded' : Math.round(x.coverage_pct) + '% of the period',
+        'number' + (total != null && x.coverage_pct < 95 ? ' warn-text' : '')
+      );
+    tr.append(
+      element('td', x.interface),
+      element('td', amount(x.download_bytes), 'number'),
+      element('td', amount(x.upload_bytes), 'number'),
+      total == null
+        ? element('td', 'unknown', 'number')
+        : shareCell(bytes(total), total, all, ''),
+      recorded
+    );
+    labelRow(tr, names);
+    body.append(tr);
+  }
+  const sum = element('tr', undefined, 'total-row');
+  sum.append(
+    element('td', 'All lines'),
+    element('td', bytes(known.reduce((n, x) => n + (x.download_bytes || 0), 0)), 'number'),
+    element('td', bytes(known.reduce((n, x) => n + (x.upload_bytes || 0), 0)), 'number'),
+    element('td', bytes(all), 'number'),
+    element('td', '', 'number')
+  );
+  labelRow(sum, names);
+  body.append(sum);
+  table.append(head, body);
+  const wrap = element('div', undefined, 'table-wrap');
+  wrap.append(table);
+  box.append(wrap);
+  if (known.some(x => x.coverage_pct < 95))
+    box.append(
+      element(
+        'p',
+        'A line recorded for only part of the period shows less than it carried; the missing time is unknown, not zero.',
+        'muted'
+      )
+    );
+  if (v.buckets.length > 1) box.append(volumeChart(v, known));
+}
+// One line over the period: a column per hour or day, download below upload.
+function volumeChart(v, known) {
+  if (!known.some(x => x.interface === state.volumeLine)) state.volumeLine = known[0].interface;
+  const line = state.volumeLine,
+    wrap = element('div', undefined, 'vol-wrap'),
+    top = element('div', undefined, 'vol-head'),
+    chooser = element('div', undefined, 'periods');
+  chooser.id = 'wan-volume-lines';
+  chooser.setAttribute('role', 'group');
+  chooser.setAttribute('aria-label', 'Line in the chart');
+  const legend = element('div', undefined, 'apps-legend');
+  for (const [label, color] of [
+    ['Download', 'var(--chart-down)'],
+    ['Upload', 'var(--chart-up)']
+  ]) {
+    const key = element('span', undefined, 'apps-key'),
+      swatch = element('i');
+    swatch.style.background = color;
+    key.append(swatch, document.createTextNode(label));
+    legend.append(key);
+  }
+  top.append(chooser, legend);
+  wrap.append(top);
+  const rows = v.buckets.map(b => ({...b, value: b.lines[line] || {}})),
+    peak = Math.max(1, ...rows.map(b => lineTotal(b.value) || 0)),
+    step = 10 ** Math.floor(Math.log10(peak)),
+    ceiling = [1, 2, 2.5, 5, 10].map(m => m * step).find(n => n >= peak),
+    hourly = v.bucket === 'hour',
+    every = Math.ceil(rows.length / 12),
+    chart = element('div', undefined, 'vol-chart'),
+    axis = element('div', undefined, 'vol-axis'),
+    plot = element('div', undefined, 'vol-plot'),
+    grid = element('div', undefined, 'vol-grid'),
+    cols = element('div', undefined, 'vol-cols');
+  chart.setAttribute('role', 'img');
+  chart.setAttribute(
+    'aria-label',
+    line +
+      ' per ' +
+      (hourly ? 'hour' : 'day') +
+      ', download and upload, up to ' +
+      bytes(ceiling) +
+      '. The values are listed below the chart.'
+  );
+  for (const share of [1, 0.5, 0]) {
+    axis.append(element('span', share ? bytes(ceiling * share) : '0'));
+    grid.append(element('i'));
+  }
+  rows.forEach((b, i) => {
+    const col = element('div', undefined, 'vol-col'),
+      bar = element('div', undefined, 'vol-bar'),
+      x = b.value,
+      total = lineTotal(x),
+      day = hourly ? b.label : b.label.slice(8);
+    if (total == null) {
+      col.classList.add('missing');
+      col.title = b.label + ' · ' + line + ' · no counter samples';
+    } else {
+      for (const [n, cls] of [
+        [x.upload_bytes, 'up'],
+        [x.download_bytes, 'down']
+      ])
+        if (n > 0) {
+          const seg = element('i', undefined, cls);
+          seg.style.height = (100 * n) / ceiling + '%';
+          bar.append(seg);
+        }
+      col.title =
+        b.label +
+        ' · ' +
+        line +
+        ' · ↓ ' +
+        bytes(x.download_bytes || 0) +
+        ' · ↑ ' +
+        bytes(x.upload_bytes || 0) +
+        (x.coverage_pct < 95 ? ' · recorded ' + Math.round(x.coverage_pct) + '%' : '');
+    }
+    col.append(bar, element('span', i % every ? '' : day, 'vol-x'));
+    cols.append(col);
+  });
+  plot.append(grid, cols);
+  chart.append(axis, plot);
+  wrap.append(chart);
+  // The same values as a table, for reading exact numbers and without colour.
+  const details = element('details', undefined, 'vol-values'),
+    values = element('table', undefined, 'cards'),
+    vbody = element('tbody');
+  details.append(element('summary', 'Values for ' + line));
+  const vhead = element('thead'),
+    vrow = element('tr');
+  for (const [name, cls] of [
+    [hourly ? 'Hour' : 'Day', ''],
+    ['Download', 'number'],
+    ['Upload', 'number'],
+    ['Recorded', 'number']
+  ])
+    vrow.append(element('th', name, cls));
+  vhead.append(vrow);
+  for (const b of rows) {
+    const tr = element('tr'),
+      x = b.value,
+      missing = lineTotal(x) == null;
+    tr.append(
+      element('td', b.label),
+      element('td', missing ? 'unknown' : bytes(x.download_bytes || 0), 'number'),
+      element('td', missing ? 'unknown' : bytes(x.upload_bytes || 0), 'number'),
+      element('td', Math.round(x.coverage_pct || 0) + '%', 'number')
+    );
+    labelRow(tr, [hourly ? 'Hour' : 'Day', 'Download', 'Upload', 'Recorded']);
+    vbody.append(tr);
+  }
+  values.append(vhead, vbody);
+  const vwrap = element('div', undefined, 'table-wrap');
+  vwrap.append(values);
+  details.append(vwrap);
+  wrap.append(details);
+  // The chooser is filled once it is in the page.
+  queueMicrotask(() =>
+    lineButtons(
+      'wan-volume-lines',
+      known.map(x => x.interface),
+      line,
+      name => {
+        state.volumeLine = name;
+        renderVolume(state.volume);
+      }
+    )
+  );
+  return wrap;
+}
+function setupLineUsage(names) {
+  if (!names.length) {
+    state.usageLine = '';
+    $('wan-usage-lines').replaceChildren();
+  } else {
+    if (!names.includes(state.usageLine)) state.usageLine = names[0];
+    lineButtons('wan-usage-lines', names, state.usageLine, name => {
+      state.usageLine = name;
+      setupLineUsage(names);
+    });
+  }
+  loadLineUsage();
 }
 function renderRouting(routing) {
   const box = $('wan-routing');
@@ -4196,6 +5132,8 @@ async function loadWan() {
           '. ' +
           r.route.scope
         : 'Route-selection evidence is unavailable. WAN health or observed traffic alone does not identify the active route.';
+    setupLineUsage(r.interfaces.map(w => w.interface));
+    loadVolume();
     $('wan-history').replaceChildren();
     for (const w of r.interfaces) {
       const tr = element('tr');
@@ -4409,6 +5347,24 @@ for (const button of document.querySelectorAll('[data-period]'))
       b.classList.toggle('selected', b === button);
     $('custom').hidden = state.period !== 'custom';
     if (state.period !== 'custom') loadReport();
+  });
+for (const button of document.querySelectorAll('#wan-volume-period button'))
+  button.addEventListener('click', () => {
+    state.volumePeriod = button.dataset.volume;
+    for (const b of document.querySelectorAll('#wan-volume-period button')) {
+      b.classList.toggle('selected', b === button);
+      b.setAttribute('aria-pressed', String(b === button));
+    }
+    loadVolume();
+  });
+for (const button of document.querySelectorAll('#wan-usage-window button'))
+  button.addEventListener('click', () => {
+    state.usageSeconds = Number(button.dataset.seconds);
+    for (const b of document.querySelectorAll('#wan-usage-window button')) {
+      b.classList.toggle('selected', b === button);
+      b.setAttribute('aria-pressed', String(b === button));
+    }
+    loadLineUsage();
   });
 $('refresh').addEventListener('click', () => {
   state.page = 0;

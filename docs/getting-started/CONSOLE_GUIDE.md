@@ -58,6 +58,25 @@ Who is using the Internet this minute. It refreshes every 10 seconds.
 - **Device, application and segment figures** are the FortiGate's realtime
   estimates for up to 500 sources. They are estimates, not recorded totals.
 - Under each total, the page shows how much of it comes from the listed devices.
+- **Line tiles** above the totals show each line's download and upload now,
+  with a bar for how full each is when its speed is set in Settings → Network
+  Interfaces (amber from 70%, red and "Full" from 90%), and its devices and
+  sessions. Select a tile to see only that line: the devices on it, each rate
+  with a bar for its share of the line, and the SD-WAN rule. **All lines** shows
+  each device's total, with the lines it uses under its name.
+- A chosen line also offers **Who used *line* in the last 15 minutes**, from
+  the logs. When the devices listed explain less than 70% of what the line's
+  counter measured, the page says so first: the FortiGate's per-device
+  estimates can miss sessions handled by its network processor and short
+  bursts, and the logs include them.
+- The **SD-WAN rule** column names the rules that can carry the device's
+  traffic, in the order the FortiGate checks them, matched on the device's
+  address and MAC address now, for example "engineering → uplink-b". Point at a
+  device's lines in **All lines** to see them there. A rule limited to some
+  destinations, such as Office 365, takes only part of the traffic and is
+  followed ("then") by the rule for the rest. "maybe" marks a rule whose source cannot be judged from an address
+  (for example an FQDN object). The FortiGate does not report which rule one
+  session used.
 
 Limits to know:
 
@@ -106,6 +125,19 @@ days), then shows the current state under **Right now**.
   in an earlier rule stays with that rule, and a rule in manual mode never moves
   traffic when its line loses packets. If the rules cannot be read, the rest of
   the page still works.
+- **Usage per line** shows what each line carried today, yesterday, in the last
+  7 days, this month or last month: download, upload and total, with each
+  line's share of all lines. A chart shows one line per hour (one day) or per
+  day (longer periods), download below upload; **Values** lists the same
+  figures. It comes from each line's own counters, so it includes traffic no
+  device owns, as the provider counts it. A time the counters were not read
+  shows as not recorded, never as zero.
+- **Who used each line** lists, for one line and the last 15 minutes, hour,
+  3 hours or 12 hours, the devices whose recorded traffic left through it:
+  upload and download with each device's share of the line, the line's average
+  rate and how full that is against its speed, and the SD-WAN rules each device
+  matches. It comes from logs, so the last two minutes can still be missing,
+  and from the raw records, which are kept for the ledger retention.
 
 A line is judged by the health check chosen in Settings when that check covers
 it, otherwise by its other health check, and the page says so. A line is down
@@ -209,9 +241,11 @@ excluded and why. Use it when a figure looks low.
 
 1. **Internet links.** Is a link down, or is its latency or loss far above its
    usual value?
-2. **Live usage.** Is a link's total close to its capacity?
-3. **Devices → Recent 5 minutes.** Who used the most? This comes from logs, so
-   it includes sessions the live estimate misses.
+2. **Live usage → choose the line.** Is it close to its speed, which devices
+   share it, and which SD-WAN rule puts them there?
+3. **Internet links → Who used each line**, or **Devices → Recent 5 minutes.**
+   Who used the most? This comes from logs, so it includes sessions the live
+   estimate misses.
 4. If the device that complained is not listed, its traffic may not pass a
    logging policy, or the problem is before the FortiGate (Wi-Fi, cable, the
    device itself).
