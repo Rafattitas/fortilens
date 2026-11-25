@@ -58,17 +58,18 @@ Who is using the Internet this minute. It refreshes every 10 seconds.
 - **Device, application and segment figures** are the FortiGate's realtime
   estimates for up to 500 sources. They are estimates, not recorded totals.
 - Under each total, the page shows how much of it comes from the listed devices.
-- **Choose a line** above the totals to see only that line: its download and
-  upload now, how full it is (when its speed is set in Settings → Network
-  Interfaces), the devices on it with what each takes from that line, and the
-  busiest one. **All lines** shows each device's total, with the lines it uses
-  under its name.
-- Each device also names the SD-WAN rules that can carry its traffic, in the
-  order the FortiGate checks them, matched on the device's address and MAC
-  address now: under its name for all lines, and with each rule's lines in
-  **Share of the line · SD-WAN rule** for a chosen line. A rule limited to some destinations, such as
-  Office 365, takes only part of the traffic and is followed by the rule for
-  the rest. "maybe" marks a rule whose source cannot be judged from an address
+- **Line tiles** above the totals show each line's download and upload now,
+  with a bar for how full each is when its speed is set in Settings → Network
+  Interfaces (amber from 70%, red and "Full" from 90%), and its devices and
+  sessions. Select a tile to see only that line: the devices on it, each rate
+  with a bar for its share of the line, and the SD-WAN rule. **All lines** shows
+  each device's total, with the lines it uses under its name.
+- The **SD-WAN rule** column names the rules that can carry the device's
+  traffic, in the order the FortiGate checks them, matched on the device's
+  address and MAC address now, for example "engineering → uplink-b". Point at a
+  device's lines in **All lines** to see them there. A rule limited to some
+  destinations, such as Office 365, takes only part of the traffic and is
+  followed ("then") by the rule for the rest. "maybe" marks a rule whose source cannot be judged from an address
   (for example an FQDN object). The FortiGate does not report which rule one
   session used.
 
