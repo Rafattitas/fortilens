@@ -277,5 +277,131 @@ class LiveLineTests(unittest.TestCase):
             self.assertEqual(again["devices"], r["devices"])
 
 
+class LineVolumeTests(unittest.TestCase):
+    """What each line carried, from synthetic Prometheus interface counters."""
+
+    # 2026-11-25 10:30 UTC; the store's accounting zone is UTC.
+    NOW = 1795602600.0
+
+    def setUp(self):
+        self.store = a.Store(":memory:", CONFIG, INVENTORY, storage_format="compact")
+        self.addCleanup(self.store.close)
+        self.queries = []
+
+    def engine(self, silent=()):
+        """wan1 sends 1,000 and receives 4,000 bytes a second; wan2 half of that.
+
+        Lines in ``silent`` have no samples. Samples stop one hour before NOW for wan2.
+        """
+        import re
+
+        def fake_fetch(base, route, params=None, **kwargs):
+            self.queries.append(params)
+            seconds = int(re.search(r"\[(\d+)s\]", params["query"]).group(1))
+            end = float(params["time"])
+            result = []
+            for name, scale in (("wan1", 1.0), ("wan2", 0.5)):
+                if name in silent:
+                    continue
+                covered = seconds
+                if name == "wan2":
+                    covered = max(0, min(seconds, seconds - (end - (self.NOW - 3600))))
+                if covered <= 0:
+                    continue
+                for label, value in (
+                    ("download", 4000 * scale * covered),
+                    ("upload", 1000 * scale * covered),
+                    ("samples", covered / 60),
+                ):
+                    result.append(
+                        {"metric": {"name": name, "dir": label}, "value": [end, str(value)]}
+                    )
+            return {"status": "success", "data": {"resultType": "vector", "result": result}}
+
+        engine = u.Engine(self.store, fetch=fake_fetch)
+        engine.config = {
+            **engine.config,
+            "fortigate_host": "192.0.2.1",
+            "confirmed_wan_interfaces": ["wan1", "wan2"],
+            "wan_speeds": {"wan1": {"down_mbps": 35.0, "up_mbps": 5.0}},
+            "prometheus_scrape_seconds": 60,
+        }
+        return engine
+
+    def test_a_day_is_split_into_hours_and_lines_without_samples_stay_unknown(self):
+        r = self.engine(silent=("wan2",)).line_volume("yesterday", now=self.NOW)
+        self.assertEqual((r["start"], r["end"]), ("2026-11-24T00:00:00+00:00", "2026-11-25T00:00:00+00:00"))
+        self.assertEqual((r["bucket"], len(r["buckets"])), ("hour", 24))
+        self.assertEqual(r["buckets"][13]["label"], "13:00")
+        wan1, wan2 = r["lines"]
+        self.assertEqual((wan1["download_bytes"], wan1["upload_bytes"]), (4000 * 86400, 1000 * 86400))
+        self.assertEqual((wan1["coverage_pct"], wan1["speed"]["up_mbps"]), (100.0, 5.0))
+        # No samples: unknown, never zero.
+        self.assertEqual((wan2["download_bytes"], wan2["coverage_pct"]), (None, 0.0))
+        self.assertEqual(r["buckets"][0]["lines"]["wan2"]["upload_bytes"], None)
+        # Every query is scoped to the confirmed lines of this FortiGate.
+        self.assertIn('name=~"wan1|wan2"', self.queries[0]["query"])
+        self.assertIn('instance="192.0.2.1"', self.queries[0]["query"])
+
+    def test_longer_periods_use_local_days_and_report_partial_coverage(self):
+        r = self.engine().line_volume("week", now=self.NOW)
+        self.assertEqual(r["bucket"], "day")
+        self.assertEqual(
+            [b["label"] for b in r["buckets"]],
+            ["2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22", "2026-11-23", "2026-11-24", "2026-11-25"],
+        )
+        # Today's bucket ends now, not at midnight.
+        self.assertEqual(r["buckets"][-1]["end"], "2026-11-25T10:30:00+00:00")
+        wan2 = r["lines"][1]
+        self.assertLess(wan2["coverage_pct"], 100)
+        self.assertEqual(r["buckets"][-1]["lines"]["wan2"]["download_bytes"], round(2000 * 9.5 * 3600))
+        month = self.engine().line_volume("last_month", now=self.NOW)
+        self.assertEqual((month["start"][:10], month["end"][:10], len(month["buckets"])), ("2026-10-01", "2026-11-01", 31))
+
+    def test_windows_are_checked_and_results_kept_for_a_minute(self):
+        engine = self.engine()
+        for args in (
+            ("next_year",),
+            ("custom", "2026-11-01T00:00:00", "2026-11-02T00:00:00+00:00"),
+            ("custom", "2026-01-01T00:00:00+00:00", "2026-11-01T00:00:00+00:00"),
+            ("custom", "2026-11-02T00:00:00+00:00", "2026-11-01T00:00:00+00:00"),
+        ):
+            with self.assertRaises(u.ServiceError):
+                engine.line_volume(*args, now=self.NOW)
+        engine.line_volume("today", now=self.NOW)
+        asked = len(self.queries)
+        engine.line_volume("today", now=self.NOW + 20)
+        self.assertEqual(len(self.queries), asked)
+        # A report needs only the totals: one query.
+        self.queries.clear()
+        totals = engine.line_volume(
+            "custom", "2026-11-24T00:00:00+00:00", "2026-11-25T00:00:00+00:00", now=self.NOW, buckets=False
+        )
+        self.assertEqual((len(self.queries), totals["buckets"]), (1, []))
+
+    def test_reports_list_each_line_and_say_what_is_unknown(self):
+        import notifications as n
+        from datetime import datetime, timezone
+
+        data = {
+            "start": datetime(2026, 11, 24, tzinfo=timezone.utc),
+            "end": datetime(2026, 11, 25, tzinfo=timezone.utc),
+            "site": "Synthetic site",
+            "line_volume": [
+                {"interface": "wan1", "download_bytes": 22_500_000_000, "upload_bytes": 18_800_000_000, "coverage_pct": 100.0},
+                {"interface": "wan2", "download_bytes": 5_000_000_000, "upload_bytes": 1_000_000_000, "coverage_pct": 60.0},
+                {"interface": "lte", "download_bytes": None, "upload_bytes": None, "coverage_pct": 0.0},
+            ],
+            "usage": None,
+            "digest": [],
+        }
+        text = n.render_report("daily", data, timezone.utc)["text"]
+        self.assertIn("Usage per line", text)
+        self.assertIn("wan1 · 22.5 GB · 18.8 GB", text)
+        self.assertIn("wan2 (60% recorded) · 5.0 GB · 1.0 GB", text)
+        self.assertIn("lte · unknown · unknown", text)
+        self.assertIn("show less than they carried", text)
+
+
 if __name__ == "__main__":
     unittest.main()
