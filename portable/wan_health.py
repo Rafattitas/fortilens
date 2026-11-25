@@ -4,7 +4,7 @@ import ipaddress
 import math
 import re
 
-KNOWN ={"UP", "DOWN", "ERROR", "DISABLED", "UNKNOWN"}
+KNOWN = {"UP", "DOWN", "ERROR", "DISABLED", "UNKNOWN"}
 
 
 def finite(value):
@@ -443,7 +443,9 @@ def address_book(addresses, groups):
                 )
             elif kind == "mac":
                 spans = []
-                values = [m.get("macaddr") for m in item.get("macaddr") or [] if isinstance(m, dict)]
+                values = [
+                    m.get("macaddr") for m in item.get("macaddr") or [] if isinstance(m, dict)
+                ]
                 if item.get("start-mac") and item.get("end-mac"):
                     values.append(str(item["start-mac"]) + "-" + str(item["end-mac"]))
                 for value in values:

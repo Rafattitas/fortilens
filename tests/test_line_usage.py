@@ -21,9 +21,19 @@ ADDRESSES = {
     "results": [
         {"name": "all", "type": "ipmask", "subnet": "0.0.0.0 0.0.0.0"},
         {"name": "eng-net", "type": "ipmask", "subnet": "192.0.2.0 255.255.255.128"},
-        {"name": "lab-range", "type": "iprange", "start-ip": "192.0.2.200", "end-ip": "192.0.2.210"},
+        {
+            "name": "lab-range",
+            "type": "iprange",
+            "start-ip": "192.0.2.200",
+            "end-ip": "192.0.2.210",
+        },
         {"name": "laptop", "type": "mac", "macaddr": [{"macaddr": "02:00:00:00:00:01"}]},
-        {"name": "old-macs", "type": "mac", "start-mac": "02:00:00:00:01:00", "end-mac": "02:00:00:00:01:ff"},
+        {
+            "name": "old-macs",
+            "type": "mac",
+            "start-mac": "02:00:00:00:01:00",
+            "end-mac": "02:00:00:00:01:ff",
+        },
         {"name": "web", "type": "fqdn", "fqdn": "portal.example"},
     ]
 }
@@ -69,7 +79,14 @@ SDWAN = {
             ),
             rule(9, "off", ["laptop"], [2], status="disable"),
             rule(6, "infra", ["laptop", "eng-but-laptop"], [1]),
-            rule(3, "https-only", ["old-macs"], [2], protocol=6, **{"start-port": 443, "end-port": 443}),
+            rule(
+                3,
+                "https-only",
+                ["old-macs"],
+                [2],
+                protocol=6,
+                **{"start-port": 443, "end-port": 443},
+            ),
             rule(5, "web-users", ["web"], [2]),
             rule(4, "everyone", ["all"], [2]),
         ],
@@ -112,9 +129,9 @@ class DeviceRuleTests(unittest.TestCase):
 
     def names(self, ip, mac):
         found = w.device_rules(self.rules, self.book, ip, mac)
-        return [(r["name"], r["lines"], r["all_traffic"], r["certain"]) for r in found["rules"]], found[
-            "settled"
-        ]
+        return [
+            (r["name"], r["lines"], r["all_traffic"], r["certain"]) for r in found["rules"]
+        ], found["settled"]
 
     def test_partial_rules_come_first_and_the_first_full_rule_ends_the_list(self):
         by_name = {r["name"]: r for r in self.rules}
@@ -137,9 +154,7 @@ class DeviceRuleTests(unittest.TestCase):
             self.names("198.51.100.7", "02:00:00:00:00:09"),
             ([("web-users", ["wan2"], True, False), ("everyone", ["wan2"], True, True)], True),
         )
-        self.assertEqual(
-            self.names("198.51.100.7", "02:00:00:00:01:10")[0][0][0], "https-only"
-        )
+        self.assertEqual(self.names("198.51.100.7", "02:00:00:00:01:10")[0][0][0], "https-only")
 
     def test_without_a_full_rule_the_rest_follows_the_implicit_rule(self):
         rules = [r for r in self.rules if r["name"] != "everyone"]
@@ -220,9 +235,7 @@ class LiveLineTests(unittest.TestCase):
                     "wan2": {"download_bps": 100, "upload_bps": 50, "sessions": 2},
                 },
             )
-            self.assertEqual(
-                [x["name"] for x in laptop["sdwan"]["rules"]], ["o365", "infra"]
-            )
+            self.assertEqual([x["name"] for x in laptop["sdwan"]["rules"]], ["o365", "infra"])
             other = next(d for d in r["devices"] if d["mac"] == "02:00:00:00:00:02")
             self.assertEqual([x["name"] for x in other["sdwan"]["rules"]], ["infra"])
             # Addresses are read once and kept with the SD-WAN rules.
