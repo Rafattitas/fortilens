@@ -128,6 +128,33 @@
         devices: rows, vlans: segmentRows, applications: apps, wan_interfaces: ['uplink-a', 'uplink-b'], sdwan: {status: 'OBSERVED'},
         note: 'Synthetic live estimates.'};
     }
+    // Bytes each line carried, from its counters: hours for one day, days for longer periods.
+    function volume(url) {
+      const period = url.searchParams.get('period') || 'today', hour = 3600;
+      const first = new Date(now); first.setUTCDate(1); first.setUTCHours(0, 0, 0, 0);
+      const monthStart = first.getTime() / 1000;
+      const previous = new Date(first); previous.setUTCMonth(previous.getUTCMonth() - 1);
+      const [start, end, step] = {today: [startOfDay, seconds, hour], yesterday: [startOfDay - day, startOfDay, hour],
+        week: [startOfDay - 6 * day, seconds, day], month: [monthStart, seconds, day],
+        last_month: [previous.getTime() / 1000, monthStart, day]}[period] || [startOfDay, seconds, hour];
+      const shape = [.3, .2, .2, .2, .2, .3, .5, .8, 1.2, 1.6, 1.7, 1.6, 1.4, 1.5, 1.6, 1.5, 1.3, 1.0, .8, .7, .6, .5, .4, .3];
+      const lines = [['uplink-a', 1.6, .45], ['uplink-b', .4, .1]];
+      const buckets = [];
+      for (let t = start, i = 0; t < end; t += step, i++) {
+        const until = Math.min(t + step, end), part = (until - t) / step;
+        const weight = step === hour ? shape[new Date(t * 1000).getUTCHours()] : [1, 1.1, .9, 1.2, 1, .4, .3][new Date(t * 1000).getUTCDay()] * 24;
+        buckets.push({start: iso(t), end: iso(until), label: step === hour ? pad(new Date(t * 1000).getUTCHours()) + ':00' : dateOf(t),
+          lines: Object.fromEntries(lines.map(([name, down, up]) => [name, period === 'last_month' && name === 'uplink-b' && i === 2
+            ? {download_bytes: null, upload_bytes: null, coverage_pct: 0}
+            : {download_bytes: Math.round(down * weight * part * GiB), upload_bytes: Math.round(up * weight * part * GiB), coverage_pct: 100}]))});
+      }
+      return {period, start: iso(start), end: iso(end), bucket: step === hour ? 'hour' : 'day', source: 'INTERFACE_COUNTERS', status: 'OBSERVED', buckets,
+        lines: lines.map(([name]) => {
+          const known = buckets.map(b => b.lines[name]).filter(x => x.download_bytes !== null);
+          return {interface: name, download_bytes: sum(known, 'download_bytes'), upload_bytes: sum(known, 'upload_bytes'),
+            coverage_pct: 100 * known.length / buckets.length, speed: name === 'uplink-a' ? {down_mbps: 100, up_mbps: 20} : null};
+        })};
+    }
     // Generic example site names only; one site selected.
     function websites(url) {
       const sites = [['video.example', 9.6, 0.42, 6], ['cloud-storage.example', 3.1, 2.6, 4], ['office.example', 4.2, 1.1, 8], ['news.example', 1.2, 0.08, 7], ['ai-assistant.example', 0.9, 0.21, 3], ['software-updates.example', 0.8, 0.02, 8], ['maps.example', 0.31, 0.04, 5], ['mail.example', 0.22, 0.09, 8]]
@@ -310,6 +337,7 @@
         '/api/device': () => report(url, true, degraded),
         '/api/wan': () => wan(degraded),
         '/api/wan/insights': () => wanInsights(url, degraded),
+        '/api/wan/volume': () => volume(url),
         '/api/wan/incident': () => ({available: true, complete: true, interface: url.searchParams.get('interface'), speed: url.searchParams.get('interface') === 'uplink-a' ? {down_mbps: 100, up_mbps: 20} : null, sdwan: {status: 'OBSERVED'}, start: Number(url.searchParams.get('start')), end: Number(url.searchParams.get('end')), scanned_until: Number(url.searchParams.get('end')), ledger_days: 8, device_count: 14, upload_bytes: 0.6 * GiB, download_bytes: 3.1 * GiB,
           devices: [['design-ws-01', 'design', 1.4, 0.21], ['finance-lt-07', 'finance', 0.62, 0.08], ['meeting-room-tv', 'guest-wifi', 0.41, 0.02]].map(([hostname, vlan, down, up], i) => ({device_id: String(i + 1).repeat(64), hostname, ip: '192.0.2.' + (20 + i), mac: '', vlan, download_bytes: down * GiB, upload_bytes: up * GiB, records: 40 - i * 9,
             sdwan: {rules: [{order: 2, name: 'everyone-else', mode: 'manual', lines: ['uplink-a'], all_traffic: true, certain: true}], settled: true}}))}),
