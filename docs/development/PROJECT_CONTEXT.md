@@ -87,6 +87,14 @@ Older/opt-out installations can have fewer. Management adds two independent
 systemd services, `fortilens-web` and `fortilens-helper`; these are not additional
 Compose containers.
 
+Loki runs with a 2 GiB memory limit, `GOMEMLIMIT=1600MiB` and a 1 GB WAL replay
+ceiling, so a heavy ad-hoc query can stop only Loki, which restarts and replays
+its write-ahead log. Apply adds all three to an older installation where it sets
+none of its own and recreates only Loki for it; see
+[Capacity](../operations/CAPACITY.md#loki-memory). Do not run long-range or
+high-cardinality LogQL against a live installation to test this: use an
+isolated Loki container with synthetic lines.
+
 Reviewed installer/full-distribution inputs include the management stylesheet's
 vendored font files and license. The management Docker context includes those
 same assets and the existing Grafana clock adapter. Release regressions derive
