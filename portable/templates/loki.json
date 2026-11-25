@@ -36,6 +36,11 @@
       }
     ]
   },
+  "ingester": {
+    "wal": {
+      "replay_memory_ceiling": "1GB"
+    }
+  },
   "limits_config": {
     "retention_period": "60d",
     "query_timeout": "3m",

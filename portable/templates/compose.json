@@ -78,6 +78,10 @@
       "image": "grafana/loki@sha256:c316b7c7589a5eeca843b6926c7446149d18300b79ac8538dc4ae063bc478da2",
       "platform": "linux/amd64",
       "restart": "unless-stopped",
+      "mem_limit": "2g",
+      "environment": {
+        "GOMEMLIMIT": "1600MiB"
+      },
       "logging": {
         "driver": "json-file",
         "options": {
