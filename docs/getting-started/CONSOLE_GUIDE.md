@@ -125,6 +125,13 @@ days), then shows the current state under **Right now**.
   in an earlier rule stays with that rule, and a rule in manual mode never moves
   traffic when its line loses packets. If the rules cannot be read, the rest of
   the page still works.
+- **Usage per line** shows what each line carried today, yesterday, in the last
+  7 days, this month or last month: download, upload and total, with each
+  line's share of all lines. A chart shows one line per hour (one day) or per
+  day (longer periods), download below upload; **Values** lists the same
+  figures. It comes from each line's own counters, so it includes traffic no
+  device owns, as the provider counts it. A time the counters were not read
+  shows as not recorded, never as zero.
 - **Who used each line** lists, for one line and the last 15 minutes, hour,
   3 hours or 12 hours, the devices whose recorded traffic left through it:
   upload and download with each device's share of the line, the line's average

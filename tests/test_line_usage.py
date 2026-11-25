@@ -330,11 +330,15 @@ class LineVolumeTests(unittest.TestCase):
 
     def test_a_day_is_split_into_hours_and_lines_without_samples_stay_unknown(self):
         r = self.engine(silent=("wan2",)).line_volume("yesterday", now=self.NOW)
-        self.assertEqual((r["start"], r["end"]), ("2026-11-24T00:00:00+00:00", "2026-11-25T00:00:00+00:00"))
+        self.assertEqual(
+            (r["start"], r["end"]), ("2026-11-24T00:00:00+00:00", "2026-11-25T00:00:00+00:00")
+        )
         self.assertEqual((r["bucket"], len(r["buckets"])), ("hour", 24))
         self.assertEqual(r["buckets"][13]["label"], "13:00")
         wan1, wan2 = r["lines"]
-        self.assertEqual((wan1["download_bytes"], wan1["upload_bytes"]), (4000 * 86400, 1000 * 86400))
+        self.assertEqual(
+            (wan1["download_bytes"], wan1["upload_bytes"]), (4000 * 86400, 1000 * 86400)
+        )
         self.assertEqual((wan1["coverage_pct"], wan1["speed"]["up_mbps"]), (100.0, 5.0))
         # No samples: unknown, never zero.
         self.assertEqual((wan2["download_bytes"], wan2["coverage_pct"]), (None, 0.0))
@@ -348,15 +352,28 @@ class LineVolumeTests(unittest.TestCase):
         self.assertEqual(r["bucket"], "day")
         self.assertEqual(
             [b["label"] for b in r["buckets"]],
-            ["2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22", "2026-11-23", "2026-11-24", "2026-11-25"],
+            [
+                "2026-11-19",
+                "2026-11-20",
+                "2026-11-21",
+                "2026-11-22",
+                "2026-11-23",
+                "2026-11-24",
+                "2026-11-25",
+            ],
         )
         # Today's bucket ends now, not at midnight.
         self.assertEqual(r["buckets"][-1]["end"], "2026-11-25T10:30:00+00:00")
         wan2 = r["lines"][1]
         self.assertLess(wan2["coverage_pct"], 100)
-        self.assertEqual(r["buckets"][-1]["lines"]["wan2"]["download_bytes"], round(2000 * 9.5 * 3600))
+        self.assertEqual(
+            r["buckets"][-1]["lines"]["wan2"]["download_bytes"], round(2000 * 9.5 * 3600)
+        )
         month = self.engine().line_volume("last_month", now=self.NOW)
-        self.assertEqual((month["start"][:10], month["end"][:10], len(month["buckets"])), ("2026-10-01", "2026-11-01", 31))
+        self.assertEqual(
+            (month["start"][:10], month["end"][:10], len(month["buckets"])),
+            ("2026-10-01", "2026-11-01", 31),
+        )
 
     def test_windows_are_checked_and_results_kept_for_a_minute(self):
         engine = self.engine()
@@ -375,7 +392,11 @@ class LineVolumeTests(unittest.TestCase):
         # A report needs only the totals: one query.
         self.queries.clear()
         totals = engine.line_volume(
-            "custom", "2026-11-24T00:00:00+00:00", "2026-11-25T00:00:00+00:00", now=self.NOW, buckets=False
+            "custom",
+            "2026-11-24T00:00:00+00:00",
+            "2026-11-25T00:00:00+00:00",
+            now=self.NOW,
+            buckets=False,
         )
         self.assertEqual((len(self.queries), totals["buckets"]), (1, []))
 
@@ -388,9 +409,24 @@ class LineVolumeTests(unittest.TestCase):
             "end": datetime(2026, 11, 25, tzinfo=timezone.utc),
             "site": "Synthetic site",
             "line_volume": [
-                {"interface": "wan1", "download_bytes": 22_500_000_000, "upload_bytes": 18_800_000_000, "coverage_pct": 100.0},
-                {"interface": "wan2", "download_bytes": 5_000_000_000, "upload_bytes": 1_000_000_000, "coverage_pct": 60.0},
-                {"interface": "lte", "download_bytes": None, "upload_bytes": None, "coverage_pct": 0.0},
+                {
+                    "interface": "wan1",
+                    "download_bytes": 22_500_000_000,
+                    "upload_bytes": 18_800_000_000,
+                    "coverage_pct": 100.0,
+                },
+                {
+                    "interface": "wan2",
+                    "download_bytes": 5_000_000_000,
+                    "upload_bytes": 1_000_000_000,
+                    "coverage_pct": 60.0,
+                },
+                {
+                    "interface": "lte",
+                    "download_bytes": None,
+                    "upload_bytes": None,
+                    "coverage_pct": 0.0,
+                },
             ],
             "usage": None,
             "digest": [],

@@ -12,7 +12,7 @@ shows a version that answers differently.
 | Recorded usage, reports, applications | Traffic logs over syslog (`srcip`, `srcmac`, `sentbyte`, `rcvdbyte`, `app`, `appid`, …) | Low. These fields have been in FortiOS traffic logs for many releases. |
 | Interface and VLAN inventory | Read-only REST API | Medium. Field names can differ between versions. |
 | Live usage | `monitor/fortiview/statistics` and `monitor/system/interface` | Highest. FortiView changes between releases. |
-| Internet links diagnosis | SD-WAN health-check metrics from the exporter; SD-WAN rules from `cmdb/system/sdwan` and, to match devices to rules, address objects from `cmdb/firewall/address` and `cmdb/firewall/addrgrp` (read-only) | Medium. Rule fields (`priority-members`, `sla`, `internet-service-name`) can differ; the page keeps working from metrics when the rules cannot be read. |
+| Internet links diagnosis | SD-WAN health-check metrics and interface byte counters from the exporter; SD-WAN rules from `cmdb/system/sdwan` and, to match devices to rules, address objects from `cmdb/firewall/address` and `cmdb/firewall/addrgrp` (read-only) | Medium. Rule fields (`priority-members`, `sla`, `internet-service-name`) can differ; the page keeps working from metrics when the rules cannot be read. |
 
 ## How a different version is handled
 

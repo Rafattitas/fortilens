@@ -15,6 +15,12 @@
   estimates miss (network-processor offload, short bursts). Before, the page
   showed only each device's total, so a full line and the devices filling it
   had to be worked out from the logs.
+- **Internet links** has **Usage per line**: what each line carried today,
+  yesterday, in the last 7 days, this month or last month, from its own
+  counters (all traffic, as the provider counts it), with each line's share and
+  a chart per hour or per day. Hours or days the counters were not read show as
+  not recorded, never zero. The daily, weekly and monthly reports list the same
+  per line. Before, no page said how much each line carried.
 - **Internet links** has **Who used each line**: for one line and the last
   15 minutes, hour, 3 hours or 12 hours, the devices whose recorded traffic left
   through it, with bars for each one's share of the line's upload and download,

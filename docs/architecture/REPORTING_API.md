@@ -208,6 +208,25 @@ seconds and reports how far it got), `device_count`, `upload_bytes`,
 (the line's speed from Settings, or `null`) and, when the FortiGate API token
 is available, `sdwan` and each device's `sdwan`, as in `/api/live`.
 
+### `/api/wan/volume`
+
+What each confirmed Internet line carried in a period, from the FortiGate
+interface byte counters in Prometheus: all traffic through the line, including
+traffic no device owns, as the provider counts it.
+
+| Parameter | Meaning |
+|---|---|
+| `period` | `today` (default), `yesterday`, `week` (today plus the six days before), `month`, `last_month` or `custom`. Days start at midnight in the accounting timezone. |
+| `start`, `end` | For `custom`: timestamps with an explicit UTC offset, at most 92 days apart. |
+
+Response: `period`, `start`, `end`, `source` (`INTERFACE_COUNTERS`), `status`
+(`OBSERVED` or `NO DATA`), `bucket` (`hour` for periods of up to two days,
+otherwise `day`), `lines` (each with `interface`, `download_bytes`,
+`upload_bytes`, `coverage_pct` and `speed`) and `buckets` (each with `start`,
+`end`, `label` and the same figures per line in `lines`). `coverage_pct` is the
+share of the period with counter samples. A line or bucket without samples has
+`null` bytes: unknown, not zero. Results are kept for a minute.
+
 ### `/api/inventory`
 
 The FortiGate interface inventory used to map records to segments.
