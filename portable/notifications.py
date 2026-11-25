@@ -1220,6 +1220,31 @@ def _isp_section(line, zone):
     return "Provider report · " + line["interface"], body, table
 
 
+def _volume_section(lines):
+    """Each line's download and upload from its counters; a line without samples is unknown."""
+    rows, partial = [], False
+    for line in lines:
+        down, up = line.get("download_bytes"), line.get("upload_bytes")
+        coverage = line.get("coverage_pct") or 0
+        if down is None and up is None:
+            rows.append([line["interface"], "unknown", "unknown"])
+            continue
+        mark = ""
+        if coverage < 95:
+            mark, partial = f" ({coverage:.0f}% recorded)", True
+        rows.append(
+            [
+                line["interface"] + mark,
+                "unknown" if down is None else _gb(down),
+                "unknown" if up is None else _gb(up),
+            ]
+        )
+    note = "From each line's counters: all traffic through it, as the provider counts it."
+    if partial:
+        note += " Lines recorded for only part of the period show less than they carried."
+    return ("Usage per line", [note], [["Line", "Download", "Upload"]] + rows)
+
+
 def render_report(kind, data, zone):
     """``{"subject", "text", "html"}`` for a report. Missing parts say so; nothing is invented."""
     start, end = data["start"], data["end"]
@@ -1247,6 +1272,9 @@ def render_report(kind, data, zone):
                 else None,
             )
         )
+    volume = data.get("line_volume")
+    if volume:
+        sections.append(_volume_section(volume))
     usage = data.get("usage")
     # Usage counted only part of the period must not read as the whole of it.
     counted = data.get("counted_until", end.timestamp())

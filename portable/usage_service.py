@@ -5,7 +5,7 @@ import base64
 import bisect
 from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hmac
 import json
@@ -167,6 +167,9 @@ SDWAN_CACHE_SECONDS = 300
 ADDRESS_ROUTE = "/api/v2/cmdb/firewall/address"
 ADDRGRP_ROUTE = "/api/v2/cmdb/firewall/addrgrp"
 INCIDENT_MAX_SECONDS = 12 * 3600
+# Line volume from the interface counters: longest custom period and how long a result is kept.
+VOLUME_MAX_DAYS = 92
+VOLUME_CACHE_SECONDS = 60
 
 
 def fortios_support(version):
@@ -535,6 +538,7 @@ class Engine:
         self._insight_cache = {}
         self._sdwan_cache = None
         self._address_cache = None
+        self._volume_cache = OrderedDict()
         self._initial_inventory = json.loads(json.dumps(store.inventory))
         # Alerts: state beside the database, secrets read fresh at every step.
         self.alerts = notifications.Alerts(None)
@@ -1409,6 +1413,159 @@ class Engine:
         result["sdwan"] = self.sdwan_devices(result["devices"], now)
         return result
 
+    def volume_window(self, period, start=None, end=None, now=None):
+        """``(start, end)`` aware datetimes for a line-volume period, in the accounting zone.
+
+        Days start at local midnight, as in the usage reports; "week" is today and
+        the six days before it. Open periods end now.
+        """
+        now = time.time() if now is None else now
+        zone = self.store.zone()
+        local = datetime.fromtimestamp(now, zone)
+
+        def midnight(day):
+            return datetime.combine(day, datetime.min.time(), zone)
+
+        today, current = midnight(local.date()), datetime.fromtimestamp(now, timezone.utc)
+        if period == "today":
+            return today, current
+        if period == "yesterday":
+            return midnight(local.date() - timedelta(days=1)), today
+        if period == "week":
+            return midnight(local.date() - timedelta(days=6)), current
+        if period == "month":
+            return midnight(local.date().replace(day=1)), current
+        if period == "last_month":
+            first = local.date().replace(day=1)
+            return midnight((first - timedelta(days=1)).replace(day=1)), midnight(first)
+        if period == "custom":
+            try:
+                first, last = datetime.fromisoformat(start), datetime.fromisoformat(end)
+            except (TypeError, ValueError):
+                raise ServiceError("wan_history_window_outside_budget") from None
+            if first.tzinfo is None or last.tzinfo is None:
+                raise ServiceError("wan_history_window_outside_budget")
+            if not 0 < (last - first).total_seconds() <= VOLUME_MAX_DAYS * 86400:
+                raise ServiceError("wan_history_window_outside_budget")
+            return first, min(last, current)
+        raise ServiceError("wan_history_window_outside_budget")
+
+    def line_volume(self, period="today", start=None, end=None, now=None, buckets=True):
+        """Bytes each Internet line carried in a period, from the FortiGate interface counters.
+
+        The counters hold all traffic through the line, including traffic no device
+        owns, as the provider counts it. The period is split into hours (up to two
+        days) or local days, for the chart. ``coverage_pct`` is the share of the
+        period with counter samples; a line or bucket without samples is unknown
+        (``None``), never zero. Results are kept for a minute.
+        """
+        now = time.time() if now is None else now
+        first, last = self.volume_window(period, start, end, now)
+        if last <= first:
+            raise ServiceError("wan_history_window_outside_budget")
+        key = (period, first.isoformat(), int(last.timestamp()) // 60, buckets)
+        cached = self._volume_cache.get(key)
+        if cached and now - cached[0] < VOLUME_CACHE_SECONDS:
+            return json.loads(cached[1])
+        names = self.config.get("confirmed_wan_interfaces") or []
+        scrape = max(1, int(self.config.get("prometheus_scrape_seconds", 60)))
+        sel = (
+            'job="fortigate",instance='
+            + json.dumps(self.config.get("fortigate_host", ""))
+            + ",name=~"
+            + json.dumps("|".join(re.escape(n) for n in names))
+        )
+
+        def amounts(begin, finish):
+            """Per line ``{download, upload, samples}`` over [begin, finish)."""
+            seconds = int(round(finish - begin))
+            if not names or seconds < 2 * scrape:
+                return {}
+            window = "[" + str(seconds) + "s]"
+            expr = " or ".join(
+                "label_replace("
+                + agg
+                + " by (name) ("
+                + fn
+                + "(fortigate_interface_"
+                + metric
+                + "_bytes_total{"
+                + sel
+                + "}"
+                + window
+                + ')), "dir", "'
+                + label
+                + '", "", "")'
+                for agg, fn, metric, label in (
+                    ("sum", "increase", "receive", "download"),
+                    ("sum", "increase", "transmit", "upload"),
+                    ("max", "count_over_time", "receive", "samples"),
+                )
+            )
+            out = defaultdict(dict)
+            for row in self._query(expr, finish):
+                labels, value = row.get("metric") or {}, row.get("value") or []
+                amount = wan_health.finite(value[1]) if len(value) == 2 else None
+                if labels.get("name") in names and amount is not None:
+                    out[labels["name"]][labels.get("dir")] = amount
+            return {
+                name: {
+                    "download_bytes": round(v["download"]) if "download" in v else None,
+                    "upload_bytes": round(v["upload"]) if "upload" in v else None,
+                    "coverage_pct": min(100.0, 100 * v.get("samples", 0) * scrape / seconds),
+                }
+                for name, v in out.items()
+            }
+
+        def empty():
+            return {"download_bytes": None, "upload_bytes": None, "coverage_pct": 0.0}
+
+        begin, finish = first.timestamp(), last.timestamp()
+        hourly = finish - begin <= 2 * 86400
+        edges, cursor = [], first
+        while buckets and cursor.timestamp() < finish:
+            if hourly:
+                following = datetime.fromtimestamp(cursor.timestamp() + 3600, cursor.tzinfo)
+            else:
+                local = cursor.astimezone(first.tzinfo)
+                following = datetime.combine(
+                    local.date() + timedelta(days=1), datetime.min.time(), first.tzinfo
+                )
+            edges.append((cursor, min(following.timestamp(), finish)))
+            cursor = following
+        # A Prometheus failure propagates: the period is unavailable, not zero.
+        totals = amounts(begin, finish)
+        rows = []
+        for bucket_start, bucket_end in edges:
+            values = amounts(bucket_start.timestamp(), bucket_end)
+            local = bucket_start.astimezone(first.tzinfo)
+            rows.append(
+                {
+                    "start": bucket_start.isoformat(),
+                    "end": datetime.fromtimestamp(bucket_end, first.tzinfo).isoformat(),
+                    "label": local.strftime("%H:00") if hourly else local.date().isoformat(),
+                    "lines": {name: values.get(name) or empty() for name in names},
+                }
+            )
+        speeds = self.config.get("wan_speeds") or {}
+        result = {
+            "period": period,
+            "start": first.isoformat(),
+            "end": last.isoformat(),
+            "bucket": "hour" if hourly else "day",
+            "source": "INTERFACE_COUNTERS",
+            "status": "OBSERVED" if totals else "NO DATA",
+            "lines": [
+                {"interface": name, **(totals.get(name) or empty()), "speed": speeds.get(name)}
+                for name in names
+            ],
+            "buckets": rows,
+        }
+        self._volume_cache[key] = (now, json.dumps(result))
+        while len(self._volume_cache) > 16:
+            self._volume_cache.popitem(last=False)
+        return result
+
     def wan_incident(self, interface, start, end):
         """Devices whose recorded traffic left through one line in a window of up to 12 hours.
 
@@ -1851,6 +2008,13 @@ class Engine:
                     ]
             except (ServiceError, OSError, ValueError, KeyError, TypeError):
                 data["lines"] = []
+        # Each line's volume from its counters, as the provider counts it.
+        try:
+            data["line_volume"] = self.line_volume(
+                "custom", start=start.isoformat(), end=end.isoformat(), now=now, buckets=False
+            )["lines"]
+        except (ServiceError, OSError, ValueError, KeyError, TypeError):
+            data["line_volume"] = None
         if c["rules"].get("new_device", True):
             try:
                 data["new_devices"] = self.new_devices(
@@ -2159,6 +2323,13 @@ def handler(engine, password, root):
                     return self.send(200, engine.wan(int(value("seconds", "86400"))))
                 if parsed.path == "/api/wan/insights":
                     return self.send(200, engine.wan_insights(int(value("seconds", "604800"))))
+                if parsed.path == "/api/wan/volume":
+                    return self.send(
+                        200,
+                        engine.line_volume(
+                            value("period", "today"), start=value("start"), end=value("end")
+                        ),
+                    )
                 if parsed.path == "/api/wan/incident":
                     return self.send(
                         200,
