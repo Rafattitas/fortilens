@@ -111,7 +111,7 @@ administrator. FortiLens never changes FortiGate settings.
 | **Gives you** | Browser setup, the full console, reviewed Apply and rollback | Command-line setup; the console is opt-in |
 | **Host** | Ubuntu 24.04+ x86-64 (Python 3.11+) | Linux x86-64, Python 3.10+ |
 | **Also needs** | systemd, Python venv, Docker Engine, Docker Compose v2 | Docker Compose v2 |
-| **Available from** | `main`, or the v0.7.1 full archive | `main`, or the v0.7.1 portable ZIP |
+| **Available from** | `main`, or the v0.7.2 full archive | `main`, or the v0.7.2 portable ZIP |
 | **Guide** | [Web Setup & Settings](docs/getting-started/WEB_SETUP.md) | [Portable guide](portable/README.md) |
 
 Size resources for your actual traffic and retention; container limits are not a
@@ -159,10 +159,10 @@ python3 setup.py doctor
 ```
 
 Add `--enable-portal` to `init` for the unified console. The setup utility uses only the Python standard library. For a versioned package,
-download [fortilens-v0.7.1.zip](https://github.com/Rafattitas/fortilens/releases/download/v0.7.1/fortilens-v0.7.1.zip)
-and [SHA256SUMS.txt](https://github.com/Rafattitas/fortilens/releases/download/v0.7.1/SHA256SUMS.txt),
+download [fortilens-v0.7.2.zip](https://github.com/Rafattitas/fortilens/releases/download/v0.7.2/fortilens-v0.7.2.zip)
+and [SHA256SUMS.txt](https://github.com/Rafattitas/fortilens/releases/download/v0.7.2/SHA256SUMS.txt),
 verify the checksum, and run the same commands from its `forti-monitor/` directory.
-The [v0.7.1 release](https://github.com/Rafattitas/fortilens/releases/tag/v0.7.1) also
+The [v0.7.2 release](https://github.com/Rafattitas/fortilens/releases/tag/v0.7.2) also
 has a full archive with the web installer; run `sudo ./install.sh` from its
 `fortilens/` directory.
 

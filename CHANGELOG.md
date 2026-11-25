@@ -1,6 +1,19 @@
 # Changelog
 
-## Unreleased
+## v0.7.2 — 2026-11-25 — Loki gets a memory limit, failed alerts are sent again, and one Health page
+
+### Upgrade
+
+- No database migration. Upgrade in place with `install.sh --upgrade`; the
+  upgrade itself restarts the management service only.
+- The Loki memory limit reaches an existing installation at its next Apply.
+  That Apply also recreates Loki, which pauses log intake for a few seconds;
+  logs Loki had not yet written are recovered. Until then Loki runs as before.
+- The first Apply after the upgrade keeps the five newest reviewed plans and
+  deletes older ones, so a rollback to one of those older plans is no longer
+  offered.
+- Bookmarks to the former Status (`#overview`) and Diagnostics
+  (`#diagnostics`) pages open Health.
 
 ### Logs
 
