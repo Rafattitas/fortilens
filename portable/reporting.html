@@ -3046,7 +3046,7 @@ function sdwanText(s) {
   );
   return 'SD-WAN ' + parts.join(' · otherwise ') + (s.settled ? '' : ' · otherwise implicit rule');
 }
-// The SD-WAN rules as tags in the order they apply: "o365 → wan2" then "infra-team → wan1".
+// The SD-WAN rules as tags in the order they apply: "o365 → uplink-b" then "engineering → uplink-a".
 function ruleTags(s) {
   const box = element('div', undefined, 'rule-tags');
   if (!s || !Array.isArray(s.rules)) {
