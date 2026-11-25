@@ -187,7 +187,7 @@ that ends now ends after the newest received record when the FortiGate clock is
 ahead of the server's, which keeps it on daily summaries; a request waits at most
 10 seconds for the single snapshot reader and a raw-record scan stops after 15,
 each with a named error (`reports_busy`, `report_scan_too_long`). The console
-gateway's own limit is 30 seconds (`console_timeout`). Diagnostics measures the
+gateway's own limit is 30 seconds (`console_timeout`). Health measures the
 clock difference as `clock_offset`. The endpoints are described in the
 [reporting API](../architecture/REPORTING_API.md) and the checks in the
 [Diagnostics reference](../operations/DIAGNOSTICS.md). The reader is still

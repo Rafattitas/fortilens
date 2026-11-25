@@ -66,16 +66,16 @@ RECORDED USAGE       | Collection and installation evidence      |
   Applications
   Websites
   Reports
-SYSTEM
-  Status
   Data quality
-  Diagnostics
+SYSTEM
+  Alerts
+  Health
   Settings
 ```
 
 - Right now: current state (realtime sessions, link health, Grafana). Recorded
-  usage: views of accounting history, with Reports last because it spans them.
-  System: FortiLens itself. Add a new page to the group whose question it answers,
+  usage: views of accounting history, then Reports because it spans them, then
+  Data quality because it explains those figures. System: FortiLens itself. Add a new page to the group whose question it answers,
   as a top-level item with an icon; do not nest pages under another page.
 - Group captions are small uppercase labels. The active item has a tinted
   background and a 3px accent bar, so it does not rely on colour alone.
@@ -100,8 +100,8 @@ SYSTEM
   consumers and segment distribution from the same accounting engine. Segments
   groups exact VLAN/interface mappings. Data quality opens the existing accounting
   evidence page and respects accounting enablement.
-- Status describes service, storage and configuration state separately from
-  source collection. Diagnostics retains the existing read-only checks; Settings
+- Health describes service, storage and configuration state separately from
+  source collection, followed by the existing read-only checks; Settings
   preserves the reviewed configuration workflow.
 
 ## Interaction and accessibility

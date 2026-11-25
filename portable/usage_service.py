@@ -98,7 +98,7 @@ def watched(key, lines, speeds):
 # Readers see these instead of the generic "evidence unavailable".
 ERROR_MESSAGES = {
     "reports_busy": "The report service is busy with another long request. Try again in a minute. "
-    "If this keeps happening, open Diagnostics: a clock difference between this server and the FortiGate is a common cause.",
+    "If this keeps happening, open Health: a clock difference between this server and the FortiGate is a common cause.",
     "report_scan_too_long": "This range needs more raw records than can be read in time. "
     "Choose whole days, or a shorter part of today.",
 }

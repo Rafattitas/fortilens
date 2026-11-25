@@ -2195,7 +2195,7 @@ function clockNote(seconds) {
   return (
     ' FortiGate log times are ' +
     span +
-    " ahead of this server's clock, so this period runs to the newest record received. Synchronize both clocks; Diagnostics explains how."
+    " ahead of this server's clock, so this period runs to the newest record received. Synchronize both clocks; Health explains how."
   );
 }
 function vlanName(v) {
@@ -2800,7 +2800,7 @@ function liveNotes(c) {
   if (c.interface_counters === 'UNAVAILABLE')
     n.push('WAN interface counters are unavailable, so totals cover listed devices only.');
   if (n.length && c.fortios && c.fortios.level === 'UNTESTED')
-    n.push(version + ' has not been checked with FortiLens; see Diagnostics.');
+    n.push(version + ' has not been checked with FortiLens; see Health.');
   return n;
 }
 function siteSelection() {

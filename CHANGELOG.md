@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Logs
+
+- Loki now has a 2 GiB memory limit, a Go memory target of 1600 MiB below it,
+  and replays at most 1 GB of unflushed logs after a restart instead of 4 GB.
+  Before, Loki had no limit: one very heavy query, such as many days of raw
+  lines or every line split into its own series, could take the memory that
+  Grafana, Prometheus and the accounting service need, and the kernel then
+  stopped Loki after collection had already stalled for minutes. Such a query
+  still fails, but it can now only stop Loki, which restarts within seconds and
+  recovers the logs it had not yet written. Normal use measured about 380 MiB.
+  Apply adds the limit, the target and the replay ceiling to an existing
+  installation when it has none of its own, and recreates only Loki for it.
+  See [Capacity](docs/operations/CAPACITY.md#loki-memory).
+
 ### Firewall dashboard
 
 - A line added or removed in Settings now reaches the Grafana dashboard. Apply
@@ -30,7 +44,6 @@
   an outage of 2 minutes or longer is listed with the minutes it was down, and
   "worked" counts partial intervals. Before, one sample per 5 minutes could miss
   an outage between samples, as the guide promised 2 minutes.
-  whole period.
 - The alert history file is flushed to disk before it replaces the previous one.
 
 ### Security
@@ -72,7 +85,8 @@
 - Status and Diagnostics are one page, **Health**: services, storage and
   configuration readiness at the top, then the read-only checks. Old `#overview`
   and `#diagnostics` links open it, and messages that pointed to Diagnostics now
-  name Health.
+  name Health, including the ones after Apply, when monitoring is unavailable,
+  for a clock difference and for an unchecked FortiOS version.
 - **Data quality** moved under Recorded usage, next to the figures it explains.
   The sidebar has 13 entries instead of 14, in three groups.
 - The FortiLens logo opens Overview instead of the Firewall dashboard.

@@ -31,7 +31,7 @@ instead; at 120 + 30 seconds that ceiling was about 200 records per second.
 
 ## Estimating your rate
 
-Diagnostics and the Data quality page show received record counts. As a reference,
+Health and the Data quality page show received record counts. As a reference,
 one office site with about 110 endpoint identities received 2.8–3.9 million
 records a day: an average of 33–45 records per second, about 0.35 per device,
 with a measured busiest hour of 74 records per second (2.2 times the daily
@@ -45,7 +45,7 @@ average, 2 PM local time).
 | 2,000 | 700/s | ~1,540/s | Fits, with almost no headroom in the busiest hour |
 | 3,000 | 1,050/s | ~2,300/s | Needs a 1.0 CPU limit (about 2,700/s) |
 
-Processing that falls behind shows as processing lag in Diagnostics. Recorded
+Processing that falls behind shows as processing lag in Health. Recorded
 totals are still exact once processing catches up; they are later, not lost,
 while the records remain in Loki.
 
@@ -53,6 +53,28 @@ For more than about 1,500 devices, choose **Settings → Storage → Accounting
 Processing CPU → 1 core** and Apply (or 2 cores to keep reports responsive while
 processing catches up; one writer uses about one core), then confirm with your
 own record rate before relying on near-real-time reports.
+
+## Loki memory
+
+Loki may use up to 2 GiB of memory (Compose `mem_limit`). Its Go runtime starts
+collecting garbage harder at 1600 MiB (`GOMEMLIMIT`), and after a restart it
+replays at most 1 GB of unflushed logs from its write-ahead log before it
+flushes them to storage (`ingester.wal.replay_memory_ceiling`, otherwise 4 GB).
+On the reference site above Loki used about 380 MiB of memory, and its peak,
+including file cache, was 632 MiB over four hours of normal use.
+
+Without a limit, one very heavy query (for example many days of raw lines, or
+splitting every line into its own series) can take the memory that Grafana,
+Prometheus and the accounting service need, until the kernel stops whichever
+process it chooses. With the limit, such a query can only stop Loki, which restarts
+within seconds and recovers the logs it had not yet written from its write-ahead
+log. Heavy queries still fail; keep ad-hoc queries in Grafana Explore to short
+ranges and aggregates.
+
+Loki also keeps several result caches of up to 100 MB each. On a much busier
+site, watch Loki's memory with `docker stats` and raise the limit in
+`compose.yaml` (with `GOMEMLIMIT` at about 80% of it) if it stays near 2 GiB;
+FortiLens keeps a limit and Go target it did not write.
 
 ## Storage
 
