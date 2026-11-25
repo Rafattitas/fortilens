@@ -555,7 +555,7 @@ def create_app(
             target = status.get("path")
             if result["status"] != 200 or not status.get("available"):
                 raise Problem(
-                    "view_unavailable", "Monitoring is unavailable. Review Diagnostics.", 503
+                    "view_unavailable", "Monitoring is unavailable. Open Health to see why.", 503
                 )
             # Append only the applied, validated selector after checking the fixed
             # destination. Never accept a gateway-supplied arbitrary query URL.

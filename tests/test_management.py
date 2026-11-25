@@ -1311,6 +1311,62 @@ class ManagementTests(unittest.TestCase):
         page = (ROOT / "management/static/index.html").read_text(encoding="utf-8")
         self.assertIn('data-setting="accounting_cpus"', page)
 
+    def test_apply_adds_the_loki_memory_guard_to_an_older_installation(self):
+        c = self.existing()
+
+        def apply():
+            """Save, prepare and install; the services the plan traces to its changes."""
+            value = c.view()
+            c.save({"revision": value["revision"], "settings": value["settings"]})
+            review = c.prepare(c.state()["revision"])
+            affected = c.plan(review["plan_id"])[1]["affected_services"]
+            c.install_files(review["plan_id"])
+            c.complete(review["plan_id"])
+            return affected
+
+        apply()
+        # Then the files as a release before the guard left them: no memory
+        # limit, Go target or WAL replay ceiling.
+        compose = c.compose()
+        rendered = deepcopy(compose["services"]["loki"])
+        for key in ("mem_limit", "environment"):
+            compose["services"]["loki"].pop(key)
+        (c.root / "compose.yaml").write_text(yaml.safe_dump(compose, sort_keys=False))
+        config = c.root / "loki/loki-config.yaml"
+        loki = yaml.safe_load(config.read_text())
+        loki.pop("ingester")
+        config.write_text(yaml.safe_dump(loki, sort_keys=False))
+        # Only Loki reads what changes, so only Loki is recreated.
+        self.assertEqual(apply(), ["loki"])
+        service = c.compose()["services"]["loki"]
+        self.assertEqual(service["mem_limit"], rendered["mem_limit"])
+        self.assertEqual(service["environment"], rendered["environment"])
+        loki = yaml.safe_load(config.read_text())
+        self.assertEqual(loki["ingester"]["wal"]["replay_memory_ceiling"], "1GB")
+        self.assertEqual(loki["limits_config"]["retention_period"], "60d")
+        # The next Apply has nothing left to add.
+        self.assertEqual(apply(), [])
+        # Limits an operator chose are kept, in either environment form.
+        compose = c.compose()
+        compose["services"]["loki"]["mem_limit"] = "3g"
+        compose["services"]["loki"]["environment"] = ["GOMEMLIMIT=2500MiB", "TZ=UTC"]
+        (c.root / "compose.yaml").write_text(yaml.safe_dump(compose, sort_keys=False))
+        loki["ingester"]["wal"]["replay_memory_ceiling"] = "2GB"
+        config.write_text(yaml.safe_dump(loki, sort_keys=False))
+        apply()
+        service = c.compose()["services"]["loki"]
+        self.assertEqual(service["mem_limit"], "3g")
+        self.assertEqual(service["environment"], ["GOMEMLIMIT=2500MiB", "TZ=UTC"])
+        loki = yaml.safe_load(config.read_text())
+        self.assertEqual(loki["ingester"]["wal"]["replay_memory_ceiling"], "2GB")
+        # A Go target without a limit is someone's choice too; no limit is added under it.
+        compose = c.compose()
+        compose["services"]["loki"].pop("mem_limit")
+        compose["services"]["loki"]["environment"] = {"GOMEMLIMIT": "900MiB"}
+        (c.root / "compose.yaml").write_text(yaml.safe_dump(compose, sort_keys=False))
+        apply()
+        self.assertNotIn("mem_limit", c.compose()["services"]["loki"])
+
     def test_identity_and_retention_reductions_require_explicit_migration(self):
         c = self.existing()
         view = c.view()

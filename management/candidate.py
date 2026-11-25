@@ -13,6 +13,7 @@ from .compose_policy import (
     _container_port,
     _syslog_bindings,
     accounting_cpus,
+    loki_memory_guard,
     optional_probe_policy,
     prometheus_policy,
     set_accounting_cpus,
@@ -217,12 +218,29 @@ class CandidateMixin:
         ]
 
     def _patch_loki(self, p):
+        """Retention from Settings, and the memory guard an older installation lacks.
+
+        The container memory limit, the Go memory target below it and the WAL
+        replay ceiling come from the rendered template and are only added where
+        the installation sets none, so a reviewed value of its own is kept.
+        """
         loki = self.bound_file(p.compose, "loki", "/etc/loki/local-config.yaml")
         ldata = yaml.safe_load(loki.read_text())
         ldata.setdefault("limits_config", {})["retention_period"] = (
             str(p.settings.retention.loki_days) + "d"
         )
+        rendered = setup.load(p.stage / "loki/loki-config.yaml")["ingester"]["wal"]
+        ingester = ldata.get("ingester")
+        if ingester is None:
+            ingester = ldata["ingester"] = {}
+        if isinstance(ingester, dict):
+            wal = ingester.get("wal")
+            if wal is None:
+                wal = ingester["wal"] = {}
+            if isinstance(wal, dict):
+                wal.setdefault("replay_memory_ceiling", rendered["replay_memory_ceiling"])
         p.files[str(loki.relative_to(self.root))] = yaml.safe_dump(ldata, sort_keys=False).encode()
+        loki_memory_guard(p.compose["services"]["loki"], p.generated["services"]["loki"])
 
     def _patch_alloy(self, p):
         """Syslog protocol and format, the native message limit and log timestamps."""

@@ -223,7 +223,7 @@ texts; exception details, paths and credentials are never returned.
 | 401 | `authentication_required` | Missing or wrong credentials. |
 | 404 | `not_found` | Unknown path. |
 | 414 | `request_too_large` | The request line is longer than 4096 characters. |
-| 503 | `reports_busy` | Another long request holds the reader and this one waited 10 seconds. Try again; if it persists, check `clock_offset` in Diagnostics. |
+| 503 | `reports_busy` | Another long request holds the reader and this one waited 10 seconds. Try again; if it persists, check `clock_offset` in Health. |
 | 503 | `accounting_storage_unavailable`, `timeout`, `upstream_unavailable`, `http_<status>` and other fixed codes | Required evidence is unavailable. No outage or zero usage is inferred. |
 
 Through the console, a request that the gateway cannot finish in 30 seconds

@@ -168,7 +168,7 @@ Later changes on a running installation follow the same steps:
 
 The initial connection is never treated as successful until an actual test
 returns success. Deployment may succeed while FortiGate collection is unavailable;
-Diagnostics then shows missing evidence. A selected new WAN/source must have a
+Health then shows missing evidence. A selected new WAN/source must have a
 matching saved discovery. An unchanged existing connection does not require a
 working FortiGate to edit general settings. Readiness does not certify usage totals.
 
@@ -300,7 +300,7 @@ therefore opens Settings directly without rerunning the initial setup wizard.
 
 ## Diagnostics and recovery
 
-Diagnostics calls the existing Python `doctor.run` logic through a restricted
+The checks on Health call the existing Python `doctor.run` logic through a restricted
 service adapter. It distinguishes service availability, exporter scrape/probe
 evidence, recent metric samples, logs, accounting lag and storage. Direct FortiGate
 connection tests are explicit and tied to the saved connection: `direct_api` shows

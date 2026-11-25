@@ -152,7 +152,7 @@ a full-capture guarantee. Existing replay/accounting rules are not replaced.
 
 ### Diagnostics and acceptance
 
-Management Diagnostics uses the fixed receiver health endpoint only for the
+The Health page uses the fixed receiver health endpoint only for the
 native profile. `native_receiver` requires the UDP listener, worker and Alloy
 TCP connection to be ready. `native_handoff` separately reports a recent TCP
 send, which does **not** establish parsing, Loki storage or accounting

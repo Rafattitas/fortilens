@@ -49,6 +49,34 @@ def set_accounting_cpus(compose, value):
         compose["services"]["fortilens-usage"]["cpus"] = value
 
 
+def loki_memory_guard(service, rendered):
+    """Give Loki the rendered memory limit and Go memory target if it has neither.
+
+    Without a limit, one heavy query can take memory from every service on the
+    host. The Go target makes Loki collect garbage harder before it reaches the
+    limit. A service with its own memory limit or Go target is left as it is,
+    because the target only makes sense below the limit it was chosen for.
+    """
+    limits = ((service.get("deploy") or {}).get("resources") or {}).get("limits") or {}
+    environment = service.get("environment")
+    if isinstance(environment, list):
+        names = {str(item).split("=", 1)[0] for item in environment}
+    elif isinstance(environment, dict):
+        names = set(environment)
+    elif environment is None:
+        names = set()
+    else:
+        return
+    if "mem_limit" in service or "memory" in limits or "GOMEMLIMIT" in names:
+        return
+    service["mem_limit"] = rendered["mem_limit"]
+    target = rendered["environment"]["GOMEMLIMIT"]
+    if isinstance(environment, list):
+        environment.append("GOMEMLIMIT=" + target)
+    else:
+        service.setdefault("environment", {})["GOMEMLIMIT"] = target
+
+
 def optional_probe_policy(record, selected):
     """Replace only explicitly reviewed optional omissions, retaining custom rules."""
     try:

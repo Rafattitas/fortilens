@@ -7,11 +7,11 @@
       ],
       [
         "compose.yaml",
-        "c16a43365abc30e1f30ad6fe2ca7a2634c79516266e8888931dfb1657e4342bc"
+        "0949fe2b1a336d7e2454302e3ba507fb4c14ffb57537338dcc6c294a140d82a2"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -39,11 +39,11 @@
       ],
       [
         "compose.yaml",
-        "8d7d0e7139748332832ff0c22569481e89155e8f1cf52cf6a7f8106966d13222"
+        "43e7a0017c7285a4f7c7b685bd7ff3a569aa84381c09d9a6bc66192d1a1e285f"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -63,11 +63,11 @@
       ],
       [
         "compose.yaml",
-        "8d7d0e7139748332832ff0c22569481e89155e8f1cf52cf6a7f8106966d13222"
+        "43e7a0017c7285a4f7c7b685bd7ff3a569aa84381c09d9a6bc66192d1a1e285f"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -95,11 +95,11 @@
       ],
       [
         "compose.yaml",
-        "2243e290e5e7f89c2fe0fe3a9d7a8385c973e627239b9303f3abbe31101d5b27"
+        "9d9873a77f5903085cd614d07809accd622aaef157d9d26b5486037019db0034"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -163,11 +163,11 @@
       ],
       [
         "compose.yaml",
-        "f6ecaab451fbf7e63a5ad2409201c8403f6cfa4d19368b2d73e9675139eb39f7"
+        "b9784ba384acf33c170f21122842d64672d76a3c2288a82c7af0d90b2b19dc50"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -231,11 +231,11 @@
       ],
       [
         "compose.yaml",
-        "b7682dcdee2a9953d9a335bd29a6b97dc1f185d2a07ad81b314a98966cab88fb"
+        "215bac3e766392806e835aaf49f9c6b48ddb232ac2fe87407f24d0122df3936a"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -255,11 +255,11 @@
       ],
       [
         "compose.yaml",
-        "f1d41968a527efa9cfaf1cd5fad74391e1b17f83b137943d93456461fba0c1af"
+        "4ef07dc7dc0231979d13b60f6ababa21ff7ed4598e6a6a0af4b71fa4a8349ddc"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -287,11 +287,11 @@
       ],
       [
         "compose.yaml",
-        "f49408816509e7a3754fb2684b9e979e5636f0f95dca2b1f9951644adb98d995"
+        "6d6c9920c56033c98997323c747590a50ac2db88fbc0ae30f4c3f3f653e0d958"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -319,11 +319,11 @@
       ],
       [
         "compose.yaml",
-        "376f85fe4792836a3c6a71ec8d77ac89f0132063fc19dc79d18a25978123ecdd"
+        "3428f905c8c5c4693044e40899a99eb1bca79ad56cad79180ddeb621f2b1f4e8"
       ],
       [
         "loki/loki-config.yaml",
-        "536fd8277eb95bbd37421b51dc10d9e32e7f624cf7916a0b0a92c894a1844443"
+        "7be7a31f53952af9b40d5a6c1d8d0ee354a0058f168422571564c48d1cde1e83"
       ],
       [
         "prometheus/prometheus.yml",
@@ -347,7 +347,7 @@
       ],
       [
         "compose.yaml",
-        "d292668b604d7b02aa72b78d026aa472bed95c36cb2b71cb899edeb512492b8b"
+        "d9fd6403956c5352d98f16bd6cc195b39d188edbe8c6d83627ffd340f73cb8a9"
       ],
       [
         "grafana/dashboard.json",
@@ -435,7 +435,7 @@
       ],
       [
         "compose.yaml",
-        "d292668b604d7b02aa72b78d026aa472bed95c36cb2b71cb899edeb512492b8b"
+        "d9fd6403956c5352d98f16bd6cc195b39d188edbe8c6d83627ffd340f73cb8a9"
       ],
       [
         "grafana/dashboard.json",
@@ -523,7 +523,7 @@
       ],
       [
         "compose.yaml",
-        "21ec3a5f0e72ba887f3b25266f70ccf4cb1504c8d1d328c88d9a67b56d122633"
+        "3a032be8ef43481fc6cbb9f2004d407b064745973f10265caf13e4f1b2b85ed2"
       ],
       [
         "grafana/dashboard.json",
@@ -615,11 +615,11 @@
       ],
       [
         "compose.yaml",
-        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+        "627484c33c08bb3f8c2894aad2edaf43e41d88476348508742de4d8bd95c2b95"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -639,11 +639,11 @@
       ],
       [
         "compose.yaml",
-        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+        "627484c33c08bb3f8c2894aad2edaf43e41d88476348508742de4d8bd95c2b95"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -663,11 +663,11 @@
       ],
       [
         "compose.yaml",
-        "9c829b26b214bfc83c956bda38fb7762724de3f028f2677d15535fb28137e1b4"
+        "ba100b189fbd68c33f5a9b4b9c10d3c3e09f4c6ac5eed29a6153ace5994b48d4"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -687,11 +687,11 @@
       ],
       [
         "compose.yaml",
-        "f170dfb8375d8e04e4e32096d4475c48001fd57607721a34104f00a507346238"
+        "9f037bafff5fdb15b1ad9ed5fc47a5edacd9fc55460e4165e94506ff2d376d56"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -715,11 +715,11 @@
       ],
       [
         "compose.yaml",
-        "a397d0d02ab4ee9f800555db0dcb7a75e3ef6dc4eecae600067eec495190b352"
+        "3b93c1c8f558afd922c1886ce9011250ba059f4bac47f879ecc95d45a90b9bd1"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -739,11 +739,11 @@
       ],
       [
         "compose.yaml",
-        "4bf3928d85855d40a478d3564d3525e872cec553ba29c4994ecc00e8fe046a2c"
+        "8d4d83150973fab2d63d766c76e749afc446ac5e3ab203789d28342bfba1713d"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -763,11 +763,11 @@
       ],
       [
         "compose.yaml",
-        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+        "627484c33c08bb3f8c2894aad2edaf43e41d88476348508742de4d8bd95c2b95"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -787,11 +787,11 @@
       ],
       [
         "compose.yaml",
-        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+        "627484c33c08bb3f8c2894aad2edaf43e41d88476348508742de4d8bd95c2b95"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -819,11 +819,11 @@
       ],
       [
         "compose.yaml",
-        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+        "627484c33c08bb3f8c2894aad2edaf43e41d88476348508742de4d8bd95c2b95"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -851,11 +851,11 @@
       ],
       [
         "compose.yaml",
-        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+        "627484c33c08bb3f8c2894aad2edaf43e41d88476348508742de4d8bd95c2b95"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -879,11 +879,11 @@
       ],
       [
         "compose.yaml",
-        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+        "627484c33c08bb3f8c2894aad2edaf43e41d88476348508742de4d8bd95c2b95"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -907,11 +907,11 @@
       ],
       [
         "compose.yaml",
-        "702f9777b92d28289da082701de405e12f570d8f029ab723c2e26eca87015096"
+        "a862c7d0f0003d629ab4413fc7192c58e28cbe45776bbc05dec8d9ba1fcf1d29"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -931,11 +931,11 @@
       ],
       [
         "compose.yaml",
-        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+        "627484c33c08bb3f8c2894aad2edaf43e41d88476348508742de4d8bd95c2b95"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -955,11 +955,11 @@
       ],
       [
         "compose.yaml",
-        "0c0ac28d5046056452257f603878b4f28fe387e5a00b5258f1c0ade98d039507"
+        "ada6810a57f84042c6025fdb8fb7ccf9143443b628cfe0eb6a9835591ba75f7f"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -987,11 +987,11 @@
       ],
       [
         "compose.yaml",
-        "6b3bd0a447c8423ea78c839dbfc97b262a5175efc24062dc5753fa1db8af1d0a"
+        "28e6a8e4fef4898ab00386b974ed60fa7452fdcf7f5136ecd34cf2c22f9b1a47"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1019,11 +1019,11 @@
       ],
       [
         "compose.yaml",
-        "0053d885dc3d3607e098dc2aa9e712398172a57c8b12313cb84158f4598f8407"
+        "c3a342e8556841ec0824792d268981dd12ad82e02673792f4aafb550601f407a"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1043,11 +1043,11 @@
       ],
       [
         "compose.yaml",
-        "6b3bd0a447c8423ea78c839dbfc97b262a5175efc24062dc5753fa1db8af1d0a"
+        "28e6a8e4fef4898ab00386b974ed60fa7452fdcf7f5136ecd34cf2c22f9b1a47"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1075,11 +1075,11 @@
       ],
       [
         "compose.yaml",
-        "5aab64b16713457af4f5e3e6c73c1657b50a9b077e5550f31185d2523f9fcfde"
+        "1b2c2a00021ecb57afa6eb805404e7c6fd28baf524eeb94c89052a09905c699d"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1107,11 +1107,11 @@
       ],
       [
         "compose.yaml",
-        "ba92aa4c06c15591aca6334189157ecb89ee36fe5b9b833983b137a138c18da9"
+        "71ddbd082420d66a3dfa026575d4e977e260c6fd7eb46dc8f18964d8de87dd85"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1139,11 +1139,11 @@
       ],
       [
         "compose.yaml",
-        "d207f0dfbc2e165709465a802eadeb865bd99f69ffa18da50dabf13887a993cb"
+        "c801a93abfd27c1b0bb8c0f509c25b4e0e80cd6a5bfc66af0a32d0703589b6d7"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1163,11 +1163,11 @@
       ],
       [
         "compose.yaml",
-        "6b3bd0a447c8423ea78c839dbfc97b262a5175efc24062dc5753fa1db8af1d0a"
+        "28e6a8e4fef4898ab00386b974ed60fa7452fdcf7f5136ecd34cf2c22f9b1a47"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1195,11 +1195,11 @@
       ],
       [
         "compose.yaml",
-        "fd2a72ad027899605cbe24b0d67a6b1382ebce7fa36282836cb0a9e6a6cce1e7"
+        "b6f07a0f57d62d846afefc4d6ca0df0cbd841cf1384b0670399ff86bdf37df47"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1219,11 +1219,11 @@
       ],
       [
         "compose.yaml",
-        "503e55a8329bcf989397d14e19478ac1f6d5f00b55461aa331d78390f2facacb"
+        "336c1a47bbf310c312f89e6b46a0d6b2fcf2e39460390bb2bf317ff96ca8c961"
       ],
       [
         "loki/loki-config.yaml",
-        "7f6a5c2beda51ef960712ca8415e43c7d0a1f030cc5f5e4b982b0788e0156cf6"
+        "df17325a84b98214a9fad6c5820842c96799b0b813d2ba82d59c553d891b5bbb"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1243,11 +1243,11 @@
       ],
       [
         "compose.yaml",
-        "e5557eaef9f38ff95bf9396b5d25bdc01a0e8b580145a4e01b76be967b4a8e75"
+        "b8778e9557f32281aa73a95b320556d06528bccfa5c40d20965b96526d7f2987"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1267,11 +1267,11 @@
       ],
       [
         "compose.yaml",
-        "d1b255ce7249fa241ecca1e3dbe9db54b6cb735c7d90bf502f233d5f229a9acf"
+        "c86960d5418eb77e10f5f4f605696a5ad5cad9de78fd1a9beb26915c1b6985f3"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1291,11 +1291,11 @@
       ],
       [
         "compose.yaml",
-        "7a46eea08db950a7b469276cde3a068155ab5c76db9541f7d02c9b1e4352db31"
+        "bb89ddf864819b9fa8612185953bac5ae895a687991f729245c9ef3c02cd2a43"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1315,11 +1315,11 @@
       ],
       [
         "compose.yaml",
-        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+        "627484c33c08bb3f8c2894aad2edaf43e41d88476348508742de4d8bd95c2b95"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",
@@ -1347,11 +1347,11 @@
       ],
       [
         "compose.yaml",
-        "eddaf7c17e06ad13af81cdd4f8151b2e2c0c3393ef1db3153822f700e2b6335e"
+        "627484c33c08bb3f8c2894aad2edaf43e41d88476348508742de4d8bd95c2b95"
       ],
       [
         "loki/loki-config.yaml",
-        "a5b510e0774987f7987f237c10cb054a7d0e2b36d4cac9812b4daf56f48d9b0e"
+        "66d79195d71395b27ae39acc5b374b03b732f1aa8bfecd935ecde699bdf567e1"
       ],
       [
         "prometheus/prometheus.yml",

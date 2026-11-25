@@ -45,7 +45,7 @@ accounting trails by more than 15 minutes but the logs it processed run up to
 that point, the page says accounting is behind, not that logs stopped. Usage
 reads low until it catches up. A backlog that keeps growing at busy hours
 usually means accounting needs more CPU (Settings → Storage & data retention →
-Accounting Processing CPU). Diagnostics shows when the newest log reached Loki.
+Accounting Processing CPU). Health shows when the newest log reached Loki.
 
 ## Right now
 
@@ -66,7 +66,7 @@ Limits to know:
   device. This was observed on FortiOS 7.2.14 with an NP6XLite processor. When
   the listed devices explain little of the link total, use Devices with
   *Recent 5 minutes* instead.
-- `live_usage_api` in Diagnostics says which FortiGate API parts responded.
+- `live_usage_api` in Health says which FortiGate API parts responded.
 
 ### Internet links
 

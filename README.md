@@ -111,7 +111,7 @@ administrator. FortiLens never changes FortiGate settings.
 | **Gives you** | Browser setup, the full console, reviewed Apply and rollback | Command-line setup; the console is opt-in |
 | **Host** | Ubuntu 24.04+ x86-64 (Python 3.11+) | Linux x86-64, Python 3.10+ |
 | **Also needs** | systemd, Python venv, Docker Engine, Docker Compose v2 | Docker Compose v2 |
-| **Available from** | `main`, or the v0.7.1 full archive | `main`, or the v0.7.1 portable ZIP |
+| **Available from** | `main`, or the v0.7.2 full archive | `main`, or the v0.7.2 portable ZIP |
 | **Guide** | [Web Setup & Settings](docs/getting-started/WEB_SETUP.md) | [Portable guide](portable/README.md) |
 
 Size resources for your actual traffic and retention; container limits are not a
@@ -159,10 +159,10 @@ python3 setup.py doctor
 ```
 
 Add `--enable-portal` to `init` for the unified console. The setup utility uses only the Python standard library. For a versioned package,
-download [fortilens-v0.7.1.zip](https://github.com/Rafattitas/fortilens/releases/download/v0.7.1/fortilens-v0.7.1.zip)
-and [SHA256SUMS.txt](https://github.com/Rafattitas/fortilens/releases/download/v0.7.1/SHA256SUMS.txt),
+download [fortilens-v0.7.2.zip](https://github.com/Rafattitas/fortilens/releases/download/v0.7.2/fortilens-v0.7.2.zip)
+and [SHA256SUMS.txt](https://github.com/Rafattitas/fortilens/releases/download/v0.7.2/SHA256SUMS.txt),
 verify the checksum, and run the same commands from its `forti-monitor/` directory.
-The [v0.7.1 release](https://github.com/Rafattitas/fortilens/releases/tag/v0.7.1) also
+The [v0.7.2 release](https://github.com/Rafattitas/fortilens/releases/tag/v0.7.2) also
 has a full archive with the web installer; run `sudo ./install.sh` from its
 `fortilens/` directory.
 
@@ -214,7 +214,7 @@ and [management architecture](docs/architecture/MANAGEMENT_ARCHITECTURE.md).
 - **Collection paths need separate evidence.** Native UDP source filtering is not authentication. Receiver readiness and TCP handoff do not prove Loki storage, complete traffic capture or accurate site totals.
 - **Usage means received-log evidence.** Valid zero deltas stay zero; unsafe cumulative candidates stay pending. Stable event identities prevent replay double counting. Missing MACs remain explicitly unverified. [Read the accounting contract](docs/architecture/ACCOUNTING_ENGINE.md).
 - **Interface metadata has a scope and time.** VLAN mapping uses exact VDOM/interface keys, never subnets. Current inventory cannot establish an old VLAN assignment. FortiGate settings are never changed automatically.
-- **Early access.** Clean Docker installations and controlled HTTPS/syslog fixtures have been tested. Only FortiOS 7.2.14 has been checked on a real device; Diagnostics shows how well your version is covered (see [FortiOS compatibility](docs/operations/COMPATIBILITY.md)). ARM and new real-device onboarding are not yet validated.
+- **Early access.** Clean Docker installations and controlled HTTPS/syslog fixtures have been tested. Only FortiOS 7.2.14 has been checked on a real device; Health shows how well your version is covered (see [FortiOS compatibility](docs/operations/COMPATIBILITY.md)). ARM and new real-device onboarding are not yet validated.
 - **Current scope.** One FortiGate per installation. Alerts and reports are off until a channel is set up and applied in Settings; they never change the FortiGate. The older optional Grafana alert candidates stay paused until an operator activates them. Complete topology discovery and per-flow SD-WAN route attribution are not inferred.
 
 ## Also included

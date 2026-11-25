@@ -60,7 +60,7 @@ REPORT_FAILURE_MESSAGE = "Required evidence is unavailable; no outage or zero us
 # The worker's fixed explanations for codes that have one; anything else stays generic.
 REPORT_FAILURE_MESSAGES = {
     "reports_busy": "The report service is busy with another long request. Try again in a minute. "
-    "If this keeps happening, open Diagnostics: a clock difference between this server and the FortiGate is a common cause.",
+    "If this keeps happening, open Health: a clock difference between this server and the FortiGate is a common cause.",
 }
 
 

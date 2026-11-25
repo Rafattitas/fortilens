@@ -274,7 +274,7 @@ class DeploymentMixin:
                 self._safe_progress(
                     job,
                     "complete",
-                    "Configuration applied. Review any collection warnings in Diagnostics.",
+                    "Configuration applied. Review any collection warnings in Health.",
                     status="complete",
                     services=services,
                     diagnostics=diagnostic,
