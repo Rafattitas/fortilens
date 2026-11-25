@@ -74,7 +74,7 @@ const server=http.createServer((req,res)=>{
   res.writeHead(200,{'Content-Type':contentType,'Cache-Control':'no-store'});res.end(body);
 });
 const screenshots=[];
-async function capture(browser,{name,pageName='home',light=false,degraded=false,mobile=false,auth='signed-in',inspector=false,section=null}) {
+async function capture(browser,{name,pageName='home',light=false,degraded=false,mobile=false,auth='signed-in',inspector=false,section=null,scrollTo=null}) {
   const errors=[],external=[];
   const context=await browser.newContext({viewport:mobile?{width:375,height:900}:{width:1600,height:1050},colorScheme:light?'light':'dark',reducedMotion:'reduce',locale:'en-GB',timezoneId:'UTC',serviceWorkers:'block'});
   try {
@@ -114,6 +114,7 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
       } else if(pageName==='diagnostics') await page.locator('#diagnostic-checks .diagnostic').first().waitFor();
       else if(pageName==='alerts') await page.locator('#alerts-history tr').first().waitFor();
       if(section) {await page.locator('#settings-tabs [data-section="'+section+'"]').click();await page.locator('[data-form-section="'+section+'"]').first().waitFor();}
+      if(scrollTo) await page.locator(scrollTo).first().evaluate(element=>element.scrollIntoView({block:'start'}));
     } else {
       await page.locator('#auth-submit').filter({hasText:auth==='first-run'?'Create administrator':'Sign in'}).waitFor();
       await page.locator('#username').fill('synthetic-admin');
@@ -140,8 +141,8 @@ async function capture(browser,{name,pageName='home',light=false,degraded=false,
       {name:'03-overview-degraded',degraded:true},
       {name:'04-usage-docked',pageName:'devices',inspector:true},
       {name:'05-reports',pageName:'reports'}, {name:'06-evidence',pageName:'quality'},
-      {name:'07-internet',pageName:'wan'}, {name:'08-system',pageName:'diagnostics'},
-      {name:'09-diagnostics',pageName:'diagnostics'}, {name:'10-settings',pageName:'settings'},
+      {name:'07-internet',pageName:'wan'}, {name:'08-health',pageName:'diagnostics'},
+      {name:'09-health-checks',pageName:'diagnostics',scrollTo:'#diagnostic-checks'}, {name:'10-settings',pageName:'settings'},
       {name:'11-first-run',auth:'first-run'}, {name:'12-sign-in',auth:'signed-out'},
       {name:'14-overview-narrow',mobile:true}, {name:'15-usage-narrow',pageName:'devices',mobile:true},
       {name:'16-applications',pageName:'applications'},

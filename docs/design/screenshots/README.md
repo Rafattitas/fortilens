@@ -20,8 +20,8 @@ release archives. The captures here use `management/static/` and the actual
 | [Reports](05-reports.png) | Period totals, largest consumers and segment distribution. |
 | [Data quality](06-evidence.png) | Coverage, pending counters and source classifications. |
 | [Internet links](07-internet.png) | SLA, physical state, measurements and observed history. |
-| [Status](08-system.png) | Service state and storage overview. |
-| [Diagnostics](09-diagnostics.png) | Collection observations with explicit unknowns. |
+| [Health](08-health.png) | Services, storage and configuration readiness. |
+| [Health checks](09-health-checks.png) | The read-only collection checks, with explicit unknowns. |
 | [Settings](10-settings.png) | Site settings without credentials. |
 | [First run](11-first-run.png) | Administrator bootstrap form; no token or password filled. |
 | [Sign in](12-sign-in.png) | Signed-out form with a synthetic username. |
@@ -55,13 +55,13 @@ The script binds only an ephemeral loopback port, blocks requests outside that
 origin, accepts only read-only synthetic API requests and uses temporary isolated
 browser contexts. It freezes fixture time, waits for local fonts and rejects
 JavaScript errors, unhandled routes and outer-page horizontal overflow. It
-replaces the seventeen named PNGs and writes [manifest.json](manifest.json), plus
+replaces the nineteen named PNGs and writes [manifest.json](manifest.json), plus
 a contact sheet and capture results under ignored `qa-private/presentation/`.
 Review every image before committing; automation does not replace visual review.
 
 The manifest records fixture time, browser version, viewport/state and SHA256
 hashes of source files and captures. The checked-in set was captured twice with
-the recorded browser and all seventeen PNG hashes matched. Identical bytes across
+the recorded browser and all nineteen PNG hashes matched. Identical bytes across
 browser, platform or font-rendering changes are not promised. Regenerate the set
 and manifest together after frontend changes; do not reuse stale provenance.
 
