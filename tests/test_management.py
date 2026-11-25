@@ -1313,8 +1313,20 @@ class ManagementTests(unittest.TestCase):
 
     def test_apply_adds_the_loki_memory_guard_to_an_older_installation(self):
         c = self.existing()
-        # An installation from before the guard: no memory limit, Go target or
-        # WAL replay ceiling.
+
+        def apply():
+            """Save, prepare and install; the services the plan traces to its changes."""
+            value = c.view()
+            c.save({"revision": value["revision"], "settings": value["settings"]})
+            review = c.prepare(c.state()["revision"])
+            affected = c.plan(review["plan_id"])[1]["affected_services"]
+            c.install_files(review["plan_id"])
+            c.complete(review["plan_id"])
+            return affected
+
+        apply()
+        # Then the files as a release before the guard left them: no memory
+        # limit, Go target or WAL replay ceiling.
         compose = c.compose()
         rendered = deepcopy(compose["services"]["loki"])
         for key in ("mem_limit", "environment"):
@@ -1324,17 +1336,8 @@ class ManagementTests(unittest.TestCase):
         loki = yaml.safe_load(config.read_text())
         loki.pop("ingester")
         config.write_text(yaml.safe_dump(loki, sort_keys=False))
-
-        def apply():
-            value = c.view()
-            c.save({"revision": value["revision"], "settings": value["settings"]})
-            plan = c.prepare(c.state()["revision"])
-            c.install_files(plan["plan_id"])
-            c.complete(plan["plan_id"])
-            return plan
-
-        plan = apply()
-        self.assertIn("loki", plan["restarts"])
+        # Only Loki reads what changes, so only Loki is recreated.
+        self.assertEqual(apply(), ["loki"])
         service = c.compose()["services"]["loki"]
         self.assertEqual(service["mem_limit"], rendered["mem_limit"])
         self.assertEqual(service["environment"], rendered["environment"])
@@ -1342,7 +1345,7 @@ class ManagementTests(unittest.TestCase):
         self.assertEqual(loki["ingester"]["wal"]["replay_memory_ceiling"], "1GB")
         self.assertEqual(loki["limits_config"]["retention_period"], "60d")
         # The next Apply has nothing left to add.
-        self.assertNotIn("loki", apply()["restarts"])
+        self.assertEqual(apply(), [])
         # Limits an operator chose are kept, in either environment form.
         compose = c.compose()
         compose["services"]["loki"]["mem_limit"] = "3g"
