@@ -9,8 +9,12 @@
   "Full" from 90%), and its devices and sessions. Selecting a tile shows only
   that line's devices, each rate with a bar for its share of the line, and the
   SD-WAN rule. **All lines** shows each device's total and the lines it uses.
-  Before, the page showed only each device's total, so a full line and the
-  devices filling it had to be worked out from the logs.
+  When the listed devices explain less than 70% of what the line's counter
+  measured, the page says so and offers the devices that used the line in the
+  last 15 minutes from the logs, which include sessions the FortiGate's live
+  estimates miss (network-processor offload, short bursts). Before, the page
+  showed only each device's total, so a full line and the devices filling it
+  had to be worked out from the logs.
 - **Internet links** has **Who used each line**: for one line and the last
   15 minutes, hour, 3 hours or 12 hours, the devices whose recorded traffic left
   through it, with bars for each one's share of the line's upload and download,

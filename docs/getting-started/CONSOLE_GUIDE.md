@@ -64,6 +64,11 @@ Who is using the Internet this minute. It refreshes every 10 seconds.
   sessions. Select a tile to see only that line: the devices on it, each rate
   with a bar for its share of the line, and the SD-WAN rule. **All lines** shows
   each device's total, with the lines it uses under its name.
+- A chosen line also offers **Who used *line* in the last 15 minutes**, from
+  the logs. When the devices listed explain less than 70% of what the line's
+  counter measured, the page says so first: the FortiGate's per-device
+  estimates can miss sessions handled by its network processor and short
+  bursts, and the logs include them.
 - The **SD-WAN rule** column names the rules that can carry the device's
   traffic, in the order the FortiGate checks them, matched on the device's
   address and MAC address now, for example "engineering → uplink-b". Point at a
