@@ -17,7 +17,7 @@
   incident.
 - Both, and the devices of an incident, name the SD-WAN rules that can carry
   each device's traffic, in the order the FortiGate checks them, for example
-  "infra-team: wan1". They are matched on the device's address and MAC address
+  "engineering: uplink-b". They are matched on the device's address and MAC address
   against the rules' source objects. A rule limited to some destinations, such
   as Office 365, is listed before the rule that takes the rest. A source that
   cannot be judged from an address, such as an FQDN object, is marked "maybe".
