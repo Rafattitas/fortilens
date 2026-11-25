@@ -398,8 +398,13 @@ html .periods button.selected {
 }
 html .line-tile {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  align-items: stretch;
+  justify-content: stretch;
   gap: 5px;
   min-height: 0;
+  white-space: normal;
   padding: 9px 11px;
   border: 1px solid var(--line2);
   border-radius: 5px;
