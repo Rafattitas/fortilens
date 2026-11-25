@@ -448,7 +448,7 @@ html .line-tile[aria-pressed="true"] {
   border-radius: 3px;
   background: var(--raise);
 }
-.meter-track.empty {
+.meter-track.no-speed {
   visibility: hidden;
 }
 .meter-track i,
@@ -2932,7 +2932,7 @@ function meter(label, text, pct, kind) {
     track.append(fill);
     if (pct >= 90) row.classList.add('full');
     else if (pct >= 70) row.classList.add('busy');
-  } else track.classList.add('empty');
+  } else track.classList.add('no-speed');
   row.append(track, element('span', text, 'meter-value'));
   return row;
 }
