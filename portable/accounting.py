@@ -81,6 +81,8 @@ def person_name(labels):
         if name and len(name) <= 256 and name.isprintable():
             return name
     return None
+
+
 # Public suffixes under which the registrable name has three labels. A short
 # list, not the full Public Suffix List: other two-level suffixes show one level
 # too short (for example "example.co.xx" as "co.xx").

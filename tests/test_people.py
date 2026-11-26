@@ -146,9 +146,7 @@ class PeopleTests(unittest.TestCase):
         self.assertEqual(device["profile"]["person"], "j.rivera")
         self.assertEqual(device["profile"]["os"], "Windows")
         # Newer detection labels without a name keep the person.
-        store.ingest(
-            [record("2026-10-20T12:01:00Z", sentdelta="1", rcvddelta="1", osname="Linux")]
-        )
+        store.ingest([record("2026-10-20T12:01:00Z", sentdelta="1", rcvddelta="1", osname="Linux")])
         profile = store.profiles([device["device_id"]])[device["device_id"]]
         self.assertEqual((profile["person"], profile["os"]), ("j.rivera", "Linux"))
         # A newer name replaces it; an older one does not.
