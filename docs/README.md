@@ -57,6 +57,7 @@ choosing or building an archive.
 | [Capacity and sizing](operations/CAPACITY.md) | Measured processing rate, storage per record and sizing by number of devices. |
 | [FortiOS compatibility](operations/COMPATIBILITY.md) | Checked FortiOS versions, what depends on the version, and how a different version is shown. |
 | [Website usage](operations/WEBSITES.md) | Opt-in per-device website usage: what is kept, where it comes from, coverage and retention. |
+| [Usage by person](operations/PEOPLE.md) | Usage by the person signed in on each device: where the FortiGate's names come from, what is kept and how bytes are counted. |
 | [Diagnostics reference](operations/DIAGNOSTICS.md) | Every Diagnostics check: what it looks at, what each status means and what to do. |
 | [Troubleshooting](operations/TROUBLESHOOTING.md) | Read-only doctor evidence, missing telemetry, processing lag and storage failures. |
 | [Native FortiGate UDP reception](operations/SYSLOG_NATIVE_UDP.md) | Explicit managed native UDP profile, bounded delivery evidence and the separate legacy rsyslog alternative. |

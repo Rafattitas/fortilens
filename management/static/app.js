@@ -167,6 +167,7 @@ const titles = {
     'Recorded Internet usage by application and category, and the devices that used them.'
   ],
   websites: ['Websites', 'Recorded Internet usage by website, and the devices that visited them.'],
+  people: ['People', 'Recorded Internet usage by the person signed in on each device.'],
   live: [
     'Live usage',
     'Who is using the Internet right now, from FortiGate realtime session statistics.'
@@ -192,6 +193,7 @@ const pageGroups = {
   vlans: 'Recorded usage',
   applications: 'Recorded usage',
   websites: 'Recorded usage',
+  people: 'Recorded usage',
   reports: 'Recorded usage',
   quality: 'Recorded usage',
   alerts: 'System',
@@ -1301,7 +1303,7 @@ function pageEnabled(page) {
       ? f.wan
       : page === 'websites'
         ? f.accounting && f.websites
-        : ['devices', 'reports', 'applications', 'live', 'quality'].includes(page)
+        : ['devices', 'people', 'reports', 'applications', 'live', 'quality'].includes(page)
           ? f.accounting
           : page === 'vlans'
             ? f.vlans
@@ -1416,6 +1418,7 @@ function loadConsole(page) {
     reports: '/console/?section=reports#reports',
     applications: '/console/?section=applications#applications',
     websites: '/console/?section=websites#websites',
+    people: '/console/?section=people#people',
     live: '/console/?section=live#live',
     monitoring: state.system.links.dashboard
   };
@@ -2978,6 +2981,8 @@ for (const node of document.querySelectorAll('.nav-icon')) {
       applications: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
       websites:
         'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M9 4.500c-1 3.500-1 11.500 0 15M15 4.500c1 3.500 1 11.500 0 15',
+      people:
+        'M9 11a3.500 3.500 0 1 0 0-7 3.500 3.500 0 0 0 0 7M3 20c0-3.300 2.700-6 6-6s6 2.700 6 6M16 4.500a3 3 0 0 1 0 6M18 14c1.800.700 3 2.900 3 6',
       reports: 'M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5',
       live: 'M5 12a7 7 0 0 1 14 0M8.500 12a3.500 3.500 0 0 1 7 0M12 12h.01',
       monitoring: 'M3 4h18v14H3zM7 14l3-4 3 3 4-5',

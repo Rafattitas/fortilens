@@ -1653,7 +1653,8 @@ html .login button {
   flex-wrap: wrap;
 }
 #apps-section [hidden],
-#sites-section [hidden] {
+#sites-section [hidden],
+#people-section [hidden] {
   display: none !important;
 }
 .apps-notes {
@@ -1919,7 +1920,7 @@ html .apps-field select {
 <section id="device-section" class="section"><div class="section-head"><div><h2 id="device-title">Largest recorded consumers</h2><p id="device-caption">Upload + download for the selected period. Device names are not authenticated user accounts.</p></div><label>Show <select id="top" aria-label="Number of devices"><option value="20">Top 20</option><option value="10">Top 10</option><option value="all">All devices</option></select></label></div><div class="table-wrap"><table class="cards"><thead><tr><th>Device</th><th>Identity</th><th>Segment</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th></tr></thead><tbody id="device-body"></tbody></table></div><div id="device-empty" class="empty" hidden>No received accounting evidence for this selection. This is not proof of zero traffic.</div><div class="pager"><span id="device-count"></span><div><button id="previous">Previous</button><button id="next">Next</button></div></div></section>
 <section id="vlan-section" class="section"><div class="section-head"><div><h2>Internet usage by segment</h2><p>Exact FortiGate interface metadata. Unknown mappings stay unknown.</p></div></div><div class="table-wrap"><table class="cards"><thead><tr><th>VLAN</th><th>Interface</th><th class="number">Identities</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th></tr></thead><tbody id="vlan-body"></tbody></table></div><div id="vlan-empty" class="empty" hidden>No received segment totals are available.</div><p id="vlan-missing" class="notice" hidden></p></section>
 <section id="apps-section" class="section" hidden><div class="section-head"><div><h2 id="apps-title">Applications</h2><p id="apps-caption">Recorded Internet usage by FortiGate Application Control label. Device names are not authenticated user accounts; let people know this view exists.</p></div><div class="apps-filters"><button id="apps-genai" aria-pressed="false">GenAI only</button><button id="apps-clear" hidden>Show all applications</button></div></div><div id="apps-stats" class="stats"></div><ul id="apps-notes" class="apps-notes" hidden></ul><div class="apps-block"><h3>Largest identified applications</h3><div id="apps-chart" class="apps-chart" role="list" aria-label="Largest identified applications"></div><p id="apps-chart-empty" class="muted" hidden>No application was identified by name in this period.</p></div><div class="apps-block"><div class="apps-tools"><div class="apps-field"><label for="apps-search">Find an application or category</label><input id="apps-search" type="search" placeholder="Name or category"></div><div class="apps-field"><label for="apps-top">Show</label><select id="apps-top"><option value="20">Top 20</option><option value="10">Top 10</option><option value="all">All applications</option></select></div><div class="apps-field"><label for="apps-risk">Minimum risk</label><select id="apps-risk"><option value="">Any risk</option><option value="elevated">Elevated or higher</option><option value="high">High or critical</option></select></div></div><div class="table-wrap"><table class="cards apps-table apps-main"><thead><tr><th>Application</th><th>Category</th><th>Risk</th><th class="number">Devices</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th><th class="number">Share</th></tr></thead><tbody id="apps-body"></tbody></table></div><div id="apps-empty" class="empty" hidden>No labelled application evidence for this selection. This is not proof of zero traffic.</div><p id="apps-count" class="muted"></p></div><div class="apps-block"><h3>Categories</h3><div id="apps-mix" class="apps-mix" role="img" aria-label="Share of recorded usage by category"></div><div id="apps-legend" class="apps-legend"></div><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Category</th><th class="number">Applications</th><th class="number">Devices</th><th class="number">Total</th><th class="number">Share</th></tr></thead><tbody id="categories-body"></tbody></table></div></div></section><section id="sites-section" class="section" hidden><div class="section-head"><div><h2 id="sites-title">Websites</h2><p>Recorded Internet usage by website, from FortiGate Application Control and Web Filter logs for the same session. Site names only, never full addresses. Device names are not authenticated user accounts; let people know this view exists.</p></div><div class="apps-filters"><button id="sites-clear" hidden>Show all websites</button></div></div><div id="sites-stats" class="stats"></div><p id="sites-note" class="notice" hidden></p><div class="apps-block"><div class="apps-tools"><div class="apps-field"><label for="sites-search">Find a website</label><input id="sites-search" type="search" placeholder="Site name"></div><div class="apps-field"><label for="sites-top">Show</label><select id="sites-top"><option value="25">Top 25</option><option value="100">Top 100</option><option value="all">All websites</option></select></div></div><div class="table-wrap"><table class="cards apps-table apps-main"><thead><tr><th>Website</th><th class="number">Devices</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th><th class="number">Share</th></tr></thead><tbody id="sites-body"></tbody></table></div><div id="sites-empty" class="empty" hidden>No website evidence for this selection. This is not proof of zero traffic.</div><p id="sites-count" class="muted"></p></div><div id="sites-devices-block" class="apps-block" hidden><h3 id="sites-devices-title">Devices</h3><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Device</th><th>Segment</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th></tr></thead><tbody id="sites-devices"></tbody></table></div></div></section>
-<section id="live-section" class="section" hidden><div class="section-head"><div><h2>Internet usage right now</h2><p id="live-caption">Link totals come from WAN interface counters and include traffic no device owns, such as FortiGate updates, probes and VPN. Device figures are FortiGate realtime session estimates. Updated every 10 seconds; not recorded totals.</p></div><div class="apps-filters"><button id="live-pause" aria-pressed="false">Pause</button></div></div><div id="live-lines" class="line-tiles" role="group" aria-label="Choose an Internet line" hidden></div><div id="live-stats" class="stats"></div><p id="live-compat" class="notice" hidden></p><div class="live-meta"><p id="live-status" class="muted live-status" role="status"></p><div class="apps-legend live-legend" aria-hidden="true"><span class="apps-key"><i style="background:var(--acc)"></i>Download</span><span class="apps-key"><i style="background:#b39ddb"></i>Upload</span></div></div><div id="live-grid" class="live-grid"><div class="apps-block"><h3 id="live-devices-title">Devices using the Internet now</h3><div id="live-coverage" class="notice live-coverage" hidden></div><div id="live-recorded" class="live-recorded" aria-live="polite" hidden></div><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Device</th><th>Segment</th><th>Doing</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Sessions</th><th id="live-line-head" hidden>SD-WAN rule</th></tr></thead><tbody id="live-devices"></tbody></table></div><div id="live-devices-empty" class="empty" hidden>No device is sending Internet traffic through a WAN interface right now.</div></div><div class="apps-block"><h3 id="live-apps-title">Applications now</h3><div id="live-apps" class="apps-chart" role="list" aria-label="Applications by current bandwidth"></div><p id="live-apps-empty" class="muted" hidden>No application traffic right now.</p><h3 id="live-vlans-title">Segments now</h3><div id="live-vlans" class="apps-chart" role="list" aria-label="Segments by current bandwidth"></div><h3>Internet links</h3><div id="live-links" class="apps-chart" role="list" aria-label="WAN links by current bandwidth"></div></div></div></section>
+<section id="people-section" class="section" hidden><div class="section-head"><div><h2 id="people-title">People</h2><p>Recorded Internet usage by the person signed in on each device, as the FortiGate names them (for example from Active Directory). Only records that name a person count; let people know this view exists.</p></div><div class="apps-filters"><button id="people-clear" hidden>Show everyone</button></div></div><div id="people-stats" class="stats"></div><p id="people-note" class="notice" hidden></p><div class="apps-block"><div class="apps-tools"><div class="apps-field"><label for="people-search">Find a person or device</label><input id="people-search" type="search" placeholder="Name or device"></div><div class="apps-field"><label for="people-top">Show</label><select id="people-top"><option value="25">Top 25</option><option value="100">Top 100</option><option value="all">Everyone</option></select></div></div><div class="table-wrap"><table class="cards apps-table apps-main"><thead><tr><th>Person</th><th>Devices</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th><th class="number">Share</th><th>Last seen</th></tr></thead><tbody id="people-body"></tbody></table></div><div id="people-empty" class="empty" hidden>No record named a person in this period. This is not proof that nobody used the Internet.</div><p id="people-count" class="muted"></p></div><div id="people-devices-block" class="apps-block" hidden><h3 id="people-devices-title">Devices</h3><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Device</th><th>Segment</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Total</th><th>Last seen</th></tr></thead><tbody id="people-devices"></tbody></table></div></div></section><section id="live-section" class="section" hidden><div class="section-head"><div><h2>Internet usage right now</h2><p id="live-caption">Link totals come from WAN interface counters and include traffic no device owns, such as FortiGate updates, probes and VPN. Device figures are FortiGate realtime session estimates. Updated every 10 seconds; not recorded totals.</p></div><div class="apps-filters"><button id="live-pause" aria-pressed="false">Pause</button></div></div><div id="live-lines" class="line-tiles" role="group" aria-label="Choose an Internet line" hidden></div><div id="live-stats" class="stats"></div><p id="live-compat" class="notice" hidden></p><div class="live-meta"><p id="live-status" class="muted live-status" role="status"></p><div class="apps-legend live-legend" aria-hidden="true"><span class="apps-key"><i style="background:var(--acc)"></i>Download</span><span class="apps-key"><i style="background:#b39ddb"></i>Upload</span></div></div><div id="live-grid" class="live-grid"><div class="apps-block"><h3 id="live-devices-title">Devices using the Internet now</h3><div id="live-coverage" class="notice live-coverage" hidden></div><div id="live-recorded" class="live-recorded" aria-live="polite" hidden></div><div class="table-wrap"><table class="cards apps-table"><thead><tr><th>Device</th><th>Segment</th><th>Doing</th><th class="number">Download</th><th class="number">Upload</th><th class="number">Sessions</th><th id="live-line-head" hidden>SD-WAN rule</th></tr></thead><tbody id="live-devices"></tbody></table></div><div id="live-devices-empty" class="empty" hidden>No device is sending Internet traffic through a WAN interface right now.</div></div><div class="apps-block"><h3 id="live-apps-title">Applications now</h3><div id="live-apps" class="apps-chart" role="list" aria-label="Applications by current bandwidth"></div><p id="live-apps-empty" class="muted" hidden>No application traffic right now.</p><h3 id="live-vlans-title">Segments now</h3><div id="live-vlans" class="apps-chart" role="list" aria-label="Segments by current bandwidth"></div><h3>Internet links</h3><div id="live-links" class="apps-chart" role="list" aria-label="WAN links by current bandwidth"></div></div></div></section>
 <section id="wan-section" hidden><div class="section-head"><div><h2>Internet health &amp; observed history</h2><p>Physical link, Internet SLA and route selection are separate signals.</p></div><label>History<select id="wan-window"><option value="86400">Last 24 hours</option><option value="604800">Last 7 days</option><option value="3600">Last hour</option></select></label></div><div id="wan-insights"><section class="section" id="wan-findings-sec"><div class="section-head"><h2>What is going on</h2><p>Findings from the measurements on this page.</p></div><div id="wan-findings" class="findings"></div></section><section class="section" id="wan-lines-sec"><div class="section-head"><h2>Lines in this period</h2><p>SD-WAN health checks and session counters from the FortiGate.</p></div><div class="table-wrap"><table class="cards"><thead><tr><th>Line</th><th>Judged by</th><th>Sessions: share · average · peak</th><th class="number">Avg down / up Mbps</th><th class="number">Avg loss</th><th class="number">Time losing packets</th><th class="number">Down</th><th>Use of speed</th><th>Health checks</th></tr></thead><tbody id="wan-lines"></tbody></table></div></section><section class="section" id="wan-when-sec"><div class="section-head"><h2>When it happened</h2><p id="wan-when-note"></p></div><div class="chart"><div id="wan-lanes" class="lanes"></div><div class="lkey"><span class="up">Working</span><span class="degraded">Losing packets</span><span class="down">Down</span><span class="probe">Health checks disagree</span><span class="unknown">No evidence</span></div></div></section><div class="wan-grid"><section class="section" id="wan-incidents-sec"><div class="section-head"><h2>Incidents</h2><p id="wan-incidents-note"></p></div><div id="wan-incidents" class="incidents"></div><div id="wan-incident" class="incident" aria-live="polite"></div></section><section class="section" id="wan-load-sec"><div class="section-head"><h2>Does load cause the loss?</h2><p>Average loss by sessions on the line.</p></div><div class="chart" id="wan-load"></div><p class="chart-note" id="wan-load-note"></p></section></div><section class="section" id="wan-routing-sec"><div class="section-head"><h2>Who goes where</h2><p>SD-WAN rules, read from the FortiGate. The first matching rule wins.</p></div><div id="wan-routing" class="rules"></div></section></div><section class="section" id="wan-volume-sec"><div class="section-head"><div><h2>Usage per line</h2><p>What each line carried, from its own counters: all traffic through it, including traffic no device owns, as the provider counts it. Days start at midnight in the accounting timezone.</p></div></div><div class="usage-tools"><div id="wan-volume-period" class="periods" role="group" aria-label="Period"><button data-volume="today" class="selected" aria-pressed="true">Today</button><button data-volume="yesterday" aria-pressed="false">Yesterday</button><button data-volume="week" aria-pressed="false">Last 7 days</button><button data-volume="month" aria-pressed="false">This month</button><button data-volume="last_month" aria-pressed="false">Last month</button></div></div><div id="wan-volume" aria-live="polite"><p class="muted">Loading the lines…</p></div></section><section class="section" id="wan-usage-sec"><div class="section-head"><div><h2>Who used each line</h2><p>Recorded traffic that left through the line, per device, with the SD-WAN rule its source matches now. From logs, so the last two minutes can still be missing.</p></div></div><div class="usage-tools"><div id="wan-usage-lines" class="periods" role="group" aria-label="Line"></div><div id="wan-usage-window" class="periods" role="group" aria-label="Period"><button data-seconds="900" aria-pressed="false">Last 15 minutes</button><button data-seconds="3600" class="selected" aria-pressed="true">Last hour</button><button data-seconds="10800" aria-pressed="false">Last 3 hours</button><button data-seconds="43200" aria-pressed="false">Last 12 hours</button></div></div><div id="wan-usage" class="incident-devices" aria-live="polite"><p class="muted">Loading the lines…</p></div></section><div id="wan-tip" class="wan-tip" hidden></div><h2 class="subhead">Right now</h2><p id="route" class="notice">Route-selection evidence unavailable.</p><div class="section table-wrap"><table class="cards"><thead><tr><th>Link</th><th>Internet SLA</th><th>Physical</th><th class="number">Sessions now</th><th class="number">Down / Up Mbps</th><th class="number">Latency / Jitter</th><th class="number">Loss</th><th class="number">Observed up</th><th class="number">Valid coverage</th></tr></thead><tbody id="wan-body"></tbody></table></div><div id="wan-empty" class="empty" hidden>No current WAN evidence. Missing collection is not a WAN outage.</div><div id="wan-history"></div></section>
 <section id="quality-section" hidden><ol id="quality-path" class="path" aria-label="Path of evidence"></ol><div class="quality-grid"><div class="card"><h2>Collection &amp; processing</h2><div id="quality-state"></div></div><div class="card"><h2>Interpret the evidence</h2><p class="muted">A successful poll proves that received records were processed. It cannot prove that all traffic was logged and delivered.</p><p class="muted">MAC identities are preferred. Missing-MAC identities remain scoped to a session or observation. Shared IPs and changing hostnames never become a verified person.</p><p class="muted">Availability excludes unknown intervals. Gaps are neither outages nor recoveries. Route lookup applies to its stated destination and may differ from policy or per-flow SD-WAN selection.</p></div></div><div class="section"><div class="section-head"><h2>Accounting evidence in this report</h2></div><div id="quality-flags" class="card"></div></div></section>
 <footer>FortiLens · Read-only evidence and reporting. Exact packet-time attribution and end-to-end traffic completeness are not inferred. Use HTTPS when exposing this service beyond loopback.</footer>
@@ -1973,6 +1974,7 @@ const titles = {
     'Which applications and categories used the Internet, and which devices used them.'
   ],
   websites: ['Websites', 'Which websites used the Internet, and which devices used them.'],
+  people: ['People', 'Who used the Internet, by the person signed in on each device.'],
   devices: [
     'Device usage',
     'Search endpoint identities and inspect each device’s recorded history.'
@@ -1987,9 +1989,15 @@ const titles = {
 };
 const requestedSection =
   document.body.dataset.reportSection || new URLSearchParams(location.search).get('section');
-const reportSection = ['devices', 'vlans', 'reports', 'applications', 'websites', 'live'].includes(
-  requestedSection
-)
+const reportSection = [
+  'devices',
+  'vlans',
+  'reports',
+  'applications',
+  'websites',
+  'people',
+  'live'
+].includes(requestedSection)
   ? requestedSection
   : null;
 const bytes = n =>
@@ -2174,6 +2182,8 @@ function validPayload(path, data) {
       object(data.summary) &&
       typeof data.enabled === 'boolean'
     );
+  if (route === '/api/people')
+    return Array.isArray(data.people) && Array.isArray(data.devices) && object(data.summary);
   if (route === '/api/live')
     return (
       object(data.totals) &&
@@ -2890,6 +2900,7 @@ async function loadReport(reuse = false) {
     shareEvidence(r);
     if (state.view === 'applications') loadApplications();
     else if (state.view === 'websites') loadWebsites();
+    else if (state.view === 'people') loadPeople();
   } catch (e) {
     /* The viewer already chose another period: this failure is stale. Keep that choice; finally sends it. */ if (
       state.pending &&
@@ -3576,6 +3587,174 @@ function renderWebsites(r) {
     $('sites-devices').append(tr);
   }
 }
+function peopleSelection() {
+  return state.people || (state.people = {});
+}
+function selectPerson(person) {
+  peopleSelection().person = person;
+  loadPeople();
+}
+function clearPeople() {
+  for (const id of ['people-body', 'people-stats', 'people-devices']) $(id).replaceChildren();
+  $('people-devices-block').hidden = true;
+  $('people-count').textContent = '';
+}
+async function loadPeople() {
+  const current = latest('peopleSequence');
+  let q;
+  try {
+    q = params();
+  } catch (e) {
+    message(errorText(e));
+    return;
+  }
+  q.delete('search');
+  const s = peopleSelection();
+  if (s.person) q.set('person', s.person);
+  if (state.period === 'recent') {
+    state.peopleReport = null;
+    clearPeople();
+    $('people-empty').hidden = true;
+    $('people-note').hidden = false;
+    $('people-note').textContent = 'Person totals are kept per day. Choose Today or a longer period.';
+    return;
+  }
+  try {
+    const r = await api('/api/people?' + q);
+    if (!current() || !state.auth) return;
+    renderPeople(r);
+  } catch (e) {
+    if (!current()) return;
+    state.peopleReport = null;
+    clearPeople();
+    $('people-empty').hidden = false;
+    message(errorText(e));
+  }
+}
+function seenText(ns) {
+  return ns > 0 ? new Date(ns / 1e6).toLocaleString() : '—';
+}
+function renderPeople(r) {
+  state.peopleReport = r;
+  const s = peopleSelection(),
+    sum = r.summary,
+    total = sum.total_bytes || 0,
+    coverage = sum.coverage;
+  $('range-label').textContent =
+    r.first_day === r.last_day ? r.first_day : r.first_day + ' → ' + r.last_day;
+  const notes = [];
+  if (!r.since_ns)
+    notes.push(
+      'No record has named a person yet. The FortiGate names the person signed in on a device when it learns sign-ins, for example by polling Active Directory (Security Fabric, External Connectors). Sign-ins on phones, printers and devices outside the domain are not learned.'
+    );
+  else if (r.since_ns / 1e6 > Date.parse(r.start_utc))
+    notes.push(
+      'People are recorded from ' +
+        new Date(r.since_ns / 1e6).toLocaleString() +
+        '; usage before that has no name.'
+    );
+  if (coverage !== null && coverage < 0.6)
+    notes.push(
+      'About ' +
+        Math.round(coverage * 100) +
+        '% of recorded Internet usage names a person. The rest is from devices nobody signed in on, or from before the FortiGate learned the sign-in.'
+    );
+  $('people-note').hidden = !notes.length;
+  $('people-note').textContent = notes.join(' ');
+  const selected = s.person ? r.people.find(x => x.person === s.person) : null;
+  $('people-stats').replaceChildren(
+    stat(
+      'Usage with a known person',
+      sum.total_bytes === null ? '—' : bytes(sum.total_bytes),
+      coverage === null
+        ? 'Share of all usage unknown'
+        : Math.round(coverage * 100) + '% of recorded Internet usage',
+      'blue'
+    ),
+    stat('People', number(sum.people), number(sum.devices) + ' devices named a person'),
+    stat(
+      'Top person',
+      sum.top_person || '—',
+      sum.top_person ? bytes(r.people[0].total_bytes) : 'Nobody named yet'
+    ),
+    stat(
+      'Devices',
+      s.person ? number(r.devices.length) : '—',
+      s.person
+        ? (selected ? bytes(selected.total_bytes) + ' by ' : 'used by ') + s.person
+        : 'Select a person to list their devices'
+    )
+  );
+  const needle = $('people-search').value.trim().toLowerCase(),
+    limit = $('people-top').value,
+    rows = r.people.filter(
+      x =>
+        !needle ||
+        x.person.includes(needle) ||
+        x.device_names.some(n => n.toLowerCase().includes(needle))
+    ),
+    shown = limit === 'all' ? rows : rows.slice(0, Number(limit));
+  $('people-body').replaceChildren();
+  for (const x of shown) {
+    const tr = element('tr'),
+      name = element('td'),
+      link = element('button', x.person, 'entity');
+    link.addEventListener('click', () => selectPerson(x.person));
+    name.append(link);
+    const devices = element('td');
+    devices.append(
+      element('span', number(x.devices)),
+      element('span', x.device_names.join(', '), 'secondary')
+    );
+    tr.append(
+      name,
+      devices,
+      element('td', bytes(x.download_bytes), 'number'),
+      element('td', bytes(x.upload_bytes), 'number'),
+      element('td', bytes(x.total_bytes), 'number'),
+      element('td', percent(x.total_bytes, total), 'number'),
+      element('td', seenText(x.last_event_ns))
+    );
+    if (x.person === s.person) tr.classList.add('sel');
+    labelRow(tr, ['Person', 'Devices', 'Download', 'Upload', 'Total', 'Share', 'Last seen']);
+    $('people-body').append(tr);
+  }
+  $('people-empty').hidden = rows.length > 0;
+  $('people-count').textContent = rows.length
+    ? 'Showing ' +
+      number(shown.length) +
+      ' of ' +
+      number(rows.length) +
+      ' people' +
+      (r.truncated ? '; only the largest ' + number(r.people.length) + ' are listed' : '')
+    : '';
+  $('people-clear').hidden = !s.person;
+  $('people-title').textContent = s.person || 'People';
+  $('people-devices-block').hidden = !s.person;
+  $('people-devices-title').textContent = s.person ? 'Devices used by ' + s.person : 'Devices';
+  $('people-devices').replaceChildren();
+  for (const d of r.devices) {
+    const tr = element('tr'),
+      who = element('td'),
+      button = element('button', d.hostname || d.ip || d.mac || 'Device', 'entity');
+    button.addEventListener('click', () => openDevice(d.device_id));
+    who.append(
+      button,
+      element('span', [d.ip, d.mac, detectionText(d)].filter(Boolean).join(' · '), 'secondary')
+    );
+    const v = d.vlans[0];
+    tr.append(
+      who,
+      element('td', v ? vlanName(v) + ' / ' + v.interface : '—'),
+      element('td', bytes(d.download_bytes), 'number'),
+      element('td', bytes(d.upload_bytes), 'number'),
+      element('td', bytes(d.total_bytes), 'number'),
+      element('td', seenText(d.last_event_ns))
+    );
+    labelRow(tr, ['Device', 'Segment', 'Download', 'Upload', 'Total', 'Last seen']);
+    $('people-devices').append(tr);
+  }
+}
 async function loadApplications() {
   const current = latest('appsSequence');
   const s = appSelection();
@@ -3626,9 +3805,13 @@ function categoryName(c) {
 function appName(a) {
   return a.app ? prettyLabel(a.app) : 'Unidentified';
 }
-function profileText(d) {
+function detectionText(d) {
   const p = d?.profile;
   return p ? [p.vendor, p.os, p.type].filter(Boolean).join(' · ') : '';
+}
+function profileText(d) {
+  // Beside a device: the last person a record named on it, then what FortiGate detected.
+  return [d?.profile?.person, detectionText(d)].filter(Boolean).join(' · ');
 }
 function identityCell(d) {
   const identity = element('td');
@@ -3939,16 +4122,19 @@ function setView(view) {
   if (view === 'live') startLive();
   else stopLive();
   const apps = view === 'applications',
-    sites = view === 'websites';
+    sites = view === 'websites',
+    people = view === 'people';
   $('apps-section').hidden = !apps;
   $('sites-section').hidden = !sites;
-  $('search').parentElement.hidden = apps || sites;
-  if (apps || sites)
+  $('people-section').hidden = !people;
+  $('search').parentElement.hidden = apps || sites || people;
+  if (apps || sites || people)
     for (const id of ['stats', 'device-section', 'vlan-section', 'report-summary'])
       $(id).hidden = true;
   message('');
   if (apps) loadApplications();
   else if (sites) loadWebsites();
+  else if (people) loadPeople();
   else if (view === 'live') {
   } else if (view === 'monitoring') {
     if (!$('monitoring-frame').hasAttribute('src')) loadMonitoring();
@@ -4055,7 +4241,12 @@ async function openDevice(id) {
       ['IP', d?.ip],
       ['MAC', d?.mac],
       ['Hostname', d?.hostname],
-      ['Device (FortiGate detection)', profileText(d)],
+      [
+        'Last signed in (FortiGate)',
+        d?.profile?.person &&
+          d.profile.person + ' · ' + new Date(d.profile.person_ns / 1e6).toLocaleString()
+      ],
+      ['Device (FortiGate detection)', detectionText(d)],
       ['VDOM', d?.vdom],
       ['Source interfaces', d?.source_interfaces?.join(', ')],
       ['VLANs', d?.vlans?.map(v => vlanName(v) + ' / ' + v.interface).join(', ')]
@@ -5323,6 +5514,13 @@ $('sites-top').addEventListener('change', () => {
   if (state.sitesReport) renderWebsites(state.sitesReport);
 });
 $('sites-clear').addEventListener('click', () => selectSite(undefined));
+$('people-search').addEventListener('input', () => {
+  if (state.peopleReport) renderPeople(state.peopleReport);
+});
+$('people-top').addEventListener('change', () => {
+  if (state.peopleReport) renderPeople(state.peopleReport);
+});
+$('people-clear').addEventListener('click', () => selectPerson(undefined));
 $('apps-search').addEventListener('input', () => {
   if (state.appsReport) renderApplications(state.appsReport);
 });

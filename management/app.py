@@ -33,6 +33,7 @@ EMBEDDED_VIEWS = {
     "reports",
     "applications",
     "websites",
+    "people",
     "live",
     "quality",
 }
@@ -131,7 +132,8 @@ def hosted_report(text, section=None):
         "<body"
         + (
             ' data-report-section="' + section + '"'
-            if section in ("devices", "vlans", "reports", "applications", "websites", "live")
+            if section
+            in ("devices", "vlans", "reports", "applications", "websites", "people", "live")
             else ""
         )
         + ">"
@@ -528,6 +530,7 @@ def create_app(
             "reports": "/console/?section=reports#reports",
             "applications": "/console/?section=applications#applications",
             "websites": "/console/?section=websites#websites",
+            "people": "/console/?section=people#people",
             "live": "/console/?section=live#live",
             "quality": "/console/#quality",
         }

@@ -110,6 +110,26 @@ Recorded usage by website, when website accounting is enabled.
 Main response fields: `enabled`, `sites`, `devices`, `summary`, `first_day` and
 `last_day`.
 
+### `/api/people`
+
+Recorded usage by the person the FortiGate named on each traffic record (its
+`user` or `unauthuser` field). Records that name nobody are not included.
+
+| Parameter | Meaning |
+|---|---|
+| period selection, `device`, `vlan` | As above. Totals are kept per day, so a period must start at midnight and end at midnight or within the current day. |
+| `person` | Select one person (the name in lower case) and add their devices. |
+
+Main response fields: `people` (each with `person`, `upload_bytes`,
+`download_bytes`, `total_bytes`, `devices`, `device_names` and `last_event_ns`),
+`devices` (the selected person's), `summary` (`total_bytes`, `people`,
+`top_person`, `devices`, `internet_bytes` and `coverage`, the named share of
+recorded Internet usage), `since_ns` (when a record first named someone),
+`first_day` and `last_day`.
+
+Device rows elsewhere carry the last person named on the device in
+`profile.person`, with `profile.person_ns`.
+
 ### `/api/live`
 
 Current Internet bandwidth from the FortiGate's realtime statistics, cached for

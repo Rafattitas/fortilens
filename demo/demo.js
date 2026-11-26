@@ -31,7 +31,7 @@
   // site cannot, so the demo does the same right after the frame is parsed.
   const initialViews = {
     devices: 'console/devices.html#overview', vlans: 'console/vlans.html#overview', reports: 'console/reports.html#reports',
-    applications: 'console/applications.html#applications', websites: 'console/websites.html#websites', live: 'console/live.html#live',
+    applications: 'console/applications.html#applications', websites: 'console/websites.html#websites', people: 'console/people.html#people', live: 'console/live.html#live',
     wan: 'console/index.html#wan', quality: 'console/index.html#quality',
   };
   window.FortiLensDemoInitialView = function () {

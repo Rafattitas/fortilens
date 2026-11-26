@@ -244,7 +244,7 @@ class ApplicationTests(unittest.TestCase):
         self.assertIn('data-view="applications"', page)
         # Layout-independent: the page may be reformatted.
         self.assertIn(
-            "['devices','vlans','reports','applications','websites','live'].includes(requestedSection)",
+            "['devices','vlans','reports','applications','websites','people','live'].includes(requestedSection)",
             re.sub(r"\s+", "", page),
         )
 
@@ -267,7 +267,8 @@ class ApplicationTests(unittest.TestCase):
         self.assertIn("'applications'", views)
         self.assertIn("'applications':'/console/?section=applications#applications'", compact)
         self.assertIn(
-            "sectionin('devices','vlans','reports','applications','websites','live')", compact
+            "sectionin('devices','vlans','reports','applications','websites','people','live')",
+            compact,
         )
 
 

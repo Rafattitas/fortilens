@@ -168,6 +168,20 @@
         summary: {total_bytes: total, sites: sites.length, top_site: sites[0].site, internet_bytes: Math.round(total / 0.82), coverage: 0.82},
         note: 'Synthetic website rows.', period: url.searchParams.get('period') || 'week'};
     }
+    // Invented account names only; one person selected.
+    function people(url) {
+      const owners = [['j.rivera', [0, 4], 21.4], ['m.chen', [1], 18.2], ['a.okafor', [2], 12.9], ['s.novak', [2, 6], 4.6], ['l.haddad', [4], 2.3]];
+      const rows = owners.map(([person, ids, gb], i) => ({person, download_bytes: Math.round(gb * 0.88e9), upload_bytes: Math.round(gb * 0.12e9), total_bytes: Math.round(gb * 1e9), records: 300 - i * 40,
+        devices: ids.length, device_names: ids.map(n => devices[n].hostname), last_event_ns: (seconds - i * 900) * 1e9}));
+      const selected = url.searchParams.get('person') || '', owner = owners.find(o => o[0] === selected);
+      const rowsFor = owner ? owner[1].map((n, i) => {const d = devices[n], part = i ? 0.3 : 0.7; return {device_id: d.device_id, hostname: d.hostname, ip: d.ip, mac: d.mac, identity_kind: d.identity_kind, vlans: d.vlans, profile: {person: selected, person_ns: (seconds - 900) * 1e9, vendor: 'Example', os: 'Windows', type: 'Computer'},
+        download_bytes: Math.round(owner[2] * 0.88e9 * part), upload_bytes: Math.round(owner[2] * 0.12e9 * part), total_bytes: Math.round(owner[2] * 1e9 * part), records: 80, last_event_ns: (seconds - 900) * 1e9};}) : [];
+      const total = sum(rows, 'total_bytes');
+      return {start_utc: new Date((seconds - 6 * day) * 1000).toISOString(), end_utc: new Date(now).toISOString(), first_day: dateOf(seconds - 6 * day), last_day: dateOf(seconds), timezone: 'UTC',
+        since_ns: (seconds - 20 * day) * 1e9, person: selected || null, people: rows, devices: rowsFor, truncated: false,
+        summary: {total_bytes: total, people: rows.length, top_person: rows[0].person, devices: 6, internet_bytes: Math.round(total / 0.71), coverage: 0.71},
+        note: 'Synthetic people rows.', period: url.searchParams.get('period') || 'week'};
+    }
     const inventory = () => ({schema_version: 1, collected_at: new Date(now - 600000).toISOString(), interfaces: [
       ...vlans.filter(v => v.vlan_id).map(v => ({name: v.interface, vdom: 'root', type: 'vlan', vlan_id: v.vlan_id, parent: 'internal', role: 'lan'})),
       {name: 'printers', vdom: 'root', type: 'vlan', vlan_id: 300, parent: 'internal', role: 'lan'},
@@ -345,6 +359,7 @@
         '/api/inventory': () => inventory(),
         '/api/live': () => live(jitter),
         '/api/websites': () => websites(url),
+        '/api/people': () => people(url),
       };
       return routes[p] ? {status: 200, payload: routes[p]()} : null;
     }

@@ -31,7 +31,7 @@ const server = http.createServer((req, res) => {
 
 const pages = [
   ['home', null], ['live', '#live-devices tr'], ['wan', '#wan-body tr'], ['monitoring', null],
-  ['devices', '#device-body tr'], ['vlans', '#vlan-body tr'], ['applications', '#apps-body tr'], ['websites', '#sites-body tr'], ['reports', '#refresh'],
+  ['devices', '#device-body tr'], ['vlans', '#vlan-body tr'], ['applications', '#apps-body tr'], ['websites', '#sites-body tr'], ['people', '#people-body tr'], ['reports', '#refresh'],
   ['quality', '#refresh'], ['alerts', null], ['diagnostics', null], ['settings', null],
 ];
 

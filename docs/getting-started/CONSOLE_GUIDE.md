@@ -11,6 +11,7 @@ For what each check means, see the [Diagnostics reference](../operations/DIAGNOS
 | Is everything collecting right now? | Overview, then Health |
 | Who is using the Internet this minute? | Live usage |
 | Who used the most in the last five minutes, today, this week or this month? | Devices, with the period you need |
+| Which person used the most? | People |
 | Which network segment uses the most? | Segments |
 | Which applications or websites? | Applications, Websites |
 | Is an Internet link down or degraded? | Internet links |
@@ -189,7 +190,16 @@ history and the identity evidence behind its name.
 
 A device is identified by its MAC address when the FortiGate reports one. Names
 come from the FortiGate and are not authenticated user accounts. An IP or name
-change can split a device into several rows.
+change can split a device into several rows. When the FortiGate knows who signed
+in on a device, the last person is shown beside it.
+
+### People
+
+Usage by the person signed in on each device, and the devices each person used.
+The names come from the FortiGate, for example from Active Directory sign-ins, and
+only records that name someone count. The page shows what share of recorded usage
+names a person. Totals are kept per day. See [Usage by person](../operations/PEOPLE.md)
+for how the FortiGate learns names and what is kept.
 
 ### Segments
 
