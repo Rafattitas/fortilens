@@ -1159,6 +1159,23 @@ class Engine:
         result["period"] = period
         return result
 
+    def people(
+        self, period="today", *, at=None, start=None, end=None, person=None, device=None, vlan=None
+    ):
+        now = datetime.now(timezone.utc).isoformat()
+        with self._read_snapshot() as (store, version):
+            first, last, _ahead = self._bounds(store, period, at, start, end)
+            current = last if at is None and period != "custom" else now
+            result = self._cached(
+                ("people", version, period, first, last, person, device, vlan),
+                version,
+                lambda: store.people(
+                    first, last, now=current, person=person, device=device, vlan=vlan
+                ),
+            )
+        result["period"] = period
+        return result
+
     def applications(
         self,
         period="today",
@@ -2371,6 +2388,17 @@ def handler(engine, password, root):
                         start=value("start"),
                         end=value("end"),
                         site=value("site") or None,
+                        device=value("device") or None,
+                        vlan=value("vlan") or None,
+                    )
+                    return self.send(200, result)
+                if parsed.path == "/api/people":
+                    result = engine.people(
+                        value("period", "today"),
+                        at=value("at"),
+                        start=value("start"),
+                        end=value("end"),
+                        person=value("person") or None,
                         device=value("device") or None,
                         vlan=value("vlan") or None,
                     )

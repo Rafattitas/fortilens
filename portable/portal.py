@@ -73,6 +73,7 @@ REPORT_ROUTES = {
     "/api/device",
     "/api/applications",
     "/api/websites",
+    "/api/people",
     "/api/live",
     "/api/diagnostics",
     "/api/inventory",

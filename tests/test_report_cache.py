@@ -1,4 +1,4 @@
-"""The report cache behaves the same for Reports, Websites and Applications.
+"""The report cache behaves the same for Reports, Websites, People and Applications.
 
 Each kind of report is served from one shared snapshot cache: a repeated query
 is not recomputed, a new write is never hidden, a caller's changes never reach
@@ -33,6 +33,12 @@ KINDS = {
         ),
         "websites",
     ),
+    "people": (
+        lambda engine, **kw: engine.people(
+            "custom", start="2026-10-20T00:00:00Z", end="2026-10-21T00:00:00Z", **kw
+        ),
+        "people",
+    ),
     "applications": (
         lambda engine, **kw: engine.applications("today", at=AT, **kw),
         "applications",
@@ -66,7 +72,11 @@ class ReportCacheTests(unittest.TestCase):
             self.store.set_state("websites_since_ns", 0)
             self.store.set_state("inventory", deepcopy(INVENTORY))
         self.store.ingest(
-            [utm("web.whatsapp.com"), record(), labelled(sessionid="7", sentdelta="40")],
+            [
+                utm("web.whatsapp.com"),
+                record(user="j.rivera"),
+                labelled(sessionid="7", sentdelta="40"),
+            ],
             checkpoint=CHECKPOINT,
         )
         self.engine = usage.Engine(self.store)
@@ -91,7 +101,13 @@ class ReportCacheTests(unittest.TestCase):
         before = {kind: call(self.engine) for kind, (call, _name) in KINDS.items()}
         self.store.ingest(
             [
-                record("2026-10-20T12:01:00Z", sentdelta="50", rcvddelta="70", duration="120"),
+                record(
+                    "2026-10-20T12:01:00Z",
+                    sentdelta="50",
+                    rcvddelta="70",
+                    duration="120",
+                    user="j.rivera",
+                ),
                 labelled(sessionid="8", sentdelta="900"),
             ],
             checkpoint=CHECKPOINT + 60 * accounting.NS,

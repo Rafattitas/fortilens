@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Upgrade
+
+- No configuration or dashboard migration. The accounting database gains a
+  `person_daily` table on first start; nothing existing is rewritten.
+- Names appear only for records received after the upgrade, and only when the
+  FortiGate learns sign-ins (FSSO, for example Active Directory polling). A
+  FortiGate that sends no names shows an empty People page with a note.
+
+### Usage by person
+
+- New **People** page under Recorded usage: usage per person for a period,
+  largest first, with each person's devices, last seen time and the share of
+  recorded usage that names a person. Select a person to list their devices.
+- The person comes from the `user` field of FortiGate traffic logs, or
+  `unauthuser` when the FortiGate learned the sign-in passively. Names are
+  compared without regard to case. The name is a label of the record: it never
+  changes device identities or byte arithmetic, and person totals are the named
+  part of device totals.
+- Devices, Live usage, Applications and Websites show the last person signed in
+  on a device beside it; device details show when.
+- New `/api/people`; device `profile` gains `person` and `person_ns`.
+- Guide: [usage by person](docs/operations/PEOPLE.md).
+
 ## v0.7.3 — 2026-11-25 — How much each line carries, who is on it and which SD-WAN rule put them there
 
 ### Upgrade

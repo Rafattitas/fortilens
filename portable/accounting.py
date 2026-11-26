@@ -26,7 +26,9 @@ FIELDS = set(
 # Descriptive labels kept beside a record. They never enter event or delivery
 # identities, so a record re-read across an upgrade keeps its identity and is
 # never counted twice. They never change byte arithmetic either.
-META_FIELDS = frozenset("app appid appcat apprisk dstcountry osname srchwvendor devtype".split())
+META_FIELDS = frozenset(
+    "app appid appcat apprisk dstcountry osname srchwvendor devtype user unauthuser".split()
+)
 APP_SCHEMA = """CREATE TABLE IF NOT EXISTS app_daily(day TEXT NOT NULL,device TEXT NOT NULL,vlan TEXT NOT NULL,
 app TEXT NOT NULL,category TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(day,device,vlan,app,category))"""
 # Latest FortiGate device-detection labels per endpoint identity. Descriptive
@@ -57,6 +59,28 @@ SITE_INDEXES = (
 )
 SITE_DAYS = 90
 SITE_SOURCES = frozenset({"app-ctrl", "webfilter"})
+# People. A FortiGate that knows who signed in at an address (FSSO, for example
+# Active Directory polling) names that person in the `user` field of its traffic
+# logs (`unauthuser` when no policy asked for the sign-in). The name is a label of
+# the record, like an application: it never enters an identity, and a session's
+# counted bytes are added to day × device × VLAN × person rows. Records without a
+# name add nothing, so person totals are the named part of device totals.
+PERSON_SCHEMA = """CREATE TABLE IF NOT EXISTS person_daily(day TEXT NOT NULL,device TEXT NOT NULL,vlan TEXT NOT NULL,
+person TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(day,device,vlan,person))"""
+PERSON_INDEXES = ("CREATE INDEX IF NOT EXISTS person_daily_person ON person_daily(person,day)",)
+
+
+def person_name(labels):
+    """The person a record names, case-folded, or None.
+
+    Account names are not case-sensitive, and FortiGate may log the same account
+    in capitals from one source and in lower case from another.
+    """
+    for key in ("user", "unauthuser"):
+        name = " ".join(str(labels.get(key) or "").split()).casefold()
+        if name and len(name) <= 256 and name.isprintable():
+            return name
+    return None
 # Public suffixes under which the registrable name has three labels. A short
 # list, not the full Public Suffix List: other two-level suffixes show one level
 # too short (for example "example.co.xx" as "co.xx").
@@ -1171,11 +1195,11 @@ class StoreReports:
             )
         return result
 
-    def site_days(self, start, end, now):
-        """The calendar days a website report covers, or ValueError.
+    def site_days(self, start, end, now, what="Website"):
+        """The calendar days a website (or people) report covers, or ValueError.
 
-        Website totals are kept per day. A period must start at midnight and end
-        at midnight, or end inside the current day ("so far today").
+        Website and person totals are kept per day. A period must start at
+        midnight and end at midnight, or end inside the current day ("so far today").
         """
         zone = self.zone()
         start, end = timestamp_ns(start), timestamp_ns(end)
@@ -1191,7 +1215,7 @@ class StoreReports:
 
         if not midnight(first, start):
             raise ValueError(
-                "Website totals are kept per day; choose a period that starts at midnight"
+                what + " totals are kept per day; choose a period that starts at midnight"
             )
         if midnight(last, end):
             final = last.date() - timedelta(days=1)
@@ -1199,7 +1223,7 @@ class StoreReports:
             final = last.date()
         else:
             raise ValueError(
-                "Website totals are kept per day; choose a period that ends at midnight"
+                what + " totals are kept per day; choose a period that ends at midnight"
             )
         return first.date().isoformat(), final.isoformat()
 
@@ -1348,6 +1372,145 @@ class StoreReports:
             total_bytes=total if rows else None,
             sites=len(rows),
             top_site=rows[0]["site"] if rows else None,
+            internet_bytes=internet,
+        )
+        return result
+
+    def people(self, start, end, *, now, person=None, device=None, vlan=None, limit=500):
+        """Recorded Internet bytes by the person FortiGate named, for whole days.
+
+        Only records that name a person count (see `person_name`); `coverage` is
+        their share of all recorded Internet bytes on the days since the first
+        name was recorded. A person's devices are the endpoint identities whose
+        records named them; one device can serve several people.
+        """
+        first, last = self.site_days(start, end, now, what="Person")
+        since_ns = self.state("people_first_ns")
+        result = {
+            "start_utc": iso(timestamp_ns(start)),
+            "end_utc": iso(timestamp_ns(end)),
+            "first_day": first,
+            "last_day": last,
+            **zone_fields(self.config, timestamp_ns(end)),
+            "since_ns": since_ns,
+            "person": person,
+            "people": [],
+            "devices": [],
+            "truncated": False,
+            "summary": {
+                "total_bytes": None,
+                "people": 0,
+                "top_person": None,
+                "devices": 0,
+                "internet_bytes": None,
+                "coverage": None,
+            },
+            "note": "Names come from the FortiGate, which learns who signed in at each address, for example from Active Directory. Only records that name a person are counted here; devices nobody signed in on, such as phones and printers, are not.",
+        }
+        if not self._has_table("person_daily"):
+            return result
+        where, params = ["day>=?", "day<=?"], [first, last]
+        for column, value in (("device", device), ("vlan", vlan)):
+            if value:
+                where.append(column + "=?")
+                params.append(value)
+        people, devices, named = {}, {}, set()
+        for row_device, row_person, payload in self.db.execute(
+            "SELECT device,person,payload FROM person_daily WHERE " + " AND ".join(where), params
+        ):
+            value = json.loads(payload)
+            named.add(row_device)
+            entry = people.setdefault(
+                row_person,
+                {
+                    "person": row_person,
+                    "upload_bytes": 0,
+                    "download_bytes": 0,
+                    "records": 0,
+                    "device_ids": set(),
+                    "last_event_ns": -1,
+                },
+            )
+            for column in ("upload_bytes", "download_bytes", "records"):
+                entry[column] += value[column]
+            entry["device_ids"].add(row_device)
+            entry["last_event_ns"] = max(entry["last_event_ns"], value["event_ns"])
+            if row_person == person:
+                target = devices.setdefault(
+                    row_device,
+                    {
+                        "device_id": row_device,
+                        "upload_bytes": 0,
+                        "download_bytes": 0,
+                        "records": 0,
+                        "vlans": {},
+                        "last_event_ns": -1,
+                    },
+                )
+                for column in ("upload_bytes", "download_bytes", "records"):
+                    target[column] += value[column]
+                target["vlans"][value["vlan"]["key"]] = value["vlan"]
+                target["last_event_ns"] = max(target["last_event_ns"], value["event_ns"])
+        # Representative identifiers from each named device's latest daily row.
+        known = {}
+        ids = sorted(named)
+        for index in range(0, len(ids), 500):
+            page = ids[index : index + 500]
+            for day, row_device, payload in self.db.execute(
+                "SELECT day,device,payload FROM daily WHERE day>=? AND day<=? AND device IN ("
+                + ",".join("?" * len(page))
+                + ")",
+                [first, last, *page],
+            ):
+                if day >= known.get(row_device, ("",))[0]:
+                    known[row_device] = (day, json.loads(payload))
+
+        def identifiers(device_id):
+            row = known.get(device_id, ("", {}))[1]
+            return {k: row.get(k, "") for k in ("hostname", "ip", "mac", "identity_kind")}
+
+        rows = []
+        for entry in people.values():
+            entry["total_bytes"] = entry["upload_bytes"] + entry["download_bytes"]
+            found = (identifiers(d) for d in entry["device_ids"])
+            names = sorted({x["hostname"] or x["ip"] for x in found} - {""})
+            entry["devices"] = len(entry.pop("device_ids"))
+            entry["device_names"] = names[:5]
+            rows.append(entry)
+        rows.sort(key=lambda x: (-x["total_bytes"], x["person"]))
+        selected = sorted(
+            devices.values(),
+            key=lambda x: (-(x["upload_bytes"] + x["download_bytes"]), x["device_id"]),
+        )[:limit]
+        profiles = self.profiles(x["device_id"] for x in selected)
+        for target in selected:
+            target.update(identifiers(target["device_id"]))
+            target["vlans"] = list(target["vlans"].values())
+            target["total_bytes"] = target["upload_bytes"] + target["download_bytes"]
+            target["profile"] = profiles.get(target["device_id"])
+        total = sum(x["total_bytes"] for x in rows)
+        internet = None
+        if since_ns is not None:
+            since = datetime.fromtimestamp(since_ns // NS, self.zone()).date().isoformat()
+            low = max(first, since)
+            if low <= last:
+                where, values = ["day>=?", "day<=?"], [low, last]
+                for column, value in (("device", device), ("vlan", vlan)):
+                    if value:
+                        where.append(column + "=?")
+                        values.append(value)
+                internet = self.db.execute(
+                    "SELECT COALESCE(SUM(json_extract(payload,'$.upload_bytes')+json_extract(payload,'$.download_bytes')),0) FROM daily WHERE "
+                    + " AND ".join(where),
+                    values,
+                ).fetchone()[0]
+                result["summary"]["coverage"] = min(1.0, total / internet) if internet else None
+        result.update(people=rows[:limit], devices=selected, truncated=len(rows) > limit)
+        result["summary"].update(
+            total_bytes=total if rows else None,
+            people=len(rows),
+            top_person=rows[0]["person"] if rows else None,
+            devices=len(named),
             internet_bytes=internet,
         )
         return result
@@ -1732,7 +1895,8 @@ class Store(StoreReports):
                 self.db.execute(APP_CATALOG_SCHEMA)
                 self.db.execute(SITE_SCHEMA)
                 self.db.execute(SESSION_SITE_SCHEMA)
-                for statement in APP_INDEXES + SITE_INDEXES:
+                self.db.execute(PERSON_SCHEMA)
+                for statement in APP_INDEXES + SITE_INDEXES + PERSON_INDEXES:
                     self.db.execute(statement)
                 # Websites are counted from the moment they are switched on. While
                 # off nothing is linked or added, and existing rows simply expire.
@@ -1898,9 +2062,11 @@ class Store(StoreReports):
             "daily": {},
             "app_daily": {},
             "site_daily": {},
+            "person_daily": {},
             "device_profile": {},
             "dirty": set(),
             "first": None,
+            "people_first": None,
             "sites": {},
             "sites_before": {},
         }
@@ -1914,6 +2080,7 @@ class Store(StoreReports):
         "daily": "SELECT payload FROM daily WHERE day=? AND device=? AND vlan=?",
         "app_daily": "SELECT payload FROM app_daily WHERE day=? AND device=? AND vlan=? AND app=? AND category=?",
         "site_daily": "SELECT payload FROM site_daily WHERE day=? AND device=? AND vlan=? AND site=?",
+        "person_daily": "SELECT payload FROM person_daily WHERE day=? AND device=? AND vlan=? AND person=?",
         "device_profile": "SELECT payload FROM device_profile WHERE device=?",
     }
 
@@ -1922,6 +2089,7 @@ class Store(StoreReports):
         "daily": ("day", "device", "vlan"),
         "app_daily": ("day", "device", "vlan", "app", "category"),
         "site_daily": ("day", "device", "vlan", "site"),
+        "person_daily": ("day", "device", "vlan", "person"),
     }
 
     def _row(self, table, key):
@@ -1977,6 +2145,9 @@ class Store(StoreReports):
                 )
         if batch["first"] is not None and batch["first"] != self.state("applications_first_ns"):
             self.set_state("applications_first_ns", batch["first"])
+        people_first = batch["people_first"]
+        if people_first is not None and people_first != self.state("people_first_ns"):
+            self.set_state("people_first_ns", people_first)
         for appid, entry in sorted(batch.get("catalog", {}).items()):
             self.db.execute(
                 "INSERT OR REPLACE INTO app_catalog VALUES(?,?)", (appid, json.dumps(entry))
@@ -2150,6 +2321,42 @@ class Store(StoreReports):
             value["event_ns"] = max(value["event_ns"], fact["event_ns"])
         self._put("site_daily", key, value if value["records"] > 0 else None)
 
+    def _person_rollup(self, fact, labels, sign):
+        """Day × device × VLAN × person totals, from exactly the fact's counted bytes.
+
+        The person is the one the fact's own record names, so a device used by
+        two people in a day is split by record, never guessed.
+        """
+        if fact["classification"] != "INTERNET":
+            return
+        person = person_name(labels)
+        if person is None:
+            return
+        if sign > 0:
+            first = self._batch["people_first"]
+            if first is None:
+                first = self.state("people_first_ns")
+            if first is None or fact["event_ns"] < first:
+                self._batch["people_first"] = fact["event_ns"]
+        key = (fact["day"], fact["device_id"], fact["vlan"]["key"], person)
+        value = self._row("person_daily", key)
+        if value is None:
+            value = {
+                "vlan": fact["vlan"],
+                "records": 0,
+                "upload_bytes": 0,
+                "download_bytes": 0,
+                "first_event_ns": fact["event_ns"],
+                "event_ns": fact["event_ns"],
+            }
+        value["upload_bytes"] += sign * fact["upload_bytes"]
+        value["download_bytes"] += sign * fact["download_bytes"]
+        value["records"] += sign
+        if sign > 0:
+            value["first_event_ns"] = min(value["first_event_ns"], fact["event_ns"])
+            value["event_ns"] = max(value["event_ns"], fact["event_ns"])
+        self._put("person_daily", key, value if value["records"] > 0 else None)
+
     def _remember_labels(self, fact, labels):
         """Record when labelled evidence starts and each endpoint's latest profile."""
         batch = self._batch
@@ -2174,13 +2381,22 @@ class Store(StoreReports):
                 # Remembered as written only after the batch commits (see ingest).
                 pending[appid] = entry
         profile = {name: labels[key] for key, name in PROFILE_LABELS.items() if labels.get(key)}
-        if not profile:
+        person = person_name(labels)
+        if not profile and person is None:
             return
         key = (fact["device_id"],)
-        old = self._row("device_profile", key)
-        if old and old["event_ns"] > fact["event_ns"]:
-            return
-        self._put("device_profile", key, {**profile, "event_ns": fact["event_ns"]})
+        old = self._row("device_profile", key) or {}
+        value = dict(old)
+        if profile and old.get("event_ns", -1) <= fact["event_ns"]:
+            # The latest detection labels replace the previous ones together.
+            value = {k: v for k, v in old.items() if k in ("person", "person_ns")}
+            value.update(profile, event_ns=fact["event_ns"])
+        if person is not None and old.get("person_ns", -1) <= fact["event_ns"]:
+            # The last person a record named on this device; records that name
+            # nobody leave it, since most records of a signed-in device do.
+            value.update(person=person, person_ns=fact["event_ns"])
+        if value != old:
+            self._put("device_profile", key, value)
 
     def ingest(self, records, *, checkpoint=None):
         if len(records) > 30000:
@@ -2300,12 +2516,14 @@ class Store(StoreReports):
                     self._rollup(old, -1)
                     self._app_rollup(old, labels.get(old["uid"], {}), -1)
                     self._site_rollup(old, site_before, -1)
+                    self._person_rollup(old, labels.get(old["uid"], {}), -1)
                 self.ledger.delete_session_facts(session)
                 for fact in derive_session(rows, self.inventory, self.config):
                     self.ledger.insert_fact(fact, session)
                     self._rollup(fact, 1)
                     self._app_rollup(fact, labels.get(fact["uid"], {}), 1)
                     self._site_rollup(fact, site_now, 1)
+                    self._person_rollup(fact, labels.get(fact["uid"], {}), 1)
             self._flush_rollups()
             self.set_state("replay_candidates", self.state("replay_candidates", 0) + repeated)
             self.set_state("delivery_max_ns", maximum)
@@ -2363,6 +2581,7 @@ class Store(StoreReports):
             )
             self.db.execute("DELETE FROM daily WHERE day<?", (cutoff,))
             self.db.execute("DELETE FROM app_daily WHERE day<?", (cutoff,))
+            self.db.execute("DELETE FROM person_daily WHERE day<?", (cutoff,))
             # Website rows are kept for at most SITE_DAYS; session links only as
             # long as the raw records they can still be joined to.
             site_cutoff = (
